@@ -1,0 +1,1996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Garage Pro — Every bay. Every job. Under control.</title>
+<meta name="description" content="Garage Pro is garage management software for independent garages and workshop chains in India." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<!-- Firebase Web SDK (compat) — config is set from Admin → Firebase tab -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+/* ── tokens ── */
+:root {
+  --bg:#0a0e14; --bg2:#0e131c; --surf:#141b26; --surf2:#1a2330;
+  --brd:rgba(255,255,255,0.08); --brd2:rgba(255,255,255,0.14);
+  --txt:#eef2f7; --dim:#9aa7b8; --faint:#6b7888;
+  --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2; --teal2:#16c79a;
+  --r:16px; --rs:10px; --maxw:1180px;
+  --shad:0 24px 60px -20px rgba(0,0,0,0.7);
+  --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{font-family:var(--fb);background:var(--bg);color:var(--txt);line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
+::selection{background:var(--acc);color:#14100a}
+h1,h2,h3{font-family:var(--fd);font-weight:800;line-height:1.08;letter-spacing:-.02em}
+.wrap{width:100%;max-width:var(--maxw);margin:0 auto;padding:0 24px}
+body::before{content:"";position:fixed;inset:0;background:radial-gradient(800px 500px at 75% -10%,rgba(255,122,24,.16),transparent 60%),radial-gradient(700px 500px at 5% 5%,rgba(32,227,178,.10),transparent 55%);pointer-events:none;z-index:0}
+
+/* ── buttons ── */
+.btn{display:inline-flex;align-items:center;gap:10px;font-family:var(--fb);font-weight:600;font-size:15px;padding:13px 22px;border-radius:12px;border:1px solid transparent;cursor:pointer;transition:transform .2s,box-shadow .2s,background .2s,border-color .2s;white-space:nowrap}
+.btn svg{width:18px;height:18px}
+.btn-primary{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;box-shadow:0 10px 30px -8px rgba(255,122,24,.55)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 38px -8px rgba(255,122,24,.7)}
+.btn-ghost{background:var(--surf);color:var(--txt);border-color:var(--brd2)}
+.btn-ghost:hover{transform:translateY(-2px);border-color:var(--acc);background:var(--surf2)}
+
+/* ── nav ── */
+header.nav{position:sticky;top:0;z-index:50;transition:background .3s,border-color .3s}
+header.nav.scrolled{background:rgba(10,14,20,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--brd)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:72px}
+.brand{display:flex;align-items:center;gap:11px;font-family:var(--fd);font-weight:800;font-size:19px;letter-spacing:-.02em}
+.brand .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;box-shadow:0 6px 18px -4px rgba(255,122,24,.6)}
+.brand .logo svg{width:22px;height:22px}
+.nav-links{display:flex;align-items:center;gap:34px}
+.nav-links a{color:var(--dim);font-weight:500;font-size:15px;transition:color .2s}
+.nav-links a:hover{color:var(--txt)}
+.nav-cta{display:flex;align-items:center;gap:12px}
+.nav-user{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--dim)}
+.nav-user .uname{color:var(--txt)}
+.admin-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:rgba(255,122,24,.18);color:var(--acc2);border:1px solid rgba(255,122,24,.3)}
+.menu-btn{display:none;background:none;border:0;color:var(--txt);cursor:pointer}
+.menu-btn svg{width:28px;height:28px}
+
+/* ── AUTH MODAL ── */
+.modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(5,8,14,.75);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--surf);border:1px solid var(--brd2);border-radius:22px;width:100%;max-width:420px;padding:32px;box-shadow:0 32px 80px -20px rgba(0,0,0,.9);position:relative;animation:modalIn .25s cubic-bezier(.2,.7,.2,1)}
+@keyframes modalIn{from{opacity:0;transform:scale(.94) translateY(10px)}to{opacity:1;transform:none}}
+.modal-close{position:absolute;top:16px;right:16px;background:var(--surf2);border:1px solid var(--brd);width:32px;height:32px;border-radius:8px;cursor:pointer;color:var(--dim);display:grid;place-items:center;transition:color .2s,border-color .2s}
+.modal-close:hover{color:var(--txt);border-color:var(--brd2)}
+.modal-close svg{width:16px;height:16px}
+.modal-brand{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+.modal-brand .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center}
+.modal-brand .logo svg{width:19px;height:19px}
+.modal-brand span{font-family:var(--fd);font-weight:800;font-size:17px}
+.modal-tabs{display:flex;gap:4px;background:var(--bg2);border-radius:10px;padding:4px;margin-bottom:24px}
+.modal-tab{flex:1;padding:9px;border:0;border-radius:7px;font-family:var(--fb);font-weight:600;font-size:14px;cursor:pointer;background:transparent;color:var(--dim);transition:all .2s}
+.modal-tab.active{background:var(--surf2);color:var(--txt);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.mform{display:none;flex-direction:column;gap:16px}
+.mform.active{display:flex}
+.mform label{font-size:13px;font-weight:600;color:var(--dim);display:block;margin-bottom:6px}
+.mform input{width:100%;background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:11px 14px;color:var(--txt);font-family:var(--fb);font-size:15px;outline:none;transition:border-color .2s}
+.mform input:focus{border-color:var(--acc)}
+.mform input::placeholder{color:var(--faint)}
+.mform .btn{width:100%;justify-content:center;margin-top:4px}
+.modal-err{font-size:13px;color:#ff6b6b;text-align:center;min-height:18px}
+.modal-success{font-size:13px;color:var(--teal);text-align:center}
+
+/* ── ADMIN PANEL ── */
+.admin-overlay{position:fixed;inset:0;z-index:150;background:var(--bg);display:none;flex-direction:row}
+.admin-overlay.open{display:flex}
+.admin-sidebar{width:240px;flex:none;background:var(--bg2);border-right:1px solid var(--brd);display:flex;flex-direction:column;padding:24px 16px}
+.admin-logo{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:800;font-size:16px;padding:0 8px;margin-bottom:8px}
+.admin-logo .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;flex:none}
+.admin-logo .logo svg{width:18px;height:18px}
+.admin-badge-sm{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,122,24,.18);color:var(--acc2);border:1px solid rgba(255,122,24,.28)}
+.admin-divider{height:1px;background:var(--brd);margin:16px 0}
+.admin-nav{display:flex;flex-direction:column;gap:4px;flex:1}
+.anav{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:10px;border:0;background:transparent;color:var(--dim);font-family:var(--fb);font-weight:600;font-size:14px;cursor:pointer;transition:all .2s;text-align:left;width:100%}
+.anav svg{width:18px;height:18px;flex:none}
+.anav:hover{background:var(--surf);color:var(--txt)}
+.anav.active{background:rgba(255,122,24,.14);color:var(--acc2);border:1px solid rgba(255,122,24,.22)}
+.admin-foot{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.admin-foot button{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--brd);background:transparent;color:var(--dim);font-family:var(--fb);font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;width:100%}
+.admin-foot button svg{width:16px;height:16px}
+.admin-foot button:hover{color:var(--txt);border-color:var(--brd2);background:var(--surf)}
+.admin-foot button.danger:hover{color:#ff6b6b;border-color:#ff6b6b}
+.admin-main{flex:1;overflow-y:auto;padding:40px}
+.admin-tab{display:none}
+.admin-tab.active{display:block}
+.atab-title{font-family:var(--fd);font-size:26px;margin-bottom:6px}
+.atab-sub{color:var(--dim);font-size:15px;margin-bottom:32px}
+.atab-stat-row{display:flex;gap:16px;margin-bottom:32px;flex-wrap:wrap}
+.atab-stat{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:20px 24px;min-width:140px}
+.atab-stat .n{font-family:var(--fd);font-size:32px;font-weight:800;color:var(--acc2)}
+.atab-stat .l{font-size:13px;color:var(--dim);margin-top:4px}
+/* purchases table */
+.ptable{width:100%;border-collapse:collapse;font-size:14px}
+.ptable th{text-align:left;padding:12px 16px;color:var(--faint);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--brd)}
+.ptable td{padding:13px 16px;border-bottom:1px solid var(--brd);color:var(--dim)}
+.ptable td:first-child{color:var(--txt);font-weight:600}
+.ptable tr:last-child td{border-bottom:0}
+.ptable tr:hover td{background:rgba(255,255,255,.02)}
+.p-action{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:6px;background:rgba(255,122,24,.12);color:var(--acc2)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--faint)}
+.empty-state svg{width:40px;height:40px;margin:0 auto 16px;opacity:.4}
+/* reviews admin */
+.reviews-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:20px}
+.rev-card{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:20px}
+.rev-card .rev-stars{color:var(--acc2);font-size:15px;margin-bottom:10px}
+.rev-card .rev-text{font-size:14px;color:var(--dim);line-height:1.6;margin-bottom:12px}
+.rev-card .rev-who{font-size:13px;font-weight:700;color:var(--txt)}
+.rev-card .rev-role{font-size:12px;color:var(--faint)}
+.rev-card .rev-actions{display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--brd)}
+.rev-btn{flex:1;padding:8px;border-radius:8px;border:1px solid var(--brd2);background:transparent;color:var(--dim);font-family:var(--fb);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+.rev-btn:hover{color:var(--txt);border-color:var(--brd2);background:var(--surf2)}
+.rev-btn.del:hover{color:#ff6b6b;border-color:#ff6b6b}
+.add-rev-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:11px;border:1px solid rgba(32,227,178,.3);background:rgba(32,227,178,.08);color:var(--teal);font-family:var(--fb);font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
+.add-rev-btn:hover{background:rgba(32,227,178,.14);border-color:rgba(32,227,178,.5)}
+/* review edit form */
+.rev-form{background:var(--surf2);border:1px solid var(--brd2);border-radius:14px;padding:24px;margin-top:16px;display:none}
+.rev-form.open{display:block}
+.rev-form h4{font-size:16px;margin-bottom:20px;font-weight:700}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.form-group label{font-size:13px;font-weight:600;color:var(--dim)}
+.form-group input,.form-group textarea,.form-group select{background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;padding:10px 13px;color:var(--txt);font-family:var(--fb);font-size:14px;outline:none;transition:border-color .2s;width:100%}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:var(--acc)}
+.form-group textarea{resize:vertical;min-height:80px}
+.form-group select option{background:var(--surf)}
+.form-actions{display:flex;gap:10px;margin-top:6px}
+.form-btn{padding:10px 20px;border-radius:10px;border:1px solid;font-family:var(--fb);font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
+.form-btn-save{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;border-color:transparent}
+.form-btn-cancel{background:transparent;color:var(--dim);border-color:var(--brd2)}
+.form-btn-cancel:hover{color:var(--txt)}
+/* pricing admin */
+.price-preview-box{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:24px;margin-bottom:24px;display:flex;align-items:center;gap:20px}
+.price-preview-box .big-price{font-family:var(--fd);font-size:42px;font-weight:800;color:var(--txt)}
+.price-preview-box .lbl{color:var(--dim);font-size:14px}
+/* account settings */
+.settings-section{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:28px;margin-bottom:20px;max-width:480px}
+.settings-section h4{font-size:16px;font-weight:700;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--brd)}
+.success-msg{font-size:13px;color:var(--teal);margin-top:8px;min-height:18px}
+
+/* ── HERO ── */
+.hero{position:relative;z-index:1;padding:84px 0 60px}
+.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+.badge{display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--acc2);background:rgba(255,122,24,.10);border:1px solid rgba(255,122,24,.28);padding:7px 14px;border-radius:100px;margin-bottom:26px}
+.badge .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);animation:pulse 2.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(32,227,178,.55)}70%{box-shadow:0 0 0 8px rgba(32,227,178,0)}100%{box-shadow:0 0 0 0 rgba(32,227,178,0)}}
+.hero h1{font-size:clamp(38px,5.6vw,64px);margin-bottom:22px}
+.hero h1 .grad{background:linear-gradient(135deg,var(--acc),var(--acc2) 60%,var(--teal));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .sub{font-size:clamp(16px,1.4vw,19px);color:var(--dim);max-width:540px;margin-bottom:34px}
+.hero-cta{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:26px}
+.hero-note{font-size:13.5px;color:var(--faint);display:flex;align-items:center;gap:8px}
+.hero-note svg{width:16px;height:16px;color:var(--teal)}
+/* hero mini mockup */
+.mock{position:relative;border-radius:var(--r);background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd2);box-shadow:var(--shad);overflow:hidden}
+.mock-bar{display:flex;align-items:center;gap:7px;padding:13px 16px;border-bottom:1px solid var(--brd);background:rgba(255,255,255,.02)}
+.mock-bar .d{width:11px;height:11px;border-radius:50%;background:#2b3545}
+.mock-bar .d.r{background:#ff5f57}.mock-bar .d.y{background:#febc2e}.mock-bar .d.g{background:#28c840}
+.mock-bar .title{margin-left:12px;font-size:12.5px;color:var(--faint)}
+.mock-body{padding:18px}
+.mock-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+.mstat{background:var(--surf2);border:1px solid var(--brd);border-radius:var(--rs);padding:14px}
+.mstat .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.mstat .v{font-family:var(--fd);font-weight:800;font-size:22px;margin-top:4px}
+.mstat .v.t{color:var(--teal)}.mstat .v.a{color:var(--acc2)}
+.bays{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.bay{background:var(--surf2);border:1px solid var(--brd);border-radius:var(--rs);padding:12px 10px}
+.bay .lbl{font-size:11px;color:var(--faint)}
+.bay .car{font-size:13px;font-weight:600;margin-top:5px}
+.bay .pill{display:inline-block;margin-top:9px;font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:100px}
+.pill.busy{background:rgba(255,122,24,.16);color:var(--acc2)}
+.pill.free{background:rgba(32,227,178,.16);color:var(--teal)}
+.pill.done{background:rgba(120,140,255,.16);color:#9db0ff}
+.bay .prog{height:4px;border-radius:4px;background:rgba(255,255,255,.08);margin-top:10px;overflow:hidden}
+.bay .prog i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+.float-card{position:absolute;right:-14px;bottom:26px;background:var(--surf);border:1px solid var(--brd2);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:11px;box-shadow:0 18px 40px -14px rgba(0,0,0,.8);animation:floaty 4s ease-in-out infinite}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+.float-card .ic{width:34px;height:34px;border-radius:9px;background:rgba(32,227,178,.16);color:var(--teal);display:grid;place-items:center}
+.float-card .ic svg{width:18px;height:18px}
+.float-card .t1{font-size:13px;font-weight:700}
+.float-card .t2{font-size:11.5px;color:var(--faint)}
+
+/* ── trust strip ── */
+.trust{position:relative;z-index:1;padding:18px 0 8px}
+.trust-inner{display:flex;flex-wrap:wrap;gap:14px 38px;align-items:center;justify-content:center;opacity:.85}
+.trust span{font-size:13px;color:var(--faint);font-weight:600;letter-spacing:.04em;display:inline-flex;align-items:center;gap:8px}
+.trust svg{width:16px;height:16px;color:var(--teal2)}
+
+/* ── section shell ── */
+section{position:relative;z-index:1}
+.sec{padding:96px 0}
+.sec-head{max-width:660px;margin:0 auto 56px;text-align:center}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--acc);margin-bottom:14px}
+.sec-head h2{font-size:clamp(28px,3.6vw,42px);margin-bottom:16px}
+.sec-head p{color:var(--dim);font-size:17px}
+
+/* ── features ── */
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.feat{background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd);border-radius:var(--r);padding:26px 24px;transition:transform .25s,border-color .25s,box-shadow .25s}
+.feat:hover{transform:translateY(-5px);border-color:var(--brd2);box-shadow:var(--shad)}
+.feat .ic{width:48px;height:48px;border-radius:13px;display:grid;place-items:center;margin-bottom:18px;background:rgba(255,122,24,.12);color:var(--acc2);border:1px solid rgba(255,122,24,.22)}
+.feat:nth-child(3n+2) .ic{background:rgba(32,227,178,.12);color:var(--teal);border-color:rgba(32,227,178,.22)}
+.feat:nth-child(3n) .ic{background:rgba(120,140,255,.12);color:#9db0ff;border-color:rgba(120,140,255,.22)}
+.feat .ic svg{width:24px;height:24px}
+.feat h3{font-size:18px;margin-bottom:9px;font-weight:700}
+.feat p{color:var(--dim);font-size:14.5px}
+
+/* ── how it works ── */
+.how{background:var(--bg2);border-top:1px solid var(--brd);border-bottom:1px solid var(--brd)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;position:relative}
+.step{text-align:center;padding:14px}
+.step .num{width:64px;height:64px;margin:0 auto 22px;border-radius:50%;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:24px;background:var(--surf);border:1px solid var(--brd2);color:var(--acc2);position:relative;z-index:2}
+.step .sic{width:26px;height:26px;margin:0 auto 14px;color:var(--teal)}
+.step h3{font-size:20px;margin-bottom:10px}
+.step p{color:var(--dim);font-size:15px;max-width:280px;margin:0 auto}
+.steps .line{position:absolute;top:32px;left:16%;right:16%;height:2px;background:linear-gradient(90deg,var(--acc),var(--teal));opacity:.35;z-index:1}
+
+/* ── CSS DASHBOARD REPLICA ── */
+.browser-wrap{border-radius:var(--r);overflow:hidden;border:1px solid var(--brd2);box-shadow:var(--shad);background:#f0ebe0}
+.browser-chrome{background:#e8e2d8;border-bottom:1px solid #d4cec4;padding:11px 16px;display:flex;align-items:center;gap:10px}
+.bc-dots{display:flex;gap:6px}
+.bc-dot{width:12px;height:12px;border-radius:50%}
+.bc-dot.r{background:#ff5f57}.bc-dot.y{background:#febc2e}.bc-dot.g{background:#28c840}
+.bc-url{flex:1;background:#fff;border:1px solid #d0c8bc;border-radius:6px;padding:5px 12px;font-size:12px;color:#6b6358;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0 10px;display:flex;align-items:center;gap:6px}
+.bc-url svg{width:13px;height:13px;color:#888;flex:none}
+
+/* inner app */
+.app{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0ebe0;color:#1a1a1a;font-size:13px;max-height:520px;overflow-y:auto}
+.app-header{padding:12px 20px;font-weight:700;font-size:14px;color:#1a1a1a;border-bottom:1px solid #ddd6cb}
+.app-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:14px 20px;background:#f0ebe0}
+.app-stat{background:#fff;border:1px solid #e0d8cc;border-radius:8px;padding:14px 10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.app-stat .asn{font-size:28px;font-weight:800;line-height:1;margin-bottom:6px}
+.app-stat .asl{font-size:11px;color:#9ca3af;font-weight:500}
+.asn-blue{color:#1a3875}
+.asn-olive{color:#7a6218}
+.asn-green{color:#1a7840}
+.asn-purple{color:#5a18a0}
+.asn-gray{color:#8896a8}
+.app-section{padding:14px 20px 6px}
+.app-sh{font-weight:700;font-size:13px;color:#1a1a1a;margin-bottom:10px}
+.app-empty{font-size:13px;color:#9ca3af;padding:2px 0 10px}
+.app-cars{background:#fff;border:1px solid #e0d8cc;border-radius:8px;overflow:hidden;margin-bottom:14px}
+.app-car-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f0ebe0;flex-wrap:nowrap}
+.app-car-row:last-child{border-bottom:0}
+.app-plate{background:#f5c430;color:#1a1a1a;font-weight:700;font-size:11px;padding:4px 8px;border-radius:4px;white-space:nowrap;min-width:82px;text-align:center;flex:none}
+.app-cname{font-weight:700;font-size:12.5px;white-space:nowrap;flex:none}
+.app-cbay{font-size:12px;color:#9ca3af;white-space:nowrap;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.app-status{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;white-space:nowrap;flex:none}
+.app-sdot{width:7px;height:7px;border-radius:50%;flex:none}
+.app-status.inp .app-sdot{background:#2563eb}
+.app-status.inp{color:#2563eb}
+.app-status.cmp .app-sdot{background:#374151}
+.app-status.cmp{color:#374151}
+.app-btns{display:flex;gap:5px;margin-left:auto;flex:none}
+.app-abtn{font-size:10.5px;font-family:inherit;padding:5px 9px;border-radius:4px;cursor:pointer;font-weight:500;background:#fff;white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
+.app-abtn-edit{border:1px solid #d1d5db;color:#4b5563}
+.app-abtn-inv{border:1px solid #16a34a;color:#16a34a}
+.app-abtn-out{border:1px solid #dc2626;color:#dc2626}
+
+/* ── pricing ── */
+.price-wrap{display:flex;justify-content:center}
+.price-card{width:100%;max-width:460px;text-align:center;background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd2);border-radius:22px;padding:42px 34px;position:relative;overflow:hidden;box-shadow:var(--shad)}
+.price-card::before{content:"";position:absolute;inset:0;padding:1px;border-radius:22px;background:linear-gradient(135deg,rgba(255,122,24,.6),transparent 40%,rgba(32,227,178,.5));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.price-tag{display:inline-block;font-size:12.5px;font-weight:700;color:var(--teal);background:rgba(32,227,178,.12);border:1px solid rgba(32,227,178,.28);padding:6px 14px;border-radius:100px;margin-bottom:22px}
+.price-card .amt{font-family:var(--fd);font-weight:800;font-size:54px;line-height:1}
+.price-card .amt small{font-size:17px;color:var(--faint);font-weight:600}
+.price-card .note{color:var(--dim);font-size:15px;margin:12px 0 26px}
+.price-list{text-align:left;display:grid;gap:13px;margin-bottom:30px}
+.price-list li{list-style:none;display:flex;align-items:flex-start;gap:11px;font-size:14.5px;color:var(--dim)}
+.price-list svg{width:19px;height:19px;color:var(--teal);flex:none;margin-top:1px}
+.price-card .btn{width:100%;justify-content:center}
+
+/* ── testimonials ── */
+.quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.quote{background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd);border-radius:var(--r);padding:28px 24px;display:flex;flex-direction:column;gap:16px}
+.quote .stars{color:var(--acc2);font-size:17px}
+.quote p{font-size:15px;color:var(--txt);line-height:1.65;flex:1}
+.quote .who{display:flex;align-items:center;gap:12px}
+.quote .av{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:16px;color:#170f05;flex:none}
+.quote .who b{font-size:14.5px;display:block}
+.quote .who span{font-size:13px;color:var(--faint)}
+
+/* ── FAQ ── */
+.faq-list{max-width:800px;margin:0 auto;display:grid;gap:12px}
+.faq-item{background:var(--surf);border:1px solid var(--brd);border-radius:var(--rs);overflow:hidden;transition:border-color .2s}
+.faq-item:hover{border-color:var(--brd2)}
+.faq-q{width:100%;text-align:left;background:none;border:0;cursor:pointer;color:var(--txt);font-family:var(--fb);font-weight:600;font-size:16px;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.faq-q .chev{flex:none;width:22px;height:22px;color:var(--acc2);transition:transform .3s}
+.faq-item.open .chev{transform:rotate(45deg)}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .35s ease}
+.faq-a p{padding:0 22px 20px;color:var(--dim);font-size:15px}
+
+/* ── CTA band ── */
+.cta-band{position:relative;z-index:1}
+.cta-box{background:linear-gradient(135deg,rgba(255,122,24,.14),rgba(32,227,178,.10));border:1px solid var(--brd2);border-radius:26px;padding:56px 40px;text-align:center;position:relative}
+.cta-box h2{font-size:clamp(26px,3.4vw,40px);margin-bottom:14px}
+.cta-box p{color:var(--dim);font-size:17px;max-width:520px;margin:0 auto 28px}
+.cta-box .hero-cta{justify-content:center}
+
+/* ── footer ── */
+footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z-index:1;padding:56px 0 30px}
+.foot-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:32px;margin-bottom:40px}
+.foot-brand p{color:var(--dim);font-size:14.5px;margin:16px 0 0;max-width:300px}
+.foot-col h4{font-family:var(--fd);font-size:14px;letter-spacing:.04em;margin-bottom:16px;color:var(--txt)}
+.foot-col a{display:block;color:var(--faint);font-size:14.5px;margin-bottom:11px;transition:color .2s}
+.foot-col a:hover{color:var(--acc2)}
+.foot-bottom{border-top:1px solid var(--brd);padding-top:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+.foot-bottom p{color:var(--faint);font-size:13.5px}
+.foot-social{display:flex;gap:12px}
+.foot-social a{width:38px;height:38px;border-radius:10px;border:1px solid var(--brd);display:grid;place-items:center;color:var(--dim);transition:all .2s}
+.foot-social a:hover{color:var(--acc2);border-color:var(--acc);transform:translateY(-2px)}
+.foot-social svg{width:18px;height:18px}
+
+/* ── BILLING MODAL ── */
+.billing-overlay{position:fixed;inset:0;z-index:180;background:rgba(5,8,14,.85);backdrop-filter:blur(10px);display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
+.billing-overlay.open{display:flex}
+.billing-box{background:var(--surf);border:1px solid var(--brd2);border-radius:20px;width:100%;max-width:880px;box-shadow:0 32px 80px -20px rgba(0,0,0,.9);overflow:hidden;animation:modalIn .28s cubic-bezier(.2,.7,.2,1)}
+.billing-head{padding:24px 32px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:center}
+.billing-head h2{font-family:var(--fd);font-size:22px}
+.billing-head .modal-close{position:static}
+.billing-body{display:grid;grid-template-columns:1.3fr 1fr;gap:0}
+.billing-form{padding:28px 32px;border-right:1px solid var(--brd)}
+.billing-summary{padding:28px 32px;background:var(--bg2)}
+.billing-form h3, .billing-summary h3{font-family:var(--fd);font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:18px}
+.bsum-item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px dashed var(--brd);font-size:14px}
+.bsum-item:last-of-type{border-bottom:0}
+.bsum-item .lbl{color:var(--dim)}
+.bsum-item .val{font-weight:600;color:var(--txt)}
+.bsum-total{display:flex;justify-content:space-between;padding-top:18px;margin-top:10px;border-top:2px solid var(--brd2);font-family:var(--fd);font-size:20px;font-weight:800}
+.bsum-total .val{color:var(--acc2)}
+.bplan{background:var(--surf);border:1px solid var(--brd2);border-radius:12px;padding:16px;margin-bottom:20px;display:flex;align-items:center;gap:14px}
+.bplan-ic{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;color:#170f05;flex:none}
+.bplan-ic svg{width:22px;height:22px}
+.bplan b{display:block;font-size:15px;font-weight:700}
+.bplan span{font-size:12.5px;color:var(--dim)}
+.bf-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.bf-row-3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}
+.bf-card-visual{background:linear-gradient(135deg,#1a2330,#0e131c);border:1px solid var(--brd2);border-radius:14px;padding:20px;margin-bottom:18px;position:relative;height:160px;font-family:'Courier New',monospace}
+.bf-card-visual::before{content:"";position:absolute;top:18px;right:20px;width:42px;height:28px;background:linear-gradient(135deg,#ffb347,#ff7a18);border-radius:5px}
+.bf-card-num{font-size:18px;letter-spacing:2px;color:var(--txt);position:absolute;bottom:54px;left:20px;font-weight:700}
+.bf-card-name{font-size:12px;letter-spacing:1px;color:var(--dim);position:absolute;bottom:18px;left:20px;text-transform:uppercase}
+.bf-card-exp{font-size:12px;letter-spacing:1px;color:var(--dim);position:absolute;bottom:18px;right:20px}
+.bf-card-brand{position:absolute;top:18px;left:20px;font-size:11px;font-weight:700;color:var(--faint);letter-spacing:1px;text-transform:uppercase}
+.pay-secure{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--faint);margin-top:14px;justify-content:center}
+.pay-secure svg{width:14px;height:14px;color:var(--teal)}
+
+/* ── USER DASHBOARD ── */
+.user-overlay{position:fixed;inset:0;z-index:150;background:var(--bg);display:none;flex-direction:column;overflow-y:auto}
+.user-overlay.open{display:flex}
+.user-head{padding:20px 40px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:center;background:var(--bg2);position:sticky;top:0;z-index:5}
+.user-head .brand{font-size:18px}
+.user-tabs{display:flex;gap:0;border-bottom:1px solid var(--brd);background:var(--bg2);padding:0 40px}
+.utab{padding:16px 22px;border:0;background:transparent;color:var(--dim);font-family:var(--fb);font-weight:600;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;display:flex;align-items:center;gap:8px}
+.utab svg{width:16px;height:16px}
+.utab:hover{color:var(--txt)}
+.utab.active{color:var(--acc2);border-bottom-color:var(--acc)}
+.user-main{flex:1;padding:40px;max-width:1100px;width:100%;margin:0 auto}
+.user-tab-panel{display:none}
+.user-tab-panel.active{display:block}
+.greet{font-family:var(--fd);font-size:30px;margin-bottom:6px}
+.greet-sub{color:var(--dim);font-size:15px;margin-bottom:36px}
+/* license card */
+.lic-card{background:linear-gradient(135deg,#1a2330,#0e131c);border:1px solid var(--brd2);border-radius:18px;padding:30px;margin-bottom:24px;position:relative;overflow:hidden}
+.lic-card::before{content:"";position:absolute;top:-50%;right:-20%;width:340px;height:340px;background:radial-gradient(circle,rgba(255,122,24,.18),transparent 60%);pointer-events:none}
+.lic-label{font-size:12px;font-weight:700;color:var(--acc2);letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px}
+.lic-key{font-family:'Courier New',monospace;font-size:24px;font-weight:700;color:var(--txt);letter-spacing:2px;padding:18px 20px;background:rgba(0,0,0,.4);border:1px dashed var(--brd2);border-radius:10px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.lic-key .key-val{flex:1;word-break:break-all;min-width:200px}
+.lic-key .copy-btn{background:rgba(255,122,24,.18);border:1px solid rgba(255,122,24,.35);color:var(--acc2);padding:8px 14px;border-radius:7px;font-family:var(--fb);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.lic-key .copy-btn:hover{background:rgba(255,122,24,.26)}
+.lic-key .copy-btn svg{width:14px;height:14px}
+.lic-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:18px}
+.lic-meta-item .lmi-lbl{font-size:11.5px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+.lic-meta-item .lmi-val{font-family:var(--fd);font-weight:700;font-size:15px}
+.lic-status-tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:100px;font-size:11.5px;font-weight:700}
+.lic-status-tag.active{background:rgba(32,227,178,.15);color:var(--teal);border:1px solid rgba(32,227,178,.3)}
+.lic-status-tag.revoked{background:rgba(255,107,107,.15);color:#ff6b6b;border:1px solid rgba(255,107,107,.3)}
+.lic-status-tag.pending{background:rgba(255,179,71,.15);color:var(--acc2);border:1px solid rgba(255,179,71,.3)}
+.lic-empty{background:var(--surf);border:1px dashed var(--brd2);border-radius:14px;padding:50px 30px;text-align:center}
+.lic-empty svg{width:48px;height:48px;color:var(--faint);margin:0 auto 18px;opacity:.5}
+.lic-empty h3{font-size:18px;margin-bottom:8px}
+.lic-empty p{color:var(--dim);margin-bottom:20px;font-size:14.5px}
+.user-card{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:26px;margin-bottom:18px}
+.user-card h4{font-family:var(--fd);font-size:16px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--brd)}
+.user-info-row{display:grid;grid-template-columns:160px 1fr;gap:14px;padding:11px 0;border-bottom:1px solid var(--brd);font-size:14px}
+.user-info-row:last-of-type{border-bottom:0}
+.user-info-row .uir-lbl{color:var(--dim);font-weight:600}
+.user-info-row .uir-val{color:var(--txt);font-weight:500}
+/* billing history */
+.bhist-table{width:100%;border-collapse:collapse;font-size:14px}
+.bhist-table th{text-align:left;padding:11px 14px;color:var(--faint);font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--brd)}
+.bhist-table td{padding:13px 14px;border-bottom:1px solid var(--brd);color:var(--dim)}
+.bhist-table td:first-child{color:var(--txt);font-weight:600}
+.bhist-table tr:last-child td{border-bottom:0}
+.bhist-status{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:700}
+.bhist-status.paid{background:rgba(32,227,178,.14);color:var(--teal)}
+.bhist-status.failed{background:rgba(255,107,107,.14);color:#ff6b6b}
+
+/* ── LICENSE / EVENTS table extras ── */
+.row-actions{display:flex;gap:6px;justify-content:flex-end}
+.tiny-btn{background:transparent;border:1px solid var(--brd2);color:var(--dim);padding:5px 10px;border-radius:6px;font-family:var(--fb);font-size:11.5px;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:4px}
+.tiny-btn svg{width:12px;height:12px}
+.tiny-btn:hover{color:var(--txt);border-color:var(--brd2);background:var(--surf2)}
+.tiny-btn.danger:hover{color:#ff6b6b;border-color:#ff6b6b}
+.tiny-btn.warn:hover{color:var(--acc2);border-color:var(--acc)}
+.lic-mono{font-family:'Courier New',monospace;font-size:12.5px;color:var(--acc2);letter-spacing:.5px}
+.fb-status{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:18px}
+.fb-status.connected{background:rgba(32,227,178,.12);color:var(--teal);border:1px solid rgba(32,227,178,.28)}
+.fb-status.offline{background:rgba(255,179,71,.10);color:var(--acc2);border:1px solid rgba(255,179,71,.28)}
+.fb-status .fbdot{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+
+/* ── toast ── */
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surf);border:1px solid var(--brd2);border-radius:12px;padding:13px 22px;font-size:14px;font-weight:600;color:var(--txt);z-index:300;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;box-shadow:0 12px 30px rgba(0,0,0,.6)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.good::before{content:"✓  ";color:var(--teal)}
+.toast.bad::before{content:"✕  ";color:#ff6b6b}
+
+/* ── reveal ── */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+.reveal.in{opacity:1;transform:none}
+.reveal.d1{transition-delay:.08s}.reveal.d2{transition-delay:.16s}.reveal.d3{transition-delay:.24s}.reveal.d4{transition-delay:.32s}
+
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}html{scroll-behavior:auto}}
+
+/* ── responsive ── */
+@media(max-width:960px){
+  .hero-grid{grid-template-columns:1fr;gap:44px}.hero{padding:56px 0 30px}
+  .feat-grid,.quotes{grid-template-columns:repeat(2,1fr)}
+  .foot-grid{grid-template-columns:1fr 1fr;gap:28px}
+  .float-card{right:12px}
+  .app-stats{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:720px){
+  .nav-links{display:none}.menu-btn{display:inline-flex}
+  .nav-links.mobile-open{display:flex;flex-direction:column;align-items:flex-start;gap:4px;position:absolute;top:72px;left:0;right:0;background:rgba(10,14,20,.97);backdrop-filter:blur(14px);border-bottom:1px solid var(--brd);padding:16px 24px 22px;z-index:60}
+  .nav-links.mobile-open a{padding:10px 0;width:100%}
+  .sec{padding:70px 0}
+  .feat-grid,.quotes,.steps{grid-template-columns:1fr}
+  .steps .line{display:none}.mock-row,.bays{grid-template-columns:repeat(2,1fr)}
+  .foot-grid{grid-template-columns:1fr 1fr}
+  .cta-box{padding:40px 22px}
+  .hero-cta .btn,.cta-box .btn{flex:1;justify-content:center}
+  .app-stats{grid-template-columns:repeat(3,1fr)}
+  .app-btns{display:none}
+  .admin-sidebar{width:200px}
+  .admin-main{padding:24px}
+}
+@media(max-width:520px){
+  .app-stats{grid-template-columns:repeat(3,1fr)}
+  .admin-overlay{flex-direction:column}
+  .admin-sidebar{width:100%;flex:none;padding:16px;border-right:0;border-bottom:1px solid var(--brd)}
+  .admin-nav{flex-direction:row;flex-wrap:wrap}
+  .anav{width:auto;flex:1}
+}
+@media(max-width:440px){.foot-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ AUTH MODAL ═══════════════ -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal-box">
+    <button class="modal-close" id="modalClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="modal-brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+      <span>Garage Pro</span>
+    </div>
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
+      <button class="modal-tab" id="tabSignup" onclick="switchAuthTab('signup')">Create Account</button>
+    </div>
+    <!-- login -->
+    <form class="mform active" id="loginForm" onsubmit="doLogin(event)">
+      <div><label>Username or Email</label><input id="li-user" type="text" placeholder="garagepro123 or email" autocomplete="username" required /></div>
+      <div><label>Password</label><input id="li-pass" type="password" placeholder="••••••••" autocomplete="current-password" required /></div>
+      <div class="modal-err" id="loginErr"></div>
+      <button type="submit" class="btn btn-primary">Sign In</button>
+    </form>
+    <!-- signup -->
+    <form class="mform" id="signupForm" onsubmit="doSignup(event)">
+      <div><label>Full Name</label><input id="su-name" type="text" placeholder="Rajesh Kumar" required /></div>
+      <div><label>Email</label><input id="su-email" type="email" placeholder="raj@speedauto.in" required /></div>
+      <div><label>Password</label><input id="su-pass" type="password" placeholder="Min 6 characters" required minlength="6" /></div>
+      <div><label>Confirm Password</label><input id="su-conf" type="password" placeholder="Repeat password" required /></div>
+      <div class="modal-err" id="signupErr"></div>
+      <button type="submit" class="btn btn-primary">Create Account</button>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════ ADMIN PANEL ═══════════════ -->
+<div class="admin-overlay" id="adminPanel">
+  <div class="admin-sidebar">
+    <div class="admin-logo">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+      <div><div style="line-height:1.1">Garage Pro</div><div class="admin-badge-sm" style="margin-top:4px">ADMIN</div></div>
+    </div>
+    <div class="admin-divider"></div>
+    <nav class="admin-nav">
+      <button class="anav active" onclick="switchAdminTab('purchases')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Purchases
+      </button>
+      <button class="anav" onclick="switchAdminTab('licenses')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Licenses
+      </button>
+      <button class="anav" onclick="switchAdminTab('reviews')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Reviews
+      </button>
+      <button class="anav" onclick="switchAdminTab('pricing')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Pricing
+      </button>
+      <button class="anav" onclick="switchAdminTab('firebase')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17l4.5-13L14 12l2-3 4 8z"/><path d="M5 17l15-5"/></svg>Firebase
+      </button>
+      <button class="anav" onclick="switchAdminTab('account')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7"/></svg>Account
+      </button>
+    </nav>
+    <div class="admin-foot">
+      <button onclick="closeAdminPanel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>View Site
+      </button>
+      <button class="danger" onclick="doLogout()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Logout
+      </button>
+    </div>
+  </div>
+
+  <div class="admin-main">
+    <!-- PURCHASES TAB -->
+    <div class="admin-tab active" id="tab-purchases">
+      <div class="atab-title">Purchases & Sign-ups</div>
+      <div class="atab-sub">Every download click and account created on the site.</div>
+      <div class="atab-stat-row" id="purchaseStats"></div>
+      <div id="purchaseTable"></div>
+    </div>
+
+    <!-- LICENSES TAB -->
+    <div class="admin-tab" id="tab-licenses">
+      <div class="atab-title">License Keys</div>
+      <div class="atab-sub">Every license generated by the site. Revoke, regenerate or delete.</div>
+      <div class="atab-stat-row" id="licenseStats"></div>
+      <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+        <button class="add-rev-btn" onclick="createManualLicense()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>Generate License Manually
+        </button>
+      </div>
+      <div id="licenseTable"></div>
+    </div>
+
+    <!-- FIREBASE TAB -->
+    <div class="admin-tab" id="tab-firebase">
+      <div class="atab-title">Firebase Connection</div>
+      <div class="atab-sub">Connect this site to your existing Firestore database so licenses sync to the same project as the desktop app.</div>
+      <div id="fbStatus" class="fb-status offline"><span class="fbdot"></span><span>Not connected</span></div>
+      <div class="settings-section" style="max-width:560px">
+        <h4>Firebase Web Config</h4>
+        <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">Go to Firebase Console &rarr; Project Settings &rarr; General &rarr; Your apps &rarr; Web app &rarr; SDK setup. Copy the <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12px">firebaseConfig</code> object and paste it below (JSON-style).</p>
+        <div class="form-group">
+          <label>Firebase config (JSON)</label>
+          <textarea id="fbConfigInput" style="min-height:200px;font-family:'Courier New',monospace;font-size:12.5px" placeholder='{
+  "apiKey": "AIza...",
+  "authDomain": "your-app.firebaseapp.com",
+  "projectId": "your-app",
+  "storageBucket": "your-app.appspot.com",
+  "messagingSenderId": "...",
+  "appId": "..."
+}'></textarea>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="form-btn form-btn-save" onclick="saveFirebaseConfig()">Connect</button>
+          <button class="form-btn form-btn-cancel" onclick="disconnectFirebase()">Disconnect</button>
+        </div>
+        <div class="success-msg" id="fbMsg"></div>
+        <p style="color:var(--faint);font-size:12.5px;margin-top:18px;line-height:1.6">Licenses will be stored in the <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:11.5px">licenses</code> collection alongside any existing workshop data in this project.</p>
+      </div>
+    </div>
+
+    <!-- REVIEWS TAB -->
+    <div class="admin-tab" id="tab-reviews">
+      <div class="atab-title">Reviews</div>
+      <div class="atab-sub">Manage the testimonials shown on the website.</div>
+      <button class="add-rev-btn" onclick="openRevForm()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>Add Review
+      </button>
+      <div class="rev-form" id="revForm">
+        <h4 id="revFormTitle">Add Review</h4>
+        <input type="hidden" id="revEditId" />
+        <div class="form-row">
+          <div class="form-group"><label>Reviewer Name</label><input id="rf-name" type="text" placeholder="Rajesh Kumar" /></div>
+          <div class="form-group"><label>Initials (2 chars)</label><input id="rf-init" type="text" placeholder="RK" maxlength="2" /></div>
+        </div>
+        <div class="form-group"><label>Role / Company</label><input id="rf-role" type="text" placeholder="Owner, Speed Auto Care · Pune" /></div>
+        <div class="form-group"><label>Review Text</label><textarea id="rf-text" placeholder="What did they say..."></textarea></div>
+        <div class="form-group"><label>Stars (1–5)</label>
+          <select id="rf-stars">
+            <option value="5">★★★★★  5 stars</option>
+            <option value="4">★★★★☆  4 stars</option>
+            <option value="3">★★★☆☆  3 stars</option>
+            <option value="2">★★☆☆☆  2 stars</option>
+            <option value="1">★☆☆☆☆  1 star</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button class="form-btn form-btn-save" onclick="saveReview()">Save Review</button>
+          <button class="form-btn form-btn-cancel" onclick="closeRevForm()">Cancel</button>
+        </div>
+      </div>
+      <div class="reviews-admin-grid" id="adminReviewsGrid"></div>
+    </div>
+
+    <!-- PRICING TAB -->
+    <div class="admin-tab" id="tab-pricing">
+      <div class="atab-title">Pricing</div>
+      <div class="atab-sub">Set the price shown on the website's pricing card.</div>
+      <div class="price-preview-box">
+        <div><div class="lbl" style="margin-bottom:6px">Currently showing</div>
+        <div class="big-price" id="pricePreview">₹—</div></div>
+        <div style="color:var(--dim);font-size:13px;max-width:260px">This is what visitors see on the pricing section. Leave blank to show the "coming soon" placeholder.</div>
+      </div>
+      <div class="settings-section" style="max-width:400px">
+        <h4>Update Price</h4>
+        <div class="form-group">
+          <label>Price display (e.g. ₹999/mo or Free)</label>
+          <input id="priceInput" type="text" placeholder="₹999/mo" />
+        </div>
+        <div class="form-group">
+          <label>Pricing note (shown below the price)</label>
+          <input id="priceNote" type="text" placeholder="Billed annually. Cancel any time." />
+        </div>
+        <button class="form-btn form-btn-save" onclick="savePrice()">Save Price</button>
+        <div class="success-msg" id="priceMsg"></div>
+      </div>
+    </div>
+
+    <!-- ACCOUNT TAB -->
+    <div class="admin-tab" id="tab-account">
+      <div class="atab-title">Account Settings</div>
+      <div class="atab-sub">Change your admin login credentials.</div>
+      <div class="settings-section">
+        <h4>Change Username</h4>
+        <div class="form-group"><label>New Username</label><input id="newUser" type="text" placeholder="New admin username" /></div>
+        <div class="form-group"><label>Current Password (to confirm)</label><input id="newUserPass" type="password" placeholder="••••••••" /></div>
+        <button class="form-btn form-btn-save" onclick="saveUsername()">Update Username</button>
+        <div class="success-msg" id="userMsg"></div>
+      </div>
+      <div class="settings-section">
+        <h4>Change Password</h4>
+        <div class="form-group"><label>Current Password</label><input id="oldPass" type="password" placeholder="••••••••" /></div>
+        <div class="form-group"><label>New Password</label><input id="newPass" type="password" placeholder="••••••••" /></div>
+        <div class="form-group"><label>Confirm New Password</label><input id="newPassConf" type="password" placeholder="••••••••" /></div>
+        <button class="form-btn form-btn-save" onclick="savePassword()">Update Password</button>
+        <div class="success-msg" id="passMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ BILLING MODAL ═══════════════ -->
+<div class="billing-overlay" id="billingModal">
+  <div class="billing-box">
+    <div class="billing-head">
+      <h2>Complete your purchase</h2>
+      <button class="modal-close" onclick="closeBilling()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="billing-body">
+      <div class="billing-form">
+        <div class="bplan">
+          <div class="bplan-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></div>
+          <div><b>Garage Pro — Full License</b><span id="bplanDesc">Annual subscription · unlimited bays</span></div>
+        </div>
+        <h3>Card Details</h3>
+        <div class="bf-card-visual">
+          <div class="bf-card-brand">VISA</div>
+          <div class="bf-card-num" id="cardNumDisplay">•••• •••• •••• ••••</div>
+          <div class="bf-card-name" id="cardNameDisplay">CARDHOLDER NAME</div>
+          <div class="bf-card-exp" id="cardExpDisplay">MM/YY</div>
+        </div>
+        <div class="form-group">
+          <label>Card Number</label>
+          <input id="bf-num" type="text" maxlength="19" placeholder="4242 4242 4242 4242" oninput="formatCardInput()" />
+        </div>
+        <div class="form-group">
+          <label>Cardholder Name</label>
+          <input id="bf-name" type="text" placeholder="Rajesh Kumar" oninput="updateCardVisual()" />
+        </div>
+        <div class="bf-row-3">
+          <div class="form-group">
+            <label>Expiry (MM/YY)</label>
+            <input id="bf-exp" type="text" maxlength="5" placeholder="12/28" oninput="formatExpInput()" />
+          </div>
+          <div class="form-group">
+            <label>CVV</label>
+            <input id="bf-cvv" type="text" maxlength="4" placeholder="123" />
+          </div>
+          <div class="form-group">
+            <label>ZIP / PIN</label>
+            <input id="bf-zip" type="text" maxlength="10" placeholder="411001" />
+          </div>
+        </div>
+        <h3 style="margin-top:24px">Billing Address</h3>
+        <div class="form-group">
+          <label>Address Line 1</label>
+          <input id="bf-addr" type="text" placeholder="Shop 12, MG Road" />
+        </div>
+        <div class="bf-row">
+          <div class="form-group"><label>City</label><input id="bf-city" type="text" placeholder="Pune" /></div>
+          <div class="form-group"><label>State</label><input id="bf-state" type="text" placeholder="Maharashtra" /></div>
+        </div>
+      </div>
+      <div class="billing-summary">
+        <h3>Order Summary</h3>
+        <div class="bsum-item"><span class="lbl">Garage Pro License</span><span class="val" id="bsumPrice">₹4,999</span></div>
+        <div class="bsum-item"><span class="lbl">Cloud sync (Firebase)</span><span class="val">Included</span></div>
+        <div class="bsum-item"><span class="lbl">Subtotal</span><span class="val" id="bsumSubtotal">₹4,999</span></div>
+        <div class="bsum-item"><span class="lbl">GST (18%)</span><span class="val" id="bsumGst">₹900</span></div>
+        <div class="bsum-total"><span>Total</span><span class="val" id="bsumTotal">₹5,899</span></div>
+        <button class="btn btn-primary" onclick="completePurchase()" style="width:100%;justify-content:center;margin-top:24px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
+          Pay &amp; get my license
+        </button>
+        <div class="pay-secure">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
+          Secure 256-bit encrypted payment
+        </div>
+        <p style="font-size:11.5px;color:var(--faint);text-align:center;margin-top:18px;line-height:1.6">This is a demo — no real charge is made. Test card 4242 4242 4242 4242 works.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ USER DASHBOARD ═══════════════ -->
+<div class="user-overlay" id="userDashboard">
+  <div class="user-head">
+    <a href="#top" class="brand" onclick="closeUserDashboard();return false">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+      Garage&nbsp;Pro
+    </a>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span class="nav-user" id="udUserName"></span>
+      <button class="btn btn-ghost" style="padding:9px 18px;font-size:14px" onclick="closeUserDashboard()">View Site</button>
+      <button class="btn btn-ghost" style="padding:9px 18px;font-size:14px" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+  <div class="user-tabs">
+    <button class="utab active" onclick="switchUserTab('license')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>License</button>
+    <button class="utab" onclick="switchUserTab('billing')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>Billing</button>
+    <button class="utab" onclick="switchUserTab('account')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7"/></svg>Account</button>
+  </div>
+  <div class="user-main">
+    <!-- LICENSE PANEL -->
+    <div class="user-tab-panel active" id="upanel-license">
+      <h1 class="greet" id="udGreet">Your license</h1>
+      <p class="greet-sub">Use this key to activate Garage Pro on your Windows or Mac machine.</p>
+      <div id="udLicenseArea"></div>
+    </div>
+    <!-- BILLING PANEL -->
+    <div class="user-tab-panel" id="upanel-billing">
+      <h1 class="greet">Billing</h1>
+      <p class="greet-sub">Your payment history and saved billing info.</p>
+      <div class="user-card">
+        <h4>Payment History</h4>
+        <div id="udBillingHistory"></div>
+      </div>
+      <div class="user-card" id="udSavedCard" style="display:none">
+        <h4>Saved Payment Method</h4>
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:44px;height:30px;background:linear-gradient(135deg,#ffb347,#ff7a18);border-radius:5px"></div>
+          <div>
+            <div style="font-weight:700;font-family:'Courier New',monospace" id="udCardLast4">VISA •••• ••••</div>
+            <div style="color:var(--faint);font-size:13px" id="udCardName">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ACCOUNT PANEL -->
+    <div class="user-tab-panel" id="upanel-account">
+      <h1 class="greet">Account</h1>
+      <p class="greet-sub">Your account details.</p>
+      <div class="user-card">
+        <h4>Profile</h4>
+        <div class="user-info-row"><span class="uir-lbl">Full Name</span><span class="uir-val" id="udFullName">—</span></div>
+        <div class="user-info-row"><span class="uir-lbl">Email</span><span class="uir-val" id="udEmail">—</span></div>
+        <div class="user-info-row"><span class="uir-lbl">Member since</span><span class="uir-val" id="udMember">—</span></div>
+        <div class="user-info-row"><span class="uir-lbl">Account type</span><span class="uir-val">Standard user</span></div>
+      </div>
+      <div class="user-card">
+        <h4>Change Password</h4>
+        <div class="form-group"><label>Current Password</label><input id="ud-oldp" type="password" placeholder="••••••••" /></div>
+        <div class="form-group"><label>New Password</label><input id="ud-newp" type="password" placeholder="At least 6 characters" /></div>
+        <div class="form-group"><label>Confirm New Password</label><input id="ud-confp" type="password" placeholder="••••••••" /></div>
+        <button class="form-btn form-btn-save" onclick="userChangePassword()">Update Password</button>
+        <div class="success-msg" id="udPassMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ NAV ═══════════════ -->
+<header class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a href="#top" class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+      Garage&nbsp;Pro
+    </a>
+    <nav class="nav-links" id="navLinks">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#screens">Preview</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-cta" id="navCta">
+      <!-- rendered by JS -->
+    </div>
+    <button class="menu-btn" id="menuBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <span class="badge reveal"><span class="dot"></span>Built for Indian garages &amp; workshop chains</span>
+      <h1 class="reveal d1">Every bay. Every job.<br><span class="grad">Under control.</span></h1>
+      <p class="sub reveal d2">Garage Pro replaces paper job cards and WhatsApp invoices with one fast, offline-first desktop app — live bay status, GST-ready invoices, parts tracking and cloud sync across every device.</p>
+      <div class="hero-cta reveal d3">
+        <button class="btn btn-primary" onclick="openAuth('win')">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>Download for Windows
+        </button>
+        <button class="btn btn-ghost" onclick="openAuth('mac')">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.1 5.1c.6-.8 1.1-1.9.9-3-1 0-2.1.7-2.8 1.5-.6.7-1.1 1.8-1 2.8 1.1.1 2.2-.6 2.9-1.3z"/></svg>Download for Mac
+        </button>
+      </div>
+      <div class="hero-note reveal d4">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Works offline · No card needed to start · Set up in minutes
+      </div>
+    </div>
+    <div class="mock reveal d2" aria-hidden="true">
+      <div class="mock-bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="title">Garage Pro — Live Floor</span></div>
+      <div class="mock-body">
+        <div class="mock-row">
+          <div class="mstat"><div class="k">Today's Jobs</div><div class="v">18</div></div>
+          <div class="mstat"><div class="k">Revenue</div><div class="v a">₹42,750</div></div>
+          <div class="mstat"><div class="k">Bays Free</div><div class="v t">2 / 6</div></div>
+        </div>
+        <div class="bays">
+          <div class="bay"><div class="lbl">Bay 1</div><div class="car">MH12 AB</div><span class="pill busy">Servicing</span><div class="prog"><i style="width:65%"></i></div></div>
+          <div class="bay"><div class="lbl">Bay 2</div><div class="car">DL8C XF</div><span class="pill done">Ready</span><div class="prog"><i style="width:100%"></i></div></div>
+          <div class="bay"><div class="lbl">Bay 3</div><div class="car">KA01 MJ</div><span class="pill busy">Diagnosis</span><div class="prog"><i style="width:30%"></i></div></div>
+          <div class="bay"><div class="lbl">Bay 4</div><div class="car">Open</div><span class="pill free">Free</span><div class="prog"><i style="width:0%"></i></div></div>
+        </div>
+      </div>
+      <div class="float-card"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><div class="t1">Invoice sent</div><div class="t2">GST · ₹8,240 · Suresh M.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ TRUST STRIP ═══════════════ -->
+<div class="trust">
+  <div class="wrap trust-inner reveal">
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>GST &amp; HSN/SAC ready</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Windows &amp; Mac desktop</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Real-time cloud sync</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Works fully offline</span>
+  </div>
+</div>
+
+<!-- ═══════════════ FEATURES ═══════════════ -->
+<section class="sec" id="features">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">Features</div>
+      <h2>Everything your workshop runs on — in one app</h2>
+      <p>Stop juggling notebooks, spreadsheets and chat groups. Garage Pro keeps the whole floor, every job and every rupee in one place.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <h3>Multi-bay live status</h3>
+        <p>See every bay at a glance — free, in service or ready for collection — and move jobs across the floor in real time.</p>
+      </div>
+      <div class="feat reveal d1">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l1 3H8l1-3z"/><path d="M5 6h14v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6z"/><path d="M9 11h6M9 15h4"/></svg></div>
+        <h3>Job cards &amp; parts tracking</h3>
+        <p>Full digital job cards with itemised parts, labour and multi-mechanic assignment — nothing falls through the cracks.</p>
+      </div>
+      <div class="feat reveal d2">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M13 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></div>
+        <h3>Professional GST invoices</h3>
+        <p>PDF invoices with GST, HSN/SAC codes, discount breakdown and amount in words — print or email in one tap.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10a4 4 0 0 0-.8-7.9A6 6 0 0 0 6 5a4.5 4.5 0 0 0 .5 9H18z"/><path d="M12 12v6M9 15l3-3 3 3"/></svg></div>
+        <h3>Real-time cloud sync</h3>
+        <p>Firebase-powered sync keeps the front desk, workshop and your phone perfectly in step across every device.</p>
+      </div>
+      <div class="feat reveal d1">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>Tablet web interface</h3>
+        <p>Mechanics update jobs from any browser on the network — no install needed. Grease-friendly, tap-first screens.</p>
+      </div>
+      <div class="feat reveal d2">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l7-5 7 5"/><circle cx="12" cy="14" r="3"/></svg></div>
+        <h3>Customer &amp; vehicle history</h3>
+        <p>Every customer, every vehicle, every past service in one searchable database — recall a car's full history instantly.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></div>
+        <h3>Inventory &amp; auto stock</h3>
+        <p>Track parts in real time with automatic stock deduction as they're billed — never oversell a part again.</p>
+      </div>
+      <div class="feat reveal d1">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg></div>
+        <h3>CSV import</h3>
+        <p>Bring your existing customers, inventory and bookings across in minutes with simple CSV import — same day switch.</p>
+      </div>
+      <div class="feat reveal d2">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div>
+        <h3>Email notifications</h3>
+        <p>Auto emails when a job starts, a car's ready for collection or an invoice is attached — customers stay in the loop.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg></div>
+        <h3>Daily morning briefing</h3>
+        <p>A summary email lands in the manager's inbox each morning — bookings, pending jobs and yesterday's numbers.</p>
+      </div>
+      <div class="feat reveal d1">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg></div>
+        <h3>Offline-first &amp; private</h3>
+        <p>Data stored locally outside any cloud sync folder — Garage Pro keeps working even when the internet doesn't.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ HOW IT WORKS ═══════════════ -->
+<section class="sec how" id="how">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">How it works</div>
+      <h2>From booking to paid in three steps</h2>
+      <p>The same flow your garage already follows — just faster, tidier and without the paperwork.</p>
+    </div>
+    <div class="steps">
+      <span class="line" aria-hidden="true"></span>
+      <div class="step reveal">
+        <div class="num">1</div>
+        <div class="sic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></div>
+        <h3>Book</h3>
+        <p>Take the booking, pick the bay and assign a mechanic. Customer and vehicle details auto-fill from history.</p>
+      </div>
+      <div class="step reveal d1">
+        <div class="num">2</div>
+        <div class="sic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></div>
+        <h3>Service</h3>
+        <p>Mechanics log parts and labour on the job card from a tablet. Stock deducts automatically as work gets done.</p>
+      </div>
+      <div class="step reveal d2">
+        <div class="num">3</div>
+        <div class="sic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M13 3v5h5M9 13h6M9 17h4"/></svg></div>
+        <h3>Invoice</h3>
+        <p>Generate a GST-ready PDF in one tap, email it to the customer and mark the job done. Money in, bay free.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ DASHBOARD PREVIEW ═══════════════ -->
+<section class="sec" id="screens">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">A closer look</div>
+      <h2>Clean, fast and built for the floor</h2>
+      <p>The dashboard gives you the whole workshop at a glance — every car, every bay, every status. No noise.</p>
+    </div>
+    <div class="reveal">
+      <div class="browser-wrap">
+        <div class="browser-chrome">
+          <div class="bc-dots"><span class="bc-dot r"></span><span class="bc-dot y"></span><span class="bc-dot g"></span></div>
+          <div class="bc-url">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
+            garagepro.app/dashboard
+          </div>
+        </div>
+        <div class="app">
+          <div class="app-header">Dashboard &mdash; Wednesday 13 May 2026</div>
+          <div class="app-stats">
+            <div class="app-stat"><div class="asn asn-blue">0</div><div class="asl">Expected today</div></div>
+            <div class="app-stat"><div class="asn asn-olive">14</div><div class="asl">Cars in workshop</div></div>
+            <div class="app-stat"><div class="asn asn-green">67</div><div class="asl">Available bays</div></div>
+            <div class="app-stat"><div class="asn asn-purple">5</div><div class="asl">Active jobs</div></div>
+            <div class="app-stat"><div class="asn asn-gray">0</div><div class="asl">In queue</div></div>
+          </div>
+          <div class="app-section">
+            <div class="app-sh">Expected today</div>
+            <div class="app-empty">No bookings expected today.</div>
+          </div>
+          <div class="app-section">
+            <div class="app-sh">Cars currently in workshop</div>
+            <div class="app-cars">
+              <div class="app-car-row">
+                <span class="app-plate">DL8CAK2709</span>
+                <span class="app-cname">VENKAT NAIDU</span>
+                <span class="app-cbay">&nbsp;&mdash;&nbsp;Mechanical bay &middot; Bay 1</span>
+                <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
+                <div class="app-btns">
+                  <button class="app-abtn app-abtn-edit">⇒ Edit booking</button>
+                  <button class="app-abtn app-abtn-inv">&#128196; Create invoice</button>
+                  <button class="app-abtn app-abtn-out">&#9632; Check out</button>
+                </div>
+              </div>
+              <div class="app-car-row">
+                <span class="app-plate">TS09FL6262</span>
+                <span class="app-cname">JAYANT TAGOR</span>
+                <span class="app-cbay">&nbsp;&mdash;&nbsp;Paint bay &middot; Bay 1</span>
+                <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
+                <div class="app-btns">
+                  <button class="app-abtn app-abtn-edit">⇒ Edit booking</button>
+                  <button class="app-abtn app-abtn-inv">&#128196; Create invoice</button>
+                  <button class="app-abtn app-abtn-out">&#9632; Check out</button>
+                </div>
+              </div>
+              <div class="app-car-row">
+                <span class="app-plate">DL10CL4479</span>
+                <span class="app-cname">KAREEMUDDIN</span>
+                <span class="app-cbay">&nbsp;&mdash;&nbsp;Mechanical bay &middot; Bay 2</span>
+                <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
+                <div class="app-btns">
+                  <button class="app-abtn app-abtn-edit">⇒ Edit booking</button>
+                  <button class="app-abtn app-abtn-inv">&#128196; Create invoice</button>
+                  <button class="app-abtn app-abtn-out">&#9632; Check out</button>
+                </div>
+              </div>
+              <div class="app-car-row">
+                <span class="app-plate">AP09CN7227</span>
+                <span class="app-cname">RAMAKRISHNA</span>
+                <span class="app-cbay">&nbsp;&mdash;&nbsp;2-post lift &middot; Bay 1</span>
+                <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
+                <div class="app-btns">
+                  <button class="app-abtn app-abtn-edit">⇒ Edit booking</button>
+                  <button class="app-abtn app-abtn-inv">&#128196; Create invoice</button>
+                  <button class="app-abtn app-abtn-out">&#9632; Check out</button>
+                </div>
+              </div>
+              <div class="app-car-row">
+                <span class="app-plate">AP09CW1234</span>
+                <span class="app-cname">N/A - AP09CW1234</span>
+                <span class="app-cbay">&nbsp;&mdash;&nbsp;2-post lift &middot; Bay 2</span>
+                <span class="app-status cmp"><span class="app-sdot"></span>Complete</span>
+                <div class="app-btns">
+                  <button class="app-abtn app-abtn-edit">⇒ Edit booking</button>
+                  <button class="app-abtn app-abtn-inv">&#128196; Create invoice</button>
+                  <button class="app-abtn app-abtn-out">&#9632; Check out</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ PRICING ═══════════════ -->
+<section class="sec how" id="pricing">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">Pricing</div>
+      <h2>One plan. Everything included.</h2>
+      <p>No per-seat games, no feature paywalls. Every garage gets the full Garage Pro.</p>
+    </div>
+    <div class="price-wrap">
+      <div class="price-card reveal">
+        <span class="price-tag">Launch pricing</span>
+        <div class="amt" id="priceDisplay">₹—<small> /mo</small></div>
+        <p class="note" id="priceNoteDisplay">Final pricing coming soon. Start free, no card required.</p>
+        <ul class="price-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Unlimited bays, jobs &amp; invoices</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Windows, Mac &amp; tablet web interface</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>GST invoices, inventory &amp; customer history</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Real-time cloud sync &amp; email notifications</li>
+        </ul>
+        <button class="btn btn-primary" onclick="openAuth('win')" style="width:100%;justify-content:center">Get started free</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ TESTIMONIALS ═══════════════ -->
+<section class="sec" id="reviews">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow">Loved by garage owners</div>
+      <h2>Less paperwork. More cars out the door.</h2>
+    </div>
+    <div class="quotes" id="quotesGrid"></div>
+  </div>
+</section>
+
+<!-- ═══════════════ FAQ ═══════════════ -->
+<section class="sec how" id="faq">
+  <div class="wrap">
+    <div class="sec-head reveal"><div class="eyebrow">FAQ</div><h2>Questions, answered</h2></div>
+    <div class="faq-list">
+      <div class="faq-item reveal"><button class="faq-q">Does Garage Pro work without the internet?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Yes. Garage Pro is offline-first — data is stored locally on the machine, outside any cloud sync folder. When you're back online, everything syncs automatically. The workshop never stops because the broadband did.</p></div></div>
+      <div class="faq-item reveal"><button class="faq-q">Are the invoices GST compliant?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Absolutely. Every PDF invoice includes GST, HSN/SAC codes, a clear discount breakdown and the amount in words — exactly what your accountant and the tax department expect.</p></div></div>
+      <div class="faq-item reveal"><button class="faq-q">Which devices does it run on?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>The full desktop app runs on Windows and Mac. Mechanics can update jobs from any tablet or phone browser on your workshop network. Everything stays in sync in real time via Firebase.</p></div></div>
+      <div class="faq-item reveal"><button class="faq-q">Can I bring my existing data across?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Yes. Import your customers, inventory and bookings from a CSV file in minutes. If you're moving off a spreadsheet or another system, you'll be up and running the same day.</p></div></div>
+      <div class="faq-item reveal"><button class="faq-q">How does multi-mechanic tracking work?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Each job card can have multiple mechanics assigned, with parts and labour logged against the work. You always know who did what — accountability is clear and costing is accurate.</p></div></div>
+      <div class="faq-item reveal"><button class="faq-q">What does it cost?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Final pricing is being finalised — see the pricing section above. You can start free with no card required and get the full feature set from day one.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ CTA ═══════════════ -->
+<section class="sec cta-band">
+  <div class="wrap">
+    <div class="cta-box reveal">
+      <h2>Ready to get your floor under control?</h2>
+      <p>Download Garage Pro and run your next job card digitally — paper-free, GST-ready and synced everywhere.</p>
+      <div class="hero-cta" style="justify-content:center">
+        <button class="btn btn-primary" onclick="openAuth('win')">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>Download for Windows
+        </button>
+        <button class="btn btn-ghost" onclick="openAuth('mac')">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.1 5.1c.6-.8 1.1-1.9.9-3-1 0-2.1.7-2.8 1.5-.6.7-1.1 1.8-1 2.8 1.1.1 2.2-.6 2.9-1.3z"/></svg>Download for Mac
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="#top" class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>Garage&nbsp;Pro</a>
+        <p>Every bay. Every job. Under control. Garage management software for independent garages and workshop chains across India.</p>
+      </div>
+      <div class="foot-col"><h4>Product</h4><a href="#features">Features</a><a href="#how">How it works</a><a href="#screens">Preview</a><a href="#pricing">Pricing</a></div>
+      <div class="foot-col"><h4>Company</h4><a href="#reviews">Reviews</a><a href="#faq">FAQ</a><a href="#">About</a><a href="#">Contact</a></div>
+      <div class="foot-col"><h4>Download</h4><a href="#" onclick="openAuth('win');return false">For Windows</a><a href="#" onclick="openAuth('mac');return false">For Mac</a><a href="#" onclick="openAuth('tablet');return false">Tablet web</a></div>
+    </div>
+    <div class="foot-bottom">
+      <p>© <span id="year"></span> Garage Pro. All rights reserved. Made in India 🇮🇳</p>
+      <div class="foot-social">
+        <a href="#" aria-label="X"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.5 8.6L23 22h-6.9l-5.4-7-6.2 7H1.4l8-9.1L1 2h7l4.9 6.5L18.9 2zm-2.4 18h1.9L7.6 4H5.6l10.9 16z"/></svg></a>
+        <a href="#" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+        <a href="#" aria-label="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3V9zm6 0h3.8v1.7h.1c.5-1 1.8-2 3.7-2 4 0 4.7 2.6 4.7 6V21h-4v-5.3c0-1.3 0-3-1.8-3s-2.1 1.4-2.1 2.9V21H9V9z"/></svg></a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  STATE  (localStorage-backed)
+// ══════════════════════════════════════════
+const KEYS = {
+  creds:'gp_creds', accounts:'gp_accounts',
+  purchases:'gp_purchases', reviews:'gp_reviews',
+  price:'gp_price', priceNote:'gp_priceNote',
+  licenses:'gp_licenses', billing:'gp_billing',
+  fbConfig:'gp_fbConfig'
+};
+const DEFAULT_REVIEWS = [
+  {id:1,stars:5,text:'"We threw out the paper job cards in week one. The lads update everything from a tablet and I can see the whole floor from my desk. Invoices that used to take ten minutes now take ten seconds."',name:'Rajesh Kumar',role:'Owner, Speed Auto Care · Pune',initials:'RK'},
+  {id:2,stars:5,text:'"The GST invoices are spot on — HSN codes, amount in words, everything. My accountant stopped chasing me. And it just keeps working when the internet drops, which around here is often."',name:'Anand Shetty',role:'Partner, Crest Motors · Bengaluru',initials:'AS'},
+  {id:3,stars:5,text:'"Running three branches, the morning briefing email is gold. I know exactly where every bay stands before I\'ve had my chai. Stock no longer goes missing. Best money we\'ve spent."',name:'Farhan Patel',role:'Director, AutoHub Chain · Ahmedabad',initials:'FP'}
+];
+const AV_GRADS = [
+  'linear-gradient(135deg,#ff7a18,#ffb347)',
+  'linear-gradient(135deg,#20e3b2,#16c79a)',
+  'linear-gradient(135deg,#9db0ff,#6b82e0)'
+];
+
+let S = {
+  creds: {username:'garagepro123', password:'12345'},
+  accounts: [],
+  purchases: [],
+  reviews: [...DEFAULT_REVIEWS],
+  price: '',
+  priceNote: '',
+  licenses: [],     // {key, email, name, status:'active'|'revoked', plan, createdAt, revokedAt}
+  billing: [],      // {id, email, amount, status, cardLast4, ts, invoiceId}
+  fbConfig: null    // Firebase web config object
+};
+let pendingAction = null;
+let currentUser = null;
+let fbApp = null;
+let fbDb = null;
+
+function load() {
+  try {
+    const c = localStorage.getItem(KEYS.creds); if(c) S.creds = JSON.parse(c);
+    const a = localStorage.getItem(KEYS.accounts); if(a) S.accounts = JSON.parse(a);
+    const p = localStorage.getItem(KEYS.purchases); if(p) S.purchases = JSON.parse(p);
+    const r = localStorage.getItem(KEYS.reviews); if(r) S.reviews = JSON.parse(r);
+    const pr = localStorage.getItem(KEYS.price); if(pr !== null) S.price = pr;
+    const pn = localStorage.getItem(KEYS.priceNote); if(pn !== null) S.priceNote = pn;
+    const lic = localStorage.getItem(KEYS.licenses); if(lic) S.licenses = JSON.parse(lic);
+    const bil = localStorage.getItem(KEYS.billing); if(bil) S.billing = JSON.parse(bil);
+    const fbc = localStorage.getItem(KEYS.fbConfig); if(fbc) S.fbConfig = JSON.parse(fbc);
+    const sess = sessionStorage.getItem('gp_user'); if(sess) currentUser = JSON.parse(sess);
+  } catch(e){}
+}
+function save() {
+  try {
+    localStorage.setItem(KEYS.creds, JSON.stringify(S.creds));
+    localStorage.setItem(KEYS.accounts, JSON.stringify(S.accounts));
+    localStorage.setItem(KEYS.purchases, JSON.stringify(S.purchases));
+    localStorage.setItem(KEYS.reviews, JSON.stringify(S.reviews));
+    localStorage.setItem(KEYS.price, S.price);
+    localStorage.setItem(KEYS.priceNote, S.priceNote);
+    localStorage.setItem(KEYS.licenses, JSON.stringify(S.licenses));
+    localStorage.setItem(KEYS.billing, JSON.stringify(S.billing));
+    if (S.fbConfig) localStorage.setItem(KEYS.fbConfig, JSON.stringify(S.fbConfig));
+  } catch(e){}
+}
+function logPurchase(action, user) {
+  S.purchases.unshift({
+    id: Date.now(),
+    ts: new Date().toLocaleString('en-IN'),
+    name: user ? user.name : 'Guest',
+    email: user ? (user.email || '—') : '—',
+    action
+  });
+  save();
+}
+
+// ══════════════════════════════════════════
+//  NAV RENDER
+// ══════════════════════════════════════════
+function renderNav() {
+  const cta = document.getElementById('navCta');
+  if (!currentUser) {
+    cta.innerHTML = `<button class="btn btn-ghost" style="padding:9px 18px;font-size:14px" onclick="openAuth(null)">Sign In</button><button class="btn btn-primary" style="padding:9px 18px;font-size:14px" onclick="openAuth('win')">Get Garage Pro</button>`;
+  } else if (currentUser.isAdmin) {
+    cta.innerHTML = `<span class="nav-user"><span class="admin-badge">ADMIN</span><span class="uname">${currentUser.name}</span></span><button class="btn btn-primary" style="padding:9px 18px;font-size:14px" onclick="openAdminPanel()">Admin Panel</button><button class="btn btn-ghost" style="padding:9px 18px;font-size:14px" onclick="doLogout()">Sign out</button>`;
+  } else {
+    cta.innerHTML = `<span class="nav-user">Hi, <span class="uname">${currentUser.name.split(' ')[0]}</span></span><button class="btn btn-primary" style="padding:9px 18px;font-size:14px" onclick="openUserDashboard()">My Account</button><button class="btn btn-ghost" style="padding:9px 18px;font-size:14px" onclick="doLogout()">Sign out</button>`;
+  }
+}
+
+// ══════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════
+function openAuth(action) {
+  if (currentUser) {
+    // already signed in — go straight to download
+    if (action && action !== null) handleDownload(action, currentUser);
+    return;
+  }
+  pendingAction = action;
+  document.getElementById('authModal').classList.add('open');
+  document.getElementById('loginErr').textContent = '';
+  document.getElementById('signupErr').textContent = '';
+  switchAuthTab('login');
+}
+function closeAuth() {
+  document.getElementById('authModal').classList.remove('open');
+  pendingAction = null;
+}
+function switchAuthTab(t) {
+  document.getElementById('tabLogin').classList.toggle('active', t==='login');
+  document.getElementById('tabSignup').classList.toggle('active', t==='signup');
+  document.getElementById('loginForm').classList.toggle('active', t==='login');
+  document.getElementById('signupForm').classList.toggle('active', t==='signup');
+}
+function doLogin(e) {
+  e.preventDefault();
+  const u = document.getElementById('li-user').value.trim();
+  const p = document.getElementById('li-pass').value;
+  const err = document.getElementById('loginErr');
+  // admin check
+  if (u === S.creds.username && p === S.creds.password) {
+    currentUser = {name: S.creds.username, isAdmin: true};
+    sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
+    closeAuth();
+    renderNav();
+    showToast('Signed in as admin', 'good');
+    if (pendingAction) handleDownload(pendingAction, currentUser);
+    return;
+  }
+  // user check
+  const acc = S.accounts.find(a => (a.email === u || a.name === u) && a.password === p);
+  if (acc) {
+    currentUser = {name: acc.name, email: acc.email, isAdmin: false};
+    sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
+    closeAuth();
+    renderNav();
+    showToast(`Welcome back, ${acc.name.split(' ')[0]}!`, 'good');
+    if (pendingAction) handleDownload(pendingAction, currentUser);
+    return;
+  }
+  err.textContent = 'Incorrect username or password.';
+}
+function doSignup(e) {
+  e.preventDefault();
+  const name = document.getElementById('su-name').value.trim();
+  const email = document.getElementById('su-email').value.trim();
+  const pass = document.getElementById('su-pass').value;
+  const conf = document.getElementById('su-conf').value;
+  const err = document.getElementById('signupErr');
+  if (pass !== conf) { err.textContent = 'Passwords do not match.'; return; }
+  if (S.accounts.find(a => a.email === email)) { err.textContent = 'An account with that email already exists.'; return; }
+  const acc = {id: Date.now(), name, email, password: pass, createdAt: new Date().toLocaleString('en-IN')};
+  S.accounts.push(acc);
+  logPurchase('Sign Up', {name, email});
+  save();
+  currentUser = {name, email, isAdmin: false};
+  sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
+  closeAuth();
+  renderNav();
+  showToast(`Account created! Welcome, ${name.split(' ')[0]}`, 'good');
+  if (pendingAction) handleDownload(pendingAction, currentUser);
+}
+function doLogout() {
+  currentUser = null;
+  sessionStorage.removeItem('gp_user');
+  closeAdminPanel();
+  closeUserDashboard();
+  renderNav();
+  showToast('Signed out', 'good');
+}
+function handleDownload(action, user) {
+  const label = action === 'mac' ? 'Download for Mac' : action === 'tablet' ? 'Tablet Web Access' : 'Download for Windows';
+  logPurchase(label, user);
+  save();
+  // Open billing modal for the purchase
+  pendingPlatform = action;
+  openBilling();
+}
+document.getElementById('modalClose').onclick = closeAuth;
+document.getElementById('authModal').addEventListener('click', e => { if(e.target === document.getElementById('authModal')) closeAuth(); });
+
+// ══════════════════════════════════════════
+//  ADMIN PANEL
+// ══════════════════════════════════════════
+function openAdminPanel() {
+  if (!currentUser || !currentUser.isAdmin) return;
+  document.getElementById('adminPanel').classList.add('open');
+  switchAdminTab('purchases');
+  renderPurchasesTab();
+  renderAdminReviewsGrid();
+  renderAdminPricing();
+  renderAdminAccount();
+  document.body.style.overflow = 'hidden';
+}
+function closeAdminPanel() {
+  document.getElementById('adminPanel').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function switchAdminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.anav').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  const idx = {purchases:0,licenses:1,reviews:2,pricing:3,firebase:4,account:5}[tab];
+  document.querySelectorAll('.anav')[idx].classList.add('active');
+  if (tab === 'licenses') renderLicensesTab();
+  if (tab === 'firebase') renderFirebaseTab();
+}
+
+// ── Purchases ──
+function renderPurchasesTab() {
+  const wins = S.purchases.filter(p => p.action.includes('Windows')).length;
+  const macs = S.purchases.filter(p => p.action.includes('Mac')).length;
+  const sups = S.purchases.filter(p => p.action === 'Sign Up').length;
+  document.getElementById('purchaseStats').innerHTML = `
+    <div class="atab-stat"><div class="n">${S.purchases.length}</div><div class="l">Total events</div></div>
+    <div class="atab-stat"><div class="n">${wins}</div><div class="l">Windows downloads</div></div>
+    <div class="atab-stat"><div class="n">${macs}</div><div class="l">Mac downloads</div></div>
+    <div class="atab-stat"><div class="n">${sups}</div><div class="l">Sign-ups</div></div>`;
+  if (!S.purchases.length) {
+    document.getElementById('purchaseTable').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg><p>No purchase events yet. They'll appear here when visitors click download or sign up.</p></div>`;
+    return;
+  }
+  document.getElementById('purchaseTable').innerHTML = `<table class="ptable"><thead><tr><th>Name</th><th>Email</th><th>Action</th><th>Time</th><th style="text-align:right">Actions</th></tr></thead><tbody>${S.purchases.map(p=>`<tr><td>${p.name}</td><td>${p.email}</td><td><span class="p-action">${p.action}</span></td><td style="color:var(--faint)">${p.ts}</td><td><div class="row-actions"><button class="tiny-btn danger" onclick="deletePurchase(${p.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Delete</button></div></td></tr>`).join('')}</tbody></table><div style="margin-top:16px;display:flex;justify-content:flex-end"><button class="tiny-btn danger" onclick="clearAllPurchases()">Clear all events</button></div>`;
+}
+function deletePurchase(id) {
+  if (!confirm('Delete this event?')) return;
+  S.purchases = S.purchases.filter(p => p.id !== id);
+  save(); renderPurchasesTab();
+  showToast('Event deleted', 'good');
+}
+function clearAllPurchases() {
+  if (!confirm('Delete ALL purchase events? This cannot be undone.')) return;
+  S.purchases = [];
+  save(); renderPurchasesTab();
+  showToast('All events cleared', 'good');
+}
+
+// ── Reviews ──
+function renderAdminReviewsGrid() {
+  const g = document.getElementById('adminReviewsGrid');
+  if (!S.reviews.length) { g.innerHTML = '<p style="color:var(--faint);margin-top:20px">No reviews yet. Add one above.</p>'; return; }
+  g.innerHTML = S.reviews.map((r,i) => `
+    <div class="rev-card">
+      <div class="rev-stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</div>
+      <div class="rev-text">${r.text}</div>
+      <div class="rev-who">${r.name}</div>
+      <div class="rev-role">${r.role}</div>
+      <div class="rev-actions">
+        <button class="rev-btn" onclick="editReview(${r.id})">Edit</button>
+        <button class="rev-btn del" onclick="deleteReview(${r.id})">Delete</button>
+      </div>
+    </div>`).join('');
+}
+function openRevForm(id) {
+  const f = document.getElementById('revForm');
+  f.classList.add('open');
+  if (id) {
+    const r = S.reviews.find(x=>x.id===id);
+    document.getElementById('revFormTitle').textContent = 'Edit Review';
+    document.getElementById('revEditId').value = id;
+    document.getElementById('rf-name').value = r.name;
+    document.getElementById('rf-init').value = r.initials;
+    document.getElementById('rf-role').value = r.role;
+    document.getElementById('rf-text').value = r.text;
+    document.getElementById('rf-stars').value = r.stars;
+  } else {
+    document.getElementById('revFormTitle').textContent = 'Add Review';
+    document.getElementById('revEditId').value = '';
+    document.getElementById('rf-name').value = '';
+    document.getElementById('rf-init').value = '';
+    document.getElementById('rf-role').value = '';
+    document.getElementById('rf-text').value = '';
+    document.getElementById('rf-stars').value = '5';
+  }
+}
+function closeRevForm() { document.getElementById('revForm').classList.remove('open'); }
+function editReview(id) { openRevForm(id); document.getElementById('revForm').scrollIntoView({behavior:'smooth'}); }
+function deleteReview(id) {
+  S.reviews = S.reviews.filter(r => r.id !== id);
+  save(); renderAdminReviewsGrid(); renderReviews();
+  showToast('Review deleted', 'good');
+}
+function saveReview() {
+  const name = document.getElementById('rf-name').value.trim();
+  const initials = document.getElementById('rf-init').value.trim() || name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const role = document.getElementById('rf-role').value.trim();
+  const text = document.getElementById('rf-text').value.trim();
+  const stars = parseInt(document.getElementById('rf-stars').value);
+  if (!name || !text) { showToast('Name and text are required', 'bad'); return; }
+  const editId = parseInt(document.getElementById('revEditId').value);
+  if (editId) {
+    const idx = S.reviews.findIndex(r=>r.id===editId);
+    if (idx !== -1) S.reviews[idx] = {...S.reviews[idx], name, initials, role, text, stars};
+  } else {
+    S.reviews.push({id: Date.now(), stars, text, name, role, initials});
+  }
+  save(); closeRevForm(); renderAdminReviewsGrid(); renderReviews();
+  showToast(editId ? 'Review updated' : 'Review added', 'good');
+}
+
+// ── Pricing ──
+function renderAdminPricing() {
+  document.getElementById('priceInput').value = S.price;
+  document.getElementById('priceNote').value = S.priceNote;
+  document.getElementById('pricePreview').textContent = S.price || '₹—';
+}
+function savePrice() {
+  S.price = document.getElementById('priceInput').value.trim();
+  S.priceNote = document.getElementById('priceNote').value.trim();
+  save(); renderPrice(); renderAdminPricing();
+  document.getElementById('priceMsg').textContent = 'Saved!';
+  setTimeout(()=>{ document.getElementById('priceMsg').textContent=''; }, 2500);
+}
+
+// ── Account ──
+function renderAdminAccount() {
+  document.getElementById('newUser').value = S.creds.username;
+}
+function saveUsername() {
+  const nu = document.getElementById('newUser').value.trim();
+  const cp = document.getElementById('newUserPass').value;
+  const msg = document.getElementById('userMsg');
+  if (!nu) { msg.style.color='#ff6b6b'; msg.textContent='Username cannot be empty.'; return; }
+  if (cp !== S.creds.password) { msg.style.color='#ff6b6b'; msg.textContent='Incorrect current password.'; return; }
+  S.creds.username = nu;
+  currentUser.name = nu;
+  sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
+  save(); renderNav();
+  msg.style.color='var(--teal)'; msg.textContent='Username updated!';
+  setTimeout(()=>{ msg.textContent=''; }, 2500);
+}
+function savePassword() {
+  const op = document.getElementById('oldPass').value;
+  const np = document.getElementById('newPass').value;
+  const nc = document.getElementById('newPassConf').value;
+  const msg = document.getElementById('passMsg');
+  if (op !== S.creds.password) { msg.style.color='#ff6b6b'; msg.textContent='Current password is incorrect.'; return; }
+  if (np.length < 4) { msg.style.color='#ff6b6b'; msg.textContent='New password must be at least 4 characters.'; return; }
+  if (np !== nc) { msg.style.color='#ff6b6b'; msg.textContent='New passwords do not match.'; return; }
+  S.creds.password = np;
+  save();
+  document.getElementById('oldPass').value='';
+  document.getElementById('newPass').value='';
+  document.getElementById('newPassConf').value='';
+  msg.style.color='var(--teal)'; msg.textContent='Password updated!';
+  setTimeout(()=>{ msg.textContent=''; }, 2500);
+}
+
+// ══════════════════════════════════════════
+//  MAIN PAGE RENDERS
+// ══════════════════════════════════════════
+function renderReviews() {
+  const g = document.getElementById('quotesGrid');
+  if (!S.reviews.length) { g.innerHTML = '<p style="color:var(--dim);text-align:center;grid-column:1/-1">No reviews yet.</p>'; return; }
+  g.innerHTML = S.reviews.map((r,i) => `
+    <div class="quote reveal${i?` d${Math.min(i,4)}`:''}">
+      <div class="stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</div>
+      <p>${r.text}</p>
+      <div class="who">
+        <span class="av" style="background:${AV_GRADS[i%3]}">${r.initials}</span>
+        <div><b>${r.name}</b><span>${r.role}</span></div>
+      </div>
+    </div>`).join('');
+  // re-observe new elements
+  g.querySelectorAll('.reveal:not(.in)').forEach(el => io.observe(el));
+}
+function renderPrice() {
+  const pd = document.getElementById('priceDisplay');
+  const pn = document.getElementById('priceNoteDisplay');
+  if (S.price) {
+    pd.innerHTML = `${S.price}`;
+  } else {
+    pd.innerHTML = `₹—<small> /mo</small>`;
+  }
+  if (S.priceNote) pn.textContent = S.priceNote;
+}
+
+// ══════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════
+let toastT;
+function showToast(msg, type='good') {
+  const t = document.getElementById('toast');
+  clearTimeout(toastT);
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  toastT = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ══════════════════════════════════════════
+//  SCROLL & UI
+// ══════════════════════════════════════════
+document.getElementById('year').textContent = new Date().getFullYear();
+const nav = document.getElementById('nav');
+const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 12);
+onScroll();
+window.addEventListener('scroll', onScroll, {passive:true});
+const menuBtn = document.getElementById('menuBtn');
+const navLinks = document.getElementById('navLinks');
+menuBtn.addEventListener('click', () => navLinks.classList.toggle('mobile-open'));
+navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', () => navLinks.classList.remove('mobile-open')));
+
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+}, {threshold:0.12, rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+document.querySelectorAll('.faq-item').forEach(item => {
+  const q = item.querySelector('.faq-q');
+  const a = item.querySelector('.faq-a');
+  q.addEventListener('click', () => {
+    const open = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(o => { o.classList.remove('open'); o.querySelector('.faq-a').style.maxHeight = null; });
+    if (!open) { item.classList.add('open'); a.style.maxHeight = a.scrollHeight + 'px'; }
+  });
+});
+
+// ══════════════════════════════════════════
+//  LICENSE KEYS
+// ══════════════════════════════════════════
+function generateLicenseKey() {
+  // Format: GP-XXXX-XXXX-XXXX-XXXX  (4 blocks of 4 alphanumeric)
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusing chars
+  const block = () => Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+  return `GP-${block()}-${block()}-${block()}-${block()}`;
+}
+function issueLicense(email, name, plan, platform) {
+  const lic = {
+    id: Date.now() + Math.floor(Math.random()*1000),
+    key: generateLicenseKey(),
+    email, name, plan: plan || 'Standard',
+    platform: platform || 'windows',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    createdAtDisplay: new Date().toLocaleString('en-IN'),
+    revokedAt: null
+  };
+  S.licenses.unshift(lic);
+  // attach to account
+  const acc = S.accounts.find(a => a.email === email);
+  if (acc) {
+    acc.licenseKey = lic.key;
+    acc.licensePlan = lic.plan;
+    acc.licenseStatus = 'active';
+  }
+  save();
+  // sync to Firebase
+  syncLicenseToFirebase(lic, acc);
+  return lic;
+}
+function renderLicensesTab() {
+  const active = S.licenses.filter(l=>l.status==='active').length;
+  const revoked = S.licenses.filter(l=>l.status==='revoked').length;
+  document.getElementById('licenseStats').innerHTML = `
+    <div class="atab-stat"><div class="n">${S.licenses.length}</div><div class="l">Total licenses</div></div>
+    <div class="atab-stat"><div class="n">${active}</div><div class="l">Active</div></div>
+    <div class="atab-stat"><div class="n">${revoked}</div><div class="l">Revoked</div></div>`;
+  if (!S.licenses.length) {
+    document.getElementById('licenseTable').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><p>No licenses generated yet. They will appear here once a user completes a purchase.</p></div>`;
+    return;
+  }
+  document.getElementById('licenseTable').innerHTML = `<table class="ptable"><thead><tr><th>License Key</th><th>User</th><th>Plan</th><th>Status</th><th>Issued</th><th style="text-align:right">Actions</th></tr></thead><tbody>${S.licenses.map(l=>{
+    const statusTag = l.status === 'active'
+      ? '<span class="lic-status-tag active">● Active</span>'
+      : '<span class="lic-status-tag revoked">● Revoked</span>';
+    const actionBtns = l.status === 'active'
+      ? `<button class="tiny-btn warn" onclick="revokeLicense(${l.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>Revoke</button><button class="tiny-btn danger" onclick="deleteLicense(${l.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`
+      : `<button class="tiny-btn" onclick="reactivateLicense(${l.id})">Reactivate</button><button class="tiny-btn danger" onclick="deleteLicense(${l.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`;
+    return `<tr><td><span class="lic-mono">${l.key}</span></td><td>${l.name}<br><span style="color:var(--faint);font-size:12px">${l.email}</span></td><td>${l.plan}</td><td>${statusTag}</td><td style="color:var(--faint)">${l.createdAtDisplay}</td><td><div class="row-actions">${actionBtns}</div></td></tr>`;
+  }).join('')}</tbody></table>`;
+}
+function revokeLicense(id) {
+  if (!confirm('Revoke this license? The user will lose access to the software.')) return;
+  const idx = S.licenses.findIndex(l=>l.id===id);
+  if (idx === -1) return;
+  S.licenses[idx].status = 'revoked';
+  S.licenses[idx].revokedAt = new Date().toISOString();
+  const acc = S.accounts.find(a=>a.email===S.licenses[idx].email);
+  if (acc) acc.licenseStatus = 'revoked';
+  save();
+  syncLicenseToFirebase(S.licenses[idx], acc);
+  renderLicensesTab();
+  showToast('License revoked', 'good');
+}
+function reactivateLicense(id) {
+  const idx = S.licenses.findIndex(l=>l.id===id);
+  if (idx === -1) return;
+  S.licenses[idx].status = 'active';
+  S.licenses[idx].revokedAt = null;
+  const acc = S.accounts.find(a=>a.email===S.licenses[idx].email);
+  if (acc) acc.licenseStatus = 'active';
+  save();
+  syncLicenseToFirebase(S.licenses[idx], acc);
+  renderLicensesTab();
+  showToast('License reactivated', 'good');
+}
+function deleteLicense(id) {
+  if (!confirm('Permanently delete this license? This cannot be undone.')) return;
+  const lic = S.licenses.find(l=>l.id===id);
+  S.licenses = S.licenses.filter(l=>l.id!==id);
+  if (lic) {
+    const acc = S.accounts.find(a=>a.email===lic.email);
+    if (acc) { delete acc.licenseKey; delete acc.licenseStatus; delete acc.licensePlan; }
+    deleteLicenseFromFirebase(lic);
+  }
+  save(); renderLicensesTab();
+  showToast('License deleted', 'good');
+}
+function createManualLicense() {
+  const email = prompt('User email for this license:');
+  if (!email) return;
+  const name = prompt('User name:') || 'Manual License';
+  const plan = prompt('Plan (Standard / Pro / Trial):', 'Standard') || 'Standard';
+  const lic = issueLicense(email.trim(), name.trim(), plan.trim(), 'manual');
+  renderLicensesTab();
+  showToast(`License ${lic.key} issued`, 'good');
+}
+
+// ══════════════════════════════════════════
+//  BILLING MODAL
+// ══════════════════════════════════════════
+let pendingPlatform = 'windows';
+function openBilling() {
+  if (!currentUser) { openAuth('win'); return; }
+  // Prefill name
+  document.getElementById('bf-name').value = currentUser.name || '';
+  // Update prices from saved price
+  updateBillingPrices();
+  document.getElementById('billingModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeBilling() {
+  document.getElementById('billingModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function updateBillingPrices() {
+  // Extract numeric from S.price or fall back to 4999
+  let base = 4999;
+  if (S.price) {
+    const m = S.price.match(/[\d,]+/);
+    if (m) base = parseInt(m[0].replace(/,/g,''),10) || 4999;
+  }
+  const gst = Math.round(base * 0.18);
+  const total = base + gst;
+  const fmt = n => '₹' + n.toLocaleString('en-IN');
+  document.getElementById('bsumPrice').textContent = fmt(base);
+  document.getElementById('bsumSubtotal').textContent = fmt(base);
+  document.getElementById('bsumGst').textContent = fmt(gst);
+  document.getElementById('bsumTotal').textContent = fmt(total);
+  document.getElementById('bplanDesc').textContent = (S.priceNote || 'Annual subscription · unlimited bays');
+}
+function formatCardInput() {
+  const inp = document.getElementById('bf-num');
+  let v = inp.value.replace(/\D/g,'').slice(0,16);
+  inp.value = v.replace(/(.{4})/g,'$1 ').trim();
+  updateCardVisual();
+}
+function formatExpInput() {
+  const inp = document.getElementById('bf-exp');
+  let v = inp.value.replace(/\D/g,'').slice(0,4);
+  if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
+  inp.value = v;
+  updateCardVisual();
+}
+function updateCardVisual() {
+  const num = document.getElementById('bf-num').value || '•••• •••• •••• ••••';
+  const name = document.getElementById('bf-name').value.toUpperCase() || 'CARDHOLDER NAME';
+  const exp = document.getElementById('bf-exp').value || 'MM/YY';
+  document.getElementById('cardNumDisplay').textContent = num.padEnd(19,'•').slice(0,19);
+  document.getElementById('cardNameDisplay').textContent = name;
+  document.getElementById('cardExpDisplay').textContent = exp;
+}
+function completePurchase() {
+  const num = document.getElementById('bf-num').value.replace(/\s/g,'');
+  const name = document.getElementById('bf-name').value.trim();
+  const exp = document.getElementById('bf-exp').value;
+  const cvv = document.getElementById('bf-cvv').value;
+  if (num.length < 13) { showToast('Enter a valid card number', 'bad'); return; }
+  if (!name) { showToast('Enter cardholder name', 'bad'); return; }
+  if (!/^\d{2}\/\d{2}$/.test(exp)) { showToast('Enter expiry as MM/YY', 'bad'); return; }
+  if (cvv.length < 3) { showToast('Enter CVV', 'bad'); return; }
+  const last4 = num.slice(-4);
+  const totalTxt = document.getElementById('bsumTotal').textContent;
+  const amount = parseInt(totalTxt.replace(/[^\d]/g,''),10);
+  // Create billing record
+  const invoiceId = 'INV-' + Date.now().toString(36).toUpperCase();
+  const bill = {
+    id: Date.now(),
+    email: currentUser.email,
+    name: currentUser.name,
+    amount, status:'paid', cardLast4:last4, cardName:name,
+    invoiceId,
+    platform: pendingPlatform || 'windows',
+    ts: new Date().toLocaleString('en-IN')
+  };
+  S.billing.unshift(bill);
+  // Save card to account (last 4 only)
+  const acc = S.accounts.find(a => a.email === currentUser.email);
+  if (acc) { acc.cardLast4 = last4; acc.cardName = name; }
+  // Issue license
+  const lic = issueLicense(currentUser.email, currentUser.name, 'Standard', pendingPlatform);
+  logPurchase(`Purchase · ${pendingPlatform === 'mac' ? 'Mac' : 'Windows'}`, currentUser);
+  save();
+  closeBilling();
+  showToast(`Payment successful! License key generated.`, 'good');
+  // Auto-open user dashboard
+  setTimeout(() => openUserDashboard(), 600);
+}
+
+// ══════════════════════════════════════════
+//  USER DASHBOARD
+// ══════════════════════════════════════════
+function openUserDashboard() {
+  if (!currentUser || currentUser.isAdmin) return;
+  document.getElementById('userDashboard').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  switchUserTab('license');
+  renderUserDashboard();
+}
+function closeUserDashboard() {
+  document.getElementById('userDashboard').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function switchUserTab(t) {
+  document.querySelectorAll('.utab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.user-tab-panel').forEach(p => p.classList.remove('active'));
+  const idx = {license:0, billing:1, account:2}[t];
+  document.querySelectorAll('.utab')[idx].classList.add('active');
+  document.getElementById('upanel-' + t).classList.add('active');
+}
+function renderUserDashboard() {
+  if (!currentUser) return;
+  const acc = S.accounts.find(a => a.email === currentUser.email);
+  const firstName = currentUser.name.split(' ')[0];
+  document.getElementById('udGreet').textContent = `Hi ${firstName}, here's your license`;
+  document.getElementById('udUserName').textContent = currentUser.name;
+  document.getElementById('udFullName').textContent = currentUser.name;
+  document.getElementById('udEmail').textContent = currentUser.email || '—';
+  document.getElementById('udMember').textContent = acc && acc.createdAt ? acc.createdAt : '—';
+  // License area
+  const userLicenses = S.licenses.filter(l => l.email === currentUser.email);
+  const area = document.getElementById('udLicenseArea');
+  if (!userLicenses.length) {
+    area.innerHTML = `<div class="lic-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      <h3>No license yet</h3>
+      <p>Purchase Garage Pro to generate your license key.</p>
+      <button class="btn btn-primary" onclick="closeUserDashboard();setTimeout(()=>openBilling(),200)">Get a license</button>
+    </div>`;
+    return;
+  }
+  area.innerHTML = userLicenses.map(l => {
+    const statusTag = l.status === 'active'
+      ? '<span class="lic-status-tag active">● Active</span>'
+      : '<span class="lic-status-tag revoked">● Revoked — contact support</span>';
+    return `<div class="lic-card">
+      <div class="lic-label">License Key  ${statusTag}</div>
+      <div class="lic-key">
+        <span class="key-val">${l.key}</span>
+        <button class="copy-btn" onclick="copyKey('${l.key}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button>
+      </div>
+      <div class="lic-meta">
+        <div class="lic-meta-item"><div class="lmi-lbl">Plan</div><div class="lmi-val">${l.plan}</div></div>
+        <div class="lic-meta-item"><div class="lmi-lbl">Platform</div><div class="lmi-val">${l.platform === 'mac' ? 'macOS' : l.platform === 'manual' ? 'All platforms' : 'Windows'}</div></div>
+        <div class="lic-meta-item"><div class="lmi-lbl">Issued</div><div class="lmi-val">${l.createdAtDisplay}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+  // Billing history
+  const userBilling = S.billing.filter(b => b.email === currentUser.email);
+  const hist = document.getElementById('udBillingHistory');
+  if (!userBilling.length) {
+    hist.innerHTML = `<p style="color:var(--faint);padding:14px 0">No payments yet.</p>`;
+  } else {
+    hist.innerHTML = `<table class="bhist-table"><thead><tr><th>Invoice</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>${userBilling.map(b=>`<tr><td>${b.invoiceId}</td><td>₹${b.amount.toLocaleString('en-IN')}</td><td><span class="bhist-status paid">PAID</span></td><td style="color:var(--faint)">${b.ts}</td></tr>`).join('')}</tbody></table>`;
+  }
+  // Saved card
+  if (acc && acc.cardLast4) {
+    document.getElementById('udSavedCard').style.display = 'block';
+    document.getElementById('udCardLast4').textContent = `VISA  ••••  ••••  ••••  ${acc.cardLast4}`;
+    document.getElementById('udCardName').textContent = acc.cardName || acc.name;
+  } else {
+    document.getElementById('udSavedCard').style.display = 'none';
+  }
+}
+function copyKey(k) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(k).then(() => showToast('License key copied', 'good'));
+  } else {
+    const ta = document.createElement('textarea'); ta.value = k; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    showToast('License key copied', 'good');
+  }
+}
+function userChangePassword() {
+  const op = document.getElementById('ud-oldp').value;
+  const np = document.getElementById('ud-newp').value;
+  const nc = document.getElementById('ud-confp').value;
+  const msg = document.getElementById('udPassMsg');
+  const acc = S.accounts.find(a => a.email === currentUser.email);
+  if (!acc) { msg.style.color='#ff6b6b'; msg.textContent='Account not found.'; return; }
+  if (acc.password !== op) { msg.style.color='#ff6b6b'; msg.textContent='Current password is incorrect.'; return; }
+  if (np.length < 6) { msg.style.color='#ff6b6b'; msg.textContent='New password must be at least 6 characters.'; return; }
+  if (np !== nc) { msg.style.color='#ff6b6b'; msg.textContent='Passwords do not match.'; return; }
+  acc.password = np;
+  save();
+  document.getElementById('ud-oldp').value=''; document.getElementById('ud-newp').value=''; document.getElementById('ud-confp').value='';
+  msg.style.color='var(--teal)'; msg.textContent='Password updated!';
+  setTimeout(()=>{ msg.textContent=''; }, 2500);
+}
+
+// ══════════════════════════════════════════
+//  FIREBASE INTEGRATION
+// ══════════════════════════════════════════
+function initFirebase() {
+  if (!S.fbConfig) return false;
+  if (typeof firebase === 'undefined') return false;
+  try {
+    if (!fbApp) {
+      fbApp = firebase.initializeApp(S.fbConfig);
+      fbDb = firebase.firestore();
+    }
+    return true;
+  } catch(e) {
+    console.error('Firebase init failed:', e);
+    return false;
+  }
+}
+function renderFirebaseTab() {
+  const st = document.getElementById('fbStatus');
+  if (S.fbConfig && fbApp) {
+    st.className = 'fb-status connected';
+    st.innerHTML = `<span class="fbdot"></span><span>Connected to <b>${S.fbConfig.projectId || 'Firebase'}</b></span>`;
+    document.getElementById('fbConfigInput').value = JSON.stringify(S.fbConfig, null, 2);
+  } else {
+    st.className = 'fb-status offline';
+    st.innerHTML = `<span class="fbdot"></span><span>Not connected — licenses are saved locally only</span>`;
+    if (S.fbConfig) document.getElementById('fbConfigInput').value = JSON.stringify(S.fbConfig, null, 2);
+  }
+}
+function saveFirebaseConfig() {
+  const txt = document.getElementById('fbConfigInput').value.trim();
+  const msg = document.getElementById('fbMsg');
+  if (!txt) { msg.style.color='#ff6b6b'; msg.textContent='Paste your Firebase config.'; return; }
+  let cfg;
+  try {
+    // Allow both JS-style and JSON
+    cfg = JSON.parse(txt.replace(/(\w+):/g, '"$1":').replace(/'/g,'"'));
+  } catch(e) {
+    try { cfg = (new Function('return ' + txt))(); }
+    catch(e2) { msg.style.color='#ff6b6b'; msg.textContent='Could not parse config — make sure it is valid JSON.'; return; }
+  }
+  if (!cfg.apiKey || !cfg.projectId) { msg.style.color='#ff6b6b'; msg.textContent='Config must include apiKey and projectId.'; return; }
+  S.fbConfig = cfg;
+  save();
+  // Reset existing app
+  if (fbApp) { try { fbApp.delete(); } catch(e){} fbApp = null; fbDb = null; }
+  const ok = initFirebase();
+  if (ok) {
+    msg.style.color='var(--teal)'; msg.textContent='Connected! Existing licenses will now sync.';
+    // backfill existing licenses
+    S.licenses.forEach(l => {
+      const acc = S.accounts.find(a => a.email === l.email);
+      syncLicenseToFirebase(l, acc);
+    });
+    renderFirebaseTab();
+  } else {
+    msg.style.color='#ff6b6b'; msg.textContent='Connection failed — check the config.';
+  }
+  setTimeout(() => { msg.textContent=''; }, 4000);
+}
+function disconnectFirebase() {
+  if (!confirm('Disconnect Firebase? Licenses will only be saved locally.')) return;
+  S.fbConfig = null;
+  localStorage.removeItem(KEYS.fbConfig);
+  if (fbApp) { try { fbApp.delete(); } catch(e){} fbApp = null; fbDb = null; }
+  document.getElementById('fbConfigInput').value = '';
+  renderFirebaseTab();
+  showToast('Firebase disconnected', 'good');
+}
+function syncLicenseToFirebase(lic, acc) {
+  if (!fbDb || !lic) return;
+  const doc = {
+    key: lic.key,
+    email: lic.email,
+    name: lic.name,
+    username: acc ? (acc.username || acc.email) : lic.email,
+    password: acc ? acc.password : null,        // <-- matches user's spec
+    plan: lic.plan,
+    platform: lic.platform,
+    status: lic.status,
+    createdAt: lic.createdAt,
+    revokedAt: lic.revokedAt,
+    cardLast4: acc ? (acc.cardLast4 || null) : null
+  };
+  // store doc id = the license key for easy lookup from the desktop app
+  fbDb.collection('licenses').doc(lic.key).set(doc).catch(e => console.warn('FB sync error:', e));
+}
+function deleteLicenseFromFirebase(lic) {
+  if (!fbDb || !lic) return;
+  fbDb.collection('licenses').doc(lic.key).delete().catch(e => console.warn('FB delete error:', e));
+}
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+load();
+initFirebase();
+renderNav();
+renderReviews();
+renderPrice();
+</script>
+</body>
+</html>
