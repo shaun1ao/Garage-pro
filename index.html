@@ -1516,14 +1516,16 @@ function save() {
   } catch(e){}
 }
 function logPurchase(action, user) {
-  S.purchases.unshift({
+  const p = {
     id: Date.now(),
     ts: new Date().toLocaleString('en-IN'),
     name: user ? user.name : 'Guest',
     email: user ? (user.email || '—') : '—',
     action
-  });
+  };
+  S.purchases.unshift(p);
   save();
+  syncPurchaseToFirebase(p);
 }
 
 // ══════════════════════════════════════════
@@ -1622,6 +1624,7 @@ function doSignup(e) {
   S.accounts.push(acc);
   logPurchase('Sign Up', {name, email});
   save();
+  syncAccountToFirebase(acc);
   currentUser = {name, email, isAdmin: false};
   sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
   closeAuth();
@@ -1696,12 +1699,15 @@ function deletePurchase(id) {
   if (!confirm('Delete this event?')) return;
   S.purchases = S.purchases.filter(p => p.id !== id);
   save(); renderPurchasesTab();
+  deletePurchaseFromFirebase(id);
   showToast('Event deleted', 'good');
 }
 function clearAllPurchases() {
   if (!confirm('Delete ALL purchase events? This cannot be undone.')) return;
+  const ids = S.purchases.map(p => p.id);
   S.purchases = [];
   save(); renderPurchasesTab();
+  ids.forEach(id => deletePurchaseFromFirebase(id));
   showToast('All events cleared', 'good');
 }
 
@@ -1748,6 +1754,7 @@ function editReview(id) { openRevForm(id); document.getElementById('revForm').sc
 function deleteReview(id) {
   S.reviews = S.reviews.filter(r => r.id !== id);
   save(); renderAdminReviewsGrid(); renderReviews();
+  deleteReviewFromFirebase(id);
   showToast('Review deleted', 'good');
 }
 function saveReview() {
@@ -1758,13 +1765,16 @@ function saveReview() {
   const stars = parseInt(document.getElementById('rf-stars').value);
   if (!name || !text) { showToast('Name and text are required', 'bad'); return; }
   const editId = parseInt(document.getElementById('revEditId').value);
+  let savedReview;
   if (editId) {
     const idx = S.reviews.findIndex(r=>r.id===editId);
-    if (idx !== -1) S.reviews[idx] = {...S.reviews[idx], name, initials, role, text, stars};
+    if (idx !== -1) { S.reviews[idx] = {...S.reviews[idx], name, initials, role, text, stars}; savedReview = S.reviews[idx]; }
   } else {
-    S.reviews.push({id: Date.now(), stars, text, name, role, initials});
+    savedReview = {id: Date.now(), stars, text, name, role, initials};
+    S.reviews.push(savedReview);
   }
   save(); closeRevForm(); renderAdminReviewsGrid(); renderReviews();
+  if (savedReview) syncReviewToFirebase(savedReview);
   showToast(editId ? 'Review updated' : 'Review added', 'good');
 }
 
@@ -1793,7 +1803,8 @@ function renderAdminPricing() {
 function savePrice() {
   S.price = document.getElementById('priceInput').value.trim();
   S.priceNote = document.getElementById('priceNote').value.trim();
-  save(); renderPrice(); renderAdminPricing();
+  save(); renderAdminPricing();
+  syncSiteSettingsToFirebase();
   document.getElementById('priceMsg').textContent = 'Saved!';
   setTimeout(()=>{ document.getElementById('priceMsg').textContent=''; }, 2500);
 }
@@ -1812,6 +1823,7 @@ function saveDownload() {
   S.downloadVersion = ver;
   save();
   renderAdminPricing();
+  syncSiteSettingsToFirebase();
   msg.style.color = 'var(--teal)';
   msg.textContent = 'Download settings saved!';
   setTimeout(() => { msg.textContent = ''; }, 2500);
@@ -2142,6 +2154,7 @@ function deletePlan(id) {
   if (!confirm('Delete this plan? Existing licenses on this plan keep working until they expire.')) return;
   S.plans = S.plans.filter(p => p.id !== id);
   save(); renderAdminPlansGrid(); renderPlansGrid();
+  syncPlansToFirebase();
   showToast('Plan deleted', 'good');
 }
 function savePlan() {
@@ -2172,6 +2185,7 @@ function savePlan() {
     S.plans.push({ id, name, tag, monthly, weekly, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active });
   }
   save(); closePlanForm(); renderAdminPlansGrid(); renderPlansGrid();
+  syncPlansToFirebase();
   showToast(editId ? 'Plan updated' : 'Plan added', 'good');
 }
 
@@ -2267,6 +2281,7 @@ function upgradeUserPlan(planId, cycle) {
     ts: new Date().toLocaleString('en-IN')
   };
   S.billing.unshift(billRec);
+  syncBillingToFirebase(billRec);
   logPurchase(`Upgrade · ${newPlan.name} (${newCycle})`, currentUser);
   save();
   // Sync to Firebase
@@ -2528,9 +2543,10 @@ function completePurchase() {
     ts: new Date().toLocaleString('en-IN')
   };
   S.billing.unshift(bill);
+  syncBillingToFirebase(bill);
   // Save card to account (last 4 only)
   const acc = S.accounts.find(a => a.email === currentUser.email);
-  if (acc) { acc.cardLast4 = last4; acc.cardName = name; }
+  if (acc) { acc.cardLast4 = last4; acc.cardName = name; syncAccountToFirebase(acc); }
   // Issue license bound to the chosen plan
   const lic = issueLicense(currentUser.email, currentUser.name, planId, pendingPlatform, cycle);
   logPurchase(`Purchase · ${plan ? plan.name : 'Standard'} (${cycle})`, currentUser);
@@ -2775,17 +2791,75 @@ function refreshLicensesFromFirebase() {
 }
 function renderFirebaseTab() {
   const st = document.getElementById('fbStatus');
+  if (!st) return;
   if (S.fbConfig && fbApp) {
     const remoteCount = S.licenses.filter(l => l._remote).length;
     const lastSync = fbLastSyncTs ? fbLastSyncTs.toLocaleTimeString('en-IN') : 'syncing…';
-    st.className = 'fb-status connected';
-    st.innerHTML = `<span class="fbdot"></span><span>Live-synced with <b>${S.fbConfig.projectId || 'Firebase'}</b> · ${remoteCount} license(s) from Firestore · last update ${lastSync}</span>`;
+    if (fbLastError) {
+      st.className = 'fb-status offline';
+      st.innerHTML = `<span class="fbdot"></span><span>Connected to <b>${S.fbConfig.projectId}</b> but <b>writes are failing</b> · ${fbLastError.label} · ${fbLastError.code || 'error'}: ${fbLastError.message || ''}</span>`;
+    } else {
+      st.className = 'fb-status connected';
+      st.innerHTML = `<span class="fbdot"></span><span>Live-synced with <b>${S.fbConfig.projectId || 'Firebase'}</b> · ${remoteCount} license(s) from Firestore · last update ${lastSync}</span>`;
+    }
     document.getElementById('fbConfigInput').value = JSON.stringify(S.fbConfig, null, 2);
   } else {
     st.className = 'fb-status offline';
     st.innerHTML = `<span class="fbdot"></span><span>Not connected — licenses are saved locally only</span>`;
     if (S.fbConfig) document.getElementById('fbConfigInput').value = JSON.stringify(S.fbConfig, null, 2);
   }
+  // Build / refresh the action panel below the config
+  let action = document.getElementById('fbActions');
+  if (!action) {
+    action = document.createElement('div');
+    action.id = 'fbActions';
+    action.className = 'settings-section';
+    action.style.maxWidth = '560px';
+    document.getElementById('tab-firebase').appendChild(action);
+  }
+  const connected = !!(S.fbConfig && fbApp);
+  action.innerHTML = `
+    <h4>Force a full re-sync</h4>
+    <p style="color:var(--dim);font-size:13.5px;margin-bottom:14px;line-height:1.6">
+      Pushes <b>everything</b> to Firestore in one go: site settings, plans, licenses, accounts, reviews, purchases, billing, admin credentials. Creates all collections if they don't exist yet.
+    </p>
+    <button class="form-btn form-btn-save" onclick="manualBootstrap()" ${connected ? '' : 'disabled style="opacity:.5;cursor:not-allowed"'}>
+      ${connected ? 'Push everything to Firebase' : 'Connect Firebase first'}
+    </button>
+    <div class="success-msg" id="fbBootstrapMsg"></div>
+
+    <h4 style="margin-top:28px">Required Firestore security rules</h4>
+    <p style="color:var(--dim);font-size:13.5px;margin-bottom:10px;line-height:1.6">
+      If writes are failing, the most likely reason is that your Firestore rules are blocking them. Open Firebase Console &rarr; Firestore Database &rarr; Rules and paste this (replace what's there):
+    </p>
+    <pre style="background:var(--bg2);padding:14px 16px;border-radius:9px;font-size:12.5px;color:var(--acc2);font-family:'Courier New',monospace;overflow-x:auto;line-height:1.6;border:1px solid var(--brd)">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}</pre>
+    <p style="color:var(--faint);font-size:12px;margin-top:10px;line-height:1.5">
+      This is open-access — fine for testing and a free-tier website with no sensitive data. Tighten before going live (e.g. lock writes to admin SDK only).
+    </p>`;
+}
+function manualBootstrap() {
+  if (!fbDb) { showToast('Connect Firebase first', 'bad'); return; }
+  const msg = document.getElementById('fbBootstrapMsg');
+  msg.style.color = 'var(--dim)';
+  msg.textContent = 'Writing all collections to Firestore…';
+  bootstrapFirebaseCollections().then(result => {
+    if (result.failed === 0) {
+      msg.style.color = 'var(--teal)';
+      msg.textContent = `Success — all ${result.total} writes completed. Refresh the Firestore console to see the collections.`;
+      showToast(`Pushed ${result.total} docs to Firestore`, 'good');
+    } else {
+      msg.style.color = '#ff6b6b';
+      msg.textContent = `${result.failed} of ${result.total} writes failed. Check the security-rules block below and try again.`;
+      showToast(`${result.failed} writes failed — check rules`, 'bad');
+    }
+  });
 }
 function saveFirebaseConfig() {
   const txt = document.getElementById('fbConfigInput').value.trim();
@@ -2806,17 +2880,24 @@ function saveFirebaseConfig() {
   if (fbApp) { try { fbApp.delete(); } catch(e){} fbApp = null; fbDb = null; }
   const ok = initFirebase();
   if (ok) {
-    msg.style.color='var(--teal)'; msg.textContent='Connected! Existing licenses will now sync.';
-    // backfill existing licenses
-    S.licenses.forEach(l => {
-      const acc = S.accounts.find(a => a.email === l.email);
-      syncLicenseToFirebase(l, acc);
+    msg.style.color='var(--teal)'; msg.textContent='Connected! Building collections in Firestore…';
+    // Full bootstrap — create every collection, push every row
+    bootstrapFirebaseCollections().then(result => {
+      if (result.failed === 0) {
+        msg.style.color='var(--teal)';
+        msg.textContent=`All ${result.total} writes succeeded. Check Firestore — all 7 collections are now present.`;
+        showToast('Firestore bootstrapped successfully', 'good');
+      } else {
+        msg.style.color='#ff6b6b';
+        msg.textContent=`${result.failed} of ${result.total} writes failed — check Firestore security rules.`;
+        showToast(`${result.failed} Firestore writes failed (likely rules)`, 'bad');
+      }
+      renderFirebaseTab();
     });
-    renderFirebaseTab();
   } else {
     msg.style.color='#ff6b6b'; msg.textContent='Connection failed — check the config.';
   }
-  setTimeout(() => { msg.textContent=''; }, 4000);
+  setTimeout(() => { msg.textContent=''; }, 6000);
 }
 function disconnectFirebase() {
   if (!confirm('Disconnect Firebase? Licenses will only be saved locally.')) return;
@@ -2835,31 +2916,66 @@ function disconnectFirebase() {
 }
 function syncLicenseToFirebase(lic, acc) {
   if (!fbDb || !lic) return;
-  const doc = {
-    key: lic.key,
-    email: lic.email,
-    name: lic.name,
-    username: acc ? (acc.username || acc.email) : lic.email,
-    password: acc ? acc.password : null,
-    // Plan info — the desktop app reads these to enforce limits
-    plan: lic.plan,
-    planId: lic.planId || null,
-    billingCycle: lic.billingCycle || 'monthly',
-    maxBays: typeof lic.maxBays === 'number' ? lic.maxBays : 999,
-    maxWorkers: typeof lic.maxWorkers === 'number' ? lic.maxWorkers : 999,
-    maxBookings: typeof lic.maxBookings === 'number' ? lic.maxBookings : 999,
-    currency: lic.currency || 'INR',
-    amount: lic.amount || 0,
-    platform: lic.platform,
-    status: lic.status,
-    createdAt: lic.createdAt,
-    revokedAt: lic.revokedAt,
-    upgradedAt: lic.upgradedAt || null,
-    upgradeHistory: lic.upgradeHistory || [],
-    cardLast4: acc ? (acc.cardLast4 || null) : null
-  };
-  // store doc id = the license key for easy lookup from the desktop app
-  fbDb.collection('licenses').doc(lic.key).set(doc).catch(e => console.warn('FB sync error:', e));
+  fbDb.collection('licenses').doc(lic.key).set(licenseToDoc(lic, acc))
+    .then(() => { fbLastError = null; refreshFirebaseStatus(); })
+    .catch(e => handleFirebaseError('License write (' + lic.key + ')', e));
+}
+
+// ── Lightweight sync helpers for the other collections ──
+function syncSiteSettingsToFirebase() {
+  if (!fbDb) return;
+  fbDb.collection('siteConfig').doc('site').set({
+    price: S.price || '', priceNote: S.priceNote || '',
+    downloadUrl: S.downloadUrl || '', downloadName: S.downloadName || 'GaragePro-Setup.exe',
+    downloadVersion: S.downloadVersion || '1.0.0',
+    currency: S.currency || 'INR', billingCycle: S.billingCycle || 'monthly',
+    detectedCountry: S.detectedCountry || null,
+    updatedAt: new Date().toISOString()
+  }).catch(e => handleFirebaseError('Site settings write', e));
+}
+function syncPlansToFirebase() {
+  if (!fbDb) return;
+  fbDb.collection('siteConfig').doc('plans').set({
+    plans: S.plans || [],
+    updatedAt: new Date().toISOString()
+  }).catch(e => handleFirebaseError('Plans write', e));
+}
+function syncReviewToFirebase(r) {
+  if (!fbDb || !r) return;
+  fbDb.collection('reviews').doc(String(r.id)).set({
+    id: r.id, stars: r.stars, text: r.text, name: r.name,
+    role: r.role, initials: r.initials, updatedAt: new Date().toISOString()
+  }).catch(e => handleFirebaseError('Review write', e));
+}
+function deleteReviewFromFirebase(id) {
+  if (!fbDb) return;
+  fbDb.collection('reviews').doc(String(id)).delete().catch(e => handleFirebaseError('Review delete', e));
+}
+function syncAccountToFirebase(a) {
+  if (!fbDb || !a || !a.email) return;
+  fbDb.collection('accounts').doc(a.email).set({
+    email: a.email, name: a.name, password: a.password || '',
+    username: a.username || a.email,
+    createdAt: a.createdAt || new Date().toISOString(),
+    cardLast4: a.cardLast4 || null,
+    licenseKey: a.licenseKey || null,
+    licensePlan: a.licensePlan || null,
+    licenseStatus: a.licenseStatus || null
+  }).catch(e => handleFirebaseError('Account write', e));
+}
+function syncPurchaseToFirebase(p) {
+  if (!fbDb || !p) return;
+  fbDb.collection('purchases').doc(String(p.id)).set({
+    id: p.id, name: p.name, email: p.email, action: p.action, ts: p.ts
+  }).catch(e => handleFirebaseError('Purchase write', e));
+}
+function deletePurchaseFromFirebase(id) {
+  if (!fbDb) return;
+  fbDb.collection('purchases').doc(String(id)).delete().catch(e => handleFirebaseError('Purchase delete', e));
+}
+function syncBillingToFirebase(b) {
+  if (!fbDb || !b) return;
+  fbDb.collection('billing').doc(String(b.id)).set(b).catch(e => handleFirebaseError('Billing write', e));
 }
 function deleteLicenseFromFirebase(lic) {
   if (!fbDb || !lic) return;
@@ -2877,7 +2993,170 @@ function syncAdminCredsToFirebase() {
     password: S.creds.password,
     changed: !!S.credsChanged,
     updatedAt: new Date().toISOString()
-  }).catch(e => console.warn('Admin creds FB sync error:', e));
+  }).then(() => { fbLastError = null; refreshFirebaseStatus(); })
+    .catch(e => { handleFirebaseError('Admin creds write', e); });
+}
+
+// ── ALL COLLECTIONS ──
+// On connect we forcibly create every collection by writing a marker doc, then
+// backfill every row of local data. This way the Firestore console shows the
+// full structure immediately and you can see if writes are actually succeeding.
+let fbLastError = null;
+
+function handleFirebaseError(label, e) {
+  fbLastError = { label, code: e && (e.code || e.name), message: e && e.message };
+  console.warn('Firebase write failed (' + label + '):', e);
+  refreshFirebaseStatus();
+}
+function refreshFirebaseStatus() {
+  // re-render the Firebase tab status badge if it's visible
+  if (document.getElementById('tab-firebase')) renderFirebaseTab();
+}
+
+function bootstrapFirebaseCollections() {
+  if (!fbDb) return Promise.resolve();
+  const now = new Date().toISOString();
+  const writes = [];
+
+  // 1) siteConfig/admin — credentials
+  writes.push(fbDb.collection('siteConfig').doc('admin').set({
+    username: S.creds.username,
+    password: S.creds.password,
+    changed: !!S.credsChanged,
+    updatedAt: now
+  }));
+
+  // 2) siteConfig/site — pricing, downloads, currency, country
+  writes.push(fbDb.collection('siteConfig').doc('site').set({
+    price: S.price || '',
+    priceNote: S.priceNote || '',
+    downloadUrl: S.downloadUrl || '',
+    downloadName: S.downloadName || 'GaragePro-Setup.exe',
+    downloadVersion: S.downloadVersion || '1.0.0',
+    currency: S.currency || 'INR',
+    billingCycle: S.billingCycle || 'monthly',
+    detectedCountry: S.detectedCountry || null,
+    updatedAt: now
+  }));
+
+  // 3) siteConfig/plans — the plan catalogue
+  writes.push(fbDb.collection('siteConfig').doc('plans').set({
+    plans: S.plans || [],
+    updatedAt: now
+  }));
+
+  // 4) licenses — one doc per license key
+  S.licenses.forEach(l => {
+    const acc = S.accounts.find(a => a.email === l.email);
+    writes.push(
+      fbDb.collection('licenses').doc(l.key).set(licenseToDoc(l, acc))
+    );
+  });
+  if (!S.licenses.length) {
+    // marker doc so the collection shows up empty-but-present
+    writes.push(fbDb.collection('licenses').doc('_placeholder').set({
+      _placeholder: true,
+      note: 'Marker doc created on Firebase connect. Will be replaced by real licenses.',
+      createdAt: now
+    }));
+  }
+
+  // 5) accounts — one doc per user account
+  S.accounts.forEach(a => {
+    writes.push(fbDb.collection('accounts').doc(a.email).set({
+      email: a.email,
+      name: a.name,
+      password: a.password || '',
+      username: a.username || a.email,
+      createdAt: a.createdAt || now,
+      cardLast4: a.cardLast4 || null,
+      licenseKey: a.licenseKey || null,
+      licensePlan: a.licensePlan || null,
+      licenseStatus: a.licenseStatus || null
+    }));
+  });
+  if (!S.accounts.length) {
+    writes.push(fbDb.collection('accounts').doc('_placeholder').set({
+      _placeholder: true, note: 'Marker doc — accounts collection bootstrapped.', createdAt: now
+    }));
+  }
+
+  // 6) reviews
+  S.reviews.forEach(r => {
+    writes.push(fbDb.collection('reviews').doc(String(r.id)).set({
+      id: r.id, stars: r.stars, text: r.text, name: r.name,
+      role: r.role, initials: r.initials, updatedAt: now
+    }));
+  });
+  if (!S.reviews.length) {
+    writes.push(fbDb.collection('reviews').doc('_placeholder').set({
+      _placeholder: true, createdAt: now
+    }));
+  }
+
+  // 7) purchases — event log
+  S.purchases.forEach(p => {
+    writes.push(fbDb.collection('purchases').doc(String(p.id)).set({
+      id: p.id, name: p.name, email: p.email, action: p.action, ts: p.ts
+    }));
+  });
+  if (!S.purchases.length) {
+    writes.push(fbDb.collection('purchases').doc('_placeholder').set({
+      _placeholder: true, createdAt: now
+    }));
+  }
+
+  // 8) billing — invoices
+  S.billing.forEach(b => {
+    writes.push(fbDb.collection('billing').doc(String(b.id)).set(b));
+  });
+  if (!S.billing.length) {
+    writes.push(fbDb.collection('billing').doc('_placeholder').set({
+      _placeholder: true, createdAt: now
+    }));
+  }
+
+  return Promise.allSettled(writes).then(results => {
+    const failed = results.filter(r => r.status === 'rejected');
+    if (failed.length) {
+      const first = failed[0].reason || {};
+      fbLastError = {
+        label: `${failed.length} of ${writes.length} writes`,
+        code: first.code || first.name,
+        message: first.message || 'Unknown error'
+      };
+    } else {
+      fbLastError = null;
+    }
+    refreshFirebaseStatus();
+    return { total: writes.length, failed: failed.length };
+  });
+}
+
+// Helper — license object → flat Firestore doc
+function licenseToDoc(lic, acc) {
+  return {
+    key: lic.key,
+    email: lic.email,
+    name: lic.name,
+    username: acc ? (acc.username || acc.email) : lic.email,
+    password: acc ? acc.password : null,
+    plan: lic.plan,
+    planId: lic.planId || null,
+    billingCycle: lic.billingCycle || 'monthly',
+    maxBays: typeof lic.maxBays === 'number' ? lic.maxBays : 999,
+    maxWorkers: typeof lic.maxWorkers === 'number' ? lic.maxWorkers : 999,
+    maxBookings: typeof lic.maxBookings === 'number' ? lic.maxBookings : 999,
+    currency: lic.currency || 'INR',
+    amount: lic.amount || 0,
+    platform: lic.platform,
+    status: lic.status,
+    createdAt: lic.createdAt,
+    revokedAt: lic.revokedAt,
+    upgradedAt: lic.upgradedAt || null,
+    upgradeHistory: lic.upgradeHistory || [],
+    cardLast4: acc ? (acc.cardLast4 || null) : null
+  };
 }
 function loadAdminCredsFromFirebase() {
   if (!fbDb) return Promise.resolve();
