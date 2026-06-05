@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <!-- Firebase Web SDK (compat) — config is set from Admin → Firebase tab -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 /* ── tokens ── */
@@ -484,6 +485,20 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 .fb-status.offline{background:rgba(255,179,71,.10);color:var(--acc2);border:1px solid rgba(255,179,71,.28)}
 .fb-status .fbdot{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
 
+/* ── PROCESSING-PAYMENT OVERLAY ── */
+.processing-overlay{position:fixed;inset:0;z-index:250;background:rgba(5,8,14,.92);backdrop-filter:blur(12px);display:none;align-items:center;justify-content:center;flex-direction:column;gap:24px}
+.processing-overlay.open{display:flex}
+.pp-spinner{width:64px;height:64px;border-radius:50%;border:4px solid rgba(255,122,24,.18);border-top-color:var(--acc);animation:ppspin 1s linear infinite}
+@keyframes ppspin{to{transform:rotate(360deg)}}
+.pp-title{font-family:var(--fd);font-size:22px;font-weight:800;color:var(--txt)}
+.pp-sub{color:var(--dim);font-size:14.5px;max-width:340px;text-align:center;line-height:1.6}
+.pp-step{color:var(--teal);font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .3s}
+.pp-step.show{opacity:1}
+.pp-step svg{width:15px;height:15px}
+.pp-success{width:64px;height:64px;border-radius:50%;background:rgba(32,227,178,.18);border:2px solid var(--teal);display:grid;place-items:center;color:var(--teal);animation:ppPop .35s cubic-bezier(.2,.7,.2,1)}
+.pp-success svg{width:30px;height:30px}
+@keyframes ppPop{0%{transform:scale(0)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
+
 /* ── toast ── */
 .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surf);border:1px solid var(--brd2);border-radius:12px;padding:13px 22px;font-size:14px;font-weight:600;color:var(--txt);z-index:300;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;box-shadow:0 12px 30px rgba(0,0,0,.6)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -695,6 +710,22 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
         <div class="success-msg" id="fbMsg"></div>
         <p style="color:var(--faint);font-size:12.5px;margin-top:18px;line-height:1.6">Licenses will be stored in the <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:11.5px">licenses</code> collection alongside any existing workshop data in this project.</p>
       </div>
+
+      <div class="settings-section" style="max-width:560px;margin-top:22px">
+        <h4>Cloud Functions endpoint</h4>
+        <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">
+          The site calls <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12px">/activateSubscription</code> on this base URL to record purchases server-side. Find it in Firebase Console &rarr; Functions &rarr; Dashboard after deploying.
+        </p>
+        <div class="form-group">
+          <label>Cloud Functions base URL</label>
+          <input id="cloudFnUrlInput" type="text" placeholder="https://us-central1-your-project.cloudfunctions.net" />
+        </div>
+        <button class="form-btn form-btn-save" onclick="saveCloudFnUrl()">Save endpoint</button>
+        <div class="success-msg" id="cloudFnMsg"></div>
+        <p style="color:var(--faint);font-size:12px;margin-top:14px;line-height:1.6">
+          Leave blank to keep the site running on local-only mode (no server-side activation). Deploy the function from the <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;font-size:11.5px">functions/</code> folder generated alongside this file.
+        </p>
+      </div>
     </div>
 
     <!-- REVIEWS TAB -->
@@ -872,6 +903,20 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
         </div>
         <p style="font-size:11.5px;color:var(--faint);text-align:center;margin-top:18px;line-height:1.6">This is a demo — no real charge is made. Test card 4242 4242 4242 4242 works.</p>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ PROCESSING PAYMENT OVERLAY ═══════════════ -->
+<div class="processing-overlay" id="processingOverlay">
+  <div id="ppContent">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:18px">
+      <div class="pp-spinner" id="ppSpinner"></div>
+      <div class="pp-title" id="ppTitle">Processing payment…</div>
+      <div class="pp-sub" id="ppSub">Securely contacting payment server. Please don't close this window.</div>
+      <div class="pp-step" id="ppStep1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Payment authorised</div>
+      <div class="pp-step" id="ppStep2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Activating subscription</div>
+      <div class="pp-step" id="ppStep3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>License key issued</div>
     </div>
   </div>
 </div>
@@ -1342,7 +1387,7 @@ const KEYS = {
   fbConfig:'gp_fbConfig', downloadUrl:'gp_downloadUrl',
   downloadName:'gp_downloadName', downloadVersion:'gp_downloadVersion',
   plans:'gp_plans', currency:'gp_currency', cycle:'gp_cycle',
-  credsChanged:'gp_credsChanged'
+  credsChanged:'gp_credsChanged', cloudFnUrl:'gp_cloudFnUrl'
 };
 
 // Fallback admin credentials. These work ONLY while S.credsChanged is false.
@@ -1455,7 +1500,14 @@ let S = {
   priceNote: '',
   licenses: [],     // {key, email, name, status, plan, planId, maxBays, maxWorkers, maxBookings, billingCycle, currency, amount, createdAt, revokedAt, upgradeHistory}
   billing: [],      // {id, email, amount, status, cardLast4, ts, invoiceId, planId, billingCycle, currency}
-  fbConfig: null,
+  fbConfig: {
+  apiKey: "AIzaSyD4rRHyT3NOxTfwQDy3mjv9HVYUH3riGDA",
+  authDomain: "garage-pro-874c6.firebaseapp.com",
+  projectId: "garage-pro-874c6",
+  storageBucket: "garage-pro-874c6.firebasestorage.app",
+  messagingSenderId: "714982026183",
+  appId: "1:714982026183:web:95401fffb0a93151b407e2"
+},
   downloadUrl: '',
   downloadName: 'GaragePro-Setup.exe',
   downloadVersion: '1.0.0',
@@ -1463,15 +1515,22 @@ let S = {
   currency: 'INR',                  // current display currency
   billingCycle: 'monthly',          // 'monthly' | 'weekly'
   detectedCountry: null,            // ISO-2 from IP lookup
-  credsChanged: false               // true once admin updates username or password
+  credsChanged: false,              // true once admin updates username or password
+  cloudFnUrl: ''                    // Base URL for Firebase Cloud Functions (e.g. https://us-central1-xxxx.cloudfunctions.net)
 };
+// Source-of-truth subscription for the signed-in user — read live from
+// Firestore (users/{email}/subscription). NEVER read from localStorage.
+let currentSubscription = null;
+let fbSubUnsub = null;
 let pendingPlanId = null;           // which plan the user is buying / upgrading to
 let upgradeCycle = 'monthly';
 let pendingAction = null;
 let currentUser = null;
 let fbApp = null;
 let fbDb = null;
-let fbUnsub = null;       // unsubscribe handle for the real-time listener
+let fbAuth = null;
+let fbAuthUnsub = null;   // unsubscribe handle for onAuthStateChanged
+let fbUnsub = null;       // unsubscribe handle for the licenses listener
 let fbLastSyncTs = null;
 
 function load() {
@@ -1492,6 +1551,7 @@ function load() {
     const cur = localStorage.getItem(KEYS.currency); if(cur) S.currency = cur;
     const cyc = localStorage.getItem(KEYS.cycle); if(cyc) S.billingCycle = cyc;
     const cch = localStorage.getItem(KEYS.credsChanged); if(cch === 'true') S.credsChanged = true;
+    const cfu = localStorage.getItem(KEYS.cloudFnUrl); if(cfu) S.cloudFnUrl = cfu;
     const sess = sessionStorage.getItem('gp_user'); if(sess) currentUser = JSON.parse(sess);
   } catch(e){}
 }
@@ -1513,6 +1573,7 @@ function save() {
     localStorage.setItem(KEYS.currency, S.currency);
     localStorage.setItem(KEYS.cycle, S.billingCycle);
     localStorage.setItem(KEYS.credsChanged, S.credsChanged ? 'true' : 'false');
+    localStorage.setItem(KEYS.cloudFnUrl, S.cloudFnUrl || '');
   } catch(e){}
 }
 function logPurchase(action, user) {
@@ -1567,12 +1628,14 @@ function switchAuthTab(t) {
   document.getElementById('loginForm').classList.toggle('active', t==='login');
   document.getElementById('signupForm').classList.toggle('active', t==='signup');
 }
-function doLogin(e) {
+async function doLogin(e) {
   e.preventDefault();
-  const u = document.getElementById('li-user').value.trim();
-  const p = document.getElementById('li-pass').value;
+  const u   = document.getElementById('li-user').value.trim();
+  const p   = document.getElementById('li-pass').value;
   const err = document.getElementById('loginErr');
-  // admin check — primary credentials (whatever the admin has set them to)
+  err.textContent = '';
+
+  // ── Admin login (localStorage-based, separate from Firebase Auth) ──
   if (u === S.creds.username && p === S.creds.password) {
     currentUser = {name: S.creds.username, isAdmin: true};
     sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
@@ -1582,9 +1645,7 @@ function doLogin(e) {
     if (pendingAction) handleDownload(pendingAction, currentUser);
     return;
   }
-  // Fallback admin login — works ONLY while the admin hasn't changed
-  // the credentials yet. Accepts both TEST/1234 and the original
-  // garagepro123/12345 so old docs/screenshots still work.
+  // Default-creds fallback while admin hasn't changed them yet
   if (!S.credsChanged) {
     const matchesFallback = (u === FALLBACK_ADMIN.username && p === FALLBACK_ADMIN.password);
     const matchesOriginal = (u === ORIGINAL_ADMIN.username && p === ORIGINAL_ADMIN.password);
@@ -1598,45 +1659,101 @@ function doLogin(e) {
       return;
     }
   }
-  // user check
-  const acc = S.accounts.find(a => (a.email === u || a.name === u) && a.password === p);
-  if (acc) {
-    currentUser = {name: acc.name, email: acc.email, isAdmin: false};
-    sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
+
+  // ── User login via Firebase Auth ──
+  if (!fbAuth) { err.textContent = 'Site not connected to Firebase yet. Contact support.'; return; }
+  if (!u.includes('@')) { err.textContent = 'Enter your email address.'; return; }
+
+  // Disable form while we wait
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+  try {
+    await fbAuth.signInWithEmailAndPassword(u, p);
+    // handleAuthStateChanged will pick this up, set currentUser, etc.
     closeAuth();
-    renderNav();
-    showToast(`Welcome back, ${acc.name.split(' ')[0]}!`, 'good');
-    if (pendingAction) handleDownload(pendingAction, currentUser);
-    return;
+    showToast('Welcome back!', 'good');
+    if (pendingAction) setTimeout(() => handleDownload(pendingAction, currentUser), 300);
+  } catch (e2) {
+    const code = e2.code || '';
+    if (code.includes('user-not-found') || code.includes('wrong-password') || code.includes('invalid-credential') || code.includes('invalid-login-credentials')) {
+      err.textContent = 'Incorrect email or password.';
+    } else if (code.includes('too-many-requests')) {
+      err.textContent = 'Too many attempts. Wait a minute and try again.';
+    } else if (code.includes('network')) {
+      err.textContent = 'Network error. Check your connection.';
+    } else {
+      err.textContent = e2.message || 'Sign-in failed.';
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
   }
-  err.textContent = 'Incorrect username or password.';
 }
-function doSignup(e) {
+async function doSignup(e) {
   e.preventDefault();
-  const name = document.getElementById('su-name').value.trim();
+  const name  = document.getElementById('su-name').value.trim();
   const email = document.getElementById('su-email').value.trim();
-  const pass = document.getElementById('su-pass').value;
-  const conf = document.getElementById('su-conf').value;
-  const err = document.getElementById('signupErr');
-  if (pass !== conf) { err.textContent = 'Passwords do not match.'; return; }
-  if (S.accounts.find(a => a.email === email)) { err.textContent = 'An account with that email already exists.'; return; }
-  const acc = {id: Date.now(), name, email, password: pass, createdAt: new Date().toLocaleString('en-IN')};
-  S.accounts.push(acc);
-  logPurchase('Sign Up', {name, email});
-  save();
-  syncAccountToFirebase(acc);
-  currentUser = {name, email, isAdmin: false};
-  sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
-  closeAuth();
-  renderNav();
-  showToast(`Account created! Welcome, ${name.split(' ')[0]}`, 'good');
-  if (pendingAction) handleDownload(pendingAction, currentUser);
+  const pass  = document.getElementById('su-pass').value;
+  const conf  = document.getElementById('su-conf').value;
+  const err   = document.getElementById('signupErr');
+  err.textContent = '';
+  if (!name)              { err.textContent = 'Enter your full name.'; return; }
+  if (pass !== conf)      { err.textContent = 'Passwords do not match.'; return; }
+  if (pass.length < 6)    { err.textContent = 'Password must be at least 6 characters.'; return; }
+  if (!fbAuth)            { err.textContent = 'Site not connected to Firebase yet. Contact support.'; return; }
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating account…'; }
+  try {
+    // 1) Create the Firebase Auth user
+    const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
+    // 2) Store display name on the auth profile
+    await cred.user.updateProfile({ displayName: name });
+    // 3) Write a profile document at users/{uid}
+    await fbDb.collection('users').doc(cred.user.uid).set({
+      uid:       cred.user.uid,
+      email,
+      name,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      // No subscription field yet — that gets written when they purchase a plan
+    }, { merge: true });
+    // 4) Log the sign-up event for the admin
+    logPurchase('Sign Up', { name, email });
+    // handleAuthStateChanged fires next and populates currentUser
+    closeAuth();
+    showToast(`Account created! Welcome, ${name.split(' ')[0]}`, 'good');
+    if (pendingAction) setTimeout(() => handleDownload(pendingAction, currentUser), 300);
+  } catch (e2) {
+    const code = e2.code || '';
+    if (code.includes('email-already-in-use')) {
+      err.textContent = 'An account with that email already exists. Sign in instead.';
+    } else if (code.includes('invalid-email')) {
+      err.textContent = 'That email address looks wrong.';
+    } else if (code.includes('weak-password')) {
+      err.textContent = 'Password is too weak (need 6+ characters).';
+    } else if (code.includes('operation-not-allowed')) {
+      err.textContent = 'Email/Password sign-in is not enabled in Firebase Console.';
+    } else if (code.includes('network')) {
+      err.textContent = 'Network error. Check your connection.';
+    } else {
+      err.textContent = e2.message || 'Sign-up failed.';
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Create Account'; }
+  }
 }
 function doLogout() {
+  const wasAdmin = currentUser && currentUser.isAdmin;
   currentUser = null;
+  currentSubscription = null;
+  if (fbSubUnsub) { try { fbSubUnsub(); } catch(e){} fbSubUnsub = null; }
   sessionStorage.removeItem('gp_user');
   closeAdminPanel();
   closeUserDashboard();
+  // Sign out of Firebase Auth too (for non-admin sessions). For admin we keep
+  // the Firebase Auth user untouched in case there's one parallel.
+  if (!wasAdmin && fbAuth && fbAuth.currentUser) {
+    fbAuth.signOut().catch(() => {});
+  }
   renderNav();
   showToast('Signed out', 'good');
 }
@@ -2236,14 +2353,39 @@ function renderUpgradePlans() {
     </div>`;
   }).join('');
 }
-function upgradeUserPlan(planId, cycle) {
+async function upgradeUserPlan(planId, cycle) {
   if (!currentUser || currentUser.isAdmin) return;
   const newPlan = S.plans.find(p => p.id === planId);
   if (!newPlan) return;
   const newCycle = cycle || S.billingCycle;
+
+  // Server-driven upgrade: call the Cloud Function so Firestore is the
+  // source of truth. The local mirror below is just for the admin UI.
+  if (S.cloudFnUrl) {
+    closeUpgrade();
+    showProcessing('Switching plan…', `Activating your ${newPlan.name} subscription on our servers.`);
+    await new Promise(r => setTimeout(r, 800));
+    processingStep(1);
+    await new Promise(r => setTimeout(r, 600));
+    processingStep(2);
+    try {
+      const result = await callActivateSubscription(currentUser.email, newPlan.id, newCycle);
+      processingStep(3);
+      await new Promise(r => setTimeout(r, 400));
+      processingSuccess(result.licenseKey, newPlan.name, result.expiry);
+      logPurchase(`Upgrade · ${newPlan.name} (${newCycle})`, currentUser);
+      save();
+      renderPlansGrid();
+      return;
+    } catch (err) {
+      processingError(err.message || 'Could not switch plan.');
+      return;
+    }
+  }
+
+  // Fallback (no server configured) — keep the old local-only behaviour
   let lic = S.licenses.find(l => l.email === currentUser.email && l.status === 'active');
   if (!lic) {
-    // no existing license — fall back to billing flow
     pendingPlanId = planId;
     upgradeCycle = newCycle;
     openBilling();
@@ -2511,55 +2653,235 @@ function updateCardVisual() {
   document.getElementById('cardNameDisplay').textContent = name;
   document.getElementById('cardExpDisplay').textContent = exp;
 }
-function completePurchase() {
-  const num = document.getElementById('bf-num').value.replace(/\s/g,'');
-  const name = document.getElementById('bf-name').value.trim();
-  const exp = document.getElementById('bf-exp').value;
-  const cvv = document.getElementById('bf-cvv').value;
-  if (num.length < 13) { showToast('Enter a valid card number', 'bad'); return; }
-  if (!name) { showToast('Enter cardholder name', 'bad'); return; }
-  if (!/^\d{2}\/\d{2}$/.test(exp)) { showToast('Enter expiry as MM/YY', 'bad'); return; }
-  if (cvv.length < 3) { showToast('Enter CVV', 'bad'); return; }
-  const last4 = num.slice(-4);
-  const totalTxt = document.getElementById('bsumTotal').textContent;
-  const amount = parseInt(totalTxt.replace(/[^\d]/g,''),10);
-  // Resolve chosen plan
-  const planId = pendingPlanId || (S.plans.find(p => p.featured && p.active) || S.plans[0]).id;
-  const plan = S.plans.find(p => p.id === planId);
-  const cycle = S.billingCycle || 'monthly';
-  // Create billing record
-  const invoiceId = 'INV-' + Date.now().toString(36).toUpperCase();
-  const bill = {
-    id: Date.now(),
-    email: currentUser.email,
-    name: currentUser.name,
-    amount, status:'paid', cardLast4:last4, cardName:name,
-    invoiceId,
-    platform: pendingPlatform || 'windows',
-    planId: plan ? plan.id : null,
-    plan: plan ? plan.name : 'Standard',
-    billingCycle: cycle,
-    currency: S.currency,
-    ts: new Date().toLocaleString('en-IN')
-  };
-  S.billing.unshift(bill);
-  syncBillingToFirebase(bill);
-  // Save card to account (last 4 only)
-  const acc = S.accounts.find(a => a.email === currentUser.email);
-  if (acc) { acc.cardLast4 = last4; acc.cardName = name; syncAccountToFirebase(acc); }
-  // Issue license bound to the chosen plan
-  const lic = issueLicense(currentUser.email, currentUser.name, planId, pendingPlatform, cycle);
-  logPurchase(`Purchase · ${plan ? plan.name : 'Standard'} (${cycle})`, currentUser);
-  save();
-  closeBilling();
-  pendingPlanId = null;
-  showToast(`Payment successful! License key generated.`, 'good');
-  // Trigger the actual installer download
-  if (S.downloadUrl) {
-    setTimeout(() => triggerDownload(), 400);
+// ══════════════════════════════════════════
+//  PROCESSING-PAYMENT OVERLAY
+// ══════════════════════════════════════════
+function showProcessing(title, sub) {
+  document.getElementById('ppTitle').textContent = title || 'Processing payment…';
+  document.getElementById('ppSub').textContent = sub || 'Securely contacting payment server. Please don’t close this window.';
+  ['ppStep1','ppStep2','ppStep3'].forEach(id => document.getElementById(id).classList.remove('show'));
+  document.getElementById('ppSpinner').style.display = '';
+  document.getElementById('processingOverlay').classList.add('open');
+}
+function processingStep(n) {
+  if (n >= 1) document.getElementById('ppStep1').classList.add('show');
+  if (n >= 2) document.getElementById('ppStep2').classList.add('show');
+  if (n >= 3) document.getElementById('ppStep3').classList.add('show');
+}
+function processingSuccess(licenseKey, plan, expiry) {
+  // Replace spinner with success tick
+  const content = document.getElementById('ppContent');
+  const fmtExpiry = expiry ? new Date(expiry).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : '';
+  content.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:20px;max-width:420px;text-align:center">
+    <div class="pp-success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+    <div class="pp-title">Subscription active</div>
+    <div class="pp-sub">Your <b style="color:var(--acc2)">${plan}</b> plan is live${fmtExpiry ? ` until <b style="color:var(--txt)">${fmtExpiry}</b>` : ''}. Your license key has been saved to your account.</div>
+    ${licenseKey ? `<div style="font-family:'Courier New',monospace;font-size:18px;font-weight:700;color:var(--acc2);padding:14px 20px;background:rgba(255,122,24,.10);border:1px dashed rgba(255,122,24,.35);border-radius:10px;letter-spacing:1.5px">${licenseKey}</div>` : ''}
+    <button class="btn btn-primary" onclick="hideProcessing();closeBilling();closeUpgrade();openUserDashboard()">Open my account</button>
+  </div>`;
+}
+function processingError(msg) {
+  const content = document.getElementById('ppContent');
+  content.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:20px;max-width:400px;text-align:center">
+    <div style="width:64px;height:64px;border-radius:50%;background:rgba(255,107,107,.18);border:2px solid #ff6b6b;display:grid;place-items:center;color:#ff6b6b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" width="28" height="28"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+    <div class="pp-title">Payment failed</div>
+    <div class="pp-sub">${msg || 'Something went wrong activating your subscription.'}</div>
+    <button class="btn btn-ghost" onclick="hideProcessing()">Close</button>
+  </div>`;
+}
+function hideProcessing() {
+  document.getElementById('processingOverlay').classList.remove('open');
+  // restore default content for next open
+  document.getElementById('ppContent').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:18px">
+    <div class="pp-spinner" id="ppSpinner"></div>
+    <div class="pp-title" id="ppTitle">Processing payment…</div>
+    <div class="pp-sub" id="ppSub">Securely contacting payment server. Please don’t close this window.</div>
+    <div class="pp-step" id="ppStep1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Payment authorised</div>
+    <div class="pp-step" id="ppStep2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Activating subscription</div>
+    <div class="pp-step" id="ppStep3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>License key issued</div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════
+//  CLOUD FUNCTION CALL — server-side subscription activation
+// ══════════════════════════════════════════
+// Activate the signed-in user's subscription by writing directly to Firestore.
+// This replaces the Cloud Function call — no backend is required.
+// Security model: the user can only write to their OWN users/{uid} doc and
+// licenses/{key} docs they create. Enforced in firestore.rules.
+async function callActivateSubscription(_legacyUserId, planId, billingCycle) {
+  if (!fbDb || !fbAuth || !fbAuth.currentUser) {
+    throw new Error('Please sign in before purchasing a plan.');
   }
-  // Auto-open user dashboard
-  setTimeout(() => openUserDashboard(), 800);
+  const uid   = fbAuth.currentUser.uid;
+  const email = fbAuth.currentUser.email;
+  const plan  = (S.plans.find(p => p.id === planId) || S.plans.find(p => p.featured) || S.plans[0]);
+  if (!plan) throw new Error('No plan available.');
+
+  const cycle = (billingCycle === 'weekly') ? 'weekly' : 'monthly';
+  const days  = (cycle === 'weekly') ? 7 : 30;
+  const now   = firebase.firestore.Timestamp.now();
+  const expiryDate = new Date(Date.now() + days * 86400000);
+  const expiry     = firebase.firestore.Timestamp.fromDate(expiryDate);
+
+  // Re-use the user's existing license key if they already have one, so
+  // upgrades don't generate a new key every time.
+  let licenseKey = null;
+  try {
+    const userDoc = await fbDb.collection('users').doc(uid).get();
+    if (userDoc.exists && userDoc.data().subscription && userDoc.data().subscription.licenseKey) {
+      licenseKey = userDoc.data().subscription.licenseKey;
+    }
+  } catch(e){}
+  if (!licenseKey) licenseKey = generateLicenseKey();
+
+  const subscription = {
+    status:       'active',
+    plan:         plan.id,
+    planName:     plan.name,
+    billingCycle: cycle,
+    activatedAt:  now,
+    expiry,
+    licenseKey,
+    maxBays:      plan.maxBays,
+    maxWorkers:   plan.maxWorkers,
+    maxBookings:  plan.maxBookings,
+    lastPaymentMethod: 'fake-test-payment'
+  };
+
+  // 1) Subscription on the user record (keyed by Auth UID)
+  await fbDb.collection('users').doc(uid).set({
+    uid, email, name: fbAuth.currentUser.displayName || (email || '').split('@')[0],
+    updatedAt: now,
+    subscription
+  }, { merge: true });
+
+  // 2) Mirror under licenses/{key} so the desktop app can verify by key
+  await fbDb.collection('licenses').doc(licenseKey).set({
+    key:          licenseKey,
+    uid,
+    userId:       email,       // keep email as a friendly secondary id
+    email,
+    plan:         plan.id,
+    planName:     plan.name,
+    billingCycle: cycle,
+    status:       'active',
+    activatedAt:  now,
+    expiry,
+    maxBays:      plan.maxBays,
+    maxWorkers:   plan.maxWorkers,
+    maxBookings:  plan.maxBookings,
+    createdAt:    now
+  }, { merge: true });
+
+  return {
+    success:      true,
+    uid,
+    userId:       email,
+    plan:         plan.id,
+    billingCycle: cycle,
+    licenseKey,
+    expiry:       expiryDate.toISOString(),
+    maxBays:      plan.maxBays,
+    maxWorkers:   plan.maxWorkers,
+    maxBookings:  plan.maxBookings
+  };
+}
+
+// ══════════════════════════════════════════
+//  SUBSCRIPTION LISTENER (Firestore source of truth)
+// ══════════════════════════════════════════
+function subscribeToUserSubscription() {
+  if (fbSubUnsub) { try { fbSubUnsub(); } catch(e){} fbSubUnsub = null; }
+  currentSubscription = null;
+  if (!fbDb || !currentUser || currentUser.isAdmin || !currentUser.uid) return;
+  try {
+    fbSubUnsub = fbDb.collection('users').doc(currentUser.uid).onSnapshot(doc => {
+      const data = doc.exists ? (doc.data() || {}) : {};
+      const sub = data.subscription || null;
+      if (sub && sub.expiry && typeof sub.expiry.toDate === 'function') {
+        sub.expiry = sub.expiry.toDate().toISOString();
+      }
+      if (sub && sub.activatedAt && typeof sub.activatedAt.toDate === 'function') {
+        sub.activatedAt = sub.activatedAt.toDate().toISOString();
+      }
+      currentSubscription = sub;
+      if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
+    }, err => console.warn('Subscription listener error:', err));
+  } catch(e) { console.warn('subscribe sub failed:', e); }
+}
+function isSubscriptionActive(sub) {
+  if (!sub) return false;
+  if (sub.status !== 'active') return false;
+  if (sub.expiry) {
+    const exp = new Date(sub.expiry);
+    if (isNaN(exp.getTime())) return true;
+    return exp.getTime() > Date.now();
+  }
+  return true;
+}
+
+// ══════════════════════════════════════════
+//  COMPLETE PURCHASE — fake payment then Cloud Function activation
+// ══════════════════════════════════════════
+async function completePurchase() {
+  if (!currentUser) { closeBilling(); openAuth('win'); return; }
+  // We still keep the card form for visual realism, but accept any values in
+  // the fake-payment mode. (Stripe Elements would replace this in production.)
+  const num  = document.getElementById('bf-num').value.replace(/\s/g,'');
+  const name = document.getElementById('bf-name').value.trim();
+  const exp  = document.getElementById('bf-exp').value;
+  const cvv  = document.getElementById('bf-cvv').value;
+  if (num.length < 13)               { showToast('Enter a card number',     'bad'); return; }
+  if (!name)                          { showToast('Enter cardholder name',  'bad'); return; }
+  if (!/^\d{2}\/\d{2}$/.test(exp))    { showToast('Expiry must be MM/YY',    'bad'); return; }
+  if (cvv.length < 3)                 { showToast('Enter CVV',                'bad'); return; }
+
+  const planId = pendingPlanId || (S.plans.find(p => p.featured && p.active) || S.plans[0]).id;
+  const plan   = S.plans.find(p => p.id === planId);
+  const cycle  = S.billingCycle || 'monthly';
+
+  // 1) Fake processing screen — 1.5s of "payment authorisation"
+  showProcessing();
+  await new Promise(r => setTimeout(r, 800));
+  processingStep(1);
+  await new Promise(r => setTimeout(r, 700));
+  processingStep(2);
+
+  try {
+    // 2) Call the Cloud Function to record the subscription in Firestore
+    const result = await callActivateSubscription(currentUser.email, planId, cycle);
+    processingStep(3);
+    await new Promise(r => setTimeout(r, 400));
+    // 3) Done — the Firestore listener has already updated currentSubscription
+    processingSuccess(result.licenseKey, plan ? plan.name : planId, result.expiry);
+    logPurchase(`Subscribe · ${plan ? plan.name : planId} (${cycle})`, currentUser);
+    save();
+    // Trigger installer download in the background
+    if (S.downloadUrl) setTimeout(() => triggerDownload(), 400);
+  } catch (err) {
+    processingError(err.message || 'Could not activate subscription. Try again or contact support.');
+  } finally {
+    pendingPlanId = null;
+  }
+}
+
+// ══════════════════════════════════════════
+//  Cloud Function URL admin save
+// ══════════════════════════════════════════
+function saveCloudFnUrl() {
+  const inp = document.getElementById('cloudFnUrlInput');
+  const msg = document.getElementById('cloudFnMsg');
+  const url = inp.value.trim().replace(/\/+$/, '');
+  if (url && !/^https?:\/\//i.test(url)) {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'URL must start with https://';
+    return;
+  }
+  S.cloudFnUrl = url;
+  save();
+  syncSiteSettingsToFirebase();
+  msg.style.color = 'var(--teal)'; msg.textContent = url ? 'Cloud Functions endpoint saved.' : 'Cloud Functions endpoint cleared.';
+  setTimeout(() => { msg.textContent = ''; }, 2500);
 }
 
 // ══════════════════════════════════════════
@@ -2587,58 +2909,65 @@ function renderUserDashboard() {
   if (!currentUser) return;
   const acc = S.accounts.find(a => a.email === currentUser.email);
   const firstName = currentUser.name.split(' ')[0];
-  document.getElementById('udGreet').textContent = `Hi ${firstName}, here's your license`;
+  document.getElementById('udGreet').textContent = `Hi ${firstName}, here's your subscription`;
   document.getElementById('udUserName').textContent = currentUser.name;
   document.getElementById('udFullName').textContent = currentUser.name;
   document.getElementById('udEmail').textContent = currentUser.email || '—';
   document.getElementById('udMember').textContent = acc && acc.createdAt ? acc.createdAt : '—';
-  // License area
-  const userLicenses = S.licenses.filter(l => l.email === currentUser.email);
+
+  // SOURCE OF TRUTH: Firestore subscription (currentSubscription) — NOT localStorage
   const area = document.getElementById('udLicenseArea');
-  if (!userLicenses.length) {
+  const sub = currentSubscription;
+  const isActive = isSubscriptionActive(sub);
+
+  if (sub && (isActive || sub.status)) {
+    const planObj = S.plans.find(p => p.id === sub.plan) || S.plans.find(p => p.name.toLowerCase() === (sub.plan||'').toLowerCase());
+    const planName = planObj ? planObj.name : (sub.plan || 'Standard');
+    const maxBays = planObj ? planObj.maxBays : (sub.maxBays || '—');
+    const maxWorkers = planObj ? planObj.maxWorkers : (sub.maxWorkers || '—');
+    const maxBookings = planObj ? planObj.maxBookings : (sub.maxBookings || '—');
+    const expiryDate = sub.expiry ? new Date(sub.expiry) : null;
+    const expiryStr = expiryDate ? expiryDate.toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : '—';
+    const daysLeft = expiryDate ? Math.max(0, Math.ceil((expiryDate - new Date())/86400000)) : null;
+    const statusTag = isActive
+      ? `<span class="lic-status-tag active">● Active${daysLeft !== null ? ` · ${daysLeft} day${daysLeft===1?'':'s'} left` : ''}</span>`
+      : `<span class="lic-status-tag revoked">● ${sub.status === 'active' ? 'Expired' : 'Inactive'}</span>`;
+    const dlAvailable = !!S.downloadUrl && isActive;
+    const dlButton = dlAvailable
+      ? `<button class="btn btn-primary" style="margin-top:18px" onclick="userTriggerDownload()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Download installer (${S.downloadName} · v${S.downloadVersion})</button>`
+      : '';
+    const upgradeBtn = isActive
+      ? `<button class="btn btn-ghost" style="margin-top:14px;margin-left:10px" onclick="openUpgradeModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Change plan</button>`
+      : `<button class="btn btn-primary" style="margin-top:14px" onclick="closeUserDashboard()">Renew subscription</button>`;
+    area.innerHTML = `<div class="lic-card">
+      <div class="lic-label">Subscription  ${statusTag}</div>
+      ${sub.licenseKey ? `<div class="lic-key"><span class="key-val">${sub.licenseKey}</span><button class="copy-btn" onclick="copyKey('${sub.licenseKey}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>` : ''}
+      <div class="lic-meta">
+        <div class="lic-meta-item"><div class="lmi-lbl">Plan</div><div class="lmi-val">${planName}</div></div>
+        <div class="lic-meta-item"><div class="lmi-lbl">Billing</div><div class="lmi-val">${(sub.billingCycle || 'monthly').replace(/^./, c => c.toUpperCase())}</div></div>
+        <div class="lic-meta-item"><div class="lmi-lbl">Expires</div><div class="lmi-val">${expiryStr}</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px;padding-top:18px;border-top:1px solid rgba(255,255,255,.08)">
+        <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Max bays</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${maxBays === 999 ? '∞' : maxBays}</div></div>
+        <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Max workers</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${maxWorkers === 999 ? '∞' : maxWorkers}</div></div>
+        <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Concurrent bookings</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${maxBookings === 999 ? '∞' : maxBookings}</div></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:0">${dlButton}${upgradeBtn}</div>
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:var(--faint);display:flex;align-items:center;gap:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Subscription status verified from secure server. Updates in real time.
+      </div>
+    </div>`;
+  } else {
+    // No subscription in Firestore — show empty state
     area.innerHTML = `<div class="lic-empty">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-      <h3>No license yet</h3>
-      <p>Purchase Garage Pro to generate your license key.</p>
-      <button class="btn btn-primary" onclick="closeUserDashboard();setTimeout(()=>openBilling(),200)">Get a license</button>
+      <h3>No active subscription</h3>
+      <p>Choose a plan to activate Garage Pro and get your license key.</p>
+      <button class="btn btn-primary" onclick="closeUserDashboard();setTimeout(()=>document.getElementById('pricing').scrollIntoView({behavior:'smooth'}),200)">View plans</button>
     </div>`;
-    return;
   }
-  area.innerHTML = userLicenses.map(l => {
-    const statusTag = l.status === 'active'
-      ? '<span class="lic-status-tag active">● Active</span>'
-      : '<span class="lic-status-tag revoked">● Revoked — contact support</span>';
-    const dlAvailable = !!S.downloadUrl && l.status === 'active';
-    const dlButton = dlAvailable
-      ? `<button class="btn btn-primary" style="margin-top:18px" onclick="userTriggerDownload()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Download installer (${S.downloadName} &middot; v${S.downloadVersion})</button>`
-      : (l.status !== 'active'
-          ? ''
-          : `<div style="margin-top:18px;padding:11px 14px;border-radius:9px;background:rgba(255,179,71,.10);border:1px solid rgba(255,179,71,.28);color:var(--acc2);font-size:13px">&#9679; Installer link is being prepared. You'll receive an email with the download link shortly.</div>`);
-    const cycle = l.billingCycle || 'monthly';
-    const limitsHtml = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px;padding-top:18px;border-top:1px solid rgba(255,255,255,.08)">
-      <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Max bays</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${l.maxBays >= 999 ? '∞' : (l.maxBays || '—')}</div></div>
-      <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Max workers</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${l.maxWorkers >= 999 ? '∞' : (l.maxWorkers || '—')}</div></div>
-      <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Concurrent bookings</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${l.maxBookings >= 999 ? '∞' : (l.maxBookings || '—')}</div></div>
-    </div>`;
-    const upgradeBtn = l.status === 'active'
-      ? `<button class="btn btn-ghost" style="margin-top:14px;margin-left:10px" onclick="openUpgradeModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Change plan</button>`
-      : '';
-    return `<div class="lic-card">
-      <div class="lic-label">License Key  ${statusTag}</div>
-      <div class="lic-key">
-        <span class="key-val">${l.key}</span>
-        <button class="copy-btn" onclick="copyKey('${l.key}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button>
-      </div>
-      <div class="lic-meta">
-        <div class="lic-meta-item"><div class="lmi-lbl">Plan</div><div class="lmi-val">${l.plan}</div></div>
-        <div class="lic-meta-item"><div class="lmi-lbl">Billing</div><div class="lmi-val">${cycle.charAt(0).toUpperCase() + cycle.slice(1)}</div></div>
-        <div class="lic-meta-item"><div class="lmi-lbl">Issued</div><div class="lmi-val">${l.createdAtDisplay}</div></div>
-      </div>
-      ${limitsHtml}
-      <div style="display:flex;flex-wrap:wrap;gap:0">${dlButton}${upgradeBtn}</div>
-    </div>`;
-  }).join('');
-  // Billing history
+  // Billing history — read from Firestore-backed S.billing cache
   const userBilling = S.billing.filter(b => b.email === currentUser.email);
   const hist = document.getElementById('udBillingHistory');
   if (!userBilling.length) {
@@ -2697,17 +3026,46 @@ function initFirebase() {
   if (typeof firebase === 'undefined') return false;
   try {
     if (!fbApp) {
-      fbApp = firebase.initializeApp(S.fbConfig);
-      fbDb = firebase.firestore();
+      fbApp  = firebase.initializeApp(S.fbConfig);
+      fbDb   = firebase.firestore();
+      fbAuth = firebase.auth();
+      // Persist sessions across page reloads
+      fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+      // Listen for Firebase Auth state changes — this is the real source of truth
+      // for whether a non-admin user is signed in.
+      fbAuthUnsub = fbAuth.onAuthStateChanged(handleAuthStateChanged);
     }
     subscribeLicensesFromFirebase();
-    // Load + live-sync admin credentials
     loadAdminCredsFromFirebase().then(() => subscribeAdminCredsFromFirebase());
     return true;
   } catch(e) {
     console.error('Firebase init failed:', e);
     return false;
   }
+}
+
+// Called whenever the Firebase Auth user changes (sign-in, sign-out, refresh).
+// Updates currentUser unless an admin session is active in sessionStorage.
+function handleAuthStateChanged(fbUser) {
+  // Don't touch admin sessions — those are tracked separately via sessionStorage
+  if (currentUser && currentUser.isAdmin) return;
+  if (fbUser) {
+    currentUser = {
+      uid:     fbUser.uid,
+      email:   fbUser.email,
+      name:    fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'User'),
+      isAdmin: false
+    };
+    sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
+    subscribeToUserSubscription();
+  } else {
+    currentUser = null;
+    currentSubscription = null;
+    if (fbSubUnsub) { try { fbSubUnsub(); } catch(e){} fbSubUnsub = null; }
+    sessionStorage.removeItem('gp_user');
+  }
+  renderNav();
+  if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
 }
 
 // Live two-way sync: listen to the `licenses` collection and merge any
@@ -2808,6 +3166,9 @@ function renderFirebaseTab() {
     st.innerHTML = `<span class="fbdot"></span><span>Not connected — licenses are saved locally only</span>`;
     if (S.fbConfig) document.getElementById('fbConfigInput').value = JSON.stringify(S.fbConfig, null, 2);
   }
+  // Populate Cloud Functions endpoint input
+  const cfu = document.getElementById('cloudFnUrlInput');
+  if (cfu) cfu.value = S.cloudFnUrl || '';
   // Build / refresh the action panel below the config
   let action = document.getElementById('fbActions');
   if (!action) {
