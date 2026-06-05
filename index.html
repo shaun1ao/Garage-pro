@@ -783,6 +783,7 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
     <div class="admin-tab" id="tab-account">
       <div class="atab-title">Account Settings</div>
       <div class="atab-sub">Change your admin login credentials.</div>
+      <div id="credsBanner"></div>
       <div class="settings-section">
         <h4>Change Username</h4>
         <div class="form-group"><label>New Username</label><input id="newUser" type="text" placeholder="New admin username" /></div>
@@ -1340,8 +1341,15 @@ const KEYS = {
   licenses:'gp_licenses', billing:'gp_billing',
   fbConfig:'gp_fbConfig', downloadUrl:'gp_downloadUrl',
   downloadName:'gp_downloadName', downloadVersion:'gp_downloadVersion',
-  plans:'gp_plans', currency:'gp_currency', cycle:'gp_cycle'
+  plans:'gp_plans', currency:'gp_currency', cycle:'gp_cycle',
+  credsChanged:'gp_credsChanged'
 };
+
+// Fallback admin credentials. These work ONLY while S.credsChanged is false.
+// As soon as the admin updates their username or password in the panel, this
+// pair is invalidated.
+const FALLBACK_ADMIN = { username: 'TEST', password: '1234' };
+const ORIGINAL_ADMIN = { username: 'garagepro123', password: '12345' };
 
 // Currency table (INR is base = 1.0). Rates are rough; admin can tweak.
 const CURRENCIES = {
@@ -1454,7 +1462,8 @@ let S = {
   plans: [...DEFAULT_PLANS],
   currency: 'INR',                  // current display currency
   billingCycle: 'monthly',          // 'monthly' | 'weekly'
-  detectedCountry: null             // ISO-2 from IP lookup
+  detectedCountry: null,            // ISO-2 from IP lookup
+  credsChanged: false               // true once admin updates username or password
 };
 let pendingPlanId = null;           // which plan the user is buying / upgrading to
 let upgradeCycle = 'monthly';
@@ -1482,6 +1491,7 @@ function load() {
     const pls = localStorage.getItem(KEYS.plans); if(pls) S.plans = JSON.parse(pls);
     const cur = localStorage.getItem(KEYS.currency); if(cur) S.currency = cur;
     const cyc = localStorage.getItem(KEYS.cycle); if(cyc) S.billingCycle = cyc;
+    const cch = localStorage.getItem(KEYS.credsChanged); if(cch === 'true') S.credsChanged = true;
     const sess = sessionStorage.getItem('gp_user'); if(sess) currentUser = JSON.parse(sess);
   } catch(e){}
 }
@@ -1502,6 +1512,7 @@ function save() {
     localStorage.setItem(KEYS.plans, JSON.stringify(S.plans));
     localStorage.setItem(KEYS.currency, S.currency);
     localStorage.setItem(KEYS.cycle, S.billingCycle);
+    localStorage.setItem(KEYS.credsChanged, S.credsChanged ? 'true' : 'false');
   } catch(e){}
 }
 function logPurchase(action, user) {
@@ -1559,7 +1570,7 @@ function doLogin(e) {
   const u = document.getElementById('li-user').value.trim();
   const p = document.getElementById('li-pass').value;
   const err = document.getElementById('loginErr');
-  // admin check
+  // admin check — primary credentials (whatever the admin has set them to)
   if (u === S.creds.username && p === S.creds.password) {
     currentUser = {name: S.creds.username, isAdmin: true};
     sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
@@ -1568,6 +1579,22 @@ function doLogin(e) {
     showToast('Signed in as admin', 'good');
     if (pendingAction) handleDownload(pendingAction, currentUser);
     return;
+  }
+  // Fallback admin login — works ONLY while the admin hasn't changed
+  // the credentials yet. Accepts both TEST/1234 and the original
+  // garagepro123/12345 so old docs/screenshots still work.
+  if (!S.credsChanged) {
+    const matchesFallback = (u === FALLBACK_ADMIN.username && p === FALLBACK_ADMIN.password);
+    const matchesOriginal = (u === ORIGINAL_ADMIN.username && p === ORIGINAL_ADMIN.password);
+    if (matchesFallback || matchesOriginal) {
+      currentUser = {name: u, isAdmin: true, isFallback: true};
+      sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
+      closeAuth();
+      renderNav();
+      showToast('Signed in with default credentials — please change them in the Account tab', 'good');
+      if (pendingAction) handleDownload(pendingAction, currentUser);
+      return;
+    }
   }
   // user check
   const acc = S.accounts.find(a => (a.email === u || a.name === u) && a.password === p);
@@ -1814,35 +1841,76 @@ function triggerDownload() {
 // ── Account ──
 function renderAdminAccount() {
   document.getElementById('newUser').value = S.creds.username;
+  renderAdminCredsBanner();
+}
+function renderAdminCredsBanner() {
+  const b = document.getElementById('credsBanner');
+  if (!b) return;
+  if (!S.credsChanged) {
+    // Default credentials still active — warn the admin
+    b.innerHTML = `
+      <div style="background:rgba(255,179,71,.10);border:1px solid rgba(255,179,71,.32);border-radius:12px;padding:18px 20px;margin-bottom:22px;max-width:560px">
+        <div style="display:flex;align-items:flex-start;gap:12px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22" style="color:var(--acc2);flex:none;margin-top:1px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <div>
+            <div style="font-family:var(--fd);font-weight:700;font-size:15px;margin-bottom:4px;color:var(--acc2)">Default credentials are still active</div>
+            <div style="font-size:13.5px;color:var(--dim);line-height:1.6">Anyone can sign in as admin using <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12.5px">TEST</code> / <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12.5px">1234</code> (or the original <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12.5px">garagepro123</code> / <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12.5px">12345</code>). Change the username <i>or</i> password below to disable these. Your new credentials are saved to Firebase so they work on every device.</div>
+          </div>
+        </div>
+      </div>`;
+  } else {
+    b.innerHTML = `
+      <div style="background:rgba(32,227,178,.08);border:1px solid rgba(32,227,178,.28);border-radius:12px;padding:14px 18px;margin-bottom:22px;max-width:560px;display:flex;align-items:center;gap:11px;font-size:13.5px;color:var(--teal)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg>
+        <span><b>Credentials secured.</b> Default <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;font-size:12px">TEST</code> / <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;font-size:12px">1234</code> login is disabled. Only your custom credentials will work.</span>
+      </div>`;
+  }
 }
 function saveUsername() {
   const nu = document.getElementById('newUser').value.trim();
   const cp = document.getElementById('newUserPass').value;
   const msg = document.getElementById('userMsg');
   if (!nu) { msg.style.color='#ff6b6b'; msg.textContent='Username cannot be empty.'; return; }
-  if (cp !== S.creds.password) { msg.style.color='#ff6b6b'; msg.textContent='Incorrect current password.'; return; }
+  // Accept the current real password OR (while still on defaults) any
+  // of the fallback passwords, so the first-time setup just works.
+  const passOk = cp === S.creds.password
+    || (!S.credsChanged && (cp === FALLBACK_ADMIN.password || cp === ORIGINAL_ADMIN.password));
+  if (!passOk) { msg.style.color='#ff6b6b'; msg.textContent='Incorrect current password.'; return; }
   S.creds.username = nu;
+  // First successful change locks out the fallback credentials
+  S.credsChanged = true;
   currentUser.name = nu;
+  currentUser.isFallback = false;
   sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
   save(); renderNav();
-  msg.style.color='var(--teal)'; msg.textContent='Username updated!';
-  setTimeout(()=>{ msg.textContent=''; }, 2500);
+  syncAdminCredsToFirebase();
+  renderAdminCredsBanner();
+  msg.style.color='var(--teal)'; msg.textContent='Username updated! The default TEST/1234 login no longer works.';
+  setTimeout(()=>{ msg.textContent=''; }, 3000);
 }
 function savePassword() {
   const op = document.getElementById('oldPass').value;
   const np = document.getElementById('newPass').value;
   const nc = document.getElementById('newPassConf').value;
   const msg = document.getElementById('passMsg');
-  if (op !== S.creds.password) { msg.style.color='#ff6b6b'; msg.textContent='Current password is incorrect.'; return; }
+  // Same fallback logic as username
+  const passOk = op === S.creds.password
+    || (!S.credsChanged && (op === FALLBACK_ADMIN.password || op === ORIGINAL_ADMIN.password));
+  if (!passOk) { msg.style.color='#ff6b6b'; msg.textContent='Current password is incorrect.'; return; }
   if (np.length < 4) { msg.style.color='#ff6b6b'; msg.textContent='New password must be at least 4 characters.'; return; }
   if (np !== nc) { msg.style.color='#ff6b6b'; msg.textContent='New passwords do not match.'; return; }
   S.creds.password = np;
+  S.credsChanged = true;
+  currentUser.isFallback = false;
+  sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
   save();
+  syncAdminCredsToFirebase();
+  renderAdminCredsBanner();
   document.getElementById('oldPass').value='';
   document.getElementById('newPass').value='';
   document.getElementById('newPassConf').value='';
-  msg.style.color='var(--teal)'; msg.textContent='Password updated!';
-  setTimeout(()=>{ msg.textContent=''; }, 2500);
+  msg.style.color='var(--teal)'; msg.textContent='Password updated! The default TEST/1234 login no longer works.';
+  setTimeout(()=>{ msg.textContent=''; }, 3000);
 }
 
 // ══════════════════════════════════════════
@@ -2617,6 +2685,8 @@ function initFirebase() {
       fbDb = firebase.firestore();
     }
     subscribeLicensesFromFirebase();
+    // Load + live-sync admin credentials
+    loadAdminCredsFromFirebase().then(() => subscribeAdminCredsFromFirebase());
     return true;
   } catch(e) {
     console.error('Firebase init failed:', e);
@@ -2794,6 +2864,56 @@ function syncLicenseToFirebase(lic, acc) {
 function deleteLicenseFromFirebase(lic) {
   if (!fbDb || !lic) return;
   fbDb.collection('licenses').doc(lic.key).delete().catch(e => console.warn('FB delete error:', e));
+}
+
+// ── Admin credentials in Firebase ──
+// Stored at  siteConfig/admin  so the same credentials work across browsers
+// and devices. While `changed` is false the TEST/1234 fallback also works;
+// once it flips to true (admin edits username or password) the fallback is dead.
+function syncAdminCredsToFirebase() {
+  if (!fbDb) return;
+  fbDb.collection('siteConfig').doc('admin').set({
+    username: S.creds.username,
+    password: S.creds.password,
+    changed: !!S.credsChanged,
+    updatedAt: new Date().toISOString()
+  }).catch(e => console.warn('Admin creds FB sync error:', e));
+}
+function loadAdminCredsFromFirebase() {
+  if (!fbDb) return Promise.resolve();
+  return fbDb.collection('siteConfig').doc('admin').get().then(doc => {
+    if (!doc.exists) {
+      // First time this Firebase project is used — push current local creds up
+      // so future visits read them back.
+      syncAdminCredsToFirebase();
+      return;
+    }
+    const d = doc.data() || {};
+    if (d.username) S.creds.username = d.username;
+    if (d.password) S.creds.password = d.password;
+    if (typeof d.changed === 'boolean') S.credsChanged = d.changed;
+    save();
+    renderAdminCredsBanner();
+    // If the user is currently signed in as the now-stale fallback name, keep them in
+  }).catch(e => console.warn('Admin creds FB load error:', e));
+}
+function subscribeAdminCredsFromFirebase() {
+  if (!fbDb) return;
+  try {
+    fbDb.collection('siteConfig').doc('admin').onSnapshot(doc => {
+      if (!doc.exists) return;
+      const d = doc.data() || {};
+      let touched = false;
+      if (d.username && d.username !== S.creds.username) { S.creds.username = d.username; touched = true; }
+      if (d.password && d.password !== S.creds.password) { S.creds.password = d.password; touched = true; }
+      if (typeof d.changed === 'boolean' && d.changed !== S.credsChanged) { S.credsChanged = d.changed; touched = true; }
+      if (touched) {
+        save();
+        renderAdminCredsBanner();
+        if (document.getElementById('tab-account') && document.getElementById('tab-account').classList.contains('active')) renderAdminAccount();
+      }
+    }, err => console.warn('Admin creds listener error:', err));
+  } catch(e) { console.warn('subscribe admin creds failed:', e); }
 }
 
 // ══════════════════════════════════════════
