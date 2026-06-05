@@ -2934,42 +2934,74 @@ function renderLicensesTab() {
     return `<tr><td><span class="lic-mono">${l.key}</span>${sourceBadge}</td><td>${l.name}<br><span style="color:var(--faint);font-size:12px">${l.email}</span></td><td>${l.plan}</td><td>${statusTag}</td><td style="color:var(--faint)">${l.createdAtDisplay}</td><td><div class="row-actions">${actionBtns}</div></td></tr>`;
   }).join('')}</tbody></table>`;
 }
-function revokeLicense(id) {
+// All admin license actions write to Firestore directly. We don't touch
+// S.licenses locally — the live `subscribeLicensesFromFirebase` listener
+// picks up the change and re-renders within ~1 second on every device.
+async function revokeLicense(id) {
   if (!confirm('Revoke this license? The user will lose access to the software.')) return;
-  const idx = S.licenses.findIndex(l=>l.id===id);
-  if (idx === -1) return;
-  S.licenses[idx].status = 'revoked';
-  S.licenses[idx].revokedAt = new Date().toISOString();
-  const acc = S.accounts.find(a=>a.email===S.licenses[idx].email);
-  if (acc) acc.licenseStatus = 'revoked';
-  save();
-  syncLicenseToFirebase(S.licenses[idx], acc);
-  renderLicensesTab();
-  showToast('License revoked', 'good');
-}
-function reactivateLicense(id) {
-  const idx = S.licenses.findIndex(l=>l.id===id);
-  if (idx === -1) return;
-  S.licenses[idx].status = 'active';
-  S.licenses[idx].revokedAt = null;
-  const acc = S.accounts.find(a=>a.email===S.licenses[idx].email);
-  if (acc) acc.licenseStatus = 'active';
-  save();
-  syncLicenseToFirebase(S.licenses[idx], acc);
-  renderLicensesTab();
-  showToast('License reactivated', 'good');
-}
-function deleteLicense(id) {
-  if (!confirm('Permanently delete this license? This cannot be undone.')) return;
-  const lic = S.licenses.find(l=>l.id===id);
-  S.licenses = S.licenses.filter(l=>l.id!==id);
-  if (lic) {
-    const acc = S.accounts.find(a=>a.email===lic.email);
-    if (acc) { delete acc.licenseKey; delete acc.licenseStatus; delete acc.licensePlan; }
-    deleteLicenseFromFirebase(lic);
+  const lic = S.licenses.find(l => l.id === id || l.key === id);
+  if (!lic) { showToast('License not found', 'bad'); return; }
+  if (!fbDb) { showToast('Firebase not connected — cannot revoke', 'bad'); return; }
+  const now = new Date().toISOString();
+  try {
+    // 1) Update the license mirror — desktop app reads this
+    await fbDb.collection('licenses').doc(lic.key).set({
+      status: 'revoked',
+      revokedAt: firebase.firestore.Timestamp.fromDate(new Date(now))
+    }, { merge: true });
+    // 2) Update the user's subscription too — website dashboard reads this
+    if (lic.uid) {
+      await fbDb.collection('users').doc(lic.uid).set({
+        subscription: {
+          status: 'revoked',
+          revokedAt: firebase.firestore.Timestamp.fromDate(new Date(now))
+        }
+      }, { merge: true });
+    }
+    showToast('License revoked', 'good');
+  } catch (e) {
+    console.error('Revoke failed:', e);
+    showToast('Revoke failed: ' + (e.message || e.code || 'unknown'), 'bad');
   }
-  save(); renderLicensesTab();
-  showToast('License deleted', 'good');
+}
+async function reactivateLicense(id) {
+  const lic = S.licenses.find(l => l.id === id || l.key === id);
+  if (!lic) { showToast('License not found', 'bad'); return; }
+  if (!fbDb) { showToast('Firebase not connected — cannot reactivate', 'bad'); return; }
+  try {
+    await fbDb.collection('licenses').doc(lic.key).set({
+      status: 'active',
+      revokedAt: null
+    }, { merge: true });
+    if (lic.uid) {
+      await fbDb.collection('users').doc(lic.uid).set({
+        subscription: { status: 'active', revokedAt: null }
+      }, { merge: true });
+    }
+    showToast('License reactivated', 'good');
+  } catch (e) {
+    console.error('Reactivate failed:', e);
+    showToast('Reactivate failed: ' + (e.message || e.code || 'unknown'), 'bad');
+  }
+}
+async function deleteLicense(id) {
+  if (!confirm('Permanently delete this license? This cannot be undone.')) return;
+  const lic = S.licenses.find(l => l.id === id || l.key === id);
+  if (!lic) { showToast('License not found', 'bad'); return; }
+  if (!fbDb) { showToast('Firebase not connected — cannot delete', 'bad'); return; }
+  try {
+    await fbDb.collection('licenses').doc(lic.key).delete();
+    // Clear the user's subscription too so they no longer see the key in their dashboard
+    if (lic.uid) {
+      await fbDb.collection('users').doc(lic.uid).set({
+        subscription: firebase.firestore.FieldValue.delete()
+      }, { merge: true });
+    }
+    showToast('License deleted', 'good');
+  } catch (e) {
+    console.error('Delete failed:', e);
+    showToast('Delete failed: ' + (e.message || e.code || 'unknown'), 'bad');
+  }
 }
 function createManualLicense() {
   const email = prompt('User email for this license:');
