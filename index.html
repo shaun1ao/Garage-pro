@@ -543,6 +543,167 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
   .anav{width:auto;flex:1}
 }
 @media(max-width:440px){.foot-grid{grid-template-columns:1fr}}
+
+/* ═══════════════ MOBILE-FIRST POLISH ═══════════════ */
+
+/* iOS auto-zooms inputs <16px — force min font-size to stop that everywhere */
+@media(max-width:720px){
+  .mform input,.form-group input,.form-group textarea,.form-group select,
+  #fbConfigInput,#cloudFnUrlInput{font-size:16px!important}
+}
+
+/* Tap targets — bump small buttons to at least ~44px on mobile */
+@media(max-width:720px){
+  .btn{padding:14px 22px}
+  .tiny-btn{padding:8px 12px;font-size:13px}
+  .copy-btn{padding:10px 14px}
+  .modal-close{width:36px;height:36px}
+  .modal-tab,.utab,.anav,.cycle-btn{min-height:44px}
+}
+
+/* ── Auth modal: full-width-ish on small screens, no awkward edges ── */
+@media(max-width:520px){
+  .modal-box{padding:24px 20px;border-radius:16px;max-width:none}
+  .modal-tab{padding:11px 6px;font-size:13.5px}
+  .mform .btn{font-size:15px}
+}
+
+/* ── Plans grid: keep cards readable on phones, hide the slider trail ── */
+@media(max-width:960px){
+  .plans-grid{grid-template-columns:1fr 1fr;gap:14px}
+}
+@media(max-width:720px){
+  .plans-grid{grid-template-columns:1fr;max-width:420px;margin:0 auto}
+  .plan-card{padding:28px 22px}
+  .plan-card.featured{transform:none}
+  .cycle-toggle{flex-wrap:wrap;justify-content:center}
+  .cycle-btn{font-size:13px;padding:10px 16px}
+  .cycle-save{display:none}
+  .currency-pill{font-size:12.5px;padding:5px 11px}
+  #detectedCountry{display:none}
+}
+
+/* ── Billing modal: stack the two columns, smaller card visual, sane padding ── */
+@media(max-width:760px){
+  .billing-overlay{padding:0;align-items:stretch}
+  .billing-box{border-radius:0;min-height:100vh;max-width:none}
+  .billing-body{grid-template-columns:1fr}
+  .billing-form{border-right:0;border-bottom:1px solid var(--brd);padding:22px 20px}
+  .billing-summary{padding:22px 20px}
+  .billing-head{padding:18px 20px}
+  .billing-head h2{font-size:18px}
+  .bf-row,.bf-row-3{grid-template-columns:1fr 1fr;gap:10px}
+  .bf-card-visual{height:140px;padding:16px}
+  .bf-card-num{font-size:16px;bottom:48px}
+  .bsum-total{font-size:18px}
+}
+
+/* ── User dashboard: stack header, make tabs scroll if needed ── */
+@media(max-width:720px){
+  .user-head{padding:14px 18px;flex-wrap:wrap;gap:10px}
+  .user-head .nav-user{display:none}
+  .user-tabs{padding:0 12px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .utab{padding:14px 16px;font-size:13.5px;white-space:nowrap}
+  .user-main{padding:24px 18px}
+  .greet{font-size:24px}
+  .lic-card{padding:22px 18px}
+  .lic-key{font-size:16px;padding:14px 14px}
+  .lic-key .key-val{font-size:14px;letter-spacing:1px;min-width:0}
+  .lic-meta{grid-template-columns:1fr 1fr;gap:14px}
+  .lic-meta-item:nth-child(3){grid-column:1/-1}
+  .bhist-table{font-size:13px}
+  .bhist-table th,.bhist-table td{padding:9px 10px}
+}
+
+/* ── Admin panel: turn the sidebar into a sticky top bar on small screens ── */
+@media(max-width:780px){
+  .admin-overlay{flex-direction:column;overflow-y:auto}
+  .admin-sidebar{width:100%;flex:none;flex-direction:row;align-items:center;padding:12px 14px;border-right:0;border-bottom:1px solid var(--brd);position:sticky;top:0;z-index:5;background:var(--bg2);overflow-x:auto;gap:8px}
+  .admin-logo{flex:none;margin-right:8px}
+  .admin-logo > div:last-child{display:none}
+  .admin-divider{display:none}
+  .admin-nav{flex-direction:row;flex:1;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .anav{padding:9px 12px;font-size:13px;white-space:nowrap;flex:none}
+  .admin-foot{flex-direction:row;margin-top:0;gap:6px;flex:none}
+  .admin-foot button{padding:9px 12px;font-size:12.5px;white-space:nowrap}
+  .admin-foot button svg{display:none}
+  .admin-main{padding:22px 18px;overflow-y:visible}
+  .atab-title{font-size:22px}
+  .atab-sub{font-size:14px}
+  .atab-stat-row{gap:10px}
+  .atab-stat{min-width:0;flex:1 0 calc(50% - 5px);padding:14px 16px}
+  .atab-stat .n{font-size:24px}
+  /* Tables — let them scroll horizontally rather than squashing */
+  #purchaseTable,#licenseTable{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -18px;padding:0 18px}
+  .ptable{min-width:600px}
+  .row-actions{flex-wrap:nowrap}
+  /* Forms */
+  .form-row{grid-template-columns:1fr;gap:0}
+  .settings-section{padding:22px 18px}
+}
+
+/* ── Upgrade modal: stack plan cards ── */
+@media(max-width:720px){
+  .upgrade-overlay{padding:0;align-items:stretch}
+  .upgrade-box{border-radius:0;min-height:100vh;max-width:none;padding:22px 18px}
+  .upgrade-head h2{font-size:18px}
+  #upgradePlansGrid{grid-template-columns:1fr;gap:14px}
+}
+
+/* ── Hero mockup: shrink so it never overflows ── */
+@media(max-width:720px){
+  .mock-body{padding:14px}
+  .bays{gap:8px}
+  .bay{padding:10px 8px}
+  .bay .car{font-size:12px}
+  .float-card{right:8px;bottom:14px;padding:9px 11px}
+  .float-card .t1{font-size:12px}
+  .float-card .t2{font-size:11px}
+}
+
+/* ── Hero CTA buttons full-width and stacked on the smallest screens ── */
+@media(max-width:520px){
+  .hero-cta{flex-direction:column;align-items:stretch}
+  .hero-cta .btn{justify-content:center;width:100%}
+}
+
+/* ── App-screenshot card: keep readable, hide the bay row buttons ── */
+@media(max-width:760px){
+  .app{font-size:12px;max-height:420px}
+  .app-stats{grid-template-columns:repeat(2,1fr);gap:8px}
+  .app-stat{padding:11px 8px}
+  .app-stat .asn{font-size:22px}
+  .app-stat .asl{font-size:10.5px}
+  .app-car-row{flex-wrap:wrap;gap:6px;padding:9px 12px}
+  .app-cbay{display:none}
+  .app-btns{display:none}
+  .app-header{padding:11px 14px;font-size:13px}
+  .app-section{padding:12px 14px 4px}
+  .win-title{font-size:12px;padding:0 10px}
+  .win-ctrl{width:38px}
+}
+
+/* ── Processing overlay text sizing ── */
+@media(max-width:520px){
+  .pp-title{font-size:18px;text-align:center;padding:0 18px}
+  .pp-sub{font-size:13.5px;padding:0 24px}
+}
+
+/* ── Tighten section spacing on phones ── */
+@media(max-width:520px){
+  .sec{padding:56px 0}
+  .sec-head{margin-bottom:36px}
+  .sec-head h2{font-size:26px}
+  .sec-head p{font-size:15px}
+}
+
+/* ── Toast: keep it inside the viewport on narrow screens ── */
+@media(max-width:520px){
+  .toast{max-width:calc(100% - 32px);font-size:13.5px;padding:11px 16px;text-align:center;white-space:normal}
+}
+
+/* ── Avoid horizontal overflow from anywhere ── */
+html,body{max-width:100%;overflow-x:hidden}
 </style>
 </head>
 <body>
@@ -562,7 +723,13 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
     <!-- login -->
     <form class="mform active" id="loginForm" onsubmit="doLogin(event)">
       <div><label>Username or Email</label><input id="li-user" type="text" placeholder="garagepro123 or email" autocomplete="username" required /></div>
-      <div><label>Password</label><input id="li-pass" type="password" placeholder="••••••••" autocomplete="current-password" required /></div>
+      <div>
+        <label>Password</label>
+        <input id="li-pass" type="password" placeholder="••••••••" autocomplete="current-password" required />
+      </div>
+      <div style="text-align:right;margin-top:-6px">
+        <button type="button" onclick="switchAuthTab('reset')" style="background:none;border:0;color:var(--acc2);font-family:var(--fb);font-size:13px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline">Forgot password?</button>
+      </div>
       <div class="modal-err" id="loginErr"></div>
       <button type="submit" class="btn btn-primary">Sign In</button>
     </form>
@@ -574,6 +741,18 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
       <div><label>Confirm Password</label><input id="su-conf" type="password" placeholder="Repeat password" required /></div>
       <div class="modal-err" id="signupErr"></div>
       <button type="submit" class="btn btn-primary">Create Account</button>
+    </form>
+    <!-- password reset -->
+    <form class="mform" id="resetForm" onsubmit="doResetPassword(event)">
+      <div style="text-align:center;margin-bottom:18px">
+        <div style="font-family:var(--fd);font-size:18px;font-weight:700;margin-bottom:6px">Reset your password</div>
+        <div style="color:var(--dim);font-size:13.5px;line-height:1.5">Enter the email you signed up with. We'll send you a link to set a new password.</div>
+      </div>
+      <div><label>Email</label><input id="rs-email" type="email" placeholder="raj@speedauto.in" autocomplete="email" required /></div>
+      <div class="modal-err" id="resetErr"></div>
+      <div class="modal-success" id="resetOk" style="display:none"></div>
+      <button type="submit" class="btn btn-primary">Send reset link</button>
+      <button type="button" onclick="switchAuthTab('login')" style="background:transparent;border:0;color:var(--dim);font-family:var(--fb);font-size:13.5px;font-weight:500;cursor:pointer;padding:8px;margin-top:4px">&larr; Back to sign in</button>
     </form>
   </div>
 </div>
@@ -661,6 +840,22 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
         <div class="form-row">
           <div class="form-group"><label>Monthly price (INR base)</label><input id="pf-monthly" type="number" placeholder="2999" /></div>
           <div class="form-group"><label>Weekly price (INR base)</label><input id="pf-weekly" type="number" placeholder="899" /></div>
+        </div>
+        <div class="form-group"><label>Yearly price (INR base)</label><input id="pf-yearly" type="number" placeholder="29990" /></div>
+        <div class="form-group">
+          <label>Available billing cycles</label>
+          <div style="display:flex;gap:18px;padding:8px 0;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:7px;font-weight:500;color:var(--txt);cursor:pointer">
+              <input type="checkbox" id="pf-cycle-monthly" checked /> Monthly
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;font-weight:500;color:var(--txt);cursor:pointer">
+              <input type="checkbox" id="pf-cycle-yearly" checked /> Yearly
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;font-weight:500;color:var(--txt);cursor:pointer">
+              <input type="checkbox" id="pf-cycle-weekly" checked /> Weekly
+            </label>
+          </div>
+          <span style="font-size:12px;color:var(--faint)">Uncheck a cycle to hide it from this plan's card on the website.</span>
         </div>
         <div class="form-row">
           <div class="form-group"><label>Max bays</label><input id="pf-bays" type="number" placeholder="6" /></div>
@@ -932,10 +1127,8 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
       <button class="modal-close" onclick="closeUpgrade()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="plans-controls" style="margin-bottom:24px">
-      <div class="cycle-toggle">
+      <div class="cycle-toggle" id="upgradeCycleToggle">
         <span class="cycle-slider" id="upgradeCycleSlider"></span>
-        <button class="cycle-btn active" data-cycle="monthly" onclick="setUpgradeCycle('monthly')">Monthly</button>
-        <button class="cycle-btn" data-cycle="weekly" onclick="setUpgradeCycle('weekly')">Weekly</button>
       </div>
     </div>
     <div class="plans-grid" id="upgradePlansGrid"></div>
@@ -1293,8 +1486,7 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
     <div class="plans-controls reveal">
       <div class="cycle-toggle" id="cycleToggle">
         <span class="cycle-slider" id="cycleSlider"></span>
-        <button class="cycle-btn active" data-cycle="monthly" onclick="setBillingCycle('monthly')">Monthly</button>
-        <button class="cycle-btn" data-cycle="weekly" onclick="setBillingCycle('weekly')">Weekly<span class="cycle-save">Pay-as-you-go</span></button>
+        <!-- buttons are rendered by JS so we can hide cycles no plan supports -->
       </div>
       <div class="currency-pill">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
@@ -1422,35 +1614,31 @@ const COUNTRY_CURRENCY = {
 };
 
 // Default plans — admin can edit / add more. Prices are in INR (base);
-// the website converts to local currency at display time.
+// the website converts to local currency at display time. Yearly defaults
+// to 10x monthly (so customers save 2 months by paying annually).
 const DEFAULT_PLANS = [
   {
     id:'solo',
     name:'Solo',
     tag:'For one-person workshops just getting started',
-    monthly: 999,
-    weekly: 299,
-    maxBays: 1,
-    maxWorkers: 2,
-    maxBookings: 5,
+    monthly: 999, weekly: 299, yearly: 9990,
+    cycles: ['monthly','weekly','yearly'],
+    maxBays: 1, maxWorkers: 2, maxBookings: 5,
     features: [
       'Single-bay job cards',
       'GST invoices',
       'Customer & vehicle history',
       'Mobile/tablet web access'
     ],
-    featured: false,
-    active: true
+    featured: false, active: true
   },
   {
     id:'workshop',
     name:'Workshop',
     tag:'The full Garage Pro for busy independent garages',
-    monthly: 2999,
-    weekly: 899,
-    maxBays: 6,
-    maxWorkers: 8,
-    maxBookings: 20,
+    monthly: 2999, weekly: 899, yearly: 29990,
+    cycles: ['monthly','weekly','yearly'],
+    maxBays: 6, maxWorkers: 8, maxBookings: 20,
     features: [
       'Up to 6 bays + multi-mechanic',
       'Full GST + HSN/SAC invoices',
@@ -1458,28 +1646,53 @@ const DEFAULT_PLANS = [
       'Real-time cloud sync',
       'Daily morning briefing email'
     ],
-    featured: true,
-    active: true
+    featured: true, active: true
   },
   {
     id:'chain',
     name:'Chain',
     tag:'Multi-branch and high-volume workshops',
-    monthly: 6999,
-    weekly: 1999,
-    maxBays: 999,
-    maxWorkers: 999,
-    maxBookings: 999,
+    monthly: 6999, weekly: 1999, yearly: 69990,
+    cycles: ['monthly','weekly','yearly'],
+    maxBays: 999, maxWorkers: 999, maxBookings: 999,
     features: [
       'Unlimited bays, workers and bookings',
       'Branch dashboards & roll-up reporting',
       'Priority email/phone support',
       'CSV import & API access'
     ],
-    featured: false,
-    active: true
+    featured: false, active: true
   }
 ];
+
+// Tiny helpers for the cycle-aware price + duration logic
+function planCyclePrice(plan, cycle) {
+  if (!plan) return 0;
+  if (cycle === 'yearly')  return plan.yearly  || 0;
+  if (cycle === 'weekly')  return plan.weekly  || 0;
+  return plan.monthly || 0;
+}
+function cycleDays(cycle) {
+  if (cycle === 'yearly') return 365;
+  if (cycle === 'weekly') return 7;
+  return 30;
+}
+function planSupportsCycle(plan, cycle) {
+  if (!plan) return false;
+  // If no `cycles` array on the plan, treat all three as enabled for back-compat
+  if (!Array.isArray(plan.cycles)) return true;
+  return plan.cycles.includes(cycle);
+}
+function allEnabledCycles() {
+  // Cycles that at least one active plan supports
+  const set = new Set();
+  S.plans.filter(p => p.active).forEach(p => {
+    const c = Array.isArray(p.cycles) ? p.cycles : ['monthly','weekly','yearly'];
+    c.forEach(x => set.add(x));
+  });
+  // Preferred display order
+  return ['monthly','yearly','weekly'].filter(c => set.has(c));
+}
 const DEFAULT_REVIEWS = [
   {id:1,stars:5,text:'"We threw out the paper job cards in week one. The lads update everything from a tablet and I can see the whole floor from my desk. Invoices that used to take ten minutes now take ten seconds."',name:'Rajesh Kumar',role:'Owner, Speed Auto Care · Pune',initials:'RK'},
   {id:2,stars:5,text:'"The GST invoices are spot on — HSN codes, amount in words, everything. My accountant stopped chasing me. And it just keeps working when the internet drops, which around here is often."',name:'Anand Shetty',role:'Partner, Crest Motors · Bengaluru',initials:'AS'},
@@ -1623,10 +1836,17 @@ function closeAuth() {
   pendingAction = null;
 }
 function switchAuthTab(t) {
+  // The two top tabs only correspond to login/signup; the reset view hides them
+  const showTabs = (t === 'login' || t === 'signup');
+  document.querySelector('.modal-tabs').style.display = showTabs ? '' : 'none';
   document.getElementById('tabLogin').classList.toggle('active', t==='login');
   document.getElementById('tabSignup').classList.toggle('active', t==='signup');
   document.getElementById('loginForm').classList.toggle('active', t==='login');
   document.getElementById('signupForm').classList.toggle('active', t==='signup');
+  document.getElementById('resetForm').classList.toggle('active', t==='reset');
+  // Clear any stale messages when switching
+  ['loginErr','signupErr','resetErr'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+  const ok = document.getElementById('resetOk'); if (ok) { ok.textContent = ''; ok.style.display = 'none'; }
 }
 async function doLogin(e) {
   e.preventDefault();
@@ -1688,6 +1908,47 @@ async function doLogin(e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
   }
 }
+async function doResetPassword(e) {
+  e.preventDefault();
+  const email = document.getElementById('rs-email').value.trim();
+  const err   = document.getElementById('resetErr');
+  const ok    = document.getElementById('resetOk');
+  err.textContent = '';
+  ok.style.display = 'none';
+  ok.textContent = '';
+  if (!fbAuth) { err.textContent = 'Site not connected to Firebase yet. Contact support.'; return; }
+  if (!email || !email.includes('@')) { err.textContent = 'Enter a valid email address.'; return; }
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    // Send the Firebase Auth password-reset email. Firebase handles the link,
+    // the reset page, and the new-password update — we don't touch any of that.
+    await fbAuth.sendPasswordResetEmail(email);
+    ok.textContent = `Check ${email} for a password-reset link. It can take a minute or two — also check spam.`;
+    ok.style.display = 'block';
+    document.getElementById('rs-email').value = '';
+  } catch (e2) {
+    const code = e2.code || '';
+    if (code.includes('user-not-found')) {
+      // For security, Firebase actually returns success for unknown emails on
+      // modern projects ("email enumeration protection"). If we DO get this
+      // error, surface it gently.
+      err.textContent = 'No account found with that email. Check the address or create an account.';
+    } else if (code.includes('invalid-email')) {
+      err.textContent = 'That email address looks wrong.';
+    } else if (code.includes('too-many-requests')) {
+      err.textContent = 'Too many attempts. Wait a minute and try again.';
+    } else if (code.includes('network')) {
+      err.textContent = 'Network error. Check your connection.';
+    } else {
+      err.textContent = e2.message || 'Could not send reset email.';
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Send reset link'; }
+  }
+}
+
 async function doSignup(e) {
   e.preventDefault();
   const name  = document.getElementById('su-name').value.trim();
@@ -1761,9 +2022,23 @@ function handleDownload(action, user) {
   const label = action === 'tablet' ? 'Tablet Web Access' : 'Download for Windows';
   logPurchase(label, user);
   save();
-  // Open billing modal for the purchase
   pendingPlatform = 'windows';
-  openBilling();
+  // If they already have an active subscription, trigger the installer download.
+  // Otherwise scroll to the pricing section so they can pick a plan.
+  const sub = currentSubscription;
+  if (sub && isSubscriptionActive(sub)) {
+    if (S.downloadUrl) {
+      triggerDownload();
+      showToast(`Downloading ${S.downloadName}…`, 'good');
+    } else {
+      openUserDashboard();
+    }
+    return;
+  }
+  // No active subscription — bring them to the plans
+  const pricing = document.getElementById('pricing');
+  if (pricing) pricing.scrollIntoView({behavior:'smooth'});
+  showToast('Choose a plan to activate your subscription', 'good');
 }
 document.getElementById('modalClose').onclick = closeAuth;
 document.getElementById('authModal').addEventListener('click', e => { if(e.target === document.getElementById('authModal')) closeAuth(); });
@@ -2146,9 +2421,26 @@ function setBillingCycle(c) {
 }
 function setUpgradeCycle(c) {
   upgradeCycle = c;
-  document.querySelectorAll('#upgradeModal .cycle-btn').forEach(b => b.classList.toggle('active', b.dataset.cycle === c));
+  document.querySelectorAll('#upgradeCycleToggle .cycle-btn').forEach(b => b.classList.toggle('active', b.dataset.cycle === c));
   positionCycleSlider('#upgradeCycleSlider');
   renderUpgradePlans();
+}
+// Build the cycle toggle buttons from the cycles actually offered by at
+// least one active plan. Order: Monthly → Yearly → Weekly. If only one
+// cycle is enabled site-wide, hide the toggle entirely.
+function renderCycleToggle(toggleId, sliderId, currentCycle, onClickName) {
+  const toggle = document.getElementById(toggleId);
+  if (!toggle) return;
+  const cycles = allEnabledCycles();
+  if (!cycles.length) { toggle.style.display = 'none'; return; }
+  toggle.style.display = cycles.length === 1 ? 'none' : '';
+  const labels = { monthly:'Monthly', yearly:'Yearly', weekly:'Weekly' };
+  const extras = { yearly:'<span class="cycle-save">Save 2 months</span>', weekly:'<span class="cycle-save">Pay-as-you-go</span>' };
+  // Keep the slider element, rebuild buttons
+  toggle.innerHTML = `<span class="cycle-slider" id="${sliderId}"></span>` +
+    cycles.map(c =>
+      `<button class="cycle-btn ${c === currentCycle ? 'active' : ''}" data-cycle="${c}" onclick="${onClickName}('${c}')">${labels[c]}${extras[c] || ''}</button>`
+    ).join('');
 }
 function positionCycleSlider(sel) {
   // Position slider behind active cycle button
@@ -2170,32 +2462,68 @@ function renderPlansGrid() {
   if (!g) return;
   const active = S.plans.filter(p => p.active);
   if (!active.length) { g.innerHTML = '<p style="color:var(--dim);text-align:center;grid-column:1/-1">No plans available yet. Check back soon.</p>'; return; }
+  // Make sure the saved cycle is one that's actually offered; if not, pick the first available
+  const enabled = allEnabledCycles();
+  if (enabled.length && !enabled.includes(S.billingCycle)) {
+    S.billingCycle = enabled[0];
+  }
+  renderCycleToggle('cycleToggle', 'cycleSlider', S.billingCycle, 'setBillingCycle');
   const cycle = S.billingCycle;
-  const cycleSuffix = cycle === 'weekly' ? '/week' : '/month';
+  const cycleSuffix = cycle === 'yearly' ? '/year' : (cycle === 'weekly' ? '/week' : '/month');
   const userLic = currentUser && !currentUser.isAdmin
     ? S.licenses.find(l => l.email === currentUser.email && l.status === 'active')
     : null;
+  // Determine the user's CURRENT active subscription from Firestore (source of truth)
+  const sub = (currentUser && !currentUser.isAdmin) ? currentSubscription : null;
+  const currentPlan = sub ? S.plans.find(p => p.id === sub.plan) : null;
+  const currentPrice = currentPlan ? planCyclePrice(currentPlan, sub.billingCycle) : 0;
+
   g.innerHTML = active.map(p => {
-    const price = cycle === 'weekly' ? p.weekly : p.monthly;
-    const monthlyEquiv = cycle === 'weekly' ? p.weekly * 4 : null;
-    const strike = monthlyEquiv && monthlyEquiv > p.monthly ? `<div class="plan-price-strike">${formatPrice(monthlyEquiv)}/mo equivalent</div>` : '<div class="plan-price-strike">&nbsp;</div>';
+    const supportsCycle = planSupportsCycle(p, cycle);
+    const price = planCyclePrice(p, cycle);
+    const monthlyEquiv = cycle === 'weekly' ? p.weekly * 4 : (cycle === 'yearly' ? Math.round(p.yearly / 12) : null);
+    let strikeHtml = '<div class="plan-price-strike">&nbsp;</div>';
+    if (cycle === 'weekly' && monthlyEquiv && monthlyEquiv > p.monthly) {
+      strikeHtml = `<div class="plan-price-strike">${formatPrice(monthlyEquiv)}/mo equivalent</div>`;
+    } else if (cycle === 'yearly' && p.monthly) {
+      const yearlyVsMonthly = p.monthly * 12;
+      if (yearlyVsMonthly > p.yearly) {
+        const savedPct = Math.round(100 * (yearlyVsMonthly - p.yearly) / yearlyVsMonthly);
+        strikeHtml = `<div class="plan-price-strike">${formatPrice(yearlyVsMonthly)}/yr equivalent · save ${savedPct}%</div>`;
+      }
+    }
     const limits = `<div class="plan-limits">
       <div class="plan-limit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><b>${p.maxBays >= 999 ? 'Unlimited' : p.maxBays}</b> bay${p.maxBays===1?'':'s'}</div>
       <div class="plan-limit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg><b>${p.maxWorkers >= 999 ? 'Unlimited' : p.maxWorkers}</b> worker${p.maxWorkers===1?'':'s'}</div>
       <div class="plan-limit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b>${p.maxBookings >= 999 ? 'Unlimited' : p.maxBookings}</b> concurrent bookings</div>
     </div>`;
     const features = p.features.map(f => `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>${f}</li>`).join('');
-    const isCurrent = userLic && userLic.planId === p.id;
+    const isCurrent = sub && sub.plan === p.id && sub.billingCycle === cycle;
     const currentTag = isCurrent ? '<div class="plan-current-tag">● Your current plan</div>' : '';
-    const btn = isCurrent
-      ? `<button class="btn btn-ghost" disabled style="opacity:.7;cursor:default">Current plan</button>`
-      : `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="selectPlan('${p.id}')">${userLic ? 'Switch to ' + p.name : 'Choose ' + p.name}</button>`;
-    return `<div class="plan-card ${p.featured ? 'featured' : ''}">
+
+    // Cycle the plan doesn't support
+    let btn;
+    if (!supportsCycle) {
+      btn = `<button class="btn btn-ghost" disabled style="opacity:.5;cursor:not-allowed">Not available ${cycle === 'yearly' ? 'yearly' : (cycle === 'weekly' ? 'weekly' : 'monthly')}</button>`;
+    } else if (isCurrent) {
+      btn = `<button class="btn btn-ghost" disabled style="opacity:.7;cursor:default">Current plan</button>`;
+    } else if (sub) {
+      // Compute upgrade vs downgrade preview
+      const isUpgrade = price > currentPrice;
+      const diff = Math.abs(price - currentPrice);
+      const previewLabel = isUpgrade
+        ? `Upgrade · +${formatPrice(diff)} now`
+        : `Downgrade · ${formatPrice(price)} (starts at renewal)`;
+      btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="selectPlan('${p.id}')">${previewLabel}</button>`;
+    } else {
+      btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="selectPlan('${p.id}')">Choose ${p.name}</button>`;
+    }
+    return `<div class="plan-card ${p.featured ? 'featured' : ''}${supportsCycle ? '' : ' unsupported'}">
       ${currentTag}
       <div class="plan-name">${p.name}</div>
       <div class="plan-tag">${p.tag}</div>
-      ${strike}
-      <div class="plan-price"><span class="pp-amt">${formatPrice(price)}</span><span class="pp-cycle">${cycleSuffix}</span></div>
+      ${strikeHtml}
+      <div class="plan-price"><span class="pp-amt">${supportsCycle ? formatPrice(price) : '—'}</span><span class="pp-cycle">${cycleSuffix}</span></div>
       ${limits}
       <ul class="plan-features">${features}</ul>
       ${btn}
@@ -2228,10 +2556,16 @@ function renderAdminPlansGrid() {
   g.innerHTML = S.plans.map(p => `<div class="plan-acard">
     <h4>${p.name} ${p.featured ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,122,24,.16);color:var(--acc2);margin-left:6px;vertical-align:middle">FEATURED</span>' : ''} ${!p.active ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,107,107,.14);color:#ff6b6b;margin-left:6px;vertical-align:middle">HIDDEN</span>' : ''}</h4>
     <div class="pa-tag">${p.tag}</div>
-    <div class="pa-price">${formatPrice(p.monthly, 'INR')} / mo · ${formatPrice(p.weekly, 'INR')} / wk</div>
+    <div class="pa-price">
+      ${p.monthly ? `${formatPrice(p.monthly, 'INR')} / mo` : ''}
+      ${p.monthly && p.yearly ? ' · ' : ''}
+      ${p.yearly  ? `${formatPrice(p.yearly,  'INR')} / yr` : ''}
+      ${(p.monthly || p.yearly) && p.weekly ? ' · ' : ''}
+      ${p.weekly  ? `${formatPrice(p.weekly,  'INR')} / wk` : ''}
+    </div>
     <div class="pa-limits">
       <div><b>${p.maxBays >= 999 ? '∞' : p.maxBays}</b> bays · <b>${p.maxWorkers >= 999 ? '∞' : p.maxWorkers}</b> workers · <b>${p.maxBookings >= 999 ? '∞' : p.maxBookings}</b> concurrent bookings</div>
-      <div style="margin-top:6px;font-size:12px;color:var(--faint)">ID: <code style="background:var(--bg2);padding:1px 5px;border-radius:3px">${p.id}</code></div>
+      <div style="margin-top:6px;font-size:12px;color:var(--faint)">Cycles: ${(Array.isArray(p.cycles) ? p.cycles : ['monthly','yearly','weekly']).join(', ')} · ID: <code style="background:var(--bg2);padding:1px 5px;border-radius:3px">${p.id}</code></div>
     </div>
     <div class="pa-actions">
       <button class="rev-btn" onclick="editPlan('${p.id}')">Edit</button>
@@ -2249,19 +2583,27 @@ function openPlanForm(id) {
     document.getElementById('planEditId').value = id;
     document.getElementById('pf-name').value = p.name;
     document.getElementById('pf-tag').value = p.tag;
-    document.getElementById('pf-monthly').value = p.monthly;
-    document.getElementById('pf-weekly').value = p.weekly;
+    document.getElementById('pf-monthly').value = p.monthly || '';
+    document.getElementById('pf-weekly').value  = p.weekly  || '';
+    document.getElementById('pf-yearly').value  = p.yearly  || '';
     document.getElementById('pf-bays').value = p.maxBays;
     document.getElementById('pf-workers').value = p.maxWorkers;
     document.getElementById('pf-bookings').value = p.maxBookings;
     document.getElementById('pf-features').value = p.features.join('\n');
     document.getElementById('pf-featured').value = p.featured ? 'true' : 'false';
-    document.getElementById('pf-active').value = p.active ? 'true' : 'false';
+    document.getElementById('pf-active').value   = p.active   ? 'true' : 'false';
+    const cycles = Array.isArray(p.cycles) ? p.cycles : ['monthly','yearly','weekly'];
+    document.getElementById('pf-cycle-monthly').checked = cycles.includes('monthly');
+    document.getElementById('pf-cycle-yearly').checked  = cycles.includes('yearly');
+    document.getElementById('pf-cycle-weekly').checked  = cycles.includes('weekly');
   } else {
     document.getElementById('planFormTitle').textContent = 'Add Plan';
-    ['planEditId','pf-name','pf-tag','pf-monthly','pf-weekly','pf-bays','pf-workers','pf-bookings','pf-features'].forEach(i => document.getElementById(i).value = '');
+    ['planEditId','pf-name','pf-tag','pf-monthly','pf-weekly','pf-yearly','pf-bays','pf-workers','pf-bookings','pf-features'].forEach(i => document.getElementById(i).value = '');
     document.getElementById('pf-featured').value = 'false';
-    document.getElementById('pf-active').value = 'true';
+    document.getElementById('pf-active').value   = 'true';
+    document.getElementById('pf-cycle-monthly').checked = true;
+    document.getElementById('pf-cycle-yearly').checked  = true;
+    document.getElementById('pf-cycle-weekly').checked  = true;
   }
   f.scrollIntoView({behavior:'smooth'});
 }
@@ -2276,17 +2618,23 @@ function deletePlan(id) {
 }
 function savePlan() {
   const editId = document.getElementById('planEditId').value;
-  const name = document.getElementById('pf-name').value.trim();
-  const tag = document.getElementById('pf-tag').value.trim();
-  const monthly = parseInt(document.getElementById('pf-monthly').value, 10) || 0;
+  const name   = document.getElementById('pf-name').value.trim();
+  const tag    = document.getElementById('pf-tag').value.trim();
+  const monthly= parseInt(document.getElementById('pf-monthly').value, 10) || 0;
   const weekly = parseInt(document.getElementById('pf-weekly').value, 10) || 0;
-  const maxBays = parseInt(document.getElementById('pf-bays').value, 10) || 1;
+  const yearly = parseInt(document.getElementById('pf-yearly').value, 10) || (monthly ? monthly * 10 : 0);
+  const maxBays    = parseInt(document.getElementById('pf-bays').value, 10) || 1;
   const maxWorkers = parseInt(document.getElementById('pf-workers').value, 10) || 1;
-  const maxBookings = parseInt(document.getElementById('pf-bookings').value, 10) || 1;
-  const featuresArr = document.getElementById('pf-features').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const maxBookings= parseInt(document.getElementById('pf-bookings').value, 10) || 1;
+  const featuresArr= document.getElementById('pf-features').value.split('\n').map(s => s.trim()).filter(Boolean);
   const featured = document.getElementById('pf-featured').value === 'true';
-  const active = document.getElementById('pf-active').value === 'true';
-  if (!name) { showToast('Plan name is required', 'bad'); return; }
+  const active   = document.getElementById('pf-active').value === 'true';
+  const cycles   = [];
+  if (document.getElementById('pf-cycle-monthly').checked) cycles.push('monthly');
+  if (document.getElementById('pf-cycle-yearly').checked)  cycles.push('yearly');
+  if (document.getElementById('pf-cycle-weekly').checked)  cycles.push('weekly');
+  if (!cycles.length) { showToast('Pick at least one billing cycle', 'bad'); return; }
+  if (!name)          { showToast('Plan name is required', 'bad'); return; }
   if (featured) {
     // ensure only one featured plan
     S.plans.forEach(p => p.featured = false);
@@ -2294,12 +2642,12 @@ function savePlan() {
   if (editId) {
     const idx = S.plans.findIndex(p => p.id === editId);
     if (idx !== -1) {
-      S.plans[idx] = { ...S.plans[idx], name, tag, monthly, weekly, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active };
+      S.plans[idx] = { ...S.plans[idx], name, tag, monthly, weekly, yearly, cycles, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active };
     }
   } else {
     const id = name.toLowerCase().replace(/[^a-z0-9]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || ('plan-' + Date.now().toString(36));
     if (S.plans.find(p => p.id === id)) { showToast('A plan with that name already exists', 'bad'); return; }
-    S.plans.push({ id, name, tag, monthly, weekly, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active });
+    S.plans.push({ id, name, tag, monthly, weekly, yearly, cycles, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active });
   }
   save(); closePlanForm(); renderAdminPlansGrid(); renderPlansGrid();
   syncPlansToFirebase();
@@ -2313,8 +2661,11 @@ function openUpgradeModal() {
   if (!currentUser || currentUser.isAdmin) return;
   document.getElementById('upgradeModal').classList.add('open');
   document.body.style.overflow = 'hidden';
-  upgradeCycle = S.billingCycle;
-  document.querySelectorAll('#upgradeModal .cycle-btn').forEach(b => b.classList.toggle('active', b.dataset.cycle === upgradeCycle));
+  const enabled = allEnabledCycles();
+  // Default to the user's current sub cycle if it's still offered, else first available
+  const subCycle = (currentSubscription && currentSubscription.billingCycle) || S.billingCycle;
+  upgradeCycle = enabled.includes(subCycle) ? subCycle : (enabled[0] || 'monthly');
+  renderCycleToggle('upgradeCycleToggle', 'upgradeCycleSlider', upgradeCycle, 'setUpgradeCycle');
   renderUpgradePlans();
   setTimeout(() => positionCycleSlider('#upgradeCycleSlider'), 50);
 }
@@ -2325,28 +2676,41 @@ function closeUpgrade() {
 function renderUpgradePlans() {
   const g = document.getElementById('upgradePlansGrid');
   if (!g) return;
-  const userLic = S.licenses.find(l => l.email === currentUser.email && l.status === 'active');
+  const sub  = currentSubscription;
   const active = S.plans.filter(p => p.active);
-  const cycle = upgradeCycle;
-  const cycleSuffix = cycle === 'weekly' ? '/week' : '/month';
+  const cycle  = upgradeCycle;
+  const cycleSuffix = cycle === 'yearly' ? '/year' : (cycle === 'weekly' ? '/week' : '/month');
+  const curPlanData  = sub ? S.plans.find(p => p.id === sub.plan) : null;
+  const curPrice     = curPlanData ? planCyclePrice(curPlanData, sub.billingCycle) : 0;
   g.innerHTML = active.map(p => {
-    const price = cycle === 'weekly' ? p.weekly : p.monthly;
+    const supportsCycle = planSupportsCycle(p, cycle);
+    const price = planCyclePrice(p, cycle);
     const limits = `<div class="plan-limits">
       <div class="plan-limit"><b>${p.maxBays >= 999 ? 'Unlimited' : p.maxBays}</b> bays</div>
       <div class="plan-limit"><b>${p.maxWorkers >= 999 ? 'Unlimited' : p.maxWorkers}</b> workers</div>
       <div class="plan-limit"><b>${p.maxBookings >= 999 ? 'Unlimited' : p.maxBookings}</b> bookings</div>
     </div>`;
-    const isCurrent = userLic && userLic.planId === p.id && userLic.billingCycle === cycle;
+    const isCurrent = sub && sub.plan === p.id && sub.billingCycle === cycle;
     const currentTag = isCurrent ? '<div class="plan-current-tag">● Current plan</div>' : '';
-    const btn = isCurrent
-      ? `<button class="btn btn-ghost" disabled style="opacity:.7">You're on this plan</button>`
-      : `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="upgradeUserPlan('${p.id}','${cycle}')">${(userLic && (userLic.planId === p.id) && (userLic.billingCycle !== cycle)) ? 'Switch to ' + cycle : 'Switch to ' + p.name}</button>`;
+    let btn;
+    if (!supportsCycle) {
+      btn = `<button class="btn btn-ghost" disabled style="opacity:.5;cursor:not-allowed">Not available ${cycle}</button>`;
+    } else if (isCurrent) {
+      btn = `<button class="btn btn-ghost" disabled style="opacity:.7">You're on this plan</button>`;
+    } else {
+      const isUpgrade = price > curPrice;
+      const diff = Math.abs(price - curPrice);
+      const previewLabel = isUpgrade
+        ? `Upgrade · +${formatPrice(diff)} now`
+        : (curPrice ? `Downgrade · ${formatPrice(price)} at renewal` : `Switch to ${p.name}`);
+      btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="upgradeUserPlan('${p.id}','${cycle}')">${previewLabel}</button>`;
+    }
     return `<div class="plan-card ${p.featured ? 'featured' : ''}">
       ${currentTag}
       <div class="plan-name">${p.name}</div>
       <div class="plan-tag">${p.tag}</div>
       <div class="plan-price-strike">&nbsp;</div>
-      <div class="plan-price"><span class="pp-amt">${formatPrice(price)}</span><span class="pp-cycle">${cycleSuffix}</span></div>
+      <div class="plan-price"><span class="pp-amt">${supportsCycle ? formatPrice(price) : '—'}</span><span class="pp-cycle">${cycleSuffix}</span></div>
       ${limits}
       <ul class="plan-features">${p.features.slice(0,4).map(f => `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>${f}</li>`).join('')}</ul>
       ${btn}
@@ -2354,38 +2718,62 @@ function renderUpgradePlans() {
   }).join('');
 }
 async function upgradeUserPlan(planId, cycle) {
-  if (!currentUser || currentUser.isAdmin) return;
+  if (!currentUser || currentUser.isAdmin) {
+    showToast('Sign in as a customer to change plans', 'bad');
+    return;
+  }
+  if (!fbAuth || !fbAuth.currentUser) {
+    closeUpgrade();
+    openAuth('win');
+    return;
+  }
   const newPlan = S.plans.find(p => p.id === planId);
-  if (!newPlan) return;
+  if (!newPlan) { showToast('Plan not found', 'bad'); return; }
   const newCycle = cycle || S.billingCycle;
 
-  // Server-driven upgrade: call the Cloud Function so Firestore is the
-  // source of truth. The local mirror below is just for the admin UI.
-  if (S.cloudFnUrl) {
-    closeUpgrade();
-    showProcessing('Switching plan…', `Activating your ${newPlan.name} subscription on our servers.`);
-    await new Promise(r => setTimeout(r, 800));
-    processingStep(1);
-    await new Promise(r => setTimeout(r, 600));
-    processingStep(2);
-    try {
-      const result = await callActivateSubscription(currentUser.email, newPlan.id, newCycle);
-      processingStep(3);
-      await new Promise(r => setTimeout(r, 400));
-      processingSuccess(result.licenseKey, newPlan.name, result.expiry);
-      logPurchase(`Upgrade · ${newPlan.name} (${newCycle})`, currentUser);
-      save();
-      renderPlansGrid();
-      return;
-    } catch (err) {
-      processingError(err.message || 'Could not switch plan.');
-      return;
-    }
-  }
+  // Compute upgrade/downgrade pricing
+  const sub          = currentSubscription;
+  const curPlan      = sub ? S.plans.find(p => p.id === sub.plan) : null;
+  const curCyclePrice= sub && curPlan ? planCyclePrice(curPlan, sub.billingCycle) : 0;
+  const newCyclePrice= planCyclePrice(newPlan, newCycle);
+  const isUpgrade    = !sub || newCyclePrice > curCyclePrice;
+  const chargeNow    = isUpgrade ? Math.max(0, newCyclePrice - curCyclePrice) : newCyclePrice;
+  const fmt          = n => formatPrice(n);
 
-  // Fallback (no server configured) — keep the old local-only behaviour
-  let lic = S.licenses.find(l => l.email === currentUser.email && l.status === 'active');
-  if (!lic) {
+  // Show a brief processing animation (fake payment)
+  closeUpgrade();
+  const title = isUpgrade
+    ? `Upgrading to ${newPlan.name}…`
+    : `Scheduling downgrade to ${newPlan.name}…`;
+  const subTxt = isUpgrade
+    ? `You'll be charged the difference: ${fmt(chargeNow)}. Plan changes immediately.`
+    : `You'll be charged ${fmt(chargeNow)} now. The new plan starts when your current one ends.`;
+  showProcessing(title, subTxt);
+  await new Promise(r => setTimeout(r, 800));
+  processingStep(1);
+  await new Promise(r => setTimeout(r, 600));
+  processingStep(2);
+
+  try {
+    const result = await callActivateSubscription(currentUser.email, newPlan.id, newCycle, {
+      isUpgrade,
+      chargeNow,
+      previousSubscription: sub
+    });
+    processingStep(3);
+    await new Promise(r => setTimeout(r, 400));
+    processingSuccess(result.licenseKey, newPlan.name, result.expiry);
+    logPurchase(`${isUpgrade ? 'Upgrade' : 'Downgrade'} · ${newPlan.name} (${newCycle}) · ${fmt(chargeNow)}`, currentUser);
+    save();
+    renderPlansGrid();
+  } catch (err) {
+    processingError(err.message || 'Could not switch plan.');
+  }
+  return;
+
+  // ── Dead code path below — kept harmless so old refs compile ──
+  let lic = null;
+  if (false) {
     pendingPlanId = planId;
     upgradeCycle = newCycle;
     openBilling();
@@ -2709,7 +3097,7 @@ function hideProcessing() {
 // This replaces the Cloud Function call — no backend is required.
 // Security model: the user can only write to their OWN users/{uid} doc and
 // licenses/{key} docs they create. Enforced in firestore.rules.
-async function callActivateSubscription(_legacyUserId, planId, billingCycle) {
+async function callActivateSubscription(_legacyUserId, planId, billingCycle, options) {
   if (!fbDb || !fbAuth || !fbAuth.currentUser) {
     throw new Error('Please sign in before purchasing a plan.');
   }
@@ -2718,36 +3106,114 @@ async function callActivateSubscription(_legacyUserId, planId, billingCycle) {
   const plan  = (S.plans.find(p => p.id === planId) || S.plans.find(p => p.featured) || S.plans[0]);
   if (!plan) throw new Error('No plan available.');
 
-  const cycle = (billingCycle === 'weekly') ? 'weekly' : 'monthly';
-  const days  = (cycle === 'weekly') ? 7 : 30;
+  // Normalise cycle (accept monthly | weekly | yearly)
+  const cycle = (billingCycle === 'weekly' || billingCycle === 'yearly') ? billingCycle : 'monthly';
+  const days  = cycleDays(cycle);
   const now   = firebase.firestore.Timestamp.now();
-  const expiryDate = new Date(Date.now() + days * 86400000);
-  const expiry     = firebase.firestore.Timestamp.fromDate(expiryDate);
 
-  // Re-use the user's existing license key if they already have one, so
-  // upgrades don't generate a new key every time.
+  // Re-use the existing license key if the user already has one — so upgrades
+  // and downgrades keep the SAME key throughout the subscription's life.
   let licenseKey = null;
+  let existingSub = null;
   try {
     const userDoc = await fbDb.collection('users').doc(uid).get();
-    if (userDoc.exists && userDoc.data().subscription && userDoc.data().subscription.licenseKey) {
-      licenseKey = userDoc.data().subscription.licenseKey;
+    if (userDoc.exists && userDoc.data().subscription) {
+      existingSub = userDoc.data().subscription;
+      if (existingSub.licenseKey) licenseKey = existingSub.licenseKey;
     }
   } catch(e){}
   if (!licenseKey) licenseKey = generateLicenseKey();
 
-  const subscription = {
-    status:       'active',
-    plan:         plan.id,
-    planName:     plan.name,
-    billingCycle: cycle,
-    activatedAt:  now,
-    expiry,
-    licenseKey,
-    maxBays:      plan.maxBays,
-    maxWorkers:   plan.maxWorkers,
-    maxBookings:  plan.maxBookings,
-    lastPaymentMethod: 'fake-test-payment'
-  };
+  // ── Upgrade vs downgrade vs new ──
+  const opts        = options || {};
+  const isUpgrade   = opts.isUpgrade === true;
+  const isDowngrade = opts.isUpgrade === false;
+  const chargeNow   = typeof opts.chargeNow === 'number' ? opts.chargeNow : planCyclePrice(plan, cycle);
+
+  let subscription;
+  let mirrorDoc;
+
+  if (existingSub && isDowngrade) {
+    // DOWNGRADE — keep the current plan running until expiry, then switch.
+    // Store the scheduled change on the subscription.
+    const currentExpiryDate = existingSub.expiry && existingSub.expiry.toDate
+        ? existingSub.expiry.toDate()
+        : (existingSub.expiry ? new Date(existingSub.expiry) : new Date(Date.now() + days * 86400000));
+    subscription = {
+      ...existingSub,
+      // Current plan stays active
+      pendingChange: {
+        planId:        plan.id,
+        planName:      plan.name,
+        billingCycle:  cycle,
+        startsAt:      firebase.firestore.Timestamp.fromDate(currentExpiryDate),
+        maxBays:       plan.maxBays,
+        maxWorkers:    plan.maxWorkers,
+        maxBookings:   plan.maxBookings,
+        prepaidAmount: chargeNow,
+        currency:      S.currency,
+        scheduledAt:   now
+      },
+      updatedAt: now
+    };
+    mirrorDoc = {
+      key:          licenseKey,
+      uid, userId:  email, email,
+      plan:         existingSub.plan,
+      planName:     existingSub.planName,
+      billingCycle: existingSub.billingCycle,
+      status:       'active',
+      activatedAt:  existingSub.activatedAt || now,
+      expiry:       existingSub.expiry,
+      maxBays:      existingSub.maxBays,
+      maxWorkers:   existingSub.maxWorkers,
+      maxBookings:  existingSub.maxBookings,
+      pendingChange: subscription.pendingChange,
+      updatedAt:    now
+    };
+  } else {
+    // NEW SUBSCRIPTION or UPGRADE — change applies immediately.
+    // On upgrade we keep the existing expiry (you paid the diff to bring the
+    // current period up to the new plan). On new, expiry = now + cycleDays.
+    let expiryDate;
+    if (existingSub && isUpgrade && existingSub.expiry) {
+      expiryDate = existingSub.expiry.toDate ? existingSub.expiry.toDate() : new Date(existingSub.expiry);
+    } else {
+      expiryDate = new Date(Date.now() + days * 86400000);
+    }
+    const expiry = firebase.firestore.Timestamp.fromDate(expiryDate);
+    subscription = {
+      status:       'active',
+      plan:         plan.id,
+      planName:     plan.name,
+      billingCycle: cycle,
+      activatedAt:  existingSub && isUpgrade ? (existingSub.activatedAt || now) : now,
+      expiry,
+      licenseKey,
+      maxBays:      plan.maxBays,
+      maxWorkers:   plan.maxWorkers,
+      maxBookings:  plan.maxBookings,
+      lastPaymentAmount: chargeNow,
+      currency:     S.currency,
+      lastPaymentMethod: 'fake-test-payment',
+      pendingChange: null
+    };
+    mirrorDoc = {
+      key:          licenseKey,
+      uid, userId:  email, email,
+      plan:         plan.id,
+      planName:     plan.name,
+      billingCycle: cycle,
+      status:       'active',
+      activatedAt:  subscription.activatedAt,
+      expiry,
+      maxBays:      plan.maxBays,
+      maxWorkers:   plan.maxWorkers,
+      maxBookings:  plan.maxBookings,
+      pendingChange: null,
+      createdAt:    existingSub && existingSub.activatedAt ? existingSub.activatedAt : now
+    };
+  }
 
   // 1) Subscription on the user record (keyed by Auth UID)
   await fbDb.collection('users').doc(uid).set({
@@ -2757,34 +3223,23 @@ async function callActivateSubscription(_legacyUserId, planId, billingCycle) {
   }, { merge: true });
 
   // 2) Mirror under licenses/{key} so the desktop app can verify by key
-  await fbDb.collection('licenses').doc(licenseKey).set({
-    key:          licenseKey,
-    uid,
-    userId:       email,       // keep email as a friendly secondary id
-    email,
-    plan:         plan.id,
-    planName:     plan.name,
-    billingCycle: cycle,
-    status:       'active',
-    activatedAt:  now,
-    expiry,
-    maxBays:      plan.maxBays,
-    maxWorkers:   plan.maxWorkers,
-    maxBookings:  plan.maxBookings,
-    createdAt:    now
-  }, { merge: true });
+  await fbDb.collection('licenses').doc(licenseKey).set(mirrorDoc, { merge: true });
+
+  const expiryOut = subscription.expiry && subscription.expiry.toDate
+    ? subscription.expiry.toDate().toISOString()
+    : null;
 
   return {
     success:      true,
     uid,
     userId:       email,
-    plan:         plan.id,
-    billingCycle: cycle,
+    plan:         subscription.plan,
+    billingCycle: subscription.billingCycle,
     licenseKey,
-    expiry:       expiryDate.toISOString(),
-    maxBays:      plan.maxBays,
-    maxWorkers:   plan.maxWorkers,
-    maxBookings:  plan.maxBookings
+    expiry:       expiryOut,
+    chargeNow,
+    isDowngrade,
+    isUpgrade
   };
 }
 
@@ -2913,7 +3368,15 @@ function renderUserDashboard() {
   document.getElementById('udUserName').textContent = currentUser.name;
   document.getElementById('udFullName').textContent = currentUser.name;
   document.getElementById('udEmail').textContent = currentUser.email || '—';
-  document.getElementById('udMember').textContent = acc && acc.createdAt ? acc.createdAt : '—';
+  // Member-since: prefer Firebase Auth metadata, fall back to local account
+  let memberSince = '—';
+  if (fbAuth && fbAuth.currentUser && fbAuth.currentUser.metadata && fbAuth.currentUser.metadata.creationTime) {
+    memberSince = new Date(fbAuth.currentUser.metadata.creationTime)
+      .toLocaleDateString('en-IN', {day:'numeric', month:'long', year:'numeric'});
+  } else if (acc && acc.createdAt) {
+    memberSince = acc.createdAt;
+  }
+  document.getElementById('udMember').textContent = memberSince;
 
   // SOURCE OF TRUTH: Firestore subscription (currentSubscription) — NOT localStorage
   const area = document.getElementById('udLicenseArea');
@@ -3037,6 +3500,10 @@ function initFirebase() {
     }
     subscribeLicensesFromFirebase();
     loadAdminCredsFromFirebase().then(() => subscribeAdminCredsFromFirebase());
+    // Live-sync site settings (download URL, price, currency) so admin changes
+    // on one device propagate to every other device automatically.
+    subscribeSiteSettingsFromFirebase();
+    subscribePlansFromFirebase();
     return true;
   } catch(e) {
     console.error('Firebase init failed:', e);
@@ -3076,61 +3543,44 @@ function subscribeLicensesFromFirebase() {
   if (fbUnsub) { try { fbUnsub(); } catch(e){} fbUnsub = null; }
   try {
     fbUnsub = fbDb.collection('licenses').onSnapshot(snap => {
-      const remoteByKey = {};
+      // Firebase is the SOLE source of truth — replace S.licenses entirely on
+      // every snapshot. If an admin revokes/deletes a license on device A, it
+      // immediately disappears from device B's admin view too.
+      const remote = [];
       snap.forEach(doc => {
+        if (doc.id === '_placeholder') return;
         const d = doc.data() || {};
-        remoteByKey[doc.id] = {
-          // map firestore doc → local license shape
-          id: d.id || (Date.now() + Math.random()*1000),
-          key: d.key || doc.id,
-          email: d.email || '',
-          name: d.name || d.username || '(no name)',
-          plan: d.plan || 'Standard',
-          platform: d.platform || 'windows',
-          status: d.status || 'active',
-          createdAt: d.createdAt || new Date().toISOString(),
-          createdAtDisplay: d.createdAtDisplay || (d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN') : new Date().toLocaleString('en-IN')),
-          revokedAt: d.revokedAt || null,
-          _remote: true   // tag so we know it came from Firestore
-        };
-        // If the doc carries a username/password and we don't have a local
-        // account for that email yet, materialise a stub account so the
-        // license can be linked to a user record in the admin views.
-        if (d.email && !S.accounts.find(a => a.email === d.email)) {
-          S.accounts.push({
-            id: Date.now() + Math.random()*1000,
-            name: d.name || d.username || d.email,
-            email: d.email,
-            password: d.password || '',
-            username: d.username || d.email,
-            createdAt: d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN') : new Date().toLocaleString('en-IN'),
-            cardLast4: d.cardLast4 || null,
-            licenseKey: d.key || doc.id,
-            licenseStatus: d.status || 'active',
-            licensePlan: d.plan || 'Standard',
-            _remote: true
-          });
-        }
+        const createdAtIso = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toISOString() : (d.createdAt || new Date().toISOString());
+        const revokedIso   = d.revokedAt && d.revokedAt.toDate ? d.revokedAt.toDate().toISOString() : (d.revokedAt || null);
+        remote.push({
+          id:               d.id || doc.id,
+          key:              d.key || doc.id,
+          uid:              d.uid || null,
+          email:            d.email || d.userId || '',
+          name:             d.name || d.username || d.email || '(no name)',
+          plan:             d.plan || 'Standard',
+          planName:         d.planName || d.plan || 'Standard',
+          billingCycle:     d.billingCycle || 'monthly',
+          platform:         d.platform || 'windows',
+          status:           d.status || 'active',
+          maxBays:          d.maxBays,
+          maxWorkers:       d.maxWorkers,
+          maxBookings:      d.maxBookings,
+          createdAt:        createdAtIso,
+          createdAtDisplay: new Date(createdAtIso).toLocaleString('en-IN'),
+          revokedAt:        revokedIso,
+          _remote:          true
+        });
       });
-      // Merge: remote docs overwrite local rows with the same key.
-      // Keep purely-local licenses (the ones not yet pushed up) intact.
-      const merged = [];
-      const seen = new Set();
-      // remote first (authoritative)
-      Object.keys(remoteByKey).forEach(k => { merged.push(remoteByKey[k]); seen.add(k); });
-      // then any local-only entries
-      S.licenses.forEach(l => { if (!seen.has(l.key)) merged.push(l); });
-      // newest first
-      merged.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-      S.licenses = merged;
+      remote.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+      S.licenses = remote;
       fbLastSyncTs = new Date();
       save();
-      // Re-render anywhere licenses are shown
       if (document.getElementById('tab-licenses') && document.getElementById('tab-licenses').classList.contains('active')) renderLicensesTab();
-      if (document.getElementById('tab-firebase') && document.getElementById('tab-firebase').classList.contains('active')) renderFirebaseTab();
+      if (document.getElementById('tab-firebase')  && document.getElementById('tab-firebase').classList.contains('active'))  renderFirebaseTab();
       if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
     }, err => {
-      console.warn('Firestore listener error:', err);
+      console.warn('Firestore licenses listener error:', err);
       const st = document.getElementById('fbStatus');
       if (st) {
         st.className = 'fb-status offline';
@@ -3293,6 +3743,50 @@ function syncSiteSettingsToFirebase() {
     detectedCountry: S.detectedCountry || null,
     updatedAt: new Date().toISOString()
   }).catch(e => handleFirebaseError('Site settings write', e));
+}
+// Live-sync: when admin updates the download URL / price on any device, all
+// other devices pick it up automatically.
+let fbSiteUnsub = null;
+function subscribeSiteSettingsFromFirebase() {
+  if (!fbDb) return;
+  if (fbSiteUnsub) { try { fbSiteUnsub(); } catch(e){} fbSiteUnsub = null; }
+  try {
+    fbSiteUnsub = fbDb.collection('siteConfig').doc('site').onSnapshot(doc => {
+      if (!doc.exists) return;
+      const d = doc.data() || {};
+      let changed = false;
+      if (d.downloadUrl     !== undefined && d.downloadUrl     !== S.downloadUrl)     { S.downloadUrl     = d.downloadUrl;     changed = true; }
+      if (d.downloadName    !== undefined && d.downloadName    !== S.downloadName)    { S.downloadName    = d.downloadName;    changed = true; }
+      if (d.downloadVersion !== undefined && d.downloadVersion !== S.downloadVersion) { S.downloadVersion = d.downloadVersion; changed = true; }
+      if (d.price           !== undefined && d.price           !== S.price)           { S.price           = d.price;           changed = true; }
+      if (d.priceNote       !== undefined && d.priceNote       !== S.priceNote)       { S.priceNote       = d.priceNote;       changed = true; }
+      if (changed) {
+        save();
+        // Re-render anywhere site settings show up
+        if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
+        if (document.getElementById('tab-pricing') && document.getElementById('tab-pricing').classList.contains('active')) renderAdminPricing();
+      }
+    }, err => console.warn('Site settings listener error:', err));
+  } catch(e) { console.warn('subscribe site settings failed:', e); }
+}
+// Live-sync the plans catalogue so any change in the admin Plans tab on any
+// device propagates everywhere.
+let fbPlansUnsub = null;
+function subscribePlansFromFirebase() {
+  if (!fbDb) return;
+  if (fbPlansUnsub) { try { fbPlansUnsub(); } catch(e){} fbPlansUnsub = null; }
+  try {
+    fbPlansUnsub = fbDb.collection('siteConfig').doc('plans').onSnapshot(doc => {
+      if (!doc.exists) return;
+      const d = doc.data() || {};
+      if (Array.isArray(d.plans) && d.plans.length) {
+        S.plans = d.plans;
+        save();
+        renderPlansGrid();
+        if (document.getElementById('tab-plans') && document.getElementById('tab-plans').classList.contains('active')) renderAdminPlansGrid();
+      }
+    }, err => console.warn('Plans listener error:', err));
+  } catch(e) { console.warn('subscribe plans failed:', e); }
 }
 function syncPlansToFirebase() {
   if (!fbDb) return;
