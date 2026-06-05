@@ -2925,9 +2925,12 @@ function renderLicensesTab() {
     const statusTag = l.status === 'active'
       ? '<span class="lic-status-tag active">● Active</span>'
       : '<span class="lic-status-tag revoked">● Revoked</span>';
+    // Use the license key as the action id (always a stable string).
+    // It must be QUOTED in the onclick or hyphens get parsed as subtraction.
+    const aid = String(l.key).replace(/'/g, "\\'");
     const actionBtns = l.status === 'active'
-      ? `<button class="tiny-btn warn" onclick="revokeLicense(${l.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>Revoke</button><button class="tiny-btn danger" onclick="deleteLicense(${l.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`
-      : `<button class="tiny-btn" onclick="reactivateLicense(${l.id})">Reactivate</button><button class="tiny-btn danger" onclick="deleteLicense(${l.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`;
+      ? `<button class="tiny-btn warn" onclick="revokeLicense('${aid}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>Revoke</button><button class="tiny-btn danger" onclick="deleteLicense('${aid}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`
+      : `<button class="tiny-btn" onclick="reactivateLicense('${aid}')">Reactivate</button><button class="tiny-btn danger" onclick="deleteLicense('${aid}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`;
     const sourceBadge = l._remote
       ? '<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,122,24,.14);color:var(--acc2);border:1px solid rgba(255,122,24,.28);margin-left:8px;vertical-align:middle">FIREBASE</span>'
       : '<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(120,140,255,.10);color:#9db0ff;border:1px solid rgba(120,140,255,.22);margin-left:8px;vertical-align:middle">LOCAL</span>';
