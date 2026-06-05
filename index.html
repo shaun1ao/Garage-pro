@@ -234,14 +234,19 @@ section{position:relative;z-index:1}
 .step p{color:var(--dim);font-size:15px;max-width:280px;margin:0 auto}
 .steps .line{position:absolute;top:32px;left:16%;right:16%;height:2px;background:linear-gradient(90deg,var(--acc),var(--teal));opacity:.35;z-index:1}
 
-/* ── CSS DASHBOARD REPLICA ── */
-.browser-wrap{border-radius:var(--r);overflow:hidden;border:1px solid var(--brd2);box-shadow:var(--shad);background:#f0ebe0}
-.browser-chrome{background:#e8e2d8;border-bottom:1px solid #d4cec4;padding:11px 16px;display:flex;align-items:center;gap:10px}
-.bc-dots{display:flex;gap:6px}
-.bc-dot{width:12px;height:12px;border-radius:50%}
-.bc-dot.r{background:#ff5f57}.bc-dot.y{background:#febc2e}.bc-dot.g{background:#28c840}
-.bc-url{flex:1;background:#fff;border:1px solid #d0c8bc;border-radius:6px;padding:5px 12px;font-size:12px;color:#6b6358;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0 10px;display:flex;align-items:center;gap:6px}
-.bc-url svg{width:13px;height:13px;color:#888;flex:none}
+/* ── CSS DESKTOP APP REPLICA (Windows-style) ── */
+.browser-wrap{border-radius:8px;overflow:hidden;border:1px solid var(--brd2);box-shadow:var(--shad);background:#f0ebe0}
+.browser-chrome{background:#1f2733;border-bottom:1px solid #0f1521;padding:0;display:flex;align-items:center;justify-content:space-between;height:38px;color:#cdd6e0;font-family:'Segoe UI',system-ui,sans-serif}
+.win-title{display:flex;align-items:center;gap:10px;padding:0 14px;font-size:13px;font-weight:500;color:#cdd6e0;flex:1;min-width:0}
+.win-title .win-icon{width:18px;height:18px;border-radius:4px;background:linear-gradient(135deg,#ff7a18,#ffb347);display:grid;place-items:center;flex:none}
+.win-title .win-icon svg{width:11px;height:11px;color:#170f05}
+.win-title b{font-weight:600;letter-spacing:.2px}
+.win-title span{color:#8a96a8;font-weight:400}
+.win-controls{display:flex;height:100%;flex:none}
+.win-ctrl{width:46px;display:grid;place-items:center;cursor:default;transition:background .15s;color:#cdd6e0}
+.win-ctrl svg{width:11px;height:11px}
+.win-ctrl:hover{background:rgba(255,255,255,.08)}
+.win-ctrl.close:hover{background:#e81123;color:#fff}
 
 /* inner app */
 .app{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0ebe0;color:#1a1a1a;font-size:13px;max-height:520px;overflow-y:auto}
@@ -329,6 +334,58 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 .foot-social a{width:38px;height:38px;border-radius:10px;border:1px solid var(--brd);display:grid;place-items:center;color:var(--dim);transition:all .2s}
 .foot-social a:hover{color:var(--acc2);border-color:var(--acc);transform:translateY(-2px)}
 .foot-social svg{width:18px;height:18px}
+
+/* ── PLANS GRID & BILLING TOGGLE ── */
+.plans-controls{display:flex;flex-direction:column;align-items:center;gap:18px;margin-bottom:44px}
+.cycle-toggle{display:inline-flex;background:var(--surf);border:1px solid var(--brd2);border-radius:100px;padding:4px;position:relative}
+.cycle-btn{padding:9px 22px;border:0;background:transparent;color:var(--dim);font-family:var(--fb);font-weight:600;font-size:13.5px;cursor:pointer;border-radius:100px;transition:color .2s;position:relative;z-index:2}
+.cycle-btn.active{color:#170f05}
+.cycle-toggle .cycle-slider{position:absolute;top:4px;left:4px;height:calc(100% - 8px);background:linear-gradient(135deg,var(--acc),var(--acc2));border-radius:100px;transition:transform .25s cubic-bezier(.4,0,.2,1),width .25s}
+.cycle-save{display:inline-block;font-size:10.5px;font-weight:700;color:var(--teal);background:rgba(32,227,178,.16);padding:2px 7px;border-radius:6px;margin-left:6px}
+.currency-pill{display:inline-flex;align-items:center;gap:8px;background:var(--surf);border:1px solid var(--brd2);border-radius:100px;padding:6px 14px;font-size:13px;color:var(--dim)}
+.currency-pill svg{width:14px;height:14px;color:var(--teal)}
+.currency-pill select{background:transparent;border:0;color:var(--txt);font-family:var(--fb);font-weight:600;font-size:13px;outline:none;cursor:pointer;padding-right:4px}
+.currency-pill select option{background:var(--surf);color:var(--txt)}
+.plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:1080px;margin:0 auto}
+.plan-card{background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd);border-radius:20px;padding:32px 26px;display:flex;flex-direction:column;position:relative;transition:transform .25s,border-color .25s,box-shadow .25s}
+.plan-card:hover{transform:translateY(-5px);border-color:var(--brd2);box-shadow:var(--shad)}
+.plan-card.featured{border-color:transparent;background:linear-gradient(180deg,#1d2738,var(--bg2));box-shadow:0 0 0 1px rgba(255,122,24,.4),var(--shad);transform:translateY(-5px)}
+.plan-card.featured::before{content:"Most popular";position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;font-size:11px;font-weight:800;padding:5px 14px;border-radius:100px;letter-spacing:.04em;text-transform:uppercase}
+.plan-name{font-family:var(--fd);font-size:20px;font-weight:800;margin-bottom:5px}
+.plan-tag{color:var(--dim);font-size:13.5px;margin-bottom:22px;min-height:38px}
+.plan-price{font-family:var(--fd);font-weight:800;line-height:1;margin-bottom:8px;display:flex;align-items:baseline;gap:6px}
+.plan-price .pp-amt{font-size:42px;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.plan-price .pp-cycle{font-size:14px;color:var(--faint);font-weight:600}
+.plan-price-strike{font-size:13px;color:var(--faint);text-decoration:line-through;margin-bottom:4px;min-height:18px}
+.plan-limits{display:grid;gap:10px;padding:18px 0;border-top:1px solid var(--brd);border-bottom:1px solid var(--brd);margin:18px 0}
+.plan-limit{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--dim)}
+.plan-limit svg{width:16px;height:16px;color:var(--teal);flex:none}
+.plan-limit b{color:var(--txt);font-weight:700}
+.plan-features{display:grid;gap:9px;margin-bottom:24px;flex:1}
+.plan-features li{list-style:none;display:flex;align-items:flex-start;gap:9px;font-size:13.5px;color:var(--dim)}
+.plan-features svg{width:15px;height:15px;color:var(--teal);flex:none;margin-top:2px}
+.plan-card .btn{width:100%;justify-content:center;margin-top:auto}
+.plan-current-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;padding:4px 9px;border-radius:6px;background:rgba(32,227,178,.16);color:var(--teal);border:1px solid rgba(32,227,178,.3);margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em}
+
+/* ── PLAN EDITOR (admin) ── */
+.plan-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:18px}
+.plan-acard{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:20px;position:relative}
+.plan-acard h4{font-family:var(--fd);font-size:17px;margin-bottom:4px}
+.plan-acard .pa-tag{font-size:12px;color:var(--dim);margin-bottom:12px}
+.plan-acard .pa-price{font-family:var(--fd);font-weight:800;font-size:22px;color:var(--acc2);margin-bottom:14px}
+.plan-acard .pa-limits{display:grid;gap:6px;font-size:12.5px;color:var(--dim);padding-top:12px;border-top:1px solid var(--brd)}
+.plan-acard .pa-limits b{color:var(--txt)}
+.plan-acard .pa-actions{display:flex;gap:8px;margin-top:14px}
+.plan-form{background:var(--surf2);border:1px solid var(--brd2);border-radius:14px;padding:24px;margin-top:16px;display:none}
+.plan-form.open{display:block}
+
+/* ── UPGRADE MODAL ── */
+.upgrade-overlay{position:fixed;inset:0;z-index:190;background:rgba(5,8,14,.85);backdrop-filter:blur(10px);display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
+.upgrade-overlay.open{display:flex}
+.upgrade-box{background:var(--surf);border:1px solid var(--brd2);border-radius:20px;width:100%;max-width:980px;padding:32px;box-shadow:0 32px 80px -20px rgba(0,0,0,.9);animation:modalIn .28s cubic-bezier(.2,.7,.2,1)}
+.upgrade-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.upgrade-head h2{font-family:var(--fd);font-size:22px}
+.upgrade-head .modal-close{position:static}
 
 /* ── BILLING MODAL ── */
 .billing-overlay{position:fixed;inset:0;z-index:180;background:rgba(5,8,14,.85);backdrop-filter:blur(10px);display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
@@ -524,6 +581,9 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
       <button class="anav" onclick="switchAdminTab('reviews')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Reviews
       </button>
+      <button class="anav" onclick="switchAdminTab('plans')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Plans
+      </button>
       <button class="anav" onclick="switchAdminTab('pricing')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Pricing
       </button>
@@ -567,6 +627,46 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
         </button>
       </div>
       <div id="licenseTable"></div>
+    </div>
+
+    <!-- PLANS TAB -->
+    <div class="admin-tab" id="tab-plans">
+      <div class="atab-title">Plans</div>
+      <div class="atab-sub">Define the tiers customers can purchase. Each license is linked to one plan, and the desktop app enforces the limits.</div>
+      <button class="add-rev-btn" onclick="openPlanForm()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>Add Plan
+      </button>
+      <div class="plan-form" id="planForm">
+        <h4 id="planFormTitle" style="font-size:16px;margin-bottom:18px">Add Plan</h4>
+        <input type="hidden" id="planEditId" />
+        <div class="form-row">
+          <div class="form-group"><label>Plan name</label><input id="pf-name" type="text" placeholder="Workshop" /></div>
+          <div class="form-group"><label>Tagline</label><input id="pf-tag" type="text" placeholder="For busy garages" /></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Monthly price (INR base)</label><input id="pf-monthly" type="number" placeholder="2999" /></div>
+          <div class="form-group"><label>Weekly price (INR base)</label><input id="pf-weekly" type="number" placeholder="899" /></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Max bays</label><input id="pf-bays" type="number" placeholder="6" /></div>
+          <div class="form-group"><label>Max workers (mechanics)</label><input id="pf-workers" type="number" placeholder="8" /></div>
+        </div>
+        <div class="form-group"><label>Max concurrent bookings</label><input id="pf-bookings" type="number" placeholder="20" /></div>
+        <div class="form-group"><label>Highlight features (one per line)</label><textarea id="pf-features" placeholder="GST invoices&#10;Inventory tracking&#10;Daily briefing email" style="min-height:90px"></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label>Featured? (most popular)</label>
+            <select id="pf-featured"><option value="false">No</option><option value="true">Yes</option></select>
+          </div>
+          <div class="form-group"><label>Active on site?</label>
+            <select id="pf-active"><option value="true">Yes</option><option value="false">No (hidden)</option></select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="form-btn form-btn-save" onclick="savePlan()">Save Plan</button>
+          <button class="form-btn form-btn-cancel" onclick="closePlanForm()">Cancel</button>
+        </div>
+      </div>
+      <div class="plan-admin-grid" id="adminPlansGrid"></div>
     </div>
 
     <!-- FIREBASE TAB -->
@@ -639,7 +739,7 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
         <div class="big-price" id="pricePreview">₹—</div></div>
         <div style="color:var(--dim);font-size:13px;max-width:260px">This is what visitors see on the pricing section. Leave blank to show the "coming soon" placeholder.</div>
       </div>
-      <div class="settings-section" style="max-width:400px">
+      <div class="settings-section" style="max-width:480px">
         <h4>Update Price</h4>
         <div class="form-group">
           <label>Price display (e.g. ₹999/mo or Free)</label>
@@ -651,6 +751,31 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
         </div>
         <button class="form-btn form-btn-save" onclick="savePrice()">Save Price</button>
         <div class="success-msg" id="priceMsg"></div>
+      </div>
+
+      <div class="settings-section" style="max-width:560px">
+        <h4>Download File (Windows installer)</h4>
+        <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">Set the link to your <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12px">.exe</code> installer. When a user finishes payment, the file is downloaded automatically. You can host it on Firebase Storage, GitHub Releases, your own CDN, or any direct-download URL.</p>
+        <div class="form-group">
+          <label>Download URL</label>
+          <input id="dlUrl" type="text" placeholder="https://your-host.com/GaragePro-Setup.exe" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>File name</label>
+            <input id="dlName" type="text" placeholder="GaragePro-Setup.exe" />
+          </div>
+          <div class="form-group">
+            <label>Version</label>
+            <input id="dlVersion" type="text" placeholder="1.0.0" />
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="form-btn form-btn-save" onclick="saveDownload()">Save Download Settings</button>
+          <button class="form-btn form-btn-cancel" onclick="testDownload()" id="dlTestBtn">Test Download</button>
+        </div>
+        <div class="success-msg" id="dlMsg"></div>
+        <div id="dlStatus" style="margin-top:14px;padding:11px 14px;border-radius:9px;font-size:13px"></div>
       </div>
     </div>
 
@@ -750,6 +875,27 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
   </div>
 </div>
 
+<!-- ═══════════════ UPGRADE MODAL ═══════════════ -->
+<div class="upgrade-overlay" id="upgradeModal">
+  <div class="upgrade-box">
+    <div class="upgrade-head">
+      <div>
+        <h2>Upgrade your plan</h2>
+        <p style="color:var(--dim);font-size:14px;margin-top:5px">Switch plans any time. Your license key stays the same — just the limits change.</p>
+      </div>
+      <button class="modal-close" onclick="closeUpgrade()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="plans-controls" style="margin-bottom:24px">
+      <div class="cycle-toggle">
+        <span class="cycle-slider" id="upgradeCycleSlider"></span>
+        <button class="cycle-btn active" data-cycle="monthly" onclick="setUpgradeCycle('monthly')">Monthly</button>
+        <button class="cycle-btn" data-cycle="weekly" onclick="setUpgradeCycle('weekly')">Weekly</button>
+      </div>
+    </div>
+    <div class="plans-grid" id="upgradePlansGrid"></div>
+  </div>
+</div>
+
 <!-- ═══════════════ USER DASHBOARD ═══════════════ -->
 <div class="user-overlay" id="userDashboard">
   <div class="user-head">
@@ -772,7 +918,7 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
     <!-- LICENSE PANEL -->
     <div class="user-tab-panel active" id="upanel-license">
       <h1 class="greet" id="udGreet">Your license</h1>
-      <p class="greet-sub">Use this key to activate Garage Pro on your Windows or Mac machine.</p>
+      <p class="greet-sub">Use this key to activate Garage Pro on your Windows machine.</p>
       <div id="udLicenseArea"></div>
     </div>
     <!-- BILLING PANEL -->
@@ -851,9 +997,9 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
         <button class="btn btn-primary" onclick="openAuth('win')">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>Download for Windows
         </button>
-        <button class="btn btn-ghost" onclick="openAuth('mac')">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.1 5.1c.6-.8 1.1-1.9.9-3-1 0-2.1.7-2.8 1.5-.6.7-1.1 1.8-1 2.8 1.1.1 2.2-.6 2.9-1.3z"/></svg>Download for Mac
-        </button>
+        <a href="#features" class="btn btn-ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>See features
+        </a>
       </div>
       <div class="hero-note reveal d4">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -884,7 +1030,7 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 <div class="trust">
   <div class="wrap trust-inner reveal">
     <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>GST &amp; HSN/SAC ready</span>
-    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Windows &amp; Mac desktop</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Windows desktop app</span>
     <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Real-time cloud sync</span>
     <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Works fully offline</span>
   </div>
@@ -1001,10 +1147,14 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
     <div class="reveal">
       <div class="browser-wrap">
         <div class="browser-chrome">
-          <div class="bc-dots"><span class="bc-dot r"></span><span class="bc-dot y"></span><span class="bc-dot g"></span></div>
-          <div class="bc-url">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
-            garagepro.app/dashboard
+          <div class="win-title">
+            <span class="win-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+            <b>Garage Pro</b><span>— Dashboard</span>
+          </div>
+          <div class="win-controls">
+            <div class="win-ctrl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="square"><path d="M2 6h8"/></svg></div>
+            <div class="win-ctrl"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="square"><rect x="2" y="2" width="8" height="8"/></svg></div>
+            <div class="win-ctrl close"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="square"><path d="M2 2l8 8M10 2l-8 8"/></svg></div>
           </div>
         </div>
         <div class="app">
@@ -1024,8 +1174,8 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
             <div class="app-sh">Cars currently in workshop</div>
             <div class="app-cars">
               <div class="app-car-row">
-                <span class="app-plate">DL8CAK2709</span>
-                <span class="app-cname">VENKAT NAIDU</span>
+                <span class="app-plate">MH12 AB 1234</span>
+                <span class="app-cname">ARJUN SHARMA</span>
                 <span class="app-cbay">&nbsp;&mdash;&nbsp;Mechanical bay &middot; Bay 1</span>
                 <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
                 <div class="app-btns">
@@ -1035,8 +1185,8 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
                 </div>
               </div>
               <div class="app-car-row">
-                <span class="app-plate">TS09FL6262</span>
-                <span class="app-cname">JAYANT TAGOR</span>
+                <span class="app-plate">DL01 CD 5678</span>
+                <span class="app-cname">PRIYA PATEL</span>
                 <span class="app-cbay">&nbsp;&mdash;&nbsp;Paint bay &middot; Bay 1</span>
                 <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
                 <div class="app-btns">
@@ -1046,8 +1196,8 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
                 </div>
               </div>
               <div class="app-car-row">
-                <span class="app-plate">DL10CL4479</span>
-                <span class="app-cname">KAREEMUDDIN</span>
+                <span class="app-plate">KA05 EF 9012</span>
+                <span class="app-cname">RAVI KUMAR</span>
                 <span class="app-cbay">&nbsp;&mdash;&nbsp;Mechanical bay &middot; Bay 2</span>
                 <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
                 <div class="app-btns">
@@ -1057,8 +1207,8 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
                 </div>
               </div>
               <div class="app-car-row">
-                <span class="app-plate">AP09CN7227</span>
-                <span class="app-cname">RAMAKRISHNA</span>
+                <span class="app-plate">TN09 GH 3456</span>
+                <span class="app-cname">MEERA SINGH</span>
                 <span class="app-cbay">&nbsp;&mdash;&nbsp;2-post lift &middot; Bay 1</span>
                 <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
                 <div class="app-btns">
@@ -1068,8 +1218,8 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
                 </div>
               </div>
               <div class="app-car-row">
-                <span class="app-plate">AP09CW1234</span>
-                <span class="app-cname">N/A - AP09CW1234</span>
+                <span class="app-plate">GJ06 JK 7890</span>
+                <span class="app-cname">VIKRAM MEHTA</span>
                 <span class="app-cbay">&nbsp;&mdash;&nbsp;2-post lift &middot; Bay 2</span>
                 <span class="app-status cmp"><span class="app-sdot"></span>Complete</span>
                 <div class="app-btns">
@@ -1086,28 +1236,28 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
   </div>
 </section>
 
-<!-- ═══════════════ PRICING ═══════════════ -->
+<!-- ═══════════════ PRICING (PLANS) ═══════════════ -->
 <section class="sec how" id="pricing">
   <div class="wrap">
     <div class="sec-head reveal">
       <div class="eyebrow">Pricing</div>
-      <h2>One plan. Everything included.</h2>
-      <p>No per-seat games, no feature paywalls. Every garage gets the full Garage Pro.</p>
+      <h2>Pick the plan that fits your floor</h2>
+      <p id="priceCountryNote">Prices shown in your local currency. Switch any time.</p>
     </div>
-    <div class="price-wrap">
-      <div class="price-card reveal">
-        <span class="price-tag">Launch pricing</span>
-        <div class="amt" id="priceDisplay">₹—<small> /mo</small></div>
-        <p class="note" id="priceNoteDisplay">Final pricing coming soon. Start free, no card required.</p>
-        <ul class="price-list">
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Unlimited bays, jobs &amp; invoices</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Windows, Mac &amp; tablet web interface</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>GST invoices, inventory &amp; customer history</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Real-time cloud sync &amp; email notifications</li>
-        </ul>
-        <button class="btn btn-primary" onclick="openAuth('win')" style="width:100%;justify-content:center">Get started free</button>
+    <div class="plans-controls reveal">
+      <div class="cycle-toggle" id="cycleToggle">
+        <span class="cycle-slider" id="cycleSlider"></span>
+        <button class="cycle-btn active" data-cycle="monthly" onclick="setBillingCycle('monthly')">Monthly</button>
+        <button class="cycle-btn" data-cycle="weekly" onclick="setBillingCycle('weekly')">Weekly<span class="cycle-save">Pay-as-you-go</span></button>
+      </div>
+      <div class="currency-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Currency:
+        <select id="currencySelect" onchange="setCurrency(this.value)"></select>
+        <span id="detectedCountry" style="color:var(--faint);font-size:12px"></span>
       </div>
     </div>
+    <div class="plans-grid reveal" id="plansGrid"></div>
   </div>
 </section>
 
@@ -1129,7 +1279,7 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
     <div class="faq-list">
       <div class="faq-item reveal"><button class="faq-q">Does Garage Pro work without the internet?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Yes. Garage Pro is offline-first — data is stored locally on the machine, outside any cloud sync folder. When you're back online, everything syncs automatically. The workshop never stops because the broadband did.</p></div></div>
       <div class="faq-item reveal"><button class="faq-q">Are the invoices GST compliant?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Absolutely. Every PDF invoice includes GST, HSN/SAC codes, a clear discount breakdown and the amount in words — exactly what your accountant and the tax department expect.</p></div></div>
-      <div class="faq-item reveal"><button class="faq-q">Which devices does it run on?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>The full desktop app runs on Windows and Mac. Mechanics can update jobs from any tablet or phone browser on your workshop network. Everything stays in sync in real time via Firebase.</p></div></div>
+      <div class="faq-item reveal"><button class="faq-q">Which devices does it run on?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>The full desktop app runs on Windows (10 and 11). Mechanics can update jobs from any tablet or phone browser on your workshop network — no install needed for them. Everything stays in sync in real time via Firebase.</p></div></div>
       <div class="faq-item reveal"><button class="faq-q">Can I bring my existing data across?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Yes. Import your customers, inventory and bookings from a CSV file in minutes. If you're moving off a spreadsheet or another system, you'll be up and running the same day.</p></div></div>
       <div class="faq-item reveal"><button class="faq-q">How does multi-mechanic tracking work?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Each job card can have multiple mechanics assigned, with parts and labour logged against the work. You always know who did what — accountability is clear and costing is accurate.</p></div></div>
       <div class="faq-item reveal"><button class="faq-q">What does it cost?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Final pricing is being finalised — see the pricing section above. You can start free with no card required and get the full feature set from day one.</p></div></div>
@@ -1147,9 +1297,6 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
         <button class="btn btn-primary" onclick="openAuth('win')">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>Download for Windows
         </button>
-        <button class="btn btn-ghost" onclick="openAuth('mac')">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.1 5.1c.6-.8 1.1-1.9.9-3-1 0-2.1.7-2.8 1.5-.6.7-1.1 1.8-1 2.8 1.1.1 2.2-.6 2.9-1.3z"/></svg>Download for Mac
-        </button>
       </div>
     </div>
   </div>
@@ -1166,7 +1313,7 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
       </div>
       <div class="foot-col"><h4>Product</h4><a href="#features">Features</a><a href="#how">How it works</a><a href="#screens">Preview</a><a href="#pricing">Pricing</a></div>
       <div class="foot-col"><h4>Company</h4><a href="#reviews">Reviews</a><a href="#faq">FAQ</a><a href="#">About</a><a href="#">Contact</a></div>
-      <div class="foot-col"><h4>Download</h4><a href="#" onclick="openAuth('win');return false">For Windows</a><a href="#" onclick="openAuth('mac');return false">For Mac</a><a href="#" onclick="openAuth('tablet');return false">Tablet web</a></div>
+      <div class="foot-col"><h4>Download</h4><a href="#" onclick="openAuth('win');return false">For Windows</a><a href="#" onclick="openAuth('tablet');return false">Tablet web</a><a href="#faq">Requirements</a></div>
     </div>
     <div class="foot-bottom">
       <p>© <span id="year"></span> Garage Pro. All rights reserved. Made in UAE 🇦🇪</p>
@@ -1191,8 +1338,95 @@ const KEYS = {
   purchases:'gp_purchases', reviews:'gp_reviews',
   price:'gp_price', priceNote:'gp_priceNote',
   licenses:'gp_licenses', billing:'gp_billing',
-  fbConfig:'gp_fbConfig'
+  fbConfig:'gp_fbConfig', downloadUrl:'gp_downloadUrl',
+  downloadName:'gp_downloadName', downloadVersion:'gp_downloadVersion',
+  plans:'gp_plans', currency:'gp_currency', cycle:'gp_cycle'
 };
+
+// Currency table (INR is base = 1.0). Rates are rough; admin can tweak.
+const CURRENCIES = {
+  INR: { code:'INR', sym:'₹',     rate: 1,        name:'Indian Rupee' },
+  USD: { code:'USD', sym:'$',     rate: 0.012,    name:'US Dollar' },
+  EUR: { code:'EUR', sym:'€',     rate: 0.011,    name:'Euro' },
+  GBP: { code:'GBP', sym:'£',     rate: 0.0095,   name:'British Pound' },
+  AED: { code:'AED', sym:'د.إ ',  rate: 0.044,    name:'UAE Dirham' },
+  SGD: { code:'SGD', sym:'S$',    rate: 0.016,    name:'Singapore Dollar' },
+  AUD: { code:'AUD', sym:'A$',    rate: 0.018,    name:'Australian Dollar' },
+  CAD: { code:'CAD', sym:'C$',    rate: 0.016,    name:'Canadian Dollar' },
+  ZAR: { code:'ZAR', sym:'R',     rate: 0.22,     name:'South African Rand' },
+  NPR: { code:'NPR', sym:'NRs ',  rate: 1.6,      name:'Nepalese Rupee' },
+  LKR: { code:'LKR', sym:'Rs ',   rate: 3.5,      name:'Sri Lankan Rupee' },
+  BDT: { code:'BDT', sym:'৳',     rate: 1.4,      name:'Bangladeshi Taka' }
+};
+
+// Country code → currency code mapping
+const COUNTRY_CURRENCY = {
+  IN:'INR', US:'USD', CA:'CAD', GB:'GBP', AU:'AUD', SG:'SGD',
+  AE:'AED', SA:'AED', QA:'AED', KW:'AED', BH:'AED', OM:'AED',
+  ZA:'ZAR', NP:'NPR', LK:'LKR', BD:'BDT',
+  DE:'EUR', FR:'EUR', IT:'EUR', ES:'EUR', NL:'EUR', BE:'EUR',
+  AT:'EUR', PT:'EUR', IE:'EUR', GR:'EUR', FI:'EUR', LU:'EUR'
+};
+
+// Default plans — admin can edit / add more. Prices are in INR (base);
+// the website converts to local currency at display time.
+const DEFAULT_PLANS = [
+  {
+    id:'solo',
+    name:'Solo',
+    tag:'For one-person workshops just getting started',
+    monthly: 999,
+    weekly: 299,
+    maxBays: 1,
+    maxWorkers: 2,
+    maxBookings: 5,
+    features: [
+      'Single-bay job cards',
+      'GST invoices',
+      'Customer & vehicle history',
+      'Mobile/tablet web access'
+    ],
+    featured: false,
+    active: true
+  },
+  {
+    id:'workshop',
+    name:'Workshop',
+    tag:'The full Garage Pro for busy independent garages',
+    monthly: 2999,
+    weekly: 899,
+    maxBays: 6,
+    maxWorkers: 8,
+    maxBookings: 20,
+    features: [
+      'Up to 6 bays + multi-mechanic',
+      'Full GST + HSN/SAC invoices',
+      'Inventory with auto stock deduction',
+      'Real-time cloud sync',
+      'Daily morning briefing email'
+    ],
+    featured: true,
+    active: true
+  },
+  {
+    id:'chain',
+    name:'Chain',
+    tag:'Multi-branch and high-volume workshops',
+    monthly: 6999,
+    weekly: 1999,
+    maxBays: 999,
+    maxWorkers: 999,
+    maxBookings: 999,
+    features: [
+      'Unlimited bays, workers and bookings',
+      'Branch dashboards & roll-up reporting',
+      'Priority email/phone support',
+      'CSV import & API access'
+    ],
+    featured: false,
+    active: true
+  }
+];
 const DEFAULT_REVIEWS = [
   {id:1,stars:5,text:'"We threw out the paper job cards in week one. The lads update everything from a tablet and I can see the whole floor from my desk. Invoices that used to take ten minutes now take ten seconds."',name:'Rajesh Kumar',role:'Owner, Speed Auto Care · Pune',initials:'RK'},
   {id:2,stars:5,text:'"The GST invoices are spot on — HSN codes, amount in words, everything. My accountant stopped chasing me. And it just keeps working when the internet drops, which around here is often."',name:'Anand Shetty',role:'Partner, Crest Motors · Bengaluru',initials:'AS'},
@@ -1211,10 +1445,19 @@ let S = {
   reviews: [...DEFAULT_REVIEWS],
   price: '',
   priceNote: '',
-  licenses: [],     // {key, email, name, status:'active'|'revoked', plan, createdAt, revokedAt}
-  billing: [],      // {id, email, amount, status, cardLast4, ts, invoiceId}
-  fbConfig: null    // Firebase web config object
+  licenses: [],     // {key, email, name, status, plan, planId, maxBays, maxWorkers, maxBookings, billingCycle, currency, amount, createdAt, revokedAt, upgradeHistory}
+  billing: [],      // {id, email, amount, status, cardLast4, ts, invoiceId, planId, billingCycle, currency}
+  fbConfig: null,
+  downloadUrl: '',
+  downloadName: 'GaragePro-Setup.exe',
+  downloadVersion: '1.0.0',
+  plans: [...DEFAULT_PLANS],
+  currency: 'INR',                  // current display currency
+  billingCycle: 'monthly',          // 'monthly' | 'weekly'
+  detectedCountry: null             // ISO-2 from IP lookup
 };
+let pendingPlanId = null;           // which plan the user is buying / upgrading to
+let upgradeCycle = 'monthly';
 let pendingAction = null;
 let currentUser = null;
 let fbApp = null;
@@ -1230,9 +1473,15 @@ function load() {
     const r = localStorage.getItem(KEYS.reviews); if(r) S.reviews = JSON.parse(r);
     const pr = localStorage.getItem(KEYS.price); if(pr !== null) S.price = pr;
     const pn = localStorage.getItem(KEYS.priceNote); if(pn !== null) S.priceNote = pn;
+    const du = localStorage.getItem(KEYS.downloadUrl); if(du !== null) S.downloadUrl = du;
+    const dn = localStorage.getItem(KEYS.downloadName); if(dn !== null) S.downloadName = dn;
+    const dv = localStorage.getItem(KEYS.downloadVersion); if(dv !== null) S.downloadVersion = dv;
     const lic = localStorage.getItem(KEYS.licenses); if(lic) S.licenses = JSON.parse(lic);
     const bil = localStorage.getItem(KEYS.billing); if(bil) S.billing = JSON.parse(bil);
     const fbc = localStorage.getItem(KEYS.fbConfig); if(fbc) S.fbConfig = JSON.parse(fbc);
+    const pls = localStorage.getItem(KEYS.plans); if(pls) S.plans = JSON.parse(pls);
+    const cur = localStorage.getItem(KEYS.currency); if(cur) S.currency = cur;
+    const cyc = localStorage.getItem(KEYS.cycle); if(cyc) S.billingCycle = cyc;
     const sess = sessionStorage.getItem('gp_user'); if(sess) currentUser = JSON.parse(sess);
   } catch(e){}
 }
@@ -1244,9 +1493,15 @@ function save() {
     localStorage.setItem(KEYS.reviews, JSON.stringify(S.reviews));
     localStorage.setItem(KEYS.price, S.price);
     localStorage.setItem(KEYS.priceNote, S.priceNote);
+    localStorage.setItem(KEYS.downloadUrl, S.downloadUrl);
+    localStorage.setItem(KEYS.downloadName, S.downloadName);
+    localStorage.setItem(KEYS.downloadVersion, S.downloadVersion);
     localStorage.setItem(KEYS.licenses, JSON.stringify(S.licenses));
     localStorage.setItem(KEYS.billing, JSON.stringify(S.billing));
     if (S.fbConfig) localStorage.setItem(KEYS.fbConfig, JSON.stringify(S.fbConfig));
+    localStorage.setItem(KEYS.plans, JSON.stringify(S.plans));
+    localStorage.setItem(KEYS.currency, S.currency);
+    localStorage.setItem(KEYS.cycle, S.billingCycle);
   } catch(e){}
 }
 function logPurchase(action, user) {
@@ -1356,11 +1611,11 @@ function doLogout() {
   showToast('Signed out', 'good');
 }
 function handleDownload(action, user) {
-  const label = action === 'mac' ? 'Download for Mac' : action === 'tablet' ? 'Tablet Web Access' : 'Download for Windows';
+  const label = action === 'tablet' ? 'Tablet Web Access' : 'Download for Windows';
   logPurchase(label, user);
   save();
   // Open billing modal for the purchase
-  pendingPlatform = action;
+  pendingPlatform = 'windows';
   openBilling();
 }
 document.getElementById('modalClose').onclick = closeAuth;
@@ -1387,22 +1642,23 @@ function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.anav').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-  const idx = {purchases:0,licenses:1,reviews:2,pricing:3,firebase:4,account:5}[tab];
+  const idx = {purchases:0,licenses:1,reviews:2,plans:3,pricing:4,firebase:5,account:6}[tab];
   document.querySelectorAll('.anav')[idx].classList.add('active');
   if (tab === 'licenses') renderLicensesTab();
   if (tab === 'firebase') renderFirebaseTab();
+  if (tab === 'plans') renderAdminPlansGrid();
 }
 
 // ── Purchases ──
 function renderPurchasesTab() {
-  const wins = S.purchases.filter(p => p.action.includes('Windows')).length;
-  const macs = S.purchases.filter(p => p.action.includes('Mac')).length;
+  const wins = S.purchases.filter(p => p.action.includes('Windows') || p.action.includes('Purchase')).length;
   const sups = S.purchases.filter(p => p.action === 'Sign Up').length;
+  const tab = S.purchases.filter(p => p.action.includes('Tablet')).length;
   document.getElementById('purchaseStats').innerHTML = `
     <div class="atab-stat"><div class="n">${S.purchases.length}</div><div class="l">Total events</div></div>
     <div class="atab-stat"><div class="n">${wins}</div><div class="l">Windows downloads</div></div>
-    <div class="atab-stat"><div class="n">${macs}</div><div class="l">Mac downloads</div></div>
-    <div class="atab-stat"><div class="n">${sups}</div><div class="l">Sign-ups</div></div>`;
+    <div class="atab-stat"><div class="n">${sups}</div><div class="l">Sign-ups</div></div>
+    <div class="atab-stat"><div class="n">${tab}</div><div class="l">Tablet web</div></div>`;
   if (!S.purchases.length) {
     document.getElementById('purchaseTable').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg><p>No purchase events yet. They'll appear here when visitors click download or sign up.</p></div>`;
     return;
@@ -1490,6 +1746,22 @@ function renderAdminPricing() {
   document.getElementById('priceInput').value = S.price;
   document.getElementById('priceNote').value = S.priceNote;
   document.getElementById('pricePreview').textContent = S.price || '₹—';
+  document.getElementById('dlUrl').value = S.downloadUrl || '';
+  document.getElementById('dlName').value = S.downloadName || 'GaragePro-Setup.exe';
+  document.getElementById('dlVersion').value = S.downloadVersion || '1.0.0';
+  // status banner
+  const st = document.getElementById('dlStatus');
+  if (S.downloadUrl) {
+    st.style.background = 'rgba(32,227,178,.10)';
+    st.style.border = '1px solid rgba(32,227,178,.28)';
+    st.style.color = 'var(--teal)';
+    st.innerHTML = `&#9679; <b>Installer linked</b> &middot; ${S.downloadName} v${S.downloadVersion}`;
+  } else {
+    st.style.background = 'rgba(255,179,71,.10)';
+    st.style.border = '1px solid rgba(255,179,71,.28)';
+    st.style.color = 'var(--acc2)';
+    st.innerHTML = `&#9679; <b>No installer set</b> &mdash; users will see a "coming soon" message after purchase`;
+  }
 }
 function savePrice() {
   S.price = document.getElementById('priceInput').value.trim();
@@ -1497,6 +1769,46 @@ function savePrice() {
   save(); renderPrice(); renderAdminPricing();
   document.getElementById('priceMsg').textContent = 'Saved!';
   setTimeout(()=>{ document.getElementById('priceMsg').textContent=''; }, 2500);
+}
+function saveDownload() {
+  const url = document.getElementById('dlUrl').value.trim();
+  const name = document.getElementById('dlName').value.trim() || 'GaragePro-Setup.exe';
+  const ver = document.getElementById('dlVersion').value.trim() || '1.0.0';
+  const msg = document.getElementById('dlMsg');
+  if (url && !/^https?:\/\//i.test(url)) {
+    msg.style.color = '#ff6b6b';
+    msg.textContent = 'URL must start with http:// or https://';
+    return;
+  }
+  S.downloadUrl = url;
+  S.downloadName = name;
+  S.downloadVersion = ver;
+  save();
+  renderAdminPricing();
+  msg.style.color = 'var(--teal)';
+  msg.textContent = 'Download settings saved!';
+  setTimeout(() => { msg.textContent = ''; }, 2500);
+}
+function testDownload() {
+  if (!S.downloadUrl) {
+    showToast('No download URL set yet', 'bad');
+    return;
+  }
+  triggerDownload();
+  showToast('Download triggered (test)', 'good');
+}
+function triggerDownload() {
+  if (!S.downloadUrl) return false;
+  // Create a hidden anchor with the download attribute
+  const a = document.createElement('a');
+  a.href = S.downloadUrl;
+  a.download = S.downloadName || 'GaragePro-Setup.exe';
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => document.body.removeChild(a), 100);
+  return true;
 }
 
 // ── Account ──
@@ -1551,15 +1863,351 @@ function renderReviews() {
   // re-observe new elements
   g.querySelectorAll('.reveal:not(.in)').forEach(el => io.observe(el));
 }
-function renderPrice() {
-  const pd = document.getElementById('priceDisplay');
-  const pn = document.getElementById('priceNoteDisplay');
-  if (S.price) {
-    pd.innerHTML = `${S.price}`;
-  } else {
-    pd.innerHTML = `₹—<small> /mo</small>`;
+// ══════════════════════════════════════════
+//  COUNTRY / CURRENCY DETECTION
+// ══════════════════════════════════════════
+async function detectCountry() {
+  // Try the IP API first (precise). Fall back to browser timezone guessing.
+  try {
+    const res = await fetch('https://ipapi.co/json/', {cache:'no-store'});
+    if (res.ok) {
+      const j = await res.json();
+      if (j.country) {
+        S.detectedCountry = j.country;
+        const ccy = (j.currency && CURRENCIES[j.currency]) ? j.currency : (COUNTRY_CURRENCY[j.country] || 'USD');
+        // Only override the saved currency the very first time
+        if (!localStorage.getItem(KEYS.currency)) {
+          S.currency = ccy;
+          save();
+        }
+        const tag = document.getElementById('detectedCountry');
+        if (tag) tag.textContent = `· auto-detected: ${j.country_name || j.country}`;
+        return;
+      }
+    }
+  } catch(e) { /* fall through */ }
+  // Fallback — timezone heuristic
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    const guess = {
+      'Asia/Kolkata':'IN','Asia/Calcutta':'IN','Asia/Mumbai':'IN',
+      'America/New_York':'US','America/Los_Angeles':'US','America/Chicago':'US',
+      'Europe/London':'GB','Europe/Paris':'EU','Europe/Berlin':'EU','Europe/Madrid':'EU',
+      'Australia/Sydney':'AU','Australia/Melbourne':'AU',
+      'Asia/Singapore':'SG','Asia/Dubai':'AE','Africa/Johannesburg':'ZA',
+      'Asia/Kathmandu':'NP','Asia/Colombo':'LK','Asia/Dhaka':'BD',
+      'America/Toronto':'CA','America/Vancouver':'CA'
+    };
+    let cc = guess[tz];
+    if (cc === 'EU') cc = 'DE';
+    if (cc && !localStorage.getItem(KEYS.currency)) {
+      S.detectedCountry = cc;
+      S.currency = COUNTRY_CURRENCY[cc] || 'USD';
+      save();
+    }
+    const tag = document.getElementById('detectedCountry');
+    if (tag && cc) tag.textContent = `· from your timezone (${tz})`;
+  } catch(e){}
+}
+
+function convertFromINR(inrAmount, currencyCode) {
+  const c = CURRENCIES[currencyCode] || CURRENCIES.INR;
+  const v = inrAmount * c.rate;
+  // smart rounding: round to nearest meaningful unit
+  if (v < 1) return v.toFixed(2);
+  if (v < 10) return v.toFixed(1);
+  if (v < 100) return Math.round(v).toString();
+  // For INR keep exact, for others round to nearest 9 ending (psychological)
+  if (currencyCode === 'INR') return Math.round(v).toString();
+  return Math.round(v).toString();
+}
+function formatPrice(inrAmount, currencyCode) {
+  const c = CURRENCIES[currencyCode || S.currency] || CURRENCIES.INR;
+  const v = convertFromINR(inrAmount, c.code);
+  return `${c.sym}${parseFloat(v).toLocaleString('en-IN')}`;
+}
+function populateCurrencySelect() {
+  const sel = document.getElementById('currencySelect');
+  if (!sel) return;
+  sel.innerHTML = Object.values(CURRENCIES).map(c =>
+    `<option value="${c.code}" ${c.code === S.currency ? 'selected' : ''}>${c.code} ${c.sym}</option>`
+  ).join('');
+}
+function setCurrency(code) {
+  if (!CURRENCIES[code]) return;
+  S.currency = code;
+  save();
+  renderPlansGrid();
+  if (document.getElementById('upgradeModal').classList.contains('open')) renderUpgradePlans();
+}
+function setBillingCycle(c) {
+  S.billingCycle = c;
+  save();
+  document.querySelectorAll('#cycleToggle .cycle-btn').forEach(b => b.classList.toggle('active', b.dataset.cycle === c));
+  positionCycleSlider();
+  renderPlansGrid();
+}
+function setUpgradeCycle(c) {
+  upgradeCycle = c;
+  document.querySelectorAll('#upgradeModal .cycle-btn').forEach(b => b.classList.toggle('active', b.dataset.cycle === c));
+  positionCycleSlider('#upgradeCycleSlider');
+  renderUpgradePlans();
+}
+function positionCycleSlider(sel) {
+  // Position slider behind active cycle button
+  const sliderId = sel || '#cycleSlider';
+  const slider = document.querySelector(sliderId);
+  if (!slider) return;
+  const toggle = slider.parentElement;
+  const active = toggle.querySelector('.cycle-btn.active');
+  if (!active) return;
+  slider.style.width = active.offsetWidth + 'px';
+  slider.style.transform = `translateX(${active.offsetLeft - 4}px)`;
+}
+
+// ══════════════════════════════════════════
+//  PLANS — PUBLIC RENDER
+// ══════════════════════════════════════════
+function renderPlansGrid() {
+  const g = document.getElementById('plansGrid');
+  if (!g) return;
+  const active = S.plans.filter(p => p.active);
+  if (!active.length) { g.innerHTML = '<p style="color:var(--dim);text-align:center;grid-column:1/-1">No plans available yet. Check back soon.</p>'; return; }
+  const cycle = S.billingCycle;
+  const cycleSuffix = cycle === 'weekly' ? '/week' : '/month';
+  const userLic = currentUser && !currentUser.isAdmin
+    ? S.licenses.find(l => l.email === currentUser.email && l.status === 'active')
+    : null;
+  g.innerHTML = active.map(p => {
+    const price = cycle === 'weekly' ? p.weekly : p.monthly;
+    const monthlyEquiv = cycle === 'weekly' ? p.weekly * 4 : null;
+    const strike = monthlyEquiv && monthlyEquiv > p.monthly ? `<div class="plan-price-strike">${formatPrice(monthlyEquiv)}/mo equivalent</div>` : '<div class="plan-price-strike">&nbsp;</div>';
+    const limits = `<div class="plan-limits">
+      <div class="plan-limit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><b>${p.maxBays >= 999 ? 'Unlimited' : p.maxBays}</b> bay${p.maxBays===1?'':'s'}</div>
+      <div class="plan-limit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg><b>${p.maxWorkers >= 999 ? 'Unlimited' : p.maxWorkers}</b> worker${p.maxWorkers===1?'':'s'}</div>
+      <div class="plan-limit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b>${p.maxBookings >= 999 ? 'Unlimited' : p.maxBookings}</b> concurrent bookings</div>
+    </div>`;
+    const features = p.features.map(f => `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>${f}</li>`).join('');
+    const isCurrent = userLic && userLic.planId === p.id;
+    const currentTag = isCurrent ? '<div class="plan-current-tag">● Your current plan</div>' : '';
+    const btn = isCurrent
+      ? `<button class="btn btn-ghost" disabled style="opacity:.7;cursor:default">Current plan</button>`
+      : `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="selectPlan('${p.id}')">${userLic ? 'Switch to ' + p.name : 'Choose ' + p.name}</button>`;
+    return `<div class="plan-card ${p.featured ? 'featured' : ''}">
+      ${currentTag}
+      <div class="plan-name">${p.name}</div>
+      <div class="plan-tag">${p.tag}</div>
+      ${strike}
+      <div class="plan-price"><span class="pp-amt">${formatPrice(price)}</span><span class="pp-cycle">${cycleSuffix}</span></div>
+      ${limits}
+      <ul class="plan-features">${features}</ul>
+      ${btn}
+    </div>`;
+  }).join('');
+  setTimeout(() => positionCycleSlider(), 30);
+}
+function selectPlan(planId) {
+  pendingPlanId = planId;
+  pendingPlatform = 'windows';
+  if (!currentUser) { openAuth('win'); return; }
+  if (currentUser.isAdmin) { showToast('Admins cannot buy plans (sign in as a user)', 'bad'); return; }
+  // If already has an active license → this is an upgrade flow
+  const existing = S.licenses.find(l => l.email === currentUser.email && l.status === 'active');
+  if (existing) {
+    // direct upgrade path (no card re-entry)
+    upgradeUserPlan(planId);
+    return;
   }
-  if (S.priceNote) pn.textContent = S.priceNote;
+  openBilling();
+}
+
+// ══════════════════════════════════════════
+//  ADMIN PLANS EDITOR
+// ══════════════════════════════════════════
+function renderAdminPlansGrid() {
+  const g = document.getElementById('adminPlansGrid');
+  if (!g) return;
+  if (!S.plans.length) { g.innerHTML = '<p style="color:var(--faint);margin-top:20px">No plans yet. Click "Add Plan" to create one.</p>'; return; }
+  g.innerHTML = S.plans.map(p => `<div class="plan-acard">
+    <h4>${p.name} ${p.featured ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,122,24,.16);color:var(--acc2);margin-left:6px;vertical-align:middle">FEATURED</span>' : ''} ${!p.active ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,107,107,.14);color:#ff6b6b;margin-left:6px;vertical-align:middle">HIDDEN</span>' : ''}</h4>
+    <div class="pa-tag">${p.tag}</div>
+    <div class="pa-price">${formatPrice(p.monthly, 'INR')} / mo · ${formatPrice(p.weekly, 'INR')} / wk</div>
+    <div class="pa-limits">
+      <div><b>${p.maxBays >= 999 ? '∞' : p.maxBays}</b> bays · <b>${p.maxWorkers >= 999 ? '∞' : p.maxWorkers}</b> workers · <b>${p.maxBookings >= 999 ? '∞' : p.maxBookings}</b> concurrent bookings</div>
+      <div style="margin-top:6px;font-size:12px;color:var(--faint)">ID: <code style="background:var(--bg2);padding:1px 5px;border-radius:3px">${p.id}</code></div>
+    </div>
+    <div class="pa-actions">
+      <button class="rev-btn" onclick="editPlan('${p.id}')">Edit</button>
+      <button class="rev-btn del" onclick="deletePlan('${p.id}')">Delete</button>
+    </div>
+  </div>`).join('');
+}
+function openPlanForm(id) {
+  const f = document.getElementById('planForm');
+  f.classList.add('open');
+  if (id) {
+    const p = S.plans.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('planFormTitle').textContent = 'Edit Plan';
+    document.getElementById('planEditId').value = id;
+    document.getElementById('pf-name').value = p.name;
+    document.getElementById('pf-tag').value = p.tag;
+    document.getElementById('pf-monthly').value = p.monthly;
+    document.getElementById('pf-weekly').value = p.weekly;
+    document.getElementById('pf-bays').value = p.maxBays;
+    document.getElementById('pf-workers').value = p.maxWorkers;
+    document.getElementById('pf-bookings').value = p.maxBookings;
+    document.getElementById('pf-features').value = p.features.join('\n');
+    document.getElementById('pf-featured').value = p.featured ? 'true' : 'false';
+    document.getElementById('pf-active').value = p.active ? 'true' : 'false';
+  } else {
+    document.getElementById('planFormTitle').textContent = 'Add Plan';
+    ['planEditId','pf-name','pf-tag','pf-monthly','pf-weekly','pf-bays','pf-workers','pf-bookings','pf-features'].forEach(i => document.getElementById(i).value = '');
+    document.getElementById('pf-featured').value = 'false';
+    document.getElementById('pf-active').value = 'true';
+  }
+  f.scrollIntoView({behavior:'smooth'});
+}
+function closePlanForm() { document.getElementById('planForm').classList.remove('open'); }
+function editPlan(id) { openPlanForm(id); }
+function deletePlan(id) {
+  if (!confirm('Delete this plan? Existing licenses on this plan keep working until they expire.')) return;
+  S.plans = S.plans.filter(p => p.id !== id);
+  save(); renderAdminPlansGrid(); renderPlansGrid();
+  showToast('Plan deleted', 'good');
+}
+function savePlan() {
+  const editId = document.getElementById('planEditId').value;
+  const name = document.getElementById('pf-name').value.trim();
+  const tag = document.getElementById('pf-tag').value.trim();
+  const monthly = parseInt(document.getElementById('pf-monthly').value, 10) || 0;
+  const weekly = parseInt(document.getElementById('pf-weekly').value, 10) || 0;
+  const maxBays = parseInt(document.getElementById('pf-bays').value, 10) || 1;
+  const maxWorkers = parseInt(document.getElementById('pf-workers').value, 10) || 1;
+  const maxBookings = parseInt(document.getElementById('pf-bookings').value, 10) || 1;
+  const featuresArr = document.getElementById('pf-features').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const featured = document.getElementById('pf-featured').value === 'true';
+  const active = document.getElementById('pf-active').value === 'true';
+  if (!name) { showToast('Plan name is required', 'bad'); return; }
+  if (featured) {
+    // ensure only one featured plan
+    S.plans.forEach(p => p.featured = false);
+  }
+  if (editId) {
+    const idx = S.plans.findIndex(p => p.id === editId);
+    if (idx !== -1) {
+      S.plans[idx] = { ...S.plans[idx], name, tag, monthly, weekly, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active };
+    }
+  } else {
+    const id = name.toLowerCase().replace(/[^a-z0-9]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || ('plan-' + Date.now().toString(36));
+    if (S.plans.find(p => p.id === id)) { showToast('A plan with that name already exists', 'bad'); return; }
+    S.plans.push({ id, name, tag, monthly, weekly, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active });
+  }
+  save(); closePlanForm(); renderAdminPlansGrid(); renderPlansGrid();
+  showToast(editId ? 'Plan updated' : 'Plan added', 'good');
+}
+
+// ══════════════════════════════════════════
+//  UPGRADE FLOW
+// ══════════════════════════════════════════
+function openUpgradeModal() {
+  if (!currentUser || currentUser.isAdmin) return;
+  document.getElementById('upgradeModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  upgradeCycle = S.billingCycle;
+  document.querySelectorAll('#upgradeModal .cycle-btn').forEach(b => b.classList.toggle('active', b.dataset.cycle === upgradeCycle));
+  renderUpgradePlans();
+  setTimeout(() => positionCycleSlider('#upgradeCycleSlider'), 50);
+}
+function closeUpgrade() {
+  document.getElementById('upgradeModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function renderUpgradePlans() {
+  const g = document.getElementById('upgradePlansGrid');
+  if (!g) return;
+  const userLic = S.licenses.find(l => l.email === currentUser.email && l.status === 'active');
+  const active = S.plans.filter(p => p.active);
+  const cycle = upgradeCycle;
+  const cycleSuffix = cycle === 'weekly' ? '/week' : '/month';
+  g.innerHTML = active.map(p => {
+    const price = cycle === 'weekly' ? p.weekly : p.monthly;
+    const limits = `<div class="plan-limits">
+      <div class="plan-limit"><b>${p.maxBays >= 999 ? 'Unlimited' : p.maxBays}</b> bays</div>
+      <div class="plan-limit"><b>${p.maxWorkers >= 999 ? 'Unlimited' : p.maxWorkers}</b> workers</div>
+      <div class="plan-limit"><b>${p.maxBookings >= 999 ? 'Unlimited' : p.maxBookings}</b> bookings</div>
+    </div>`;
+    const isCurrent = userLic && userLic.planId === p.id && userLic.billingCycle === cycle;
+    const currentTag = isCurrent ? '<div class="plan-current-tag">● Current plan</div>' : '';
+    const btn = isCurrent
+      ? `<button class="btn btn-ghost" disabled style="opacity:.7">You're on this plan</button>`
+      : `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="upgradeUserPlan('${p.id}','${cycle}')">${(userLic && (userLic.planId === p.id) && (userLic.billingCycle !== cycle)) ? 'Switch to ' + cycle : 'Switch to ' + p.name}</button>`;
+    return `<div class="plan-card ${p.featured ? 'featured' : ''}">
+      ${currentTag}
+      <div class="plan-name">${p.name}</div>
+      <div class="plan-tag">${p.tag}</div>
+      <div class="plan-price-strike">&nbsp;</div>
+      <div class="plan-price"><span class="pp-amt">${formatPrice(price)}</span><span class="pp-cycle">${cycleSuffix}</span></div>
+      ${limits}
+      <ul class="plan-features">${p.features.slice(0,4).map(f => `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>${f}</li>`).join('')}</ul>
+      ${btn}
+    </div>`;
+  }).join('');
+}
+function upgradeUserPlan(planId, cycle) {
+  if (!currentUser || currentUser.isAdmin) return;
+  const newPlan = S.plans.find(p => p.id === planId);
+  if (!newPlan) return;
+  const newCycle = cycle || S.billingCycle;
+  let lic = S.licenses.find(l => l.email === currentUser.email && l.status === 'active');
+  if (!lic) {
+    // no existing license — fall back to billing flow
+    pendingPlanId = planId;
+    upgradeCycle = newCycle;
+    openBilling();
+    return;
+  }
+  // Update license in place
+  lic.upgradeHistory = lic.upgradeHistory || [];
+  lic.upgradeHistory.push({
+    from: { planId: lic.planId, plan: lic.plan, billingCycle: lic.billingCycle, maxBays: lic.maxBays, maxWorkers: lic.maxWorkers, maxBookings: lic.maxBookings },
+    to:   { planId: newPlan.id, plan: newPlan.name, billingCycle: newCycle, maxBays: newPlan.maxBays, maxWorkers: newPlan.maxWorkers, maxBookings: newPlan.maxBookings },
+    ts: new Date().toISOString()
+  });
+  lic.planId = newPlan.id;
+  lic.plan = newPlan.name;
+  lic.billingCycle = newCycle;
+  lic.maxBays = newPlan.maxBays;
+  lic.maxWorkers = newPlan.maxWorkers;
+  lic.maxBookings = newPlan.maxBookings;
+  lic.currency = S.currency;
+  lic.amount = newCycle === 'weekly' ? newPlan.weekly : newPlan.monthly;
+  lic.upgradedAt = new Date().toISOString();
+  // Add a billing record
+  const billRec = {
+    id: Date.now(),
+    email: currentUser.email,
+    name: currentUser.name,
+    amount: lic.amount,
+    currency: S.currency,
+    status: 'paid',
+    cardLast4: (S.accounts.find(a => a.email === currentUser.email) || {}).cardLast4 || null,
+    invoiceId: 'INV-' + Date.now().toString(36).toUpperCase(),
+    planId: newPlan.id,
+    plan: newPlan.name,
+    billingCycle: newCycle,
+    ts: new Date().toLocaleString('en-IN')
+  };
+  S.billing.unshift(billRec);
+  logPurchase(`Upgrade · ${newPlan.name} (${newCycle})`, currentUser);
+  save();
+  // Sync to Firebase
+  const acc = S.accounts.find(a => a.email === currentUser.email);
+  syncLicenseToFirebase(lic, acc);
+  closeUpgrade();
+  showToast(`Switched to ${newPlan.name} (${newCycle})`, 'good');
+  if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
+  renderPlansGrid();
 }
 
 // ══════════════════════════════════════════
@@ -1611,16 +2259,30 @@ function generateLicenseKey() {
   const block = () => Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
   return `GP-${block()}-${block()}-${block()}-${block()}`;
 }
-function issueLicense(email, name, plan, platform) {
+function issueLicense(email, name, planIdOrName, platform, billingCycle) {
+  // Resolve plan: accept an id, a name, or fall back to default workshop
+  let plan = S.plans.find(p => p.id === planIdOrName) || S.plans.find(p => p.name === planIdOrName);
+  if (!plan) plan = S.plans.find(p => p.featured && p.active) || S.plans.find(p => p.active) || DEFAULT_PLANS[1];
+  const cycle = billingCycle || S.billingCycle || 'monthly';
+  const amount = cycle === 'weekly' ? plan.weekly : plan.monthly;
   const lic = {
     id: Date.now() + Math.floor(Math.random()*1000),
     key: generateLicenseKey(),
-    email, name, plan: plan || 'Standard',
+    email, name,
+    plan: plan.name,
+    planId: plan.id,
     platform: platform || 'windows',
+    billingCycle: cycle,
+    maxBays: plan.maxBays,
+    maxWorkers: plan.maxWorkers,
+    maxBookings: plan.maxBookings,
+    currency: S.currency,
+    amount,
     status: 'active',
     createdAt: new Date().toISOString(),
     createdAtDisplay: new Date().toLocaleString('en-IN'),
-    revokedAt: null
+    revokedAt: null,
+    upgradeHistory: []
   };
   S.licenses.unshift(lic);
   // attach to account
@@ -1724,20 +2386,26 @@ function closeBilling() {
   document.body.style.overflow = '';
 }
 function updateBillingPrices() {
-  // Extract numeric from S.price or fall back to 4999
-  let base = 4999;
-  if (S.price) {
-    const m = S.price.match(/[\d,]+/);
-    if (m) base = parseInt(m[0].replace(/,/g,''),10) || 4999;
-  }
-  const gst = Math.round(base * 0.18);
+  // Resolve the plan the user is buying
+  const planId = pendingPlanId || (S.plans.find(p => p.featured && p.active) || S.plans[0]).id;
+  const plan = S.plans.find(p => p.id === planId) || S.plans[0];
+  const cycle = S.billingCycle || 'monthly';
+  const baseInr = cycle === 'weekly' ? plan.weekly : plan.monthly;
+  // Convert to user's currency
+  const ccy = CURRENCIES[S.currency] || CURRENCIES.INR;
+  const base = Math.round(baseInr * ccy.rate);
+  // 18% GST only for INR (Indian customers). Others see just the subtotal.
+  const gst = ccy.code === 'INR' ? Math.round(base * 0.18) : 0;
   const total = base + gst;
-  const fmt = n => '₹' + n.toLocaleString('en-IN');
+  const fmt = n => `${ccy.sym}${n.toLocaleString('en-IN')}`;
   document.getElementById('bsumPrice').textContent = fmt(base);
   document.getElementById('bsumSubtotal').textContent = fmt(base);
-  document.getElementById('bsumGst').textContent = fmt(gst);
+  document.getElementById('bsumGst').textContent = gst ? fmt(gst) : 'Not applicable';
   document.getElementById('bsumTotal').textContent = fmt(total);
-  document.getElementById('bplanDesc').textContent = (S.priceNote || 'Annual subscription · unlimited bays');
+  document.getElementById('bplanDesc').textContent = `${plan.name} · ${cycle === 'weekly' ? 'Billed weekly' : 'Billed monthly'} · ${plan.maxBays >= 999 ? 'unlimited' : plan.maxBays} bays · ${plan.maxWorkers >= 999 ? 'unlimited' : plan.maxWorkers} workers`;
+  // Update header text from "Garage Pro — Full License" to plan name
+  const planLabel = document.querySelector('#billingModal .bplan b');
+  if (planLabel) planLabel.textContent = `Garage Pro — ${plan.name}`;
 }
 function formatCardInput() {
   const inp = document.getElementById('bf-num');
@@ -1772,6 +2440,10 @@ function completePurchase() {
   const last4 = num.slice(-4);
   const totalTxt = document.getElementById('bsumTotal').textContent;
   const amount = parseInt(totalTxt.replace(/[^\d]/g,''),10);
+  // Resolve chosen plan
+  const planId = pendingPlanId || (S.plans.find(p => p.featured && p.active) || S.plans[0]).id;
+  const plan = S.plans.find(p => p.id === planId);
+  const cycle = S.billingCycle || 'monthly';
   // Create billing record
   const invoiceId = 'INV-' + Date.now().toString(36).toUpperCase();
   const bill = {
@@ -1781,20 +2453,29 @@ function completePurchase() {
     amount, status:'paid', cardLast4:last4, cardName:name,
     invoiceId,
     platform: pendingPlatform || 'windows',
+    planId: plan ? plan.id : null,
+    plan: plan ? plan.name : 'Standard',
+    billingCycle: cycle,
+    currency: S.currency,
     ts: new Date().toLocaleString('en-IN')
   };
   S.billing.unshift(bill);
   // Save card to account (last 4 only)
   const acc = S.accounts.find(a => a.email === currentUser.email);
   if (acc) { acc.cardLast4 = last4; acc.cardName = name; }
-  // Issue license
-  const lic = issueLicense(currentUser.email, currentUser.name, 'Standard', pendingPlatform);
-  logPurchase(`Purchase · ${pendingPlatform === 'mac' ? 'Mac' : 'Windows'}`, currentUser);
+  // Issue license bound to the chosen plan
+  const lic = issueLicense(currentUser.email, currentUser.name, planId, pendingPlatform, cycle);
+  logPurchase(`Purchase · ${plan ? plan.name : 'Standard'} (${cycle})`, currentUser);
   save();
   closeBilling();
+  pendingPlanId = null;
   showToast(`Payment successful! License key generated.`, 'good');
+  // Trigger the actual installer download
+  if (S.downloadUrl) {
+    setTimeout(() => triggerDownload(), 400);
+  }
   // Auto-open user dashboard
-  setTimeout(() => openUserDashboard(), 600);
+  setTimeout(() => openUserDashboard(), 800);
 }
 
 // ══════════════════════════════════════════
@@ -1843,6 +2524,21 @@ function renderUserDashboard() {
     const statusTag = l.status === 'active'
       ? '<span class="lic-status-tag active">● Active</span>'
       : '<span class="lic-status-tag revoked">● Revoked — contact support</span>';
+    const dlAvailable = !!S.downloadUrl && l.status === 'active';
+    const dlButton = dlAvailable
+      ? `<button class="btn btn-primary" style="margin-top:18px" onclick="userTriggerDownload()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Download installer (${S.downloadName} &middot; v${S.downloadVersion})</button>`
+      : (l.status !== 'active'
+          ? ''
+          : `<div style="margin-top:18px;padding:11px 14px;border-radius:9px;background:rgba(255,179,71,.10);border:1px solid rgba(255,179,71,.28);color:var(--acc2);font-size:13px">&#9679; Installer link is being prepared. You'll receive an email with the download link shortly.</div>`);
+    const cycle = l.billingCycle || 'monthly';
+    const limitsHtml = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px;padding-top:18px;border-top:1px solid rgba(255,255,255,.08)">
+      <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Max bays</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${l.maxBays >= 999 ? '∞' : (l.maxBays || '—')}</div></div>
+      <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Max workers</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${l.maxWorkers >= 999 ? '∞' : (l.maxWorkers || '—')}</div></div>
+      <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Concurrent bookings</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${l.maxBookings >= 999 ? '∞' : (l.maxBookings || '—')}</div></div>
+    </div>`;
+    const upgradeBtn = l.status === 'active'
+      ? `<button class="btn btn-ghost" style="margin-top:14px;margin-left:10px" onclick="openUpgradeModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Change plan</button>`
+      : '';
     return `<div class="lic-card">
       <div class="lic-label">License Key  ${statusTag}</div>
       <div class="lic-key">
@@ -1851,9 +2547,11 @@ function renderUserDashboard() {
       </div>
       <div class="lic-meta">
         <div class="lic-meta-item"><div class="lmi-lbl">Plan</div><div class="lmi-val">${l.plan}</div></div>
-        <div class="lic-meta-item"><div class="lmi-lbl">Platform</div><div class="lmi-val">${l.platform === 'mac' ? 'macOS' : l.platform === 'manual' ? 'All platforms' : 'Windows'}</div></div>
+        <div class="lic-meta-item"><div class="lmi-lbl">Billing</div><div class="lmi-val">${cycle.charAt(0).toUpperCase() + cycle.slice(1)}</div></div>
         <div class="lic-meta-item"><div class="lmi-lbl">Issued</div><div class="lmi-val">${l.createdAtDisplay}</div></div>
       </div>
+      ${limitsHtml}
+      <div style="display:flex;flex-wrap:wrap;gap:0">${dlButton}${upgradeBtn}</div>
     </div>`;
   }).join('');
   // Billing history
@@ -1872,6 +2570,14 @@ function renderUserDashboard() {
   } else {
     document.getElementById('udSavedCard').style.display = 'none';
   }
+}
+function userTriggerDownload() {
+  if (!S.downloadUrl) {
+    showToast('Installer not available yet — please contact support', 'bad');
+    return;
+  }
+  triggerDownload();
+  showToast(`Downloading ${S.downloadName}…`, 'good');
 }
 function copyKey(k) {
   if (navigator.clipboard) {
@@ -2064,12 +2770,22 @@ function syncLicenseToFirebase(lic, acc) {
     email: lic.email,
     name: lic.name,
     username: acc ? (acc.username || acc.email) : lic.email,
-    password: acc ? acc.password : null,        // <-- matches user's spec
+    password: acc ? acc.password : null,
+    // Plan info — the desktop app reads these to enforce limits
     plan: lic.plan,
+    planId: lic.planId || null,
+    billingCycle: lic.billingCycle || 'monthly',
+    maxBays: typeof lic.maxBays === 'number' ? lic.maxBays : 999,
+    maxWorkers: typeof lic.maxWorkers === 'number' ? lic.maxWorkers : 999,
+    maxBookings: typeof lic.maxBookings === 'number' ? lic.maxBookings : 999,
+    currency: lic.currency || 'INR',
+    amount: lic.amount || 0,
     platform: lic.platform,
     status: lic.status,
     createdAt: lic.createdAt,
     revokedAt: lic.revokedAt,
+    upgradedAt: lic.upgradedAt || null,
+    upgradeHistory: lic.upgradeHistory || [],
     cardLast4: acc ? (acc.cardLast4 || null) : null
   };
   // store doc id = the license key for easy lookup from the desktop app
@@ -2087,7 +2803,12 @@ load();
 initFirebase();
 renderNav();
 renderReviews();
-renderPrice();
+populateCurrencySelect();
+renderPlansGrid();
+detectCountry().then(() => {
+  populateCurrencySelect();
+  renderPlansGrid();
+});
 </script>
 </body>
 </html>
