@@ -736,6 +736,7 @@ html,body{max-width:100%;overflow-x:hidden}
     <!-- signup -->
     <form class="mform" id="signupForm" onsubmit="doSignup(event)">
       <div><label>Full Name</label><input id="su-name" type="text" placeholder="Rajesh Kumar" required /></div>
+      <div><label>Garage / Company Name</label><input id="su-garage" type="text" placeholder="Speed Auto Care" required /></div>
       <div><label>Email</label><input id="su-email" type="email" placeholder="raj@speedauto.in" required /></div>
       <div><label>Password</label><input id="su-pass" type="password" placeholder="Min 6 characters" required minlength="6" /></div>
       <div><label>Confirm Password</label><input id="su-conf" type="password" placeholder="Repeat password" required /></div>
@@ -980,6 +981,37 @@ html,body{max-width:100%;overflow-x:hidden}
       </div>
 
       <div class="settings-section" style="max-width:560px">
+        <h4>Free Demo / Trial</h4>
+        <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">Visitors can request a no-card free trial. The license is auto-issued at signup and stops working after the trial period.</p>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:9px;font-weight:500;cursor:pointer">
+            <input type="checkbox" id="demoEnabledInput" />
+            <span>Show "Start free trial" CTA on the pricing section</span>
+          </label>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Plan during trial</label>
+            <select id="demoPlanInput"></select>
+          </div>
+          <div class="form-group">
+            <label>Trial length (days)</label>
+            <input id="demoDaysInput" type="number" min="1" max="365" placeholder="7" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>CTA headline</label>
+          <input id="demoHeadlineInput" type="text" placeholder="Not sure? Try Garage Pro free for 7 days" />
+        </div>
+        <div class="form-group">
+          <label>CTA subtitle</label>
+          <input id="demoSubInput" type="text" placeholder="Full Workshop plan · No card required · Auto-locks when the trial ends" />
+        </div>
+        <button class="form-btn form-btn-save" onclick="saveDemoSettings()">Save Demo Settings</button>
+        <div class="success-msg" id="demoMsg"></div>
+      </div>
+
+      <div class="settings-section" style="max-width:560px">
         <h4>Download File (Windows installer)</h4>
         <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">Set the link to your <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12px">.exe</code> installer. When a user finishes payment, the file is downloaded automatically. You can host it on Firebase Storage, GitHub Releases, your own CDN, or any direct-download URL.</p>
         <div class="form-group">
@@ -1102,6 +1134,79 @@ html,body{max-width:100%;overflow-x:hidden}
   </div>
 </div>
 
+<!-- ═══════════════ MANUAL LICENSE GENERATOR (admin) ═══════════════ -->
+<div class="modal-overlay" id="manualLicModal">
+  <div class="modal-box" style="max-width:520px">
+    <button class="modal-close" onclick="closeManualLicense()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="modal-brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></span>
+      <span>Generate License Key</span>
+    </div>
+    <p style="color:var(--dim);font-size:13.5px;line-height:1.5;margin-bottom:18px">Issue a license to a registered customer. The key is bound to their account and synced to Firebase + the desktop app instantly.</p>
+    <div class="form-group">
+      <label>Customer</label>
+      <input list="customerList" id="ml-customer" type="text" placeholder="Start typing a name or email…" oninput="onManualCustomerChange()" autocomplete="off" />
+      <datalist id="customerList"></datalist>
+      <div id="ml-customer-meta" style="margin-top:6px;font-size:12.5px;color:var(--faint);min-height:16px"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Email</label>
+        <input id="ml-email" type="email" placeholder="Auto-filled from customer" />
+      </div>
+      <div class="form-group">
+        <label>Garage / Company</label>
+        <input id="ml-garage" type="text" placeholder="Auto-filled" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Plan</label>
+      <select id="ml-plan"></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Billing cycle</label>
+        <select id="ml-cycle">
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Validity</label>
+        <select id="ml-validity" onchange="onManualValidityChange()">
+          <option value="cycle">Same as billing cycle</option>
+          <option value="7">1 week</option>
+          <option value="14">2 weeks</option>
+          <option value="30">1 month</option>
+          <option value="90">3 months</option>
+          <option value="180">6 months</option>
+          <option value="365">1 year</option>
+          <option value="730">2 years</option>
+          <option value="indefinite">Indefinite (never expires)</option>
+          <option value="custom">Custom date…</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" id="ml-custom-date-wrap" style="display:none">
+      <label>Expires on</label>
+      <input id="ml-custom-date" type="date" />
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:9px;font-weight:500;cursor:pointer">
+        <input type="checkbox" id="ml-paid" checked />
+        <span>Customer has paid (mark license as paid)</span>
+      </label>
+      <span style="font-size:12px;color:var(--faint);display:block;margin-top:4px;margin-left:24px">Uncheck to issue a free / comp / unpaid license. The customer can still activate normally.</span>
+    </div>
+    <div class="modal-err" id="ml-err"></div>
+    <div class="form-actions" style="margin-top:6px">
+      <button class="form-btn form-btn-save" onclick="submitManualLicense()">Generate Key</button>
+      <button class="form-btn form-btn-cancel" onclick="closeManualLicense()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ PROCESSING PAYMENT OVERLAY ═══════════════ -->
 <div class="processing-overlay" id="processingOverlay">
   <div id="ppContent">
@@ -1182,14 +1287,40 @@ html,body{max-width:100%;overflow-x:hidden}
     <!-- ACCOUNT PANEL -->
     <div class="user-tab-panel" id="upanel-account">
       <h1 class="greet">Account</h1>
-      <p class="greet-sub">Your account details.</p>
+      <p class="greet-sub">Edit your personal details, garage info, and saved bank account.</p>
+
       <div class="user-card">
-        <h4>Profile</h4>
-        <div class="user-info-row"><span class="uir-lbl">Full Name</span><span class="uir-val" id="udFullName">—</span></div>
-        <div class="user-info-row"><span class="uir-lbl">Email</span><span class="uir-val" id="udEmail">—</span></div>
+        <h4>Personal Information</h4>
+        <div class="form-row">
+          <div class="form-group"><label>Full Name</label><input id="up-name" type="text" placeholder="Rajesh Kumar" /></div>
+          <div class="form-group"><label>Email</label><input id="up-email" type="email" disabled style="opacity:.6" /></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Garage / Company Name</label><input id="up-garage" type="text" placeholder="Speed Auto Care" /></div>
+          <div class="form-group"><label>Phone</label><input id="up-phone" type="tel" placeholder="+91 98765 43210" /></div>
+        </div>
+        <div class="form-group"><label>Address</label><textarea id="up-address" placeholder="Shop 12, MG Road, Pune 411001"></textarea></div>
         <div class="user-info-row"><span class="uir-lbl">Member since</span><span class="uir-val" id="udMember">—</span></div>
-        <div class="user-info-row"><span class="uir-lbl">Account type</span><span class="uir-val">Standard user</span></div>
+        <div class="user-info-row" style="border:0"><span class="uir-lbl">Account type</span><span class="uir-val">Standard user</span></div>
+        <button class="form-btn form-btn-save" onclick="saveUserProfile()">Save Personal Info</button>
+        <div class="success-msg" id="udProfileMsg"></div>
       </div>
+
+      <div class="user-card">
+        <h4>Bank Details</h4>
+        <p style="color:var(--dim);font-size:13.5px;margin-bottom:14px;line-height:1.5">Used for payouts and direct-debit refunds. Never shared.</p>
+        <div class="form-row">
+          <div class="form-group"><label>Account Holder Name</label><input id="ub-holder" type="text" placeholder="Rajesh Kumar" /></div>
+          <div class="form-group"><label>Bank Name</label><input id="ub-bank" type="text" placeholder="HDFC Bank" /></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Account Number</label><input id="ub-account" type="text" placeholder="50100123456789" autocomplete="off" /></div>
+          <div class="form-group"><label>IFSC Code</label><input id="ub-ifsc" type="text" placeholder="HDFC0001234" autocomplete="off" /></div>
+        </div>
+        <button class="form-btn form-btn-save" onclick="saveBankDetails()">Save Bank Details</button>
+        <div class="success-msg" id="udBankMsg"></div>
+      </div>
+
       <div class="user-card">
         <h4>Change Password</h4>
         <div class="form-group"><label>Current Password</label><input id="ud-oldp" type="password" placeholder="••••••••" /></div>
@@ -1199,6 +1330,9 @@ html,body{max-width:100%;overflow-x:hidden}
         <div class="success-msg" id="udPassMsg"></div>
       </div>
     </div>
+    <!-- hidden — kept for backwards-compat refs -->
+    <span id="udFullName" style="display:none"></span>
+    <span id="udEmail" style="display:none"></span>
   </div>
 </div>
 
@@ -1496,6 +1630,17 @@ html,body{max-width:100%;overflow-x:hidden}
       </div>
     </div>
     <div class="plans-grid reveal" id="plansGrid"></div>
+    <div class="reveal" id="demoCta" style="display:none;margin:48px auto 0;max-width:680px;text-align:center;padding:32px 28px;border-radius:18px;background:linear-gradient(135deg,rgba(32,227,178,.08),rgba(120,140,255,.06));border:1px dashed rgba(32,227,178,.32)">
+      <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--teal);background:rgba(32,227,178,.16);border:1px solid rgba(32,227,178,.32);padding:5px 12px;border-radius:100px;margin-bottom:14px;letter-spacing:.06em;text-transform:uppercase">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 currentColor;animation:pulse 2.2s infinite"></span>Free demo available
+      </div>
+      <h3 id="demoHeadline" style="font-family:var(--fd);font-size:22px;margin-bottom:8px"></h3>
+      <p id="demoSub" style="color:var(--dim);font-size:15px;margin-bottom:22px;line-height:1.55"></p>
+      <button class="btn btn-primary" onclick="startFreeDemo()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Start free trial
+      </button>
+    </div>
   </div>
 </section>
 
@@ -1579,7 +1724,8 @@ const KEYS = {
   fbConfig:'gp_fbConfig', downloadUrl:'gp_downloadUrl',
   downloadName:'gp_downloadName', downloadVersion:'gp_downloadVersion',
   plans:'gp_plans', currency:'gp_currency', cycle:'gp_cycle',
-  credsChanged:'gp_credsChanged', cloudFnUrl:'gp_cloudFnUrl'
+  credsChanged:'gp_credsChanged', cloudFnUrl:'gp_cloudFnUrl',
+  demo:'gp_demo'
 };
 
 // Fallback admin credentials. These work ONLY while S.credsChanged is false.
@@ -1729,7 +1875,14 @@ let S = {
   billingCycle: 'monthly',          // 'monthly' | 'weekly'
   detectedCountry: null,            // ISO-2 from IP lookup
   credsChanged: false,              // true once admin updates username or password
-  cloudFnUrl: ''                    // Base URL for Firebase Cloud Functions (e.g. https://us-central1-xxxx.cloudfunctions.net)
+  cloudFnUrl: '',                   // Base URL for Firebase Cloud Functions (e.g. https://us-central1-xxxx.cloudfunctions.net)
+  demo: {
+    enabled:  true,                 // show the "Start Free Trial" CTA
+    planId:   'workshop',           // which plan to grant
+    days:     7,                    // how long the trial lasts
+    headline: 'Not sure? Try Garage Pro free for 7 days',
+    sub:      'Full Workshop plan · No card required · Auto-locks when the trial ends'
+  }
 };
 // Source-of-truth subscription for the signed-in user — read live from
 // Firestore (users/{email}/subscription). NEVER read from localStorage.
@@ -1765,6 +1918,7 @@ function load() {
     const cyc = localStorage.getItem(KEYS.cycle); if(cyc) S.billingCycle = cyc;
     const cch = localStorage.getItem(KEYS.credsChanged); if(cch === 'true') S.credsChanged = true;
     const cfu = localStorage.getItem(KEYS.cloudFnUrl); if(cfu) S.cloudFnUrl = cfu;
+    const dmo = localStorage.getItem(KEYS.demo); if(dmo) S.demo = Object.assign({}, S.demo, JSON.parse(dmo));
     const sess = sessionStorage.getItem('gp_user'); if(sess) currentUser = JSON.parse(sess);
   } catch(e){}
 }
@@ -1787,6 +1941,7 @@ function save() {
     localStorage.setItem(KEYS.cycle, S.billingCycle);
     localStorage.setItem(KEYS.credsChanged, S.credsChanged ? 'true' : 'false');
     localStorage.setItem(KEYS.cloudFnUrl, S.cloudFnUrl || '');
+    localStorage.setItem(KEYS.demo, JSON.stringify(S.demo || {}));
   } catch(e){}
 }
 function logPurchase(action, user) {
@@ -1951,13 +2106,15 @@ async function doResetPassword(e) {
 
 async function doSignup(e) {
   e.preventDefault();
-  const name  = document.getElementById('su-name').value.trim();
-  const email = document.getElementById('su-email').value.trim();
-  const pass  = document.getElementById('su-pass').value;
-  const conf  = document.getElementById('su-conf').value;
-  const err   = document.getElementById('signupErr');
+  const name       = document.getElementById('su-name').value.trim();
+  const garageName = document.getElementById('su-garage').value.trim();
+  const email      = document.getElementById('su-email').value.trim();
+  const pass       = document.getElementById('su-pass').value;
+  const conf       = document.getElementById('su-conf').value;
+  const err        = document.getElementById('signupErr');
   err.textContent = '';
   if (!name)              { err.textContent = 'Enter your full name.'; return; }
+  if (!garageName)        { err.textContent = 'Enter your garage / company name.'; return; }
   if (pass !== conf)      { err.textContent = 'Passwords do not match.'; return; }
   if (pass.length < 6)    { err.textContent = 'Password must be at least 6 characters.'; return; }
   if (!fbAuth)            { err.textContent = 'Site not connected to Firebase yet. Contact support.'; return; }
@@ -1971,14 +2128,16 @@ async function doSignup(e) {
     await cred.user.updateProfile({ displayName: name });
     // 3) Write a profile document at users/{uid}
     await fbDb.collection('users').doc(cred.user.uid).set({
-      uid:       cred.user.uid,
+      uid:        cred.user.uid,
       email,
       name,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      // No subscription field yet — that gets written when they purchase a plan
+      garageName,                // company / workshop name — used in license keys
+      createdAt:  firebase.firestore.FieldValue.serverTimestamp(),
+      profile:    { phone: '', address: '' },
+      bankDetails: { holderName: '', accountNumber: '', ifsc: '', bankName: '' }
     }, { merge: true });
     // 4) Log the sign-up event for the admin
-    logPurchase('Sign Up', { name, email });
+    logPurchase(`Sign Up · ${garageName}`, { name, email });
     // handleAuthStateChanged fires next and populates currentUser
     closeAuth();
     showToast(`Account created! Welcome, ${name.split(' ')[0]}`, 'good');
@@ -2178,6 +2337,17 @@ function renderAdminPricing() {
   document.getElementById('dlUrl').value = S.downloadUrl || '';
   document.getElementById('dlName').value = S.downloadName || 'GaragePro-Setup.exe';
   document.getElementById('dlVersion').value = S.downloadVersion || '1.0.0';
+  // ── Demo settings ──
+  const d = S.demo || {};
+  const demoSel = document.getElementById('demoPlanInput');
+  if (demoSel) {
+    demoSel.innerHTML = S.plans.filter(p => p.active).map(p =>
+      `<option value="${p.id}" ${p.id === d.planId ? 'selected' : ''}>${p.name}</option>`).join('');
+  }
+  if (document.getElementById('demoEnabledInput')) document.getElementById('demoEnabledInput').checked = !!d.enabled;
+  if (document.getElementById('demoDaysInput'))    document.getElementById('demoDaysInput').value    = d.days || 7;
+  if (document.getElementById('demoHeadlineInput'))document.getElementById('demoHeadlineInput').value= d.headline || '';
+  if (document.getElementById('demoSubInput'))     document.getElementById('demoSubInput').value     = d.sub      || '';
   // status banner
   const st = document.getElementById('dlStatus');
   if (S.downloadUrl) {
@@ -2200,6 +2370,169 @@ function savePrice() {
   document.getElementById('priceMsg').textContent = 'Saved!';
   setTimeout(()=>{ document.getElementById('priceMsg').textContent=''; }, 2500);
 }
+// ══════════════════════════════════════════
+//  FREE DEMO / TRIAL
+// ══════════════════════════════════════════
+function renderDemoCta() {
+  const cta = document.getElementById('demoCta');
+  if (!cta) return;
+  if (!S.demo || !S.demo.enabled) { cta.style.display = 'none'; return; }
+  // Hide if the signed-in customer already has an active subscription
+  if (currentSubscription && isSubscriptionActive(currentSubscription)) {
+    cta.style.display = 'none';
+    return;
+  }
+  cta.style.display = '';
+  const headline = (S.demo.headline || 'Not sure? Try Garage Pro free').replace(/\d+\s*days?/, `${S.demo.days || 7} days`);
+  const sub      = S.demo.sub      || 'Full plan · No card required · Auto-locks when the trial ends';
+  document.getElementById('demoHeadline').textContent = headline;
+  document.getElementById('demoSub').textContent      = sub;
+}
+
+function startFreeDemo() {
+  if (!S.demo || !S.demo.enabled) { showToast('Free trial is currently disabled', 'bad'); return; }
+  if (!fbAuth)                   { showToast('Site not connected to Firebase yet. Contact support.', 'bad'); return; }
+  // If admin is signed in, refuse — demos are for real customers only
+  if (currentUser && currentUser.isAdmin) {
+    showToast('Sign in as a customer to start a trial (not an admin session).', 'bad');
+    return;
+  }
+  // If a customer is already signed in and active → no need for a demo
+  if (currentSubscription && isSubscriptionActive(currentSubscription)) {
+    showToast('You already have an active subscription — no need for a trial.', 'good');
+    return;
+  }
+  // Need an account first
+  if (!currentUser) {
+    pendingAction = 'demo';
+    openAuth(null);
+    // Default to the signup tab — most demo-requesters are new customers
+    setTimeout(() => switchAuthTab('signup'), 50);
+    return;
+  }
+  // Customer is signed in but has no active sub → activate the demo
+  activateFreeDemo();
+}
+
+async function activateFreeDemo() {
+  if (!fbAuth || !fbAuth.currentUser || !fbDb) {
+    showToast('Sign in first', 'bad');
+    return;
+  }
+  const uid   = fbAuth.currentUser.uid;
+  const email = fbAuth.currentUser.email;
+  const plan  = (S.plans.find(p => p.id === S.demo.planId) || S.plans.find(p => p.featured && p.active) || S.plans[0]);
+  if (!plan) { showToast('No demo plan configured', 'bad'); return; }
+  const days  = parseInt(S.demo.days, 10) || 7;
+
+  // Refuse to issue a 2nd trial to the same account
+  try {
+    const userDoc = await fbDb.collection('users').doc(uid).get();
+    if (userDoc.exists) {
+      const d = userDoc.data() || {};
+      if (d.trialUsedAt) {
+        showToast('You\'ve already used your free trial. Choose a paid plan to continue.', 'bad');
+        return;
+      }
+    }
+  } catch(e){}
+
+  showProcessing('Activating your free trial…', `Setting up ${days} days of ${plan.name}, no card required.`);
+  await new Promise(r => setTimeout(r, 700));
+  processingStep(1);
+  await new Promise(r => setTimeout(r, 500));
+  processingStep(2);
+
+  try {
+    // Look up the user's name + garage so the license carries them through
+    let garageName = '', displayName = fbAuth.currentUser.displayName || (email || '').split('@')[0];
+    const userSnap = await fbDb.collection('users').doc(uid).get();
+    if (userSnap.exists) {
+      const d = userSnap.data() || {};
+      garageName  = d.garageName || '';
+      displayName = d.name || displayName;
+    }
+    const now        = firebase.firestore.Timestamp.now();
+    const expiryDate = new Date(Date.now() + days * 86400000);
+    const expiry     = firebase.firestore.Timestamp.fromDate(expiryDate);
+    const licenseKey = generateLicenseKey();
+
+    const subscription = {
+      status:        'active',
+      plan:          plan.id,
+      planName:      plan.name,
+      billingCycle:  'trial',
+      activatedAt:   now,
+      expiry,
+      licenseKey,
+      name:          displayName,
+      garageName,
+      maxBays:       plan.maxBays,
+      maxWorkers:    plan.maxWorkers,
+      maxBookings:   plan.maxBookings,
+      isTrial:       true,
+      trialDays:     days,
+      lastPaymentMethod: 'free-trial'
+    };
+    const mirror = {
+      key:           licenseKey,
+      uid, userId:   email, email,
+      name:          displayName,
+      garageName,
+      plan:          plan.id,
+      planName:      plan.name,
+      billingCycle:  'trial',
+      status:        'active',
+      activatedAt:   now,
+      expiry,
+      maxBays:       plan.maxBays,
+      maxWorkers:    plan.maxWorkers,
+      maxBookings:   plan.maxBookings,
+      isTrial:       true,
+      trialDays:     days,
+      createdAt:     now
+    };
+
+    await fbDb.collection('users').doc(uid).set({
+      uid, email,
+      name:        displayName,
+      garageName,
+      trialUsedAt: now,
+      updatedAt:   now,
+      subscription
+    }, { merge: true });
+    await fbDb.collection('licenses').doc(licenseKey).set(mirror, { merge: true });
+
+    processingStep(3);
+    await new Promise(r => setTimeout(r, 400));
+    processingSuccess(licenseKey, plan.name + ' (Trial)', expiryDate.toISOString());
+    logPurchase(`Free Trial · ${plan.name} · ${days} days`, currentUser);
+    save();
+    if (S.downloadUrl) setTimeout(() => triggerDownload(), 500);
+  } catch (err) {
+    processingError(err.message || 'Could not activate trial.');
+  }
+}
+
+function saveDemoSettings() {
+  const msg = document.getElementById('demoMsg');
+  const enabled = document.getElementById('demoEnabledInput').checked;
+  const planId  = document.getElementById('demoPlanInput').value;
+  const days    = parseInt(document.getElementById('demoDaysInput').value, 10) || 7;
+  const headline= document.getElementById('demoHeadlineInput').value.trim();
+  const sub     = document.getElementById('demoSubInput').value.trim();
+  if (days < 1 || days > 365) {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'Trial length must be between 1 and 365 days.'; return;
+  }
+  S.demo = { enabled, planId, days, headline, sub };
+  save();
+  syncSiteSettingsToFirebase();
+  renderDemoCta();
+  msg.style.color = 'var(--teal)';
+  msg.textContent = enabled ? 'Saved — trial is live.' : 'Saved — trial CTA hidden.';
+  setTimeout(() => { msg.textContent = ''; }, 2500);
+}
+
 function saveDownload() {
   const url = document.getElementById('dlUrl').value.trim();
   const name = document.getElementById('dlName').value.trim() || 'GaragePro-Setup.exe';
@@ -2867,8 +3200,10 @@ document.querySelectorAll('.faq-item').forEach(item => {
 //  LICENSE KEYS
 // ══════════════════════════════════════════
 function generateLicenseKey() {
-  // Format: GP-XXXX-XXXX-XXXX-XXXX  (4 blocks of 4 alphanumeric)
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusing chars
+  // Format: GP-XXXX-XXXX-XXXX-XXXX  (4 random blocks of 4 chars)
+  // Garage name is stored alongside the license in Firestore, not embedded
+  // in the key itself.
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // no confusing chars (no 0/O/1/I)
   const block = () => Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
   return `GP-${block()}-${block()}-${block()}-${block()}`;
 }
@@ -3006,14 +3341,170 @@ async function deleteLicense(id) {
     showToast('Delete failed: ' + (e.message || e.code || 'unknown'), 'bad');
   }
 }
+// ── Customer cache for the searchable dropdown ──
+let manualCustomers = [];  // [{uid, name, email, garageName}, …]
+let fbUsersUnsub = null;
+
+function subscribeAllUsersFromFirebase() {
+  if (!fbDb) return;
+  if (fbUsersUnsub) { try { fbUsersUnsub(); } catch(e){} fbUsersUnsub = null; }
+  fbUsersUnsub = fbDb.collection('users').onSnapshot(snap => {
+    manualCustomers = [];
+    snap.forEach(doc => {
+      const d = doc.data() || {};
+      if (!d.email) return;
+      manualCustomers.push({
+        uid: doc.id, name: d.name || '(no name)',
+        email: d.email, garageName: d.garageName || ''
+      });
+    });
+    manualCustomers.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+    // Refresh the datalist if the modal is open
+    if (document.getElementById('manualLicModal').classList.contains('open')) {
+      populateManualCustomerList();
+    }
+  }, e => console.warn('Users listener:', e));
+}
+
+function populateManualCustomerList() {
+  const dl = document.getElementById('customerList');
+  if (!dl) return;
+  dl.innerHTML = manualCustomers.map(c =>
+    `<option value="${c.name} — ${c.email}" data-uid="${c.uid}">`).join('');
+}
+function populateManualPlanList() {
+  const sel = document.getElementById('ml-plan');
+  if (!sel) return;
+  sel.innerHTML = S.plans.filter(p => p.active).map(p =>
+    `<option value="${p.id}">${p.name}</option>`).join('');
+}
+function onManualCustomerChange() {
+  const v   = document.getElementById('ml-customer').value;
+  const meta= document.getElementById('ml-customer-meta');
+  // Try to find an exact match — "Name — email" pattern from the datalist
+  const m = v.match(/^(.*?)\s*—\s*(.*)$/);
+  let cust = null;
+  if (m) {
+    cust = manualCustomers.find(c => c.email === m[2].trim());
+  } else {
+    // Try partial match by name or email
+    const lower = v.toLowerCase().trim();
+    cust = manualCustomers.find(c => (c.email || '').toLowerCase() === lower)
+        || manualCustomers.find(c => (c.name  || '').toLowerCase() === lower);
+  }
+  if (cust) {
+    document.getElementById('ml-email').value  = cust.email;
+    document.getElementById('ml-garage').value = cust.garageName || '';
+    meta.textContent = `✓ Linked to ${cust.email}`;
+    meta.style.color = 'var(--teal)';
+    document.getElementById('ml-customer').dataset.uid = cust.uid;
+  } else {
+    document.getElementById('ml-customer').dataset.uid = '';
+    if (v.trim().length === 0) {
+      meta.textContent = '';
+    } else {
+      meta.textContent = 'No registered customer matches yet — pick from the dropdown.';
+      meta.style.color = 'var(--faint)';
+    }
+  }
+}
+function onManualValidityChange() {
+  const v = document.getElementById('ml-validity').value;
+  document.getElementById('ml-custom-date-wrap').style.display = (v === 'custom') ? '' : 'none';
+}
 function createManualLicense() {
-  const email = prompt('User email for this license:');
-  if (!email) return;
-  const name = prompt('User name:') || 'Manual License';
-  const plan = prompt('Plan (Standard / Pro / Trial):', 'Standard') || 'Standard';
-  const lic = issueLicense(email.trim(), name.trim(), plan.trim(), 'manual');
-  renderLicensesTab();
-  showToast(`License ${lic.key} issued`, 'good');
+  if (!fbDb) { showToast('Connect Firebase first', 'bad'); return; }
+  populateManualPlanList();
+  populateManualCustomerList();
+  document.getElementById('ml-customer').value = '';
+  document.getElementById('ml-customer').dataset.uid = '';
+  document.getElementById('ml-customer-meta').textContent = '';
+  document.getElementById('ml-email').value   = '';
+  document.getElementById('ml-garage').value  = '';
+  document.getElementById('ml-cycle').value   = 'monthly';
+  document.getElementById('ml-validity').value= 'cycle';
+  document.getElementById('ml-custom-date-wrap').style.display = 'none';
+  document.getElementById('ml-paid').checked  = true;
+  document.getElementById('ml-err').textContent = '';
+  document.getElementById('manualLicModal').classList.add('open');
+}
+function closeManualLicense() {
+  document.getElementById('manualLicModal').classList.remove('open');
+}
+async function submitManualLicense() {
+  const err = document.getElementById('ml-err');
+  err.textContent = '';
+  const uid       = document.getElementById('ml-customer').dataset.uid || '';
+  const email     = document.getElementById('ml-email').value.trim();
+  const garageName= document.getElementById('ml-garage').value.trim();
+  const planId    = document.getElementById('ml-plan').value;
+  const cycle     = document.getElementById('ml-cycle').value;
+  const validity  = document.getElementById('ml-validity').value;
+  const paid      = document.getElementById('ml-paid').checked;
+  if (!email || !email.includes('@')) { err.textContent = 'Pick a customer from the dropdown.'; return; }
+  if (!uid)                            { err.textContent = 'This email isn\'t a registered customer. Ask them to sign up first.'; return; }
+  if (!planId)                         { err.textContent = 'Pick a plan.'; return; }
+  // Compute expiry
+  let expiryDate = null;
+  let indefinite = false;
+  if (validity === 'cycle')        expiryDate = new Date(Date.now() + cycleDays(cycle) * 86400000);
+  else if (validity === 'indefinite') indefinite = true;
+  else if (validity === 'custom') {
+    const v = document.getElementById('ml-custom-date').value;
+    if (!v) { err.textContent = 'Pick a custom expiry date.'; return; }
+    expiryDate = new Date(v);
+    if (isNaN(expiryDate.getTime()) || expiryDate < new Date()) {
+      err.textContent = 'Custom date must be in the future.'; return;
+    }
+  } else {
+    const days = parseInt(validity, 10);
+    expiryDate = new Date(Date.now() + days * 86400000);
+  }
+  // Look up the plan for limits + plan price
+  const plan = S.plans.find(p => p.id === planId) || S.plans[0];
+  const customer = manualCustomers.find(c => c.uid === uid);
+  const name = customer ? customer.name : email.split('@')[0];
+  // Build license key — garage name is stored on the doc, not in the key
+  const licenseKey = generateLicenseKey();
+  const now = firebase.firestore.Timestamp.now();
+  const expiry = indefinite ? null : firebase.firestore.Timestamp.fromDate(expiryDate);
+
+  const subscription = {
+    status: 'active',
+    plan: plan.id, planName: plan.name,
+    billingCycle: cycle,
+    activatedAt: now,
+    expiry,
+    indefinite,
+    licenseKey,
+    name, garageName,
+    maxBays: plan.maxBays, maxWorkers: plan.maxWorkers, maxBookings: plan.maxBookings,
+    lastPaymentMethod: paid ? 'admin-issued-paid' : 'admin-issued-free',
+    paidStatus: paid ? 'paid' : 'unpaid',
+    issuedByAdmin: true
+  };
+  const mirror = {
+    key: licenseKey, uid, userId: email, email,
+    name, garageName,
+    plan: plan.id, planName: plan.name, billingCycle: cycle,
+    status: 'active', activatedAt: now, expiry, indefinite,
+    maxBays: plan.maxBays, maxWorkers: plan.maxWorkers, maxBookings: plan.maxBookings,
+    paidStatus: paid ? 'paid' : 'unpaid', issuedByAdmin: true, createdAt: now
+  };
+  try {
+    await fbDb.collection('users').doc(uid).set({
+      uid, email,
+      name: name || (customer && customer.name) || email.split('@')[0],
+      garageName,
+      updatedAt: now,
+      subscription
+    }, { merge: true });
+    await fbDb.collection('licenses').doc(licenseKey).set(mirror, { merge: true });
+    closeManualLicense();
+    showToast(`License ${licenseKey} issued to ${name}`, 'good');
+  } catch (e) {
+    err.textContent = 'Failed: ' + (e.message || e.code || 'unknown');
+  }
 }
 
 // ══════════════════════════════════════════
@@ -3148,13 +3639,20 @@ async function callActivateSubscription(_legacyUserId, planId, billingCycle, opt
 
   // Re-use the existing license key if the user already has one — so upgrades
   // and downgrades keep the SAME key throughout the subscription's life.
-  let licenseKey = null;
+  let licenseKey  = null;
   let existingSub = null;
+  let garageName  = '';
+  let displayName = fbAuth.currentUser.displayName || (email || '').split('@')[0];
   try {
     const userDoc = await fbDb.collection('users').doc(uid).get();
-    if (userDoc.exists && userDoc.data().subscription) {
-      existingSub = userDoc.data().subscription;
-      if (existingSub.licenseKey) licenseKey = existingSub.licenseKey;
+    if (userDoc.exists) {
+      const d = userDoc.data() || {};
+      garageName  = d.garageName || '';
+      displayName = d.name || displayName;
+      if (d.subscription) {
+        existingSub = d.subscription;
+        if (existingSub.licenseKey) licenseKey = existingSub.licenseKey;
+      }
     }
   } catch(e){}
   if (!licenseKey) licenseKey = generateLicenseKey();
@@ -3225,6 +3723,8 @@ async function callActivateSubscription(_legacyUserId, planId, billingCycle, opt
       activatedAt:  existingSub && isUpgrade ? (existingSub.activatedAt || now) : now,
       expiry,
       licenseKey,
+      name:         displayName,
+      garageName:   garageName,
       maxBays:      plan.maxBays,
       maxWorkers:   plan.maxWorkers,
       maxBookings:  plan.maxBookings,
@@ -3236,6 +3736,8 @@ async function callActivateSubscription(_legacyUserId, planId, billingCycle, opt
     mirrorDoc = {
       key:          licenseKey,
       uid, userId:  email, email,
+      name:         displayName,
+      garageName:   garageName,
       plan:         plan.id,
       planName:     plan.name,
       billingCycle: cycle,
@@ -3252,8 +3754,10 @@ async function callActivateSubscription(_legacyUserId, planId, billingCycle, opt
 
   // 1) Subscription on the user record (keyed by Auth UID)
   await fbDb.collection('users').doc(uid).set({
-    uid, email, name: fbAuth.currentUser.displayName || (email || '').split('@')[0],
-    updatedAt: now,
+    uid, email,
+    name:        displayName,
+    garageName:  garageName,
+    updatedAt:   now,
     subscription
   }, { merge: true });
 
@@ -3297,6 +3801,8 @@ function subscribeToUserSubscription() {
       }
       currentSubscription = sub;
       if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
+      renderDemoCta();
+      renderPlansGrid();    // re-renders so the "Choose plan" buttons reflect the new sub state
     }, err => console.warn('Subscription listener error:', err));
   } catch(e) { console.warn('subscribe sub failed:', e); }
 }
@@ -3394,6 +3900,7 @@ function switchUserTab(t) {
   const idx = {license:0, billing:1, account:2}[t];
   document.querySelectorAll('.utab')[idx].classList.add('active');
   document.getElementById('upanel-' + t).classList.add('active');
+  if (t === 'account') loadUserProfileIntoForm();
 }
 function renderUserDashboard() {
   if (!currentUser) return;
@@ -3499,6 +4006,84 @@ function copyKey(k) {
     showToast('License key copied', 'good');
   }
 }
+// Load the current user's profile + bank details from Firestore and prefill the form
+async function loadUserProfileIntoForm() {
+  if (!fbAuth || !fbAuth.currentUser || !fbDb) return;
+  try {
+    const doc = await fbDb.collection('users').doc(fbAuth.currentUser.uid).get();
+    if (!doc.exists) return;
+    const d = doc.data() || {};
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    setVal('up-name',   d.name);
+    setVal('up-email',  d.email || fbAuth.currentUser.email);
+    setVal('up-garage', d.garageName);
+    setVal('up-phone',  (d.profile && d.profile.phone)   || '');
+    setVal('up-address',(d.profile && d.profile.address) || '');
+    setVal('ub-holder', (d.bankDetails && d.bankDetails.holderName)    || '');
+    setVal('ub-bank',   (d.bankDetails && d.bankDetails.bankName)      || '');
+    setVal('ub-account',(d.bankDetails && d.bankDetails.accountNumber) || '');
+    setVal('ub-ifsc',   (d.bankDetails && d.bankDetails.ifsc)          || '');
+  } catch(e) { console.warn('loadUserProfile failed:', e); }
+}
+async function saveUserProfile() {
+  if (!fbAuth || !fbAuth.currentUser || !fbDb) { showToast('Not signed in', 'bad'); return; }
+  const name       = document.getElementById('up-name').value.trim();
+  const garageName = document.getElementById('up-garage').value.trim();
+  const phone      = document.getElementById('up-phone').value.trim();
+  const address    = document.getElementById('up-address').value.trim();
+  const msg = document.getElementById('udProfileMsg');
+  if (!name)       { msg.style.color = '#ff6b6b'; msg.textContent = 'Full name is required.';   return; }
+  if (!garageName) { msg.style.color = '#ff6b6b'; msg.textContent = 'Garage name is required.'; return; }
+  try {
+    await fbAuth.currentUser.updateProfile({ displayName: name });
+    await fbDb.collection('users').doc(fbAuth.currentUser.uid).set({
+      name, garageName,
+      profile: { phone, address },
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    // If the user has an active license, update the mirror so the desktop app sees the new garage name
+    const sub = currentSubscription;
+    if (sub && sub.licenseKey) {
+      await fbDb.collection('licenses').doc(sub.licenseKey).set({
+        name, garageName,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+    // Reflect locally + in nav
+    if (currentUser) { currentUser.name = name; sessionStorage.setItem('gp_user', JSON.stringify(currentUser)); }
+    renderNav();
+    msg.style.color = 'var(--teal)'; msg.textContent = 'Personal info saved.';
+    setTimeout(() => { msg.textContent = ''; }, 2500);
+  } catch (e) {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'Could not save: ' + (e.message || e.code || 'unknown');
+  }
+}
+async function saveBankDetails() {
+  if (!fbAuth || !fbAuth.currentUser || !fbDb) { showToast('Not signed in', 'bad'); return; }
+  const holderName    = document.getElementById('ub-holder').value.trim();
+  const bankName      = document.getElementById('ub-bank').value.trim();
+  const accountNumber = document.getElementById('ub-account').value.trim();
+  const ifsc          = document.getElementById('ub-ifsc').value.trim().toUpperCase();
+  const msg = document.getElementById('udBankMsg');
+  // Light validation
+  if (accountNumber && !/^\d{6,20}$/.test(accountNumber)) {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'Account number must be 6–20 digits.'; return;
+  }
+  if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'IFSC code looks invalid. Format: AAAA0XXXXXX'; return;
+  }
+  try {
+    await fbDb.collection('users').doc(fbAuth.currentUser.uid).set({
+      bankDetails: { holderName, bankName, accountNumber, ifsc },
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    msg.style.color = 'var(--teal)'; msg.textContent = 'Bank details saved.';
+    setTimeout(() => { msg.textContent = ''; }, 2500);
+  } catch (e) {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'Could not save: ' + (e.message || e.code || 'unknown');
+  }
+}
+
 function userChangePassword() {
   const op = document.getElementById('ud-oldp').value;
   const np = document.getElementById('ud-newp').value;
@@ -3539,6 +4124,7 @@ function initFirebase() {
     // on one device propagate to every other device automatically.
     subscribeSiteSettingsFromFirebase();
     subscribePlansFromFirebase();
+    subscribeAllUsersFromFirebase();
     return true;
   } catch(e) {
     console.error('Firebase init failed:', e);
@@ -3560,6 +4146,12 @@ function handleAuthStateChanged(fbUser) {
     };
     sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
     subscribeToUserSubscription();
+    // If the user clicked "Start free trial" before they had an account, kick
+    // off the trial activation now that auth has settled.
+    if (pendingAction === 'demo') {
+      pendingAction = null;
+      setTimeout(() => activateFreeDemo(), 250);
+    }
   } else {
     currentUser = null;
     currentSubscription = null;
@@ -3776,6 +4368,7 @@ function syncSiteSettingsToFirebase() {
     downloadVersion: S.downloadVersion || '1.0.0',
     currency: S.currency || 'INR', billingCycle: S.billingCycle || 'monthly',
     detectedCountry: S.detectedCountry || null,
+    demo: S.demo || {},
     updatedAt: new Date().toISOString()
   }).catch(e => handleFirebaseError('Site settings write', e));
 }
@@ -3795,8 +4388,10 @@ function subscribeSiteSettingsFromFirebase() {
       if (d.downloadVersion !== undefined && d.downloadVersion !== S.downloadVersion) { S.downloadVersion = d.downloadVersion; changed = true; }
       if (d.price           !== undefined && d.price           !== S.price)           { S.price           = d.price;           changed = true; }
       if (d.priceNote       !== undefined && d.priceNote       !== S.priceNote)       { S.priceNote       = d.priceNote;       changed = true; }
+      if (d.demo            !== undefined && JSON.stringify(d.demo) !== JSON.stringify(S.demo)) { S.demo = d.demo || {}; changed = true; }
       if (changed) {
         save();
+        renderDemoCta();
         // Re-render anywhere site settings show up
         if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
         if (document.getElementById('tab-pricing') && document.getElementById('tab-pricing').classList.contains('active')) renderAdminPricing();
@@ -4094,9 +4689,11 @@ renderNav();
 renderReviews();
 populateCurrencySelect();
 renderPlansGrid();
+renderDemoCta();
 detectCountry().then(() => {
   populateCurrencySelect();
   renderPlansGrid();
+  renderDemoCta();
 });
 </script>
 </body>
