@@ -385,11 +385,11 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 .compare-table{width:100%;border-collapse:collapse;min-width:680px}
 .compare-table th,.compare-table td{padding:16px 22px;text-align:center;border-bottom:1px solid var(--brd);vertical-align:middle}
 .compare-table th:first-child,.compare-table td:first-child{text-align:left;color:var(--dim);font-weight:500;font-size:14.5px;min-width:240px}
-.compare-table thead th{background:rgba(255,255,255,.02);font-family:var(--fd);font-weight:800;font-size:17px;letter-spacing:-.01em;padding:22px 22px 18px}
+.compare-table thead th{background:rgba(255,255,255,.02);font-family:var(--fd);font-weight:800;font-size:17px;letter-spacing:-.01em;padding:36px 22px 18px;position:relative}
 .compare-table thead th:first-child{color:var(--faint);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-family:var(--fb)}
-.compare-table thead .feat-th{position:relative;color:var(--txt)}
+.compare-table thead .feat-th{color:var(--txt)}
 .compare-table thead .feat-th.featured{color:var(--acc2)}
-.compare-table thead .feat-th.featured::after{content:"Popular";position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;font-size:9.5px;font-weight:800;padding:2px 9px;border-radius:100px;letter-spacing:.06em;text-transform:uppercase}
+.compare-table thead .feat-th.featured::after{content:"Popular";position:absolute;top:12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;font-size:9.5px;font-weight:800;padding:3px 10px;border-radius:100px;letter-spacing:.08em;text-transform:uppercase;line-height:1;box-shadow:0 4px 12px -2px rgba(255,122,24,.45)}
 .compare-table tbody tr:hover{background:rgba(255,255,255,.018)}
 .compare-table tbody tr:last-child td{border-bottom:0}
 .compare-table td{color:var(--txt);font-weight:600;font-size:14.5px}
@@ -408,6 +408,26 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
   .compare-table thead th{font-size:15px;padding:18px 14px 14px}
   .compare-cta-row .btn{font-size:12.5px;padding:8px 12px}
 }
+
+/* ── PLAN RECOMMENDATION QUIZ ── */
+.quiz-wrap{max-width:760px;margin:64px auto 0;background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd);border-radius:18px;padding:34px 32px;box-shadow:var(--shad)}
+.quiz-head{text-align:center;margin-bottom:28px}
+.quiz-head .eyebrow{margin-bottom:8px}
+.quiz-head h3{font-family:var(--fd);font-size:22px;margin-bottom:6px}
+.quiz-head p{color:var(--dim);font-size:14.5px}
+.quiz-body{display:grid;gap:24px}
+.quiz-q-label{font-family:var(--fd);font-weight:700;font-size:15px;margin-bottom:12px;color:var(--txt)}
+.quiz-options{display:flex;flex-wrap:wrap;gap:8px}
+.quiz-opt{background:var(--surf2);border:1px solid var(--brd2);color:var(--dim);padding:11px 16px;border-radius:10px;font-family:var(--fb);font-weight:600;font-size:13.5px;cursor:pointer;transition:all .2s;flex:1 1 auto;min-width:80px}
+.quiz-opt:hover{background:var(--surf);color:var(--txt);border-color:var(--brd2)}
+.quiz-opt.selected{background:rgba(255,122,24,.14);border-color:rgba(255,122,24,.45);color:var(--acc2)}
+.quiz-result{margin-top:28px;padding:22px 24px;background:rgba(32,227,178,.06);border:1px solid rgba(32,227,178,.22);border-radius:14px;display:none}
+.quiz-result.open{display:block;animation:quizPop .35s cubic-bezier(.2,.7,.2,1)}
+@keyframes quizPop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.quiz-result-head{font-size:13px;font-weight:700;color:var(--teal);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+.quiz-result-name{font-family:var(--fd);font-size:24px;font-weight:800;margin-bottom:6px}
+.quiz-result-reason{color:var(--dim);font-size:14px;line-height:1.55;margin-bottom:18px}
+.quiz-result .btn{padding:10px 20px;font-size:14px}
 
 /* ── PLAN EDITOR (admin) ── */
 .plan-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:18px}
@@ -521,6 +541,16 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 .tiny-btn.danger:hover{color:#ff6b6b;border-color:#ff6b6b}
 .tiny-btn.warn:hover{color:var(--acc2);border-color:var(--acc)}
 .lic-mono{font-family:'Courier New',monospace;font-size:12.5px;color:var(--acc2);letter-spacing:.5px}
+/* ── Bulk operations bar (Licenses tab) ── */
+.bulk-bar{display:none;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,122,24,.08);border:1px solid rgba(255,122,24,.28);border-radius:11px;margin-bottom:14px;flex-wrap:wrap}
+.bulk-bar.active{display:flex}
+.bulk-bar .bulk-count{font-weight:700;color:var(--acc2);font-size:13.5px}
+.bulk-bar .bulk-spacer{flex:1}
+.bulk-bar button{padding:7px 12px;font-size:12.5px;border-radius:7px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt);font-family:var(--fb);font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:5px}
+.bulk-bar button:hover{border-color:var(--acc);color:var(--acc2)}
+.bulk-bar button.danger:hover{border-color:#ff6b6b;color:#ff6b6b}
+.bulk-bar button.warn:hover{border-color:var(--acc2);color:var(--acc2)}
+.lic-cbx{width:16px;height:16px;cursor:pointer;accent-color:var(--acc)}
 .fb-status{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:18px}
 .fb-status.connected{background:rgba(32,227,178,.12);color:var(--teal);border:1px solid rgba(32,227,178,.28)}
 .fb-status.offline{background:rgba(255,179,71,.10);color:var(--acc2);border:1px solid rgba(255,179,71,.28)}
@@ -827,6 +857,9 @@ html,body{max-width:100%;overflow-x:hidden}
       <button class="anav" onclick="switchAdminTab('licenses')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Licenses
       </button>
+      <button class="anav" onclick="switchAdminTab('customers')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers
+      </button>
       <button class="anav" onclick="switchAdminTab('reviews')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Reviews
       </button>
@@ -838,6 +871,9 @@ html,body{max-width:100%;overflow-x:hidden}
       </button>
       <button class="anav" onclick="switchAdminTab('firebase')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17l4.5-13L14 12l2-3 4 8z"/><path d="M5 17l15-5"/></svg>Firebase
+      </button>
+      <button class="anav" onclick="switchAdminTab('audit')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Audit Log
       </button>
       <button class="anav" onclick="switchAdminTab('account')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7"/></svg>Account
@@ -860,6 +896,20 @@ html,body{max-width:100%;overflow-x:hidden}
       <div class="atab-sub">Every download click and account created on the site.</div>
       <div class="atab-stat-row" id="purchaseStats"></div>
       <div id="purchaseTable"></div>
+    </div>
+
+    <!-- CUSTOMERS TAB -->
+    <div class="admin-tab" id="tab-customers">
+      <div class="atab-title">Customers</div>
+      <div class="atab-sub">Every signed-up customer — sortable, searchable, exportable.</div>
+      <div class="atab-stat-row" id="customerStats"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
+        <input id="customerSearch" type="text" placeholder="Search by name, email, garage, plan…" style="flex:1;min-width:240px;background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:11px 14px;color:var(--txt);font-family:var(--fb);font-size:14px;outline:none" oninput="renderCustomersTab()" />
+        <button class="add-rev-btn" style="background:rgba(120,140,255,.10);border-color:rgba(120,140,255,.3);color:#9db0ff" onclick="exportCustomersCsv()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export CSV
+        </button>
+      </div>
+      <div id="customerTable"></div>
     </div>
 
     <!-- LICENSES TAB -->
@@ -1065,6 +1115,22 @@ html,body{max-width:100%;overflow-x:hidden}
         <div class="success-msg" id="demoMsg"></div>
       </div>
 
+      <div class="settings-section" style="max-width:680px">
+        <h4>Discount Codes</h4>
+        <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">Create codes like <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12px">BETA50</code> for marketing or beta-tester perks. Customers enter the code on checkout to get the discount.</p>
+        <div class="form-row">
+          <div class="form-group"><label>Code</label><input id="dcCode" type="text" placeholder="BETA50" style="text-transform:uppercase;font-family:'Courier New',monospace" /></div>
+          <div class="form-group"><label>% off</label><input id="dcPercent" type="number" min="1" max="100" placeholder="50" /></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Valid until</label><input id="dcUntil" type="date" /></div>
+          <div class="form-group"><label>Max uses (blank = unlimited)</label><input id="dcMax" type="number" min="1" placeholder="100" /></div>
+        </div>
+        <button class="form-btn form-btn-save" onclick="createDiscountCode()">Add Code</button>
+        <div class="success-msg" id="dcMsg"></div>
+        <div id="dcList" style="margin-top:18px"></div>
+      </div>
+
       <div class="settings-section" style="max-width:560px">
         <h4>Email Notifications</h4>
         <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">
@@ -1140,6 +1206,20 @@ html,body{max-width:100%;overflow-x:hidden}
       </div>
     </div>
 
+    <!-- AUDIT LOG TAB -->
+    <div class="admin-tab" id="tab-audit">
+      <div class="atab-title">Audit Log</div>
+      <div class="atab-sub">Every admin action — who, what, when. Helps you investigate if anything ever looks wrong.</div>
+      <div class="atab-stat-row" id="auditStats"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
+        <input id="auditSearch" type="text" placeholder="Filter by admin name, action, or target…" style="flex:1;min-width:240px;background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:11px 14px;color:var(--txt);font-family:var(--fb);font-size:14px;outline:none" oninput="renderAuditTab()" />
+        <button class="add-rev-btn" style="background:rgba(120,140,255,.10);border-color:rgba(120,140,255,.3);color:#9db0ff" onclick="exportAuditCsv()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export CSV
+        </button>
+      </div>
+      <div id="auditTable"></div>
+    </div>
+
     <!-- ACCOUNT TAB -->
     <div class="admin-tab" id="tab-account">
       <div class="atab-title">Account Settings</div>
@@ -1152,6 +1232,18 @@ html,body{max-width:100%;overflow-x:hidden}
         <button class="form-btn form-btn-save" onclick="saveUsername()">Update Username</button>
         <div class="success-msg" id="userMsg"></div>
       </div>
+      <div class="settings-section" style="max-width:680px">
+        <h4>Admin Accounts</h4>
+        <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">Add additional admin accounts so others on your team can manage the site. All admins have equal permissions. The <b>primary admin</b> is the one configured in this tab — additional admins are stored in the <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--acc2);font-size:12px">admins</code> Firestore collection.</p>
+        <div class="form-row">
+          <div class="form-group"><label>New admin username</label><input id="newAdminUser" type="text" placeholder="raj" autocomplete="off" /></div>
+          <div class="form-group"><label>Password</label><input id="newAdminPass" type="password" placeholder="At least 6 characters" autocomplete="new-password" /></div>
+        </div>
+        <button class="form-btn form-btn-save" onclick="addAdminAccount()">Add Admin</button>
+        <div class="success-msg" id="adminAddMsg"></div>
+        <div id="adminList" style="margin-top:18px"></div>
+      </div>
+
       <div class="settings-section">
         <h4>Change Password</h4>
         <div class="form-group"><label>Current Password</label><input id="oldPass" type="password" placeholder="••••••••" /></div>
@@ -1222,6 +1314,15 @@ html,body{max-width:100%;overflow-x:hidden}
         <div class="bsum-item"><span class="lbl">Cloud sync (Firebase)</span><span class="val">Included</span></div>
         <div class="bsum-item"><span class="lbl">Subtotal</span><span class="val" id="bsumSubtotal">₹4,999</span></div>
         <div class="bsum-item"><span class="lbl">GST (18%)</span><span class="val" id="bsumGst">₹900</span></div>
+        <!-- Discount code row -->
+        <div style="padding:14px 0;border-bottom:1px dashed var(--brd)">
+          <div style="display:flex;gap:8px;margin-bottom:4px">
+            <input id="bf-discount" type="text" placeholder="Discount code" style="flex:1;background:var(--bg);border:1px solid var(--brd2);border-radius:8px;padding:8px 12px;color:var(--txt);font-family:'Courier New',monospace;font-size:13px;text-transform:uppercase;outline:none" />
+            <button type="button" onclick="applyDiscountCode()" style="background:var(--surf);border:1px solid var(--brd2);color:var(--dim);padding:8px 14px;border-radius:8px;font-family:var(--fb);font-weight:600;font-size:12.5px;cursor:pointer">Apply</button>
+          </div>
+          <div id="bf-discount-msg" style="font-size:12px;min-height:14px"></div>
+        </div>
+        <div class="bsum-item" id="bsumDiscountRow" style="display:none"><span class="lbl" id="bsumDiscountLabel">Discount</span><span class="val" id="bsumDiscount" style="color:var(--teal)">-₹0</span></div>
         <div class="bsum-total"><span>Total</span><span class="val" id="bsumTotal">₹5,899</span></div>
         <button class="btn btn-primary" onclick="completePurchase()" style="width:100%;justify-content:center;margin-top:24px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
@@ -1557,9 +1658,9 @@ html,body{max-width:100%;overflow-x:hidden}
         <p>Track parts in real time with automatic stock deduction as they're billed — never oversell a part again.</p>
       </div>
       <div class="feat reveal d1">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg></div>
-        <h3>CSV import</h3>
-        <p>Bring your existing customers, inventory and bookings across in minutes with simple CSV import — same day switch.</p>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h3>Service reminders</h3>
+        <p>Auto-schedule next-service reminders based on the last visit date or kilometres driven — bring customers back without lifting a finger.</p>
       </div>
       <div class="feat reveal d2">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div>
@@ -1745,6 +1846,43 @@ html,body{max-width:100%;overflow-x:hidden}
           <table class="compare-table" id="compareTable"></table>
         </div>
       </div>
+
+      <!-- ─── Plan recommendation quiz ─── -->
+      <div class="quiz-wrap reveal" id="quizWrap">
+        <div class="quiz-head">
+          <div class="eyebrow">Not sure which plan?</div>
+          <h3>Answer 3 quick questions</h3>
+          <p>We'll suggest the smallest plan that fits your workshop. No email required.</p>
+        </div>
+        <div class="quiz-body">
+          <div class="quiz-q">
+            <div class="quiz-q-label">1. How many bays / service points do you have?</div>
+            <div class="quiz-options" data-qid="bays">
+              <button class="quiz-opt" data-val="1">Just 1</button>
+              <button class="quiz-opt" data-val="3">2–3</button>
+              <button class="quiz-opt" data-val="6">4–6</button>
+              <button class="quiz-opt" data-val="999">7+</button>
+            </div>
+          </div>
+          <div class="quiz-q">
+            <div class="quiz-q-label">2. How many mechanics / workers will be using it?</div>
+            <div class="quiz-options" data-qid="workers">
+              <button class="quiz-opt" data-val="2">1–2</button>
+              <button class="quiz-opt" data-val="5">3–5</button>
+              <button class="quiz-opt" data-val="8">6–8</button>
+              <button class="quiz-opt" data-val="999">9+</button>
+            </div>
+          </div>
+          <div class="quiz-q">
+            <div class="quiz-q-label">3. Do you run multiple branches?</div>
+            <div class="quiz-options" data-qid="branches">
+              <button class="quiz-opt" data-val="single">Just one workshop</button>
+              <button class="quiz-opt" data-val="multi">2 or more branches</button>
+            </div>
+          </div>
+        </div>
+        <div class="quiz-result" id="quizResult"></div>
+      </div>
     </div>
     <div class="reveal" id="demoCta" style="display:none;margin:48px auto 0;max-width:680px;text-align:center;padding:32px 28px;border-radius:18px;background:linear-gradient(135deg,rgba(32,227,178,.08),rgba(120,140,255,.06));border:1px dashed rgba(32,227,178,.32)">
       <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--teal);background:rgba(32,227,178,.16);border:1px solid rgba(32,227,178,.32);padding:5px 12px;border-radius:100px;margin-bottom:14px;letter-spacing:.06em;text-transform:uppercase">
@@ -1779,7 +1917,7 @@ html,body{max-width:100%;overflow-x:hidden}
       <div class="faq-item reveal"><button class="faq-q">Does Garage Pro work without the internet?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Yes. Garage Pro is offline-first — data is stored locally on the machine, outside any cloud sync folder. When you're back online, everything syncs automatically. The workshop never stops because the broadband did.</p></div></div>
       <div class="faq-item reveal"><button class="faq-q">Are the invoices GST compliant?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Absolutely. Every PDF invoice includes GST, HSN/SAC codes, a clear discount breakdown and the amount in words — exactly what your accountant and the tax department expect.</p></div></div>
       <div class="faq-item reveal"><button class="faq-q">Which devices does it run on?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>The full desktop app runs on Windows (10 and 11). Mechanics can update jobs from any tablet or phone browser on your workshop network — no install needed for them. Everything stays in sync in real time via Firebase.</p></div></div>
-      <div class="faq-item reveal"><button class="faq-q">Can I bring my existing data across?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Yes. Import your customers, inventory and bookings from a CSV file in minutes. If you're moving off a spreadsheet or another system, you'll be up and running the same day.</p></div></div>
+      <div class="faq-item reveal"><button class="faq-q">Can I bring my existing data across?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Yes. We'll help you migrate your customers, vehicles and inventory by hand during onboarding — usually done the same day. Just drop us a line after you sign up and we'll guide you through it.</p></div></div>
       <div class="faq-item reveal"><button class="faq-q">How does multi-mechanic tracking work?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Each job card can have multiple mechanics assigned, with parts and labour logged against the work. You always know who did what — accountability is clear and costing is accurate.</p></div></div>
       <div class="faq-item reveal"><button class="faq-q">What does it cost?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Final pricing is being finalised — see the pricing section above. You can start free with no card required and get the full feature set from day one.</p></div></div>
     </div>
@@ -1921,7 +2059,7 @@ const DEFAULT_PLANS = [
       'Unlimited bays, workers and bookings',
       'Branch dashboards & roll-up reporting',
       'Priority email/phone support',
-      'CSV import & API access'
+      'API access for integrations'
     ],
     featured: false, active: true
   }
@@ -2144,12 +2282,26 @@ async function doLogin(e) {
   err.textContent = '';
 
   // ── Admin login (localStorage-based, separate from Firebase Auth) ──
+  // Primary admin (from siteConfig/admin)
   if (u === S.creds.username && p === S.creds.password) {
     currentUser = {name: S.creds.username, isAdmin: true};
     sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
     closeAuth();
     renderNav();
+    auditLog('admin_signin', S.creds.username, 'primary admin');
     showToast('Signed in as admin', 'good');
+    if (pendingAction) handleDownload(pendingAction, currentUser);
+    return;
+  }
+  // Additional admins (from /admins collection)
+  const extra = extraAdmins.find(a => a.username === u && a.password === p);
+  if (extra) {
+    currentUser = {name: extra.username, isAdmin: true, isExtraAdmin: true};
+    sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
+    closeAuth();
+    renderNav();
+    auditLog('admin_signin', extra.username, 'additional admin');
+    showToast(`Signed in as admin (${extra.username})`, 'good');
     if (pendingAction) handleDownload(pendingAction, currentUser);
     return;
   }
@@ -2422,11 +2574,14 @@ function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.anav').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-  const idx = {purchases:0,licenses:1,reviews:2,plans:3,pricing:4,firebase:5,account:6}[tab];
+  // sidebar order: purchases, licenses, customers, reviews, plans, pricing, firebase, audit, account
+  const idx = {purchases:0,licenses:1,customers:2,reviews:3,plans:4,pricing:5,firebase:6,audit:7,account:8}[tab];
   document.querySelectorAll('.anav')[idx].classList.add('active');
-  if (tab === 'licenses') renderLicensesTab();
-  if (tab === 'firebase') renderFirebaseTab();
-  if (tab === 'plans') renderAdminPlansGrid();
+  if (tab === 'licenses')  renderLicensesTab();
+  if (tab === 'customers') renderCustomersTab();
+  if (tab === 'firebase')  renderFirebaseTab();
+  if (tab === 'plans')     renderAdminPlansGrid();
+  if (tab === 'audit')     renderAuditTab();
 }
 
 // ── Purchases ──
@@ -2459,6 +2614,146 @@ function clearAllPurchases() {
   save(); renderPurchasesTab();
   ids.forEach(id => deletePurchaseFromFirebase(id));
   showToast('All events cleared', 'good');
+}
+
+// ══════════════════════════════════════════
+//  CUSTOMERS TAB (admin)
+// ══════════════════════════════════════════
+// State for sortable columns
+let customerSortKey = 'createdAt';
+let customerSortDir = 'desc';
+
+function fmtCustomerDate(v) {
+  if (!v) return '—';
+  if (v && v.toDate) v = v.toDate();
+  const d = (v instanceof Date) ? v : new Date(v);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
+}
+
+function getCustomerList() {
+  // Build the unified list from the Firestore-backed `manualCustomers` (live
+  // listener on /users) and decorate each with their license + expiry data.
+  return manualCustomers.map(c => {
+    const lic = S.licenses.find(l => l.uid === c.uid || l.email === c.email);
+    return {
+      uid:        c.uid,
+      name:       c.name,
+      email:      c.email,
+      garageName: c.garageName || '',
+      plan:       lic ? (lic.planName || lic.plan || '—') : '—',
+      status:     lic ? lic.status : 'none',
+      expiry:     lic ? lic.expiry : null,
+      createdAt:  c._createdAt || null,
+      lastLogin:  c._lastLogin || null
+    };
+  });
+}
+
+function sortCustomers(list) {
+  const dir = customerSortDir === 'asc' ? 1 : -1;
+  return list.slice().sort((a, b) => {
+    let av = a[customerSortKey], bv = b[customerSortKey];
+    // Normalise timestamps
+    if (av && av.toDate) av = av.toDate().getTime();
+    else if (av instanceof Date) av = av.getTime();
+    if (bv && bv.toDate) bv = bv.toDate().getTime();
+    else if (bv instanceof Date) bv = bv.getTime();
+    // Push nulls / dashes to the end regardless of direction
+    if (av == null || av === '—') return 1;
+    if (bv == null || bv === '—') return -1;
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    return av < bv ? -dir : (av > bv ? dir : 0);
+  });
+}
+
+function setCustomerSort(key) {
+  if (customerSortKey === key) {
+    customerSortDir = customerSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    customerSortKey = key;
+    customerSortDir = 'asc';
+  }
+  renderCustomersTab();
+}
+
+function renderCustomersTab() {
+  const q = (document.getElementById('customerSearch')?.value || '').toLowerCase().trim();
+  let list = getCustomerList();
+  if (q) {
+    list = list.filter(c =>
+      (c.name       || '').toLowerCase().includes(q) ||
+      (c.email      || '').toLowerCase().includes(q) ||
+      (c.garageName || '').toLowerCase().includes(q) ||
+      (c.plan       || '').toLowerCase().includes(q)
+    );
+  }
+  list = sortCustomers(list);
+
+  // Stat row
+  const active   = list.filter(c => c.status === 'active').length;
+  const trial    = S.licenses.filter(l => l.isTrial && l.status === 'active').length;
+  const none     = list.filter(c => c.status === 'none').length;
+  document.getElementById('customerStats').innerHTML = `
+    <div class="atab-stat"><div class="n">${list.length}</div><div class="l">Total customers</div></div>
+    <div class="atab-stat"><div class="n">${active}</div><div class="l">Active subscriptions</div></div>
+    <div class="atab-stat"><div class="n">${trial}</div><div class="l">On free trial</div></div>
+    <div class="atab-stat"><div class="n">${none}</div><div class="l">No license yet</div></div>`;
+
+  if (!list.length) {
+    document.getElementById('customerTable').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>${manualCustomers.length ? 'No customers match that search.' : 'No customers signed up yet.'}</p></div>`;
+    return;
+  }
+  const arrow = key => customerSortKey !== key ? '<span style="opacity:.3">↕</span>' : (customerSortDir === 'asc' ? '↑' : '↓');
+  const statusPill = (s) => {
+    if (s === 'active')  return '<span class="lic-status-tag active">● Active</span>';
+    if (s === 'revoked') return '<span class="lic-status-tag revoked">● Revoked</span>';
+    return '<span style="color:var(--faint);font-size:12px">No license</span>';
+  };
+  document.getElementById('customerTable').innerHTML = `<table class="ptable">
+    <thead><tr>
+      <th onclick="setCustomerSort('name')"       style="cursor:pointer">Name ${arrow('name')}</th>
+      <th onclick="setCustomerSort('email')"      style="cursor:pointer">Email ${arrow('email')}</th>
+      <th onclick="setCustomerSort('garageName')" style="cursor:pointer">Garage ${arrow('garageName')}</th>
+      <th onclick="setCustomerSort('plan')"       style="cursor:pointer">Plan ${arrow('plan')}</th>
+      <th onclick="setCustomerSort('status')"     style="cursor:pointer">Status ${arrow('status')}</th>
+      <th onclick="setCustomerSort('expiry')"     style="cursor:pointer">Expiry ${arrow('expiry')}</th>
+      <th onclick="setCustomerSort('createdAt')"  style="cursor:pointer">Joined ${arrow('createdAt')}</th>
+    </tr></thead>
+    <tbody>${list.map(c => `<tr>
+      <td>${c.name}</td>
+      <td><a href="mailto:${c.email}" style="color:var(--acc2)">${c.email}</a></td>
+      <td>${c.garageName || '<span style="color:var(--faint)">—</span>'}</td>
+      <td>${c.plan}</td>
+      <td>${statusPill(c.status)}</td>
+      <td style="color:var(--faint)">${fmtCustomerDate(c.expiry)}</td>
+      <td style="color:var(--faint)">${fmtCustomerDate(c.createdAt)}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function exportCustomersCsv() {
+  const list = sortCustomers(getCustomerList());
+  if (!list.length) { showToast('No customers to export', 'bad'); return; }
+  const headers = ['Name','Email','Garage','Plan','Status','Expiry','Joined'];
+  const rows = list.map(c => [
+    c.name, c.email, c.garageName, c.plan, c.status,
+    fmtCustomerDate(c.expiry), fmtCustomerDate(c.createdAt)
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(cell => {
+    const v = String(cell == null ? '' : cell).replace(/"/g, '""');
+    return /[",\n]/.test(v) ? `"${v}"` : v;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `garage-pro-customers-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  showToast(`Exported ${list.length} customer${list.length===1?'':'s'} to CSV`, 'good');
+  auditLog('export_customers', `${list.length} rows`);
 }
 
 // ── Reviews ──
@@ -2581,6 +2876,75 @@ function savePrice() {
   setTimeout(()=>{ document.getElementById('priceMsg').textContent=''; }, 2500);
 }
 // ══════════════════════════════════════════
+//  PLAN RECOMMENDATION QUIZ
+// ══════════════════════════════════════════
+// Pure algorithm — no AI / no API. The user answers 3 questions and we pick
+// the smallest active plan whose limits cover their numbers. Multi-branch
+// forces a Chain-tier (very high limits) plan.
+const quizAnswers = { bays: null, workers: null, branches: null };
+
+function initQuiz() {
+  document.querySelectorAll('.quiz-options').forEach(group => {
+    group.querySelectorAll('.quiz-opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const qid = group.dataset.qid;
+        const val = btn.dataset.val;
+        quizAnswers[qid] = qid === 'branches' ? val : parseInt(val, 10);
+        // Visual selection
+        group.querySelectorAll('.quiz-opt').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        // Auto-compute the recommendation once all 3 are answered
+        if (quizAnswers.bays !== null && quizAnswers.workers !== null && quizAnswers.branches !== null) {
+          recommendPlan();
+        }
+      });
+    });
+  });
+}
+
+function recommendPlan() {
+  const plans = S.plans.filter(p => p.active).sort((a,b) => a.monthly - b.monthly);
+  if (!plans.length) return;
+  const { bays, workers, branches } = quizAnswers;
+  let pick;
+  // Rule: multi-branch always wants the largest plan available
+  if (branches === 'multi') {
+    pick = plans[plans.length - 1];
+  } else {
+    // Smallest plan whose limits cover their needs
+    pick = plans.find(p => p.maxBays >= bays && p.maxWorkers >= workers) || plans[plans.length - 1];
+  }
+  // Build the reasoning sentence
+  const reasons = [];
+  if (branches === 'multi') {
+    reasons.push(`<b>${pick.name}</b> is built for multi-branch operations`);
+  } else {
+    reasons.push(`<b>${pick.name}</b> fits up to <b>${pick.maxBays >= 999 ? 'unlimited' : pick.maxBays}</b> bays and <b>${pick.maxWorkers >= 999 ? 'unlimited' : pick.maxWorkers}</b> workers`);
+  }
+  reasons.push(`leaving headroom as you grow`);
+
+  const cycle = S.billingCycle || 'monthly';
+  const price = planCyclePrice(pick, cycle);
+  const cycleLabel = cycle === 'yearly' ? '/yr' : (cycle === 'weekly' ? '/wk' : '/mo');
+
+  const el = document.getElementById('quizResult');
+  el.innerHTML = `
+    <div class="quiz-result-head">Our recommendation</div>
+    <div class="quiz-result-name">${pick.name} <span style="color:var(--acc2);font-size:18px;font-weight:700">· ${formatPrice(price)}${cycleLabel}</span></div>
+    <div class="quiz-result-reason">${reasons.join(', ')}.</div>
+    <button class="btn btn-primary" onclick="selectPlan('${pick.id}')">Choose ${pick.name}</button>
+    <button class="btn btn-ghost" style="margin-left:8px" onclick="resetQuiz()">Pick different answers</button>
+  `;
+  el.classList.add('open');
+}
+
+function resetQuiz() {
+  quizAnswers.bays = null; quizAnswers.workers = null; quizAnswers.branches = null;
+  document.querySelectorAll('.quiz-opt.selected').forEach(b => b.classList.remove('selected'));
+  document.getElementById('quizResult').classList.remove('open');
+}
+
+// ══════════════════════════════════════════
 //  PLAN COMPARISON TABLE
 // ══════════════════════════════════════════
 // Feature matrix — what each plan ID gets. Per-row format:
@@ -2607,7 +2971,7 @@ function comparisonRows() {
     { label: 'Real-time Firebase cloud sync', render: () => yes },
     { label: 'Email notifications (job ready, invoice)', render: p => p.maxBays >= 1 ? yes : no },
     { label: 'Daily morning briefing email',  render: p => p.maxBays >= 6 ? yes : no },
-    { label: 'CSV import (customers, parts, bookings)', render: p => p.maxBays > 1 ? yes : no },
+    { label: 'Automatic next-service reminders', render: p => p.maxBays >= 1 ? yes : no },
     { section: 'Multi-Branch & Power Features' },
     { label: 'Branch dashboards & roll-up reporting', render: p => p.maxBays >= 999 ? yes : no },
     { label: 'API access',                render: p => p.maxBays >= 999 ? yes : no },
@@ -3012,6 +3376,7 @@ function triggerDownload() {
 function renderAdminAccount() {
   document.getElementById('newUser').value = S.creds.username;
   renderAdminCredsBanner();
+  renderAdminList();
 }
 function renderAdminCredsBanner() {
   const b = document.getElementById('credsBanner');
@@ -3254,8 +3619,10 @@ function renderPlansGrid() {
     } else if (cycle === 'yearly' && p.monthly) {
       const yearlyVsMonthly = p.monthly * 12;
       if (yearlyVsMonthly > p.yearly) {
-        const savedPct = Math.round(100 * (yearlyVsMonthly - p.yearly) / yearlyVsMonthly);
-        strikeHtml = `<div class="plan-price-strike">${formatPrice(yearlyVsMonthly)}/yr equivalent · save ${savedPct}%</div>`;
+        const saved   = yearlyVsMonthly - p.yearly;
+        const monthsFree = Math.round(saved / p.monthly);
+        const savedPct = Math.round(100 * saved / yearlyVsMonthly);
+        strikeHtml = `<div class="plan-price-strike" style="color:var(--teal);font-weight:700"><span style="text-decoration:none">💰 Save ${formatPrice(saved)}/yr — ${monthsFree} month${monthsFree === 1 ? '' : 's'} free</span></div>`;
       }
     }
     const limits = `<div class="plan-limits">
@@ -3678,6 +4045,130 @@ function issueLicense(email, name, planIdOrName, platform, billingCycle) {
   syncLicenseToFirebase(lic, acc);
   return lic;
 }
+// Bulk-selection state for the Licenses table
+let selectedLicenseKeys = new Set();
+
+function toggleLicenseSelection(key, checked) {
+  if (checked) selectedLicenseKeys.add(key);
+  else         selectedLicenseKeys.delete(key);
+  updateBulkBar();
+}
+function toggleAllLicenseSelection(checked) {
+  selectedLicenseKeys.clear();
+  if (checked) S.licenses.forEach(l => selectedLicenseKeys.add(l.key));
+  // Reflect in checkboxes without a full re-render
+  document.querySelectorAll('.lic-cbx').forEach(cb => { cb.checked = checked; });
+  updateBulkBar();
+}
+function updateBulkBar() {
+  const bar = document.getElementById('bulkBar');
+  if (!bar) return;
+  const n = selectedLicenseKeys.size;
+  if (n === 0) { bar.classList.remove('active'); return; }
+  bar.classList.add('active');
+  bar.querySelector('.bulk-count').textContent = `${n} license${n === 1 ? '' : 's'} selected`;
+}
+async function bulkRevokeLicenses() {
+  if (!fbDb || !selectedLicenseKeys.size) return;
+  if (!confirm(`Revoke ${selectedLicenseKeys.size} license(s)? Each user loses access immediately.`)) return;
+  const keys = [...selectedLicenseKeys];
+  const now = firebase.firestore.Timestamp.now();
+  let ok = 0, fail = 0;
+  await Promise.all(keys.map(async k => {
+    const lic = S.licenses.find(l => l.key === k);
+    try {
+      await fbDb.collection('licenses').doc(k).set({ status:'revoked', revokedAt: now }, { merge:true });
+      if (lic && lic.uid) {
+        await fbDb.collection('users').doc(lic.uid).set({
+          subscription: { status:'revoked', revokedAt: now }
+        }, { merge:true });
+      }
+      ok++;
+    } catch(e) { fail++; }
+  }));
+  auditLog('bulk_revoke', `${ok} keys`, keys.slice(0,5).join(', ') + (keys.length > 5 ? ` +${keys.length-5} more` : ''));
+  selectedLicenseKeys.clear();
+  updateBulkBar();
+  showToast(`Revoked ${ok}${fail ? ` · ${fail} failed` : ''}`, fail ? 'bad' : 'good');
+}
+async function bulkExtendLicenses() {
+  if (!fbDb || !selectedLicenseKeys.size) return;
+  const dStr = prompt('Extend each selected license by how many days?', '30');
+  const days = parseInt(dStr, 10);
+  if (!days || days < 1) return;
+  const keys = [...selectedLicenseKeys];
+  let ok = 0, fail = 0;
+  await Promise.all(keys.map(async k => {
+    const lic = S.licenses.find(l => l.key === k);
+    if (!lic) return;
+    try {
+      const currentExpiry = lic.expiry ? new Date(lic.expiry) : new Date();
+      // If already expired, extend from "now" instead of the old expiry
+      const base = currentExpiry > new Date() ? currentExpiry : new Date();
+      const newExpiry = new Date(base.getTime() + days * 86400000);
+      const expiryTs  = firebase.firestore.Timestamp.fromDate(newExpiry);
+      await fbDb.collection('licenses').doc(k).set({ expiry: expiryTs, status:'active' }, { merge:true });
+      if (lic.uid) {
+        await fbDb.collection('users').doc(lic.uid).set({
+          subscription: { expiry: expiryTs, status:'active' }
+        }, { merge:true });
+      }
+      ok++;
+    } catch(e) { fail++; }
+  }));
+  auditLog('bulk_extend', `${ok} keys · +${days}d`, '');
+  selectedLicenseKeys.clear();
+  updateBulkBar();
+  showToast(`Extended ${ok} by ${days} days${fail ? ` · ${fail} failed` : ''}`, fail ? 'bad' : 'good');
+}
+async function bulkDeleteLicenses() {
+  if (!fbDb || !selectedLicenseKeys.size) return;
+  if (!confirm(`PERMANENTLY delete ${selectedLicenseKeys.size} license(s)? This cannot be undone.`)) return;
+  const keys = [...selectedLicenseKeys];
+  let ok = 0, fail = 0;
+  await Promise.all(keys.map(async k => {
+    const lic = S.licenses.find(l => l.key === k);
+    try {
+      await fbDb.collection('licenses').doc(k).delete();
+      if (lic && lic.uid) {
+        await fbDb.collection('users').doc(lic.uid).set({
+          subscription: firebase.firestore.FieldValue.delete()
+        }, { merge:true });
+      }
+      ok++;
+    } catch(e) { fail++; }
+  }));
+  auditLog('bulk_delete', `${ok} keys`, keys.slice(0,5).join(', '));
+  selectedLicenseKeys.clear();
+  updateBulkBar();
+  showToast(`Deleted ${ok}${fail ? ` · ${fail} failed` : ''}`, fail ? 'bad' : 'good');
+}
+function bulkExportSelectedCsv() {
+  const keys = [...selectedLicenseKeys];
+  const list = keys.length
+    ? S.licenses.filter(l => keys.includes(l.key))
+    : S.licenses;
+  if (!list.length) { showToast('Nothing selected to export', 'bad'); return; }
+  const headers = ['License Key','User','Email','Plan','Cycle','Status','Issued','Expiry'];
+  const rows = list.map(l => [
+    l.key, l.name || '', l.email || '', l.planName || l.plan || '',
+    l.billingCycle || '', l.status || '',
+    fmtCustomerDate(l.createdAt), fmtCustomerDate(l.expiry)
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(c => {
+    const v = String(c == null ? '' : c).replace(/"/g, '""');
+    return /[",\n]/.test(v) ? `"${v}"` : v;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `garage-pro-licenses-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  showToast(`Exported ${list.length} license${list.length===1?'':'s'} to CSV`, 'good');
+}
+
 function renderLicensesTab() {
   const active = S.licenses.filter(l=>l.status==='active').length;
   const revoked = S.licenses.filter(l=>l.status==='revoked').length;
@@ -3689,7 +4180,20 @@ function renderLicensesTab() {
     document.getElementById('licenseTable').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg><p>No licenses generated yet. They will appear here once a user completes a purchase.</p></div>`;
     return;
   }
-  document.getElementById('licenseTable').innerHTML = `<table class="ptable"><thead><tr><th>License Key</th><th>User</th><th>Plan</th><th>Status</th><th>Issued</th><th style="text-align:right">Actions</th></tr></thead><tbody>${S.licenses.map(l=>{
+  // Drop any checked keys that no longer exist (e.g. just deleted via Firestore)
+  selectedLicenseKeys = new Set([...selectedLicenseKeys].filter(k => S.licenses.some(l => l.key === k)));
+  const allChecked = S.licenses.length > 0 && S.licenses.every(l => selectedLicenseKeys.has(l.key));
+  document.getElementById('licenseTable').innerHTML = `
+  <div class="bulk-bar${selectedLicenseKeys.size ? ' active' : ''}" id="bulkBar">
+    <span class="bulk-count">${selectedLicenseKeys.size} license${selectedLicenseKeys.size === 1 ? '' : 's'} selected</span>
+    <span class="bulk-spacer"></span>
+    <button class="warn" onclick="bulkRevokeLicenses()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>Revoke selected</button>
+    <button onclick="bulkExtendLicenses()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="14" height="14"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Extend by N days</button>
+    <button onclick="bulkExportSelectedCsv()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export selected</button>
+    <button class="danger" onclick="bulkDeleteLicenses()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="14" height="14"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Delete selected</button>
+    <button onclick="toggleAllLicenseSelection(false)" style="background:transparent;border-color:transparent;color:var(--faint)">Clear</button>
+  </div>
+  <table class="ptable"><thead><tr><th style="width:32px"><input type="checkbox" class="lic-cbx" ${allChecked ? 'checked' : ''} onclick="toggleAllLicenseSelection(this.checked)"></th><th>License Key</th><th>User</th><th>Plan</th><th>Status</th><th>Issued</th><th style="text-align:right">Actions</th></tr></thead><tbody>${S.licenses.map(l=>{
     const statusTag = l.status === 'active'
       ? '<span class="lic-status-tag active">● Active</span>'
       : '<span class="lic-status-tag revoked">● Revoked</span>';
@@ -3702,7 +4206,8 @@ function renderLicensesTab() {
     const sourceBadge = l._remote
       ? '<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,122,24,.14);color:var(--acc2);border:1px solid rgba(255,122,24,.28);margin-left:8px;vertical-align:middle">FIREBASE</span>'
       : '<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(120,140,255,.10);color:#9db0ff;border:1px solid rgba(120,140,255,.22);margin-left:8px;vertical-align:middle">LOCAL</span>';
-    return `<tr><td><span class="lic-mono">${l.key}</span>${sourceBadge}</td><td>${l.name}<br><span style="color:var(--faint);font-size:12px">${l.email}</span></td><td>${l.plan}</td><td>${statusTag}</td><td style="color:var(--faint)">${l.createdAtDisplay}</td><td><div class="row-actions">${actionBtns}</div></td></tr>`;
+    const isChecked = selectedLicenseKeys.has(l.key);
+    return `<tr><td><input type="checkbox" class="lic-cbx" ${isChecked ? 'checked' : ''} onclick="toggleLicenseSelection('${l.key.replace(/'/g, "\\'")}', this.checked)"></td><td><span class="lic-mono">${l.key}</span>${sourceBadge}</td><td>${l.name}<br><span style="color:var(--faint);font-size:12px">${l.email}</span></td><td>${l.plan}</td><td>${statusTag}</td><td style="color:var(--faint)">${l.createdAtDisplay}</td><td><div class="row-actions">${actionBtns}</div></td></tr>`;
   }).join('')}</tbody></table>`;
 }
 // All admin license actions write to Firestore directly. We don't touch
@@ -3729,6 +4234,7 @@ async function revokeLicense(id) {
         }
       }, { merge: true });
     }
+    auditLog('revoke_license', lic.key, `${lic.name || lic.email}${lic.planName ? ' · ' + lic.planName : ''}`);
     showToast('License revoked', 'good');
   } catch (e) {
     console.error('Revoke failed:', e);
@@ -3749,6 +4255,7 @@ async function reactivateLicense(id) {
         subscription: { status: 'active', revokedAt: null }
       }, { merge: true });
     }
+    auditLog('reactivate_license', lic.key, lic.name || lic.email);
     showToast('License reactivated', 'good');
   } catch (e) {
     console.error('Reactivate failed:', e);
@@ -3768,6 +4275,7 @@ async function deleteLicense(id) {
         subscription: firebase.firestore.FieldValue.delete()
       }, { merge: true });
     }
+    auditLog('delete_license', lic.key, lic.name || lic.email);
     showToast('License deleted', 'good');
   } catch (e) {
     console.error('Delete failed:', e);
@@ -3787,14 +4295,21 @@ function subscribeAllUsersFromFirebase() {
       const d = doc.data() || {};
       if (!d.email) return;
       manualCustomers.push({
-        uid: doc.id, name: d.name || '(no name)',
-        email: d.email, garageName: d.garageName || ''
+        uid:        doc.id,
+        name:       d.name || '(no name)',
+        email:      d.email,
+        garageName: d.garageName || '',
+        _createdAt: d.createdAt || null,
+        _lastLogin: d.lastLoginAt || null
       });
     });
     manualCustomers.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-    // Refresh the datalist if the modal is open
+    // Refresh whatever's currently visible
     if (document.getElementById('manualLicModal').classList.contains('open')) {
       populateManualCustomerList();
+    }
+    if (document.getElementById('tab-customers') && document.getElementById('tab-customers').classList.contains('active')) {
+      renderCustomersTab();
     }
   }, e => console.warn('Users listener:', e));
 }
@@ -3956,9 +4471,13 @@ async function submitManualLicense() {
 let pendingPlatform = 'windows';
 function openBilling() {
   if (!currentUser) { openAuth('win'); return; }
-  // Prefill name
+  // Prefill name + clear any stale discount from a previous open
   document.getElementById('bf-name').value = currentUser.name || '';
-  // Update prices from saved price
+  const dcInput = document.getElementById('bf-discount');
+  const dcMsg   = document.getElementById('bf-discount-msg');
+  if (dcInput) dcInput.value = '';
+  if (dcMsg)   dcMsg.textContent = '';
+  appliedDiscount = null;
   updateBillingPrices();
   document.getElementById('billingModal').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -3967,27 +4486,72 @@ function closeBilling() {
   document.getElementById('billingModal').classList.remove('open');
   document.body.style.overflow = '';
 }
+// State for an applied discount (cleared each time the billing modal opens)
+let appliedDiscount = null;
+
 function updateBillingPrices() {
   // Resolve the plan the user is buying
   const planId = pendingPlanId || (S.plans.find(p => p.featured && p.active) || S.plans[0]).id;
   const plan = S.plans.find(p => p.id === planId) || S.plans[0];
   const cycle = S.billingCycle || 'monthly';
-  const baseInr = cycle === 'weekly' ? plan.weekly : plan.monthly;
+  const baseInr = cycle === 'weekly' ? plan.weekly : (cycle === 'yearly' ? plan.yearly : plan.monthly);
   // Convert to user's currency
   const ccy = CURRENCIES[S.currency] || CURRENCIES.INR;
   const base = Math.round(baseInr * ccy.rate);
   // 18% GST only for INR (Indian customers). Others see just the subtotal.
   const gst = ccy.code === 'INR' ? Math.round(base * 0.18) : 0;
-  const total = base + gst;
+  // Apply discount if there's one
+  const discPct  = appliedDiscount ? appliedDiscount.percent : 0;
+  const discAmt  = Math.round((base + gst) * discPct / 100);
+  const total    = base + gst - discAmt;
   const fmt = n => `${ccy.sym}${n.toLocaleString('en-IN')}`;
   document.getElementById('bsumPrice').textContent = fmt(base);
   document.getElementById('bsumSubtotal').textContent = fmt(base);
   document.getElementById('bsumGst').textContent = gst ? fmt(gst) : 'Not applicable';
   document.getElementById('bsumTotal').textContent = fmt(total);
-  document.getElementById('bplanDesc').textContent = `${plan.name} · ${cycle === 'weekly' ? 'Billed weekly' : 'Billed monthly'} · ${plan.maxBays >= 999 ? 'unlimited' : plan.maxBays} bays · ${plan.maxWorkers >= 999 ? 'unlimited' : plan.maxWorkers} workers`;
+  // Show / hide the discount row
+  const row = document.getElementById('bsumDiscountRow');
+  if (row) {
+    if (appliedDiscount) {
+      row.style.display = 'flex';
+      document.getElementById('bsumDiscountLabel').textContent = `Discount (${appliedDiscount.code})`;
+      document.getElementById('bsumDiscount').textContent = '-' + fmt(discAmt);
+    } else {
+      row.style.display = 'none';
+    }
+  }
+  document.getElementById('bplanDesc').textContent = `${plan.name} · ${cycle === 'yearly' ? 'Billed yearly' : (cycle === 'weekly' ? 'Billed weekly' : 'Billed monthly')} · ${plan.maxBays >= 999 ? 'unlimited' : plan.maxBays} bays · ${plan.maxWorkers >= 999 ? 'unlimited' : plan.maxWorkers} workers`;
   // Update header text from "Garage Pro — Full License" to plan name
   const planLabel = document.querySelector('#billingModal .bplan b');
   if (planLabel) planLabel.textContent = `Garage Pro — ${plan.name}`;
+}
+
+function applyDiscountCode() {
+  const input = document.getElementById('bf-discount');
+  const msg   = document.getElementById('bf-discount-msg');
+  const code  = input.value.trim().toUpperCase();
+  if (!code) {
+    appliedDiscount = null;
+    msg.textContent = '';
+    updateBillingPrices();
+    return;
+  }
+  const res = validateDiscountCode(code);
+  if (!res.valid) {
+    appliedDiscount = null;
+    msg.style.color = '#ff6b6b';
+    msg.textContent = {
+      not_found: 'Code not recognised.',
+      disabled:  'This code is disabled.',
+      expired:   'This code has expired.',
+      used_up:   'This code has reached its usage limit.'
+    }[res.reason] || 'Invalid code.';
+  } else {
+    appliedDiscount = res;
+    msg.style.color = 'var(--teal)';
+    msg.textContent = `✓ ${res.percent}% off applied`;
+  }
+  updateBillingPrices();
 }
 function formatCardInput() {
   const inp = document.getElementById('bf-num');
@@ -4294,7 +4858,14 @@ async function completePurchase() {
     await new Promise(r => setTimeout(r, 400));
     // 3) Done — the Firestore listener has already updated currentSubscription
     processingSuccess(result.licenseKey, plan ? plan.name : planId, result.expiry);
-    logPurchase(`Subscribe · ${plan ? plan.name : planId} (${cycle})`, currentUser);
+    // Increment the discount code usage if one was applied
+    if (appliedDiscount) {
+      incrementDiscountUse(appliedDiscount.code);
+      logPurchase(`Subscribe · ${plan ? plan.name : planId} (${cycle}) · code ${appliedDiscount.code}`, currentUser);
+    } else {
+      logPurchase(`Subscribe · ${plan ? plan.name : planId} (${cycle})`, currentUser);
+    }
+    appliedDiscount = null;
     save();
     // 4) Email the license key (no-op if disabled / not configured)
     sendLicenseEmail(currentUser, {
@@ -4578,6 +5149,9 @@ function initFirebase() {
     subscribeSiteSettingsFromFirebase();
     subscribePlansFromFirebase();
     subscribeAllUsersFromFirebase();
+    subscribeAuditFromFirebase();
+    subscribeDiscountsFromFirebase();
+    subscribeAdminsFromFirebase();
     return true;
   } catch(e) {
     console.error('Firebase init failed:', e);
@@ -4813,6 +5387,375 @@ function syncLicenseToFirebase(lic, acc) {
 }
 
 // ── Lightweight sync helpers for the other collections ──
+// ══════════════════════════════════════════
+//  MULTI-ADMIN ACCOUNTS
+// ══════════════════════════════════════════
+// Extra admin accounts beyond the primary one in siteConfig/admin.
+// Stored at admins/{username} with { username, password, createdAt, createdBy }.
+let extraAdmins = [];
+let fbAdminsUnsub = null;
+
+function subscribeAdminsFromFirebase() {
+  if (!fbDb) return;
+  if (fbAdminsUnsub) { try { fbAdminsUnsub(); } catch(e){} fbAdminsUnsub = null; }
+  fbAdminsUnsub = fbDb.collection('admins').onSnapshot(snap => {
+    extraAdmins = [];
+    snap.forEach(doc => {
+      const d = doc.data() || {};
+      extraAdmins.push({
+        username:  doc.id,
+        password:  d.password || '',
+        createdAt: d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toISOString() : null,
+        createdBy: d.createdBy || 'admin'
+      });
+    });
+    extraAdmins.sort((a,b) => (a.username || '').localeCompare(b.username || ''));
+    if (document.getElementById('tab-account') && document.getElementById('tab-account').classList.contains('active')) {
+      renderAdminList();
+    }
+  }, e => console.warn('Admins listener:', e));
+}
+
+function renderAdminList() {
+  const el = document.getElementById('adminList');
+  if (!el) return;
+  // Always include the primary admin at the top
+  const rows = [{
+    username:  S.creds.username,
+    primary:   true,
+    createdAt: '—',
+    createdBy: 'system'
+  }, ...extraAdmins.map(a => ({...a, primary: false}))];
+  el.innerHTML = `<table class="ptable" style="font-size:13px">
+    <thead><tr><th>Username</th><th>Type</th><th>Created</th><th>By</th><th></th></tr></thead>
+    <tbody>${rows.map(a => `<tr>
+      <td><b>${a.username}</b></td>
+      <td>${a.primary
+        ? '<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,122,24,.16);color:var(--acc2);border:1px solid rgba(255,122,24,.28)">PRIMARY</span>'
+        : '<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(120,140,255,.14);color:#9db0ff;border:1px solid rgba(120,140,255,.28)">ADDITIONAL</span>'}</td>
+      <td style="color:var(--faint)">${a.createdAt && a.createdAt !== '—' ? new Date(a.createdAt).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : '—'}</td>
+      <td style="color:var(--faint)">${a.createdBy}</td>
+      <td style="text-align:right">${a.primary
+        ? '<span style="color:var(--faint);font-size:12px">Edit above</span>'
+        : `<button class="tiny-btn danger" onclick="removeAdminAccount('${a.username.replace(/'/g, "\\'")}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Remove</button>`}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function addAdminAccount() {
+  if (!fbDb) { showToast('Connect Firebase first', 'bad'); return; }
+  const msg = document.getElementById('adminAddMsg');
+  const username = (document.getElementById('newAdminUser').value || '').trim();
+  const password = document.getElementById('newAdminPass').value;
+  if (!username || username.length < 3)  { msg.style.color = '#ff6b6b'; msg.textContent = 'Username must be 3+ characters.'; return; }
+  if (!password || password.length < 6)  { msg.style.color = '#ff6b6b'; msg.textContent = 'Password must be 6+ characters.'; return; }
+  // Can't reuse the primary admin's username
+  if (username === S.creds.username) { msg.style.color = '#ff6b6b'; msg.textContent = 'That username is the primary admin — pick another.'; return; }
+  // Or another existing admin
+  if (extraAdmins.find(a => a.username === username)) { msg.style.color = '#ff6b6b'; msg.textContent = 'An admin with that username already exists.'; return; }
+  try {
+    await fbDb.collection('admins').doc(username).set({
+      username, password,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdBy: currentUser ? currentUser.name : 'admin'
+    });
+    auditLog('add_admin', username, '');
+    document.getElementById('newAdminUser').value = '';
+    document.getElementById('newAdminPass').value = '';
+    msg.style.color = 'var(--teal)'; msg.textContent = `Admin "${username}" added.`;
+    setTimeout(() => { msg.textContent = ''; }, 2500);
+  } catch (e) {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'Failed: ' + (e.message || 'unknown');
+  }
+}
+async function removeAdminAccount(username) {
+  if (!confirm(`Remove admin "${username}"? They will be unable to sign in.`)) return;
+  try {
+    await fbDb.collection('admins').doc(username).delete();
+    auditLog('remove_admin', username, '');
+    showToast(`Admin "${username}" removed`, 'good');
+  } catch (e) {
+    showToast('Failed: ' + (e.message || 'unknown'), 'bad');
+  }
+}
+
+// ══════════════════════════════════════════
+//  DISCOUNT CODES
+// ══════════════════════════════════════════
+let allDiscounts = [];
+let fbDiscountsUnsub = null;
+
+function subscribeDiscountsFromFirebase() {
+  if (!fbDb) return;
+  if (fbDiscountsUnsub) { try { fbDiscountsUnsub(); } catch(e){} fbDiscountsUnsub = null; }
+  fbDiscountsUnsub = fbDb.collection('discounts').onSnapshot(snap => {
+    allDiscounts = [];
+    snap.forEach(doc => {
+      const d = doc.data() || {};
+      allDiscounts.push({
+        code:     doc.id,
+        percent:  d.percent || 0,
+        validUntil: d.validUntil && d.validUntil.toDate ? d.validUntil.toDate().toISOString() : (d.validUntil || null),
+        maxUses:  d.maxUses || 0,
+        uses:     d.uses    || 0,
+        active:   d.active !== false,
+        createdAt:d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toISOString() : (d.createdAt || null)
+      });
+    });
+    allDiscounts.sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    renderDiscountList();
+  }, e => console.warn('Discounts listener:', e));
+}
+
+function renderDiscountList() {
+  const el = document.getElementById('dcList');
+  if (!el) return;
+  if (!allDiscounts.length) { el.innerHTML = '<p style="color:var(--faint);font-size:13px;padding:14px 0">No discount codes yet.</p>'; return; }
+  el.innerHTML = `<table class="ptable" style="font-size:13px">
+    <thead><tr><th>Code</th><th>% off</th><th>Valid until</th><th>Uses</th><th>Status</th><th></th></tr></thead>
+    <tbody>${allDiscounts.map(d => {
+      const expired = d.validUntil && new Date(d.validUntil) < new Date();
+      const used    = d.maxUses && d.uses >= d.maxUses;
+      const status  = !d.active ? 'Disabled' : (expired ? 'Expired' : (used ? 'Used up' : 'Active'));
+      const statusColor = (status === 'Active') ? 'var(--teal)' : 'var(--faint)';
+      return `<tr>
+        <td><code style="font-family:'Courier New',monospace;color:var(--acc2);font-size:13px">${d.code}</code></td>
+        <td><b>${d.percent}%</b></td>
+        <td style="color:var(--faint)">${d.validUntil ? new Date(d.validUntil).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : 'No expiry'}</td>
+        <td>${d.uses}${d.maxUses ? '/' + d.maxUses : ''}</td>
+        <td style="color:${statusColor};font-weight:600;font-size:12.5px">${status}</td>
+        <td style="text-align:right"><button class="tiny-btn danger" onclick="deleteDiscountCode('${d.code}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+async function createDiscountCode() {
+  if (!fbDb) { showToast('Connect Firebase first', 'bad'); return; }
+  const msg = document.getElementById('dcMsg');
+  const code = (document.getElementById('dcCode').value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const percent = parseInt(document.getElementById('dcPercent').value, 10);
+  const untilStr = document.getElementById('dcUntil').value;
+  const maxUses = parseInt(document.getElementById('dcMax').value, 10) || 0;
+  if (!code || code.length < 3)              { msg.style.color = '#ff6b6b'; msg.textContent = 'Code must be 3+ chars (A-Z, 0-9 only).'; return; }
+  if (!percent || percent < 1 || percent > 100){ msg.style.color = '#ff6b6b'; msg.textContent = '% off must be between 1 and 100.'; return; }
+  const data = {
+    percent,
+    validUntil: untilStr ? firebase.firestore.Timestamp.fromDate(new Date(untilStr + 'T23:59:59')) : null,
+    maxUses, uses: 0, active: true,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    createdBy: currentUser ? currentUser.name : 'admin'
+  };
+  try {
+    await fbDb.collection('discounts').doc(code).set(data);
+    auditLog('create_discount', code, `${percent}% off${maxUses ? ' · max ' + maxUses + ' uses' : ''}${untilStr ? ' · until ' + untilStr : ''}`);
+    document.getElementById('dcCode').value = '';
+    document.getElementById('dcPercent').value = '';
+    document.getElementById('dcUntil').value = '';
+    document.getElementById('dcMax').value = '';
+    msg.style.color = 'var(--teal)'; msg.textContent = `Code ${code} created.`;
+    setTimeout(() => { msg.textContent = ''; }, 2500);
+  } catch (e) {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'Failed: ' + (e.message || 'unknown');
+  }
+}
+async function deleteDiscountCode(code) {
+  if (!confirm(`Delete code ${code}?`)) return;
+  try {
+    await fbDb.collection('discounts').doc(code).delete();
+    auditLog('delete_discount', code, '');
+    showToast(`Code ${code} deleted`, 'good');
+  } catch (e) {
+    showToast('Failed: ' + (e.message || 'unknown'), 'bad');
+  }
+}
+
+// Validate a code at checkout — returns { valid:true, percent } or { valid:false, reason }
+function validateDiscountCode(code) {
+  if (!code) return { valid: false, reason: 'no_code' };
+  const upper = code.trim().toUpperCase();
+  const d = allDiscounts.find(x => x.code === upper);
+  if (!d)              return { valid: false, reason: 'not_found' };
+  if (!d.active)       return { valid: false, reason: 'disabled' };
+  if (d.validUntil && new Date(d.validUntil) < new Date()) return { valid: false, reason: 'expired' };
+  if (d.maxUses && d.uses >= d.maxUses) return { valid: false, reason: 'used_up' };
+  return { valid: true, percent: d.percent, code: upper };
+}
+
+// Increment the uses counter when a customer successfully checks out
+async function incrementDiscountUse(code) {
+  if (!fbDb || !code) return;
+  try {
+    await fbDb.collection('discounts').doc(code).update({
+      uses: firebase.firestore.FieldValue.increment(1)
+    });
+  } catch (e) { console.warn('discount increment failed:', e); }
+}
+
+// ══════════════════════════════════════════
+//  AUDIT LOG — every admin action gets logged
+// ══════════════════════════════════════════
+let auditEntries = [];
+let fbAuditUnsub = null;
+
+function auditLog(action, target, details) {
+  if (!fbDb) return;                       // Firebase not connected → skip silently
+  if (!currentUser || !currentUser.isAdmin) return;  // only admins generate audit events
+  const entry = {
+    action:    action,
+    target:    target || '',
+    details:   details || '',
+    byAdmin:   currentUser.name || 'admin',
+    isFallback: !!currentUser.isFallback,
+    ts:        firebase.firestore.FieldValue.serverTimestamp(),
+    tsLocal:   new Date().toISOString()
+  };
+  fbDb.collection('audit').add(entry).catch(e => console.warn('Audit log write failed:', e));
+}
+
+function subscribeAuditFromFirebase() {
+  if (!fbDb) return;
+  if (fbAuditUnsub) { try { fbAuditUnsub(); } catch(e){} fbAuditUnsub = null; }
+  // Limit to the most recent 500 entries — older stuff stays in Firestore but
+  // we don't pull it down on every page load.
+  try {
+    fbAuditUnsub = fbDb.collection('audit')
+      .orderBy('ts', 'desc')
+      .limit(500)
+      .onSnapshot(snap => {
+        auditEntries = [];
+        snap.forEach(doc => {
+          const d = doc.data() || {};
+          let when = d.tsLocal || null;
+          if (d.ts && d.ts.toDate) when = d.ts.toDate().toISOString();
+          auditEntries.push({
+            id:         doc.id,
+            action:     d.action  || '',
+            target:     d.target  || '',
+            details:    d.details || '',
+            byAdmin:    d.byAdmin || 'admin',
+            isFallback: !!d.isFallback,
+            ts:         when
+          });
+        });
+        if (document.getElementById('tab-audit') && document.getElementById('tab-audit').classList.contains('active')) {
+          renderAuditTab();
+        }
+      }, e => console.warn('Audit listener:', e));
+  } catch(e) { console.warn('subscribe audit failed:', e); }
+}
+
+const AUDIT_LABELS = {
+  revoke_license:        ['Revoked license',     'warn'],
+  reactivate_license:    ['Reactivated license', 'good'],
+  delete_license:        ['Deleted license',     'danger'],
+  issue_license:         ['Issued license',      'good'],
+  edit_plan:             ['Edited plan',         'good'],
+  delete_plan:           ['Deleted plan',        'danger'],
+  add_plan:              ['Created plan',        'good'],
+  save_price:            ['Updated pricing',     'good'],
+  save_download:         ['Updated installer',   'good'],
+  save_demo:             ['Updated demo config', 'good'],
+  save_email:            ['Updated email config','good'],
+  save_firebase:         ['Updated Firebase cfg','good'],
+  change_admin_username: ['Changed admin username',  'warn'],
+  change_admin_password: ['Changed admin password',  'warn'],
+  add_admin:             ['Added admin account', 'good'],
+  remove_admin:          ['Removed admin account','danger'],
+  edit_review:           ['Edited review',       'good'],
+  delete_review:         ['Deleted review',      'danger'],
+  add_review:            ['Added review',        'good'],
+  delete_purchase:       ['Deleted purchase log','danger'],
+  clear_purchases:       ['Cleared all purchases','danger'],
+  export_customers:      ['Exported customers',  'good'],
+  export_audit:          ['Exported audit log',  'good'],
+  create_discount:       ['Created discount code','good'],
+  delete_discount:       ['Deleted discount code','danger'],
+  bulk_revoke:           ['Bulk revoked licenses','warn'],
+  bulk_extend:           ['Bulk extended licenses','good'],
+  bulk_delete:           ['Bulk deleted licenses','danger'],
+  admin_signin:          ['Admin signed in',     'good']
+};
+
+function renderAuditTab() {
+  const q = (document.getElementById('auditSearch')?.value || '').toLowerCase().trim();
+  let list = auditEntries.slice();
+  if (q) {
+    list = list.filter(a =>
+      (a.byAdmin || '').toLowerCase().includes(q) ||
+      (a.action  || '').toLowerCase().includes(q) ||
+      (a.target  || '').toLowerCase().includes(q) ||
+      (a.details || '').toLowerCase().includes(q)
+    );
+  }
+  // Stats
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayCount = auditEntries.filter(a => {
+    const t = a.ts ? new Date(a.ts) : null;
+    return t && t >= today;
+  }).length;
+  const dangerous = auditEntries.filter(a => {
+    const m = AUDIT_LABELS[a.action];
+    return m && (m[1] === 'danger' || m[1] === 'warn');
+  }).length;
+  const distinctAdmins = new Set(auditEntries.map(a => a.byAdmin)).size;
+  document.getElementById('auditStats').innerHTML = `
+    <div class="atab-stat"><div class="n">${auditEntries.length}</div><div class="l">Last 500 events</div></div>
+    <div class="atab-stat"><div class="n">${todayCount}</div><div class="l">Today</div></div>
+    <div class="atab-stat"><div class="n">${dangerous}</div><div class="l">Destructive actions</div></div>
+    <div class="atab-stat"><div class="n">${distinctAdmins || 1}</div><div class="l">Distinct admins</div></div>`;
+
+  if (!list.length) {
+    document.getElementById('auditTable').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>${auditEntries.length ? 'No events match that search.' : 'No admin actions logged yet. Anything you do here will appear automatically.'}</p></div>`;
+    return;
+  }
+  const sevColor = {
+    good:   'rgba(32,227,178,.14);color:var(--teal);border:1px solid rgba(32,227,178,.32)',
+    warn:   'rgba(255,179,71,.14);color:var(--acc2);border:1px solid rgba(255,179,71,.32)',
+    danger: 'rgba(255,107,107,.14);color:#ff6b6b;border:1px solid rgba(255,107,107,.32)'
+  };
+  document.getElementById('auditTable').innerHTML = `<table class="ptable">
+    <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+    <tbody>${list.map(a => {
+      const meta = AUDIT_LABELS[a.action] || [a.action, 'good'];
+      const label = meta[0], sev = meta[1];
+      const when = a.ts ? new Date(a.ts).toLocaleString('en-IN') : '—';
+      return `<tr>
+        <td style="white-space:nowrap;color:var(--faint);font-size:12.5px">${when}</td>
+        <td>${a.byAdmin}${a.isFallback ? ' <span style="font-size:10px;color:var(--acc2)">(default creds)</span>' : ''}</td>
+        <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:6px;background:${sevColor[sev]}">${label}</span></td>
+        <td style="font-family:'Courier New',monospace;font-size:12.5px">${a.target || '<span style="color:var(--faint)">—</span>'}</td>
+        <td style="color:var(--dim);font-size:13px">${a.details || ''}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function exportAuditCsv() {
+  if (!auditEntries.length) { showToast('No audit entries to export', 'bad'); return; }
+  const headers = ['When','Admin','Action','Target','Details'];
+  const rows = auditEntries.map(a => {
+    const meta = AUDIT_LABELS[a.action] || [a.action];
+    return [
+      a.ts ? new Date(a.ts).toLocaleString('en-IN') : '',
+      a.byAdmin, meta[0], a.target, a.details
+    ];
+  });
+  const csv = [headers, ...rows].map(r => r.map(c => {
+    const v = String(c == null ? '' : c).replace(/"/g, '""');
+    return /[",\n]/.test(v) ? `"${v}"` : v;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `garage-pro-audit-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  auditLog('export_audit', `${auditEntries.length} rows`);
+  showToast(`Exported ${auditEntries.length} audit entries`, 'good');
+}
+
 function syncSiteSettingsToFirebase() {
   if (!fbDb) return;
   fbDb.collection('siteConfig').doc('site').set({
@@ -5146,6 +6089,7 @@ renderReviews();
 populateCurrencySelect();
 renderPlansGrid();
 renderComparisonTable();
+initQuiz();
 renderDemoCta();
 detectCountry().then(() => {
   populateCurrencySelect();
