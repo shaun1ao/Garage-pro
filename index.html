@@ -374,6 +374,41 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 .plan-card .btn{width:100%;justify-content:center;margin-top:auto}
 .plan-current-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;padding:4px 9px;border-radius:6px;background:rgba(32,227,178,.16);color:var(--teal);border:1px solid rgba(32,227,178,.3);margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em}
 
+/* ── PLAN COMPARISON TABLE ── */
+.compare-wrap{max-width:1080px;margin:64px auto 0}
+.compare-head{text-align:center;margin-bottom:30px}
+.compare-head .eyebrow{margin-bottom:10px}
+.compare-head h3{font-family:var(--fd);font-size:24px;margin-bottom:8px}
+.compare-head p{color:var(--dim);font-size:15px}
+.compare-table-outer{background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd);border-radius:18px;overflow:hidden;box-shadow:var(--shad)}
+.compare-table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.compare-table{width:100%;border-collapse:collapse;min-width:680px}
+.compare-table th,.compare-table td{padding:16px 22px;text-align:center;border-bottom:1px solid var(--brd);vertical-align:middle}
+.compare-table th:first-child,.compare-table td:first-child{text-align:left;color:var(--dim);font-weight:500;font-size:14.5px;min-width:240px}
+.compare-table thead th{background:rgba(255,255,255,.02);font-family:var(--fd);font-weight:800;font-size:17px;letter-spacing:-.01em;padding:22px 22px 18px}
+.compare-table thead th:first-child{color:var(--faint);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-family:var(--fb)}
+.compare-table thead .feat-th{position:relative;color:var(--txt)}
+.compare-table thead .feat-th.featured{color:var(--acc2)}
+.compare-table thead .feat-th.featured::after{content:"Popular";position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;font-size:9.5px;font-weight:800;padding:2px 9px;border-radius:100px;letter-spacing:.06em;text-transform:uppercase}
+.compare-table tbody tr:hover{background:rgba(255,255,255,.018)}
+.compare-table tbody tr:last-child td{border-bottom:0}
+.compare-table td{color:var(--txt);font-weight:600;font-size:14.5px}
+.compare-table td.feat-val{color:var(--txt)}
+.compare-yes{color:var(--teal);display:inline-flex;align-items:center;justify-content:center}
+.compare-no{color:#3a4252;display:inline-flex;align-items:center;justify-content:center}
+.compare-yes svg,.compare-no svg{width:18px;height:18px}
+.compare-table .compare-section-h td{background:rgba(255,255,255,.025);font-family:var(--fd);font-size:12.5px;font-weight:700;color:var(--acc2);letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:13px 22px}
+.compare-cta-row td{padding:22px 22px;background:rgba(255,255,255,.02);text-align:center}
+.compare-cta-row td:first-child{background:transparent}
+.compare-cta-row .btn{padding:9px 18px;font-size:14px;width:100%;justify-content:center;max-width:160px;margin:0 auto}
+@media(max-width:720px){
+  .compare-wrap{margin-top:48px}
+  .compare-table th,.compare-table td{padding:12px 14px;font-size:13.5px}
+  .compare-table th:first-child,.compare-table td:first-child{min-width:180px}
+  .compare-table thead th{font-size:15px;padding:18px 14px 14px}
+  .compare-cta-row .btn{font-size:12.5px;padding:8px 12px}
+}
+
 /* ── PLAN EDITOR (admin) ── */
 .plan-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:18px}
 .plan-acard{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:20px;position:relative}
@@ -1031,6 +1066,55 @@ html,body{max-width:100%;overflow-x:hidden}
       </div>
 
       <div class="settings-section" style="max-width:560px">
+        <h4>Email Notifications</h4>
+        <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">
+          Send welcome / license-key emails from your own Gmail using a free Google Apps Script web app. <b>No API keys, no Gmail App Password.</b> See <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12px">EMAIL_NOTIFICATIONS_SETUP.md</code> for the 4-minute setup.
+        </p>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:9px;font-weight:500;cursor:pointer">
+            <input type="checkbox" id="emailEnabledInput" />
+            <span>Enable email notifications</span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Apps Script web-app URL</label>
+          <input id="emailUrlInput" type="text" placeholder="https://script.google.com/macros/s/AKfy.../exec" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>From name</label>
+            <input id="emailFromInput" type="text" placeholder="Garage Pro" />
+          </div>
+          <div class="form-group">
+            <label>Reply-to address (optional)</label>
+            <input id="emailReplyInput" type="email" placeholder="support@garagepro.app" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Send email on…</label>
+          <div style="display:flex;gap:14px;padding:8px 0;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:7px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="emailEvtWelcome" /> Sign-up
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="emailEvtPurchase" /> Plan purchase
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="emailEvtTrial" /> Free trial start
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="emailEvtManual" /> Admin-issued license
+            </label>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="form-btn form-btn-save" onclick="saveEmailSettings()">Save Email Settings</button>
+          <button class="form-btn form-btn-cancel" onclick="sendTestEmail()">Send Test Email</button>
+        </div>
+        <div class="success-msg" id="emailMsg"></div>
+      </div>
+
+      <div class="settings-section" style="max-width:560px">
         <h4>Download File (Windows installer)</h4>
         <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">Set the link to your <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12px">.exe</code> installer. When a user finishes payment, the file is downloaded automatically. You can host it on Firebase Storage, GitHub Releases, your own CDN, or any direct-download URL.</p>
         <div class="form-group">
@@ -1649,6 +1733,19 @@ html,body{max-width:100%;overflow-x:hidden}
       </div>
     </div>
     <div class="plans-grid reveal" id="plansGrid"></div>
+    <!-- ─── Side-by-side feature comparison ─── -->
+    <div class="compare-wrap reveal" id="compareWrap">
+      <div class="compare-head">
+        <div class="eyebrow">Compare plans</div>
+        <h3>Everything, side by side</h3>
+        <p>Not sure which fits? Here's exactly what's in each tier.</p>
+      </div>
+      <div class="compare-table-outer">
+        <div class="compare-table-scroll">
+          <table class="compare-table" id="compareTable"></table>
+        </div>
+      </div>
+    </div>
     <div class="reveal" id="demoCta" style="display:none;margin:48px auto 0;max-width:680px;text-align:center;padding:32px 28px;border-radius:18px;background:linear-gradient(135deg,rgba(32,227,178,.08),rgba(120,140,255,.06));border:1px dashed rgba(32,227,178,.32)">
       <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--teal);background:rgba(32,227,178,.16);border:1px solid rgba(32,227,178,.32);padding:5px 12px;border-radius:100px;margin-bottom:14px;letter-spacing:.06em;text-transform:uppercase">
         <span style="width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 currentColor;animation:pulse 2.2s infinite"></span>Free demo available
@@ -1744,7 +1841,7 @@ const KEYS = {
   downloadName:'gp_downloadName', downloadVersion:'gp_downloadVersion',
   plans:'gp_plans', currency:'gp_currency', cycle:'gp_cycle',
   credsChanged:'gp_credsChanged', cloudFnUrl:'gp_cloudFnUrl',
-  demo:'gp_demo'
+  demo:'gp_demo', email:'gp_email'
 };
 
 // Fallback admin credentials. These work ONLY while S.credsChanged is false.
@@ -1901,6 +1998,18 @@ let S = {
     days:     7,                    // how long the trial lasts
     headline: 'Not sure? Try Garage Pro free for 7 days',
     sub:      'Full Workshop plan · No card required · Auto-locks when the trial ends'
+  },
+  email: {
+    enabled:    false,              // master toggle
+    webhookUrl: '',                 // Google Apps Script web-app URL
+    fromName:   'Garage Pro',
+    replyTo:    '',                 // optional reply-to address
+    events: {
+      welcome:  true,               // send on signup
+      purchase: true,               // send on plan purchase
+      trial:    true,               // send when free trial starts
+      manual:   true                // send when admin issues a license manually
+    }
   }
 };
 // Source-of-truth subscription for the signed-in user — read live from
@@ -1938,6 +2047,7 @@ function load() {
     const cch = localStorage.getItem(KEYS.credsChanged); if(cch === 'true') S.credsChanged = true;
     const cfu = localStorage.getItem(KEYS.cloudFnUrl); if(cfu) S.cloudFnUrl = cfu;
     const dmo = localStorage.getItem(KEYS.demo); if(dmo) S.demo = Object.assign({}, S.demo, JSON.parse(dmo));
+    const eml = localStorage.getItem(KEYS.email); if(eml) S.email = Object.assign({}, S.email, JSON.parse(eml));
     const sess = sessionStorage.getItem('gp_user'); if(sess) currentUser = JSON.parse(sess);
   } catch(e){}
 }
@@ -1961,6 +2071,7 @@ function save() {
     localStorage.setItem(KEYS.credsChanged, S.credsChanged ? 'true' : 'false');
     localStorage.setItem(KEYS.cloudFnUrl, S.cloudFnUrl || '');
     localStorage.setItem(KEYS.demo, JSON.stringify(S.demo || {}));
+    localStorage.setItem(KEYS.email, JSON.stringify(S.email || {}));
   } catch(e){}
 }
 function logPurchase(action, user) {
@@ -2120,10 +2231,9 @@ async function doGoogleSignIn() {
     await userRef.set(update, { merge: true });
     closeAuth();
     showToast(isNew ? `Welcome, ${update.name.split(' ')[0]}!` : `Welcome back, ${update.name.split(' ')[0]}!`, 'good');
-    // handleAuthStateChanged already fired and set currentUser. Any pendingAction
-    // (e.g. clicked "Start free trial" → signed in with Google) will run from there.
-    // If this is a new user with no garage name yet, nudge them to fill it in.
+    // Send welcome email to NEW Google users only
     if (isNew) {
+      sendWelcomeEmail({ name: update.name, email: update.email }, '');
       setTimeout(() => {
         showToast('Complete your profile — add your garage name in Account settings.', 'good');
       }, 1400);
@@ -2225,6 +2335,8 @@ async function doSignup(e) {
     }, { merge: true });
     // 4) Log the sign-up event for the admin
     logPurchase(`Sign Up · ${garageName}`, { name, email });
+    // 5) Send welcome email (no-op if disabled / not configured)
+    sendWelcomeEmail({ name, email }, garageName);
     // handleAuthStateChanged fires next and populates currentUser
     closeAuth();
     showToast(`Account created! Welcome, ${name.split(' ')[0]}`, 'good');
@@ -2435,6 +2547,17 @@ function renderAdminPricing() {
   if (document.getElementById('demoDaysInput'))    document.getElementById('demoDaysInput').value    = d.days || 7;
   if (document.getElementById('demoHeadlineInput'))document.getElementById('demoHeadlineInput').value= d.headline || '';
   if (document.getElementById('demoSubInput'))     document.getElementById('demoSubInput').value     = d.sub      || '';
+  // ── Email settings ──
+  const em = S.email || {};
+  if (document.getElementById('emailEnabledInput')) document.getElementById('emailEnabledInput').checked = !!em.enabled;
+  if (document.getElementById('emailUrlInput'))     document.getElementById('emailUrlInput').value     = em.webhookUrl || '';
+  if (document.getElementById('emailFromInput'))    document.getElementById('emailFromInput').value    = em.fromName  || 'Garage Pro';
+  if (document.getElementById('emailReplyInput'))   document.getElementById('emailReplyInput').value   = em.replyTo   || '';
+  const ev = em.events || {};
+  if (document.getElementById('emailEvtWelcome'))   document.getElementById('emailEvtWelcome').checked   = ev.welcome   !== false;
+  if (document.getElementById('emailEvtPurchase'))  document.getElementById('emailEvtPurchase').checked  = ev.purchase  !== false;
+  if (document.getElementById('emailEvtTrial'))     document.getElementById('emailEvtTrial').checked     = ev.trial     !== false;
+  if (document.getElementById('emailEvtManual'))    document.getElementById('emailEvtManual').checked    = ev.manual    !== false;
   // status banner
   const st = document.getElementById('dlStatus');
   if (S.downloadUrl) {
@@ -2457,6 +2580,69 @@ function savePrice() {
   document.getElementById('priceMsg').textContent = 'Saved!';
   setTimeout(()=>{ document.getElementById('priceMsg').textContent=''; }, 2500);
 }
+// ══════════════════════════════════════════
+//  PLAN COMPARISON TABLE
+// ══════════════════════════════════════════
+// Feature matrix — what each plan ID gets. Per-row format:
+//   { label, section?, render(plan) → string|HTML }
+// "section" rows are visual headers, not real features.
+function comparisonRows() {
+  const yes = '<span class="compare-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>';
+  const no  = '<span class="compare-no"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span>';
+  const unlim = n => n >= 999 ? 'Unlimited' : n;
+  return [
+    { section: 'Workshop Capacity' },
+    { label: 'Bays / service points',     render: p => unlim(p.maxBays) },
+    { label: 'Mechanics / workers',       render: p => unlim(p.maxWorkers) },
+    { label: 'Concurrent live bookings',  render: p => unlim(p.maxBookings) },
+    { section: 'Day-to-Day Operations' },
+    { label: 'Digital job cards',         render: () => yes },
+    { label: 'Customer & vehicle history',render: () => yes },
+    { label: 'GST invoices (PDF)',        render: () => yes },
+    { label: 'HSN/SAC codes & amount in words', render: () => yes },
+    { label: 'Tablet web interface for mechanics', render: () => yes },
+    { label: 'Inventory tracking',        render: p => p.maxBays > 1 ? yes : no },
+    { label: 'Auto stock deduction',      render: p => p.maxBays > 1 ? yes : no },
+    { section: 'Sync & Notifications' },
+    { label: 'Real-time Firebase cloud sync', render: () => yes },
+    { label: 'Email notifications (job ready, invoice)', render: p => p.maxBays >= 1 ? yes : no },
+    { label: 'Daily morning briefing email',  render: p => p.maxBays >= 6 ? yes : no },
+    { label: 'CSV import (customers, parts, bookings)', render: p => p.maxBays > 1 ? yes : no },
+    { section: 'Multi-Branch & Power Features' },
+    { label: 'Branch dashboards & roll-up reporting', render: p => p.maxBays >= 999 ? yes : no },
+    { label: 'API access',                render: p => p.maxBays >= 999 ? yes : no },
+    { label: 'Priority email & phone support', render: p => p.maxBays >= 999 ? yes : (p.maxBays >= 6 ? 'Email' : 'Email') },
+    { label: 'Offline-first (works without internet)', render: () => yes }
+  ];
+}
+
+function renderComparisonTable() {
+  const tbl = document.getElementById('compareTable');
+  if (!tbl) return;
+  const active = S.plans.filter(p => p.active);
+  const wrap = document.getElementById('compareWrap');
+  if (!wrap) return;
+  if (active.length < 2) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const rows = comparisonRows();
+  let html = '<thead><tr><th>Feature</th>' + active.map(p =>
+    `<th class="feat-th${p.featured ? ' featured' : ''}">${p.name}</th>`
+  ).join('') + '</tr></thead><tbody>';
+  rows.forEach(r => {
+    if (r.section) {
+      html += `<tr class="compare-section-h"><td colspan="${active.length + 1}">${r.section}</td></tr>`;
+      return;
+    }
+    html += `<tr><td>${r.label}</td>${active.map(p => `<td class="feat-val">${r.render(p)}</td>`).join('')}</tr>`;
+  });
+  // Bottom CTA row — links straight to choosing each plan
+  html += `<tr class="compare-cta-row"><td></td>${active.map(p =>
+    `<td><button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="selectPlan('${p.id}')">Choose ${p.name}</button></td>`
+  ).join('')}</tr>`;
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
 // ══════════════════════════════════════════
 //  FREE DEMO / TRIAL
 // ══════════════════════════════════════════
@@ -2595,9 +2781,169 @@ async function activateFreeDemo() {
     processingSuccess(licenseKey, plan.name + ' (Trial)', expiryDate.toISOString());
     logPurchase(`Free Trial · ${plan.name} · ${days} days`, currentUser);
     save();
+    // Send trial-activation email
+    sendLicenseEmail(currentUser, {
+      licenseKey,
+      planName:     plan.name,
+      billingCycle: 'Free trial',
+      expiry:       expiryDate.toISOString(),
+      isTrial:      true,
+      trialDays:    days,
+      isManual:     false,
+      garageName
+    });
     if (S.downloadUrl) setTimeout(() => triggerDownload(), 500);
   } catch (err) {
     processingError(err.message || 'Could not activate trial.');
+  }
+}
+
+// ══════════════════════════════════════════
+//  EMAIL NOTIFICATIONS — via Google Apps Script web-app
+// ══════════════════════════════════════════
+// The Apps Script accepts { to, subject, body, html, fromName, replyTo }.
+// We use text/plain content-type to skip the CORS preflight, since Apps Script
+// web-apps don't reply to OPTIONS. The script JSON-parses it on the server.
+async function sendEmail(to, subject, body, html) {
+  if (!S.email || !S.email.enabled || !S.email.webhookUrl) return false;
+  try {
+    const res = await fetch(S.email.webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        to, subject, body, html: html || body,
+        fromName: S.email.fromName || 'Garage Pro',
+        replyTo:  S.email.replyTo  || ''
+      })
+    });
+    const ok = res.ok;
+    if (!ok) console.warn('Email send returned', res.status);
+    return ok;
+  } catch (e) {
+    console.warn('Email send failed:', e);
+    return false;
+  }
+}
+
+// Pre-built templates — minimal, on-brand HTML
+const EMAIL_TPL = {
+  welcome: (data) => ({
+    subject: `Welcome to Garage Pro, ${data.firstName}!`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:540px;margin:0 auto;background:#fff;color:#1a1a1a">
+        <div style="background:#0e131c;padding:28px 32px;text-align:center;color:#fff">
+          <h1 style="font-size:22px;margin:0;font-weight:800">Garage Pro</h1>
+          <p style="opacity:.7;margin:4px 0 0;font-size:13px">Every bay. Every job. Under control.</p>
+        </div>
+        <div style="padding:32px">
+          <h2 style="font-size:20px;margin:0 0 14px">Hi ${data.firstName}, welcome aboard 👋</h2>
+          <p style="line-height:1.6;font-size:15px;color:#444">Your Garage Pro account is ready. You can now buy a plan or start a free trial to activate the software.</p>
+          ${data.garageName ? `<p style="line-height:1.6;font-size:15px;color:#444">We've set you up for <b>${data.garageName}</b>.</p>` : ''}
+          <p style="margin-top:24px"><a href="https://garagepro.app/account" style="background:#ff7a18;color:#170f05;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700">Open my account</a></p>
+          <p style="color:#999;font-size:12.5px;margin-top:28px;line-height:1.5">Questions? Just reply to this email.</p>
+        </div>
+      </div>`
+  }),
+  license: (data) => ({
+    subject: `Your ${data.planName} license key — Garage Pro`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:540px;margin:0 auto;background:#fff;color:#1a1a1a">
+        <div style="background:#0e131c;padding:28px 32px;text-align:center;color:#fff">
+          <h1 style="font-size:22px;margin:0;font-weight:800">Garage Pro</h1>
+        </div>
+        <div style="padding:32px">
+          <h2 style="font-size:20px;margin:0 0 14px">${data.isTrial ? 'Your free trial is live' : 'Payment received — your license is ready'}</h2>
+          <p style="line-height:1.6;font-size:15px;color:#444">Hi ${data.firstName}, here's your license key for <b>${data.planName}</b>${data.isTrial ? ` (${data.trialDays}-day free trial)` : ''}:</p>
+          <div style="background:#f5efe2;border:1px dashed #c8b88a;border-radius:10px;padding:18px;text-align:center;margin:18px 0">
+            <code style="font-family:'Courier New',monospace;font-size:20px;font-weight:700;letter-spacing:2px;color:#7a4a00">${data.licenseKey}</code>
+          </div>
+          <p style="line-height:1.6;font-size:14px;color:#666">
+            <b>Plan:</b> ${data.planName}<br/>
+            <b>Billing:</b> ${data.billingCycle}<br/>
+            <b>${data.isTrial ? 'Trial ends' : 'Renews on'}:</b> ${data.expiryDisplay || 'No expiry'}<br/>
+            ${data.garageName ? `<b>Garage:</b> ${data.garageName}<br/>` : ''}
+          </p>
+          <p style="margin-top:22px"><a href="https://garagepro.app/account" style="background:#ff7a18;color:#170f05;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700">Download &amp; activate</a></p>
+          <p style="color:#999;font-size:12.5px;margin-top:24px;line-height:1.5">Paste the key into the desktop app on first launch to activate. Keep this email for your records.</p>
+        </div>
+      </div>`
+  })
+};
+
+async function sendWelcomeEmail(user, garageName) {
+  if (!S.email || !S.email.enabled || !S.email.events || !S.email.events.welcome) return;
+  if (!user || !user.email) return;
+  const firstName = (user.name || user.email).split(' ')[0];
+  const tpl = EMAIL_TPL.welcome({ firstName, garageName });
+  sendEmail(user.email, tpl.subject, tpl.subject, tpl.html);
+}
+async function sendLicenseEmail(user, data) {
+  if (!S.email || !S.email.enabled || !S.email.events) return;
+  // Only send for the right event types
+  if (data.isTrial && !S.email.events.trial)    return;
+  if (data.isManual && !S.email.events.manual) return;
+  if (!data.isTrial && !data.isManual && !S.email.events.purchase) return;
+  if (!user || !user.email) return;
+  const firstName = (user.name || user.email).split(' ')[0];
+  const tpl = EMAIL_TPL.license({
+    firstName,
+    licenseKey: data.licenseKey,
+    planName:   data.planName,
+    billingCycle: data.billingCycle,
+    expiryDisplay: data.expiry ? new Date(data.expiry).toLocaleDateString('en-IN', {day:'numeric', month:'long', year:'numeric'}) : 'Never expires',
+    isTrial:    !!data.isTrial,
+    trialDays:  data.trialDays,
+    garageName: data.garageName
+  });
+  sendEmail(user.email, tpl.subject, tpl.subject, tpl.html);
+}
+
+function saveEmailSettings() {
+  const msg = document.getElementById('emailMsg');
+  const url = document.getElementById('emailUrlInput').value.trim();
+  if (url && !/^https?:\/\/script\.google\.com\//.test(url)) {
+    msg.style.color = '#ff6b6b';
+    msg.textContent = 'URL should look like https://script.google.com/macros/s/.../exec';
+    return;
+  }
+  S.email = {
+    enabled:    document.getElementById('emailEnabledInput').checked,
+    webhookUrl: url,
+    fromName:   document.getElementById('emailFromInput').value.trim() || 'Garage Pro',
+    replyTo:    document.getElementById('emailReplyInput').value.trim(),
+    events: {
+      welcome:  document.getElementById('emailEvtWelcome').checked,
+      purchase: document.getElementById('emailEvtPurchase').checked,
+      trial:    document.getElementById('emailEvtTrial').checked,
+      manual:   document.getElementById('emailEvtManual').checked
+    }
+  };
+  save();
+  syncSiteSettingsToFirebase();
+  msg.style.color = 'var(--teal)'; msg.textContent = 'Email settings saved.';
+  setTimeout(() => { msg.textContent = ''; }, 2500);
+}
+async function sendTestEmail() {
+  const msg = document.getElementById('emailMsg');
+  // Save current form values first, in case admin hasn't clicked Save yet
+  saveEmailSettings();
+  if (!S.email.webhookUrl) {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'Paste your Apps Script URL first.';
+    return;
+  }
+  const to = prompt('Send a test email to which address?', (currentUser && currentUser.email) || '');
+  if (!to) return;
+  msg.style.color = 'var(--dim)'; msg.textContent = 'Sending…';
+  const ok = await sendEmail(
+    to,
+    'Garage Pro — test email',
+    'If you can read this, email notifications are wired up correctly.',
+    `<div style="font-family:sans-serif;padding:20px"><h2 style="color:#ff7a18">It works ✅</h2><p>Your Garage Pro site can now send emails through this Apps Script web-app. You're all set.</p></div>`
+  );
+  if (ok) {
+    msg.style.color = 'var(--teal)'; msg.textContent = `Test email sent to ${to}. Check the inbox in a few seconds.`;
+  } else {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'Send failed — check the URL and that the script is deployed as a web app (Anyone access).';
   }
 }
 
@@ -3587,6 +3933,16 @@ async function submitManualLicense() {
       subscription
     }, { merge: true });
     await fbDb.collection('licenses').doc(licenseKey).set(mirror, { merge: true });
+    // Email the customer their key (only if admin enabled the "manual" event)
+    sendLicenseEmail({ name, email }, {
+      licenseKey,
+      planName:     plan.name,
+      billingCycle: cycle.charAt(0).toUpperCase() + cycle.slice(1),
+      expiry:       indefinite ? null : expiryDate.toISOString(),
+      isTrial:      false,
+      isManual:     true,
+      garageName
+    });
     closeManualLicense();
     showToast(`License ${licenseKey} issued to ${name}`, 'good');
   } catch (e) {
@@ -3940,6 +4296,16 @@ async function completePurchase() {
     processingSuccess(result.licenseKey, plan ? plan.name : planId, result.expiry);
     logPurchase(`Subscribe · ${plan ? plan.name : planId} (${cycle})`, currentUser);
     save();
+    // 4) Email the license key (no-op if disabled / not configured)
+    sendLicenseEmail(currentUser, {
+      licenseKey:   result.licenseKey,
+      planName:     plan ? plan.name : planId,
+      billingCycle: cycle.charAt(0).toUpperCase() + cycle.slice(1),
+      expiry:       result.expiry,
+      isTrial:      false,
+      isManual:     false,
+      garageName:   (S.accounts.find(a => a.email === currentUser.email) || {}).garageName || ''
+    });
     // Trigger installer download in the background
     if (S.downloadUrl) setTimeout(() => triggerDownload(), 400);
   } catch (err) {
@@ -4456,6 +4822,7 @@ function syncSiteSettingsToFirebase() {
     currency: S.currency || 'INR', billingCycle: S.billingCycle || 'monthly',
     detectedCountry: S.detectedCountry || null,
     demo: S.demo || {},
+    email: S.email || {},
     updatedAt: new Date().toISOString()
   }).catch(e => handleFirebaseError('Site settings write', e));
 }
@@ -4475,7 +4842,8 @@ function subscribeSiteSettingsFromFirebase() {
       if (d.downloadVersion !== undefined && d.downloadVersion !== S.downloadVersion) { S.downloadVersion = d.downloadVersion; changed = true; }
       if (d.price           !== undefined && d.price           !== S.price)           { S.price           = d.price;           changed = true; }
       if (d.priceNote       !== undefined && d.priceNote       !== S.priceNote)       { S.priceNote       = d.priceNote;       changed = true; }
-      if (d.demo            !== undefined && JSON.stringify(d.demo) !== JSON.stringify(S.demo)) { S.demo = d.demo || {}; changed = true; }
+      if (d.demo            !== undefined && JSON.stringify(d.demo)  !== JSON.stringify(S.demo))  { S.demo  = d.demo  || {}; changed = true; }
+      if (d.email           !== undefined && JSON.stringify(d.email) !== JSON.stringify(S.email)) { S.email = d.email || {}; changed = true; }
       if (changed) {
         save();
         renderDemoCta();
@@ -4500,6 +4868,7 @@ function subscribePlansFromFirebase() {
         S.plans = d.plans;
         save();
         renderPlansGrid();
+        renderComparisonTable();
         if (document.getElementById('tab-plans') && document.getElementById('tab-plans').classList.contains('active')) renderAdminPlansGrid();
       }
     }, err => console.warn('Plans listener error:', err));
@@ -4776,10 +5145,12 @@ renderNav();
 renderReviews();
 populateCurrencySelect();
 renderPlansGrid();
+renderComparisonTable();
 renderDemoCta();
 detectCountry().then(() => {
   populateCurrencySelect();
   renderPlansGrid();
+  renderComparisonTable();
   renderDemoCta();
 });
 </script>
