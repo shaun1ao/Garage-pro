@@ -1146,6 +1146,17 @@ html,body{max-width:100%;overflow-x:hidden}
           <label>Apps Script web-app URL</label>
           <input id="emailUrlInput" type="text" placeholder="https://script.google.com/macros/s/AKfy.../exec" />
         </div>
+        <div class="form-group">
+          <label>Gmail App Password <span style="color:var(--faint);font-weight:500">(optional — used by the script for SMTP auth)</span></label>
+          <input id="emailAppKeyInput" type="password" placeholder="16-char app password from myaccount.google.com/apppasswords" autocomplete="off" />
+          <span style="font-size:12px;color:var(--faint);display:block;margin-top:4px;line-height:1.5">
+            Generate at <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:var(--acc2)">myaccount.google.com/apppasswords</a>. The script can use this as a credential — by default our Apps Script uses Google's own MailApp so this isn't needed, but it's here so you can rotate it later without redeploying.
+          </span>
+        </div>
+        <div class="form-group">
+          <label>Website URL <span style="color:var(--faint);font-weight:500">(used in email links — e.g. "Open my account")</span></label>
+          <input id="emailSiteUrlInput" type="text" placeholder="https://your-username.github.io/garage-pro/" />
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label>From name</label>
@@ -1966,6 +1977,24 @@ html,body{max-width:100%;overflow-x:hidden}
 <!-- toast -->
 <div class="toast" id="toast"></div>
 
+<!-- ═══════════════ CUSTOM CONFIRM / PROMPT MODAL ═══════════════ -->
+<div class="modal-overlay" id="confirmModal" style="z-index:260">
+  <div class="modal-box" style="max-width:440px">
+    <div id="confirmIcon" style="width:54px;height:54px;border-radius:50%;display:grid;place-items:center;margin:0 auto 18px;background:rgba(255,179,71,.14);color:var(--acc2);border:1px solid rgba(255,179,71,.32)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+    </div>
+    <h3 id="confirmTitle" style="font-family:var(--fd);font-size:18px;font-weight:800;text-align:center;margin-bottom:8px">Are you sure?</h3>
+    <p id="confirmBody" style="color:var(--dim);font-size:14px;text-align:center;line-height:1.5;margin-bottom:16px"></p>
+    <div id="confirmInputWrap" style="display:none;margin-bottom:16px">
+      <input id="confirmInput" type="text" style="width:100%;background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:11px 14px;color:var(--txt);font-family:var(--fb);font-size:15px;outline:none" />
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="form-btn form-btn-cancel" id="confirmCancel">Cancel</button>
+      <button class="form-btn form-btn-save" id="confirmOk">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════
 //  STATE  (localStorage-backed)
@@ -2140,13 +2169,15 @@ let S = {
   email: {
     enabled:    false,              // master toggle
     webhookUrl: '',                 // Google Apps Script web-app URL
+    appKey:     '',                 // Gmail App Password (optional, used by script for auth)
+    siteUrl:    '',                 // public site URL used in email links
     fromName:   'Garage Pro',
     replyTo:    '',                 // optional reply-to address
     events: {
-      welcome:  true,               // send on signup
-      purchase: true,               // send on plan purchase
-      trial:    true,               // send when free trial starts
-      manual:   true                // send when admin issues a license manually
+      welcome:  true,
+      purchase: true,
+      trial:    true,
+      manual:   true
     }
   }
 };
@@ -2600,15 +2631,17 @@ function renderPurchasesTab() {
   }
   document.getElementById('purchaseTable').innerHTML = `<table class="ptable"><thead><tr><th>Name</th><th>Email</th><th>Action</th><th>Time</th><th style="text-align:right">Actions</th></tr></thead><tbody>${S.purchases.map(p=>`<tr><td>${p.name}</td><td>${p.email}</td><td><span class="p-action">${p.action}</span></td><td style="color:var(--faint)">${p.ts}</td><td><div class="row-actions"><button class="tiny-btn danger" onclick="deletePurchase(${p.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Delete</button></div></td></tr>`).join('')}</tbody></table><div style="margin-top:16px;display:flex;justify-content:flex-end"><button class="tiny-btn danger" onclick="clearAllPurchases()">Clear all events</button></div>`;
 }
-function deletePurchase(id) {
-  if (!confirm('Delete this event?')) return;
+async function deletePurchase(id) {
+  const ok = await customConfirm({title:'Delete this event?', body:'It will be removed from the admin log.', okText:'Delete'});
+  if (!ok) return;
   S.purchases = S.purchases.filter(p => p.id !== id);
   save(); renderPurchasesTab();
   deletePurchaseFromFirebase(id);
   showToast('Event deleted', 'good');
 }
-function clearAllPurchases() {
-  if (!confirm('Delete ALL purchase events? This cannot be undone.')) return;
+async function clearAllPurchases() {
+  const ok = await customConfirm({title:'Clear all events?', body:`This removes all ${S.purchases.length} purchase events. Cannot be undone.`, okText:'Clear all', danger:true});
+  if (!ok) return;
   const ids = S.purchases.map(p => p.id);
   S.purchases = [];
   save(); renderPurchasesTab();
@@ -2846,6 +2879,8 @@ function renderAdminPricing() {
   const em = S.email || {};
   if (document.getElementById('emailEnabledInput')) document.getElementById('emailEnabledInput').checked = !!em.enabled;
   if (document.getElementById('emailUrlInput'))     document.getElementById('emailUrlInput').value     = em.webhookUrl || '';
+  if (document.getElementById('emailAppKeyInput')) document.getElementById('emailAppKeyInput').value  = em.appKey    || '';
+  if (document.getElementById('emailSiteUrlInput'))document.getElementById('emailSiteUrlInput').value = em.siteUrl   || (typeof location !== 'undefined' ? location.origin : '');
   if (document.getElementById('emailFromInput'))    document.getElementById('emailFromInput').value    = em.fromName  || 'Garage Pro';
   if (document.getElementById('emailReplyInput'))   document.getElementById('emailReplyInput').value   = em.replyTo   || '';
   const ev = em.events || {};
@@ -3177,7 +3212,9 @@ async function sendEmail(to, subject, body, html) {
       body: JSON.stringify({
         to, subject, body, html: html || body,
         fromName: S.email.fromName || 'Garage Pro',
-        replyTo:  S.email.replyTo  || ''
+        replyTo:  S.email.replyTo  || '',
+        appKey:   S.email.appKey   || '',           // optional Gmail app password
+        siteUrl:  emailSiteUrl()                    // also passed for the script's records
       })
     });
     const ok = res.ok;
@@ -3187,6 +3224,18 @@ async function sendEmail(to, subject, body, html) {
     console.warn('Email send failed:', e);
     return false;
   }
+}
+
+// Resolve the website URL we put in email links. Priority:
+//   1) Admin-configured siteUrl in email settings
+//   2) Current browser origin (whatever the user is on)
+//   3) Fallback to garagepro.app
+function emailSiteUrl() {
+  if (S.email && S.email.siteUrl) return S.email.siteUrl.replace(/\/+$/, '');
+  if (typeof location !== 'undefined' && location.origin && !location.origin.startsWith('file:')) {
+    return location.origin + (location.pathname.replace(/\/[^/]*$/, '') || '');
+  }
+  return 'https://garagepro.app';
 }
 
 // Pre-built templates — minimal, on-brand HTML
@@ -3203,7 +3252,7 @@ const EMAIL_TPL = {
           <h2 style="font-size:20px;margin:0 0 14px">Hi ${data.firstName}, welcome aboard 👋</h2>
           <p style="line-height:1.6;font-size:15px;color:#444">Your Garage Pro account is ready. You can now buy a plan or start a free trial to activate the software.</p>
           ${data.garageName ? `<p style="line-height:1.6;font-size:15px;color:#444">We've set you up for <b>${data.garageName}</b>.</p>` : ''}
-          <p style="margin-top:24px"><a href="https://garagepro.app/account" style="background:#ff7a18;color:#170f05;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700">Open my account</a></p>
+          <p style="margin-top:24px"><a href="${emailSiteUrl()}" style="background:#ff7a18;color:#170f05;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700">Open my account</a></p>
           <p style="color:#999;font-size:12.5px;margin-top:28px;line-height:1.5">Questions? Just reply to this email.</p>
         </div>
       </div>`
@@ -3227,7 +3276,7 @@ const EMAIL_TPL = {
             <b>${data.isTrial ? 'Trial ends' : 'Renews on'}:</b> ${data.expiryDisplay || 'No expiry'}<br/>
             ${data.garageName ? `<b>Garage:</b> ${data.garageName}<br/>` : ''}
           </p>
-          <p style="margin-top:22px"><a href="https://garagepro.app/account" style="background:#ff7a18;color:#170f05;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700">Download &amp; activate</a></p>
+          <p style="margin-top:22px"><a href="${emailSiteUrl()}" style="background:#ff7a18;color:#170f05;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:700">Download &amp; activate</a></p>
           <p style="color:#999;font-size:12.5px;margin-top:24px;line-height:1.5">Paste the key into the desktop app on first launch to activate. Keep this email for your records.</p>
         </div>
       </div>`
@@ -3270,9 +3319,13 @@ function saveEmailSettings() {
     msg.textContent = 'URL should look like https://script.google.com/macros/s/.../exec';
     return;
   }
+  let siteUrl = document.getElementById('emailSiteUrlInput').value.trim().replace(/\/+$/, '');
+  if (siteUrl && !/^https?:\/\//i.test(siteUrl)) siteUrl = 'https://' + siteUrl;
   S.email = {
     enabled:    document.getElementById('emailEnabledInput').checked,
     webhookUrl: url,
+    appKey:     document.getElementById('emailAppKeyInput').value,
+    siteUrl:    siteUrl,
     fromName:   document.getElementById('emailFromInput').value.trim() || 'Garage Pro',
     replyTo:    document.getElementById('emailReplyInput').value.trim(),
     events: {
@@ -3295,7 +3348,14 @@ async function sendTestEmail() {
     msg.style.color = '#ff6b6b'; msg.textContent = 'Paste your Apps Script URL first.';
     return;
   }
-  const to = prompt('Send a test email to which address?', (currentUser && currentUser.email) || '');
+  const to = await customPrompt({
+    title: 'Send a test email',
+    body:  'Which address should we send the test to?',
+    placeholder: 'you@example.com',
+    type: 'email',
+    defaultValue: (currentUser && currentUser.email) || '',
+    okText: 'Send'
+  });
   if (!to) return;
   msg.style.color = 'var(--dim)'; msg.textContent = 'Sending…';
   const ok = await sendEmail(
@@ -3742,11 +3802,18 @@ function openPlanForm(id) {
 }
 function closePlanForm() { document.getElementById('planForm').classList.remove('open'); }
 function editPlan(id) { openPlanForm(id); }
-function deletePlan(id) {
-  if (!confirm('Delete this plan? Existing licenses on this plan keep working until they expire.')) return;
+async function deletePlan(id) {
+  const plan = S.plans.find(p => p.id === id);
+  const ok = await customConfirm({
+    title: `Delete the ${plan ? plan.name : 'plan'}?`,
+    body:  'Existing licenses on this plan keep working until they expire. New customers won\'t be able to choose it.',
+    okText:'Delete plan', danger:true
+  });
+  if (!ok) return;
   S.plans = S.plans.filter(p => p.id !== id);
   save(); renderAdminPlansGrid(); renderPlansGrid();
   syncPlansToFirebase();
+  auditLog('delete_plan', id, plan ? plan.name : '');
   showToast('Plan deleted', 'good');
 }
 function savePlan() {
@@ -3957,6 +4024,112 @@ async function upgradeUserPlan(planId, cycle) {
 }
 
 // ══════════════════════════════════════════
+//  CUSTOM CONFIRM / PROMPT (replaces native confirm() and prompt())
+// ══════════════════════════════════════════
+// customConfirm({title, body, okText, cancelText, danger}) → Promise<boolean>
+// customPrompt({title, body, placeholder, defaultValue, okText, type}) → Promise<string|null>
+let _confirmResolve = null;
+function customConfirm(opts) {
+  return new Promise(resolve => {
+    _confirmResolve = resolve;
+    opts = opts || {};
+    const modal  = document.getElementById('confirmModal');
+    const icon   = document.getElementById('confirmIcon');
+    const title  = document.getElementById('confirmTitle');
+    const body   = document.getElementById('confirmBody');
+    const ok     = document.getElementById('confirmOk');
+    const cancel = document.getElementById('confirmCancel');
+    const inWrap = document.getElementById('confirmInputWrap');
+    title.textContent = opts.title || 'Are you sure?';
+    body.textContent  = opts.body  || '';
+    ok.textContent    = opts.okText     || 'Confirm';
+    cancel.textContent= opts.cancelText || 'Cancel';
+    inWrap.style.display = 'none';
+    // Icon swap — amber for warn (default), red for destructive
+    if (opts.danger) {
+      icon.style.background = 'rgba(255,107,107,.14)';
+      icon.style.color      = '#ff6b6b';
+      icon.style.borderColor= 'rgba(255,107,107,.32)';
+      ok.style.background   = 'linear-gradient(135deg,#ff6b6b,#ff8a8a)';
+      ok.style.color        = '#1a0606';
+    } else {
+      icon.style.background = 'rgba(255,179,71,.14)';
+      icon.style.color      = 'var(--acc2)';
+      icon.style.borderColor= 'rgba(255,179,71,.32)';
+      ok.style.background   = '';
+      ok.style.color        = '';
+    }
+    modal.classList.add('open');
+    setTimeout(() => ok.focus(), 50);
+  });
+}
+function customPrompt(opts) {
+  return new Promise(resolve => {
+    _confirmResolve = resolve;
+    opts = opts || {};
+    const modal  = document.getElementById('confirmModal');
+    const icon   = document.getElementById('confirmIcon');
+    const title  = document.getElementById('confirmTitle');
+    const body   = document.getElementById('confirmBody');
+    const ok     = document.getElementById('confirmOk');
+    const cancel = document.getElementById('confirmCancel');
+    const inWrap = document.getElementById('confirmInputWrap');
+    const input  = document.getElementById('confirmInput');
+    title.textContent = opts.title || 'Enter a value';
+    body.textContent  = opts.body  || '';
+    ok.textContent    = opts.okText     || 'OK';
+    cancel.textContent= opts.cancelText || 'Cancel';
+    input.value = opts.defaultValue || '';
+    input.placeholder = opts.placeholder || '';
+    input.type = opts.type || 'text';
+    inWrap.style.display = '';
+    // Always use the friendly (non-danger) styling for prompts
+    icon.style.background = 'rgba(120,140,255,.14)';
+    icon.style.color      = '#9db0ff';
+    icon.style.borderColor= 'rgba(120,140,255,.32)';
+    ok.style.background   = '';
+    ok.style.color        = '';
+    // Different icon for prompt (info / pencil)
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
+    modal.classList.add('open');
+    setTimeout(() => input.focus(), 50);
+  });
+}
+function _confirmClose(result) {
+  document.getElementById('confirmModal').classList.remove('open');
+  // Reset the icon back to warning for next non-prompt use
+  document.getElementById('confirmIcon').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
+  const r = _confirmResolve; _confirmResolve = null;
+  if (r) r(result);
+}
+// Wire button clicks once on load
+document.getElementById('confirmOk').addEventListener('click', () => {
+  const inWrap = document.getElementById('confirmInputWrap');
+  if (inWrap.style.display !== 'none') {
+    _confirmClose(document.getElementById('confirmInput').value);
+  } else {
+    _confirmClose(true);
+  }
+});
+document.getElementById('confirmCancel').addEventListener('click', () => _confirmClose(null));
+document.getElementById('confirmModal').addEventListener('click', e => {
+  if (e.target.id === 'confirmModal') _confirmClose(null);
+});
+// Esc closes; Enter triggers OK in prompt mode
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('confirmModal').classList.contains('open')) return;
+  if (e.key === 'Escape') _confirmClose(null);
+  if (e.key === 'Enter') {
+    const inWrap = document.getElementById('confirmInputWrap');
+    if (inWrap.style.display !== 'none') {
+      _confirmClose(document.getElementById('confirmInput').value);
+    } else {
+      _confirmClose(true);
+    }
+  }
+});
+
+// ══════════════════════════════════════════
 //  TOAST
 // ══════════════════════════════════════════
 let toastT;
@@ -4070,7 +4243,12 @@ function updateBulkBar() {
 }
 async function bulkRevokeLicenses() {
   if (!fbDb || !selectedLicenseKeys.size) return;
-  if (!confirm(`Revoke ${selectedLicenseKeys.size} license(s)? Each user loses access immediately.`)) return;
+  const ok = await customConfirm({
+    title: `Revoke ${selectedLicenseKeys.size} license${selectedLicenseKeys.size === 1 ? '' : 's'}?`,
+    body:  'Every selected user loses access to the software immediately. You can reactivate them later.',
+    okText:'Revoke all'
+  });
+  if (!ok) return;
   const keys = [...selectedLicenseKeys];
   const now = firebase.firestore.Timestamp.now();
   let ok = 0, fail = 0;
@@ -4093,7 +4271,14 @@ async function bulkRevokeLicenses() {
 }
 async function bulkExtendLicenses() {
   if (!fbDb || !selectedLicenseKeys.size) return;
-  const dStr = prompt('Extend each selected license by how many days?', '30');
+  const dStr = await customPrompt({
+    title: `Extend ${selectedLicenseKeys.size} license${selectedLicenseKeys.size === 1 ? '' : 's'}`,
+    body:  'Extend each license by how many days? Expired licenses are extended from today, active ones from their current expiry.',
+    placeholder: '30',
+    defaultValue: '30',
+    type: 'number',
+    okText: 'Extend'
+  });
   const days = parseInt(dStr, 10);
   if (!days || days < 1) return;
   const keys = [...selectedLicenseKeys];
@@ -4123,7 +4308,12 @@ async function bulkExtendLicenses() {
 }
 async function bulkDeleteLicenses() {
   if (!fbDb || !selectedLicenseKeys.size) return;
-  if (!confirm(`PERMANENTLY delete ${selectedLicenseKeys.size} license(s)? This cannot be undone.`)) return;
+  const ok = await customConfirm({
+    title: `Delete ${selectedLicenseKeys.size} license${selectedLicenseKeys.size === 1 ? '' : 's'}?`,
+    body:  'Permanently removes the license documents from Firebase. This cannot be undone.',
+    okText:'Delete forever', danger:true
+  });
+  if (!ok) return;
   const keys = [...selectedLicenseKeys];
   let ok = 0, fail = 0;
   await Promise.all(keys.map(async k => {
@@ -4214,7 +4404,13 @@ function renderLicensesTab() {
 // S.licenses locally — the live `subscribeLicensesFromFirebase` listener
 // picks up the change and re-renders within ~1 second on every device.
 async function revokeLicense(id) {
-  if (!confirm('Revoke this license? The user will lose access to the software.')) return;
+  const lic2 = S.licenses.find(l => l.id === id || l.key === id);
+  const ok = await customConfirm({
+    title:  'Revoke this license?',
+    body:   `The user${lic2 && lic2.name ? ' (' + lic2.name + ')' : ''} will lose access to the software immediately. You can reactivate later.`,
+    okText: 'Revoke license'
+  });
+  if (!ok) return;
   const lic = S.licenses.find(l => l.id === id || l.key === id);
   if (!lic) { showToast('License not found', 'bad'); return; }
   if (!fbDb) { showToast('Firebase not connected — cannot revoke', 'bad'); return; }
@@ -4263,7 +4459,13 @@ async function reactivateLicense(id) {
   }
 }
 async function deleteLicense(id) {
-  if (!confirm('Permanently delete this license? This cannot be undone.')) return;
+  const lic2 = S.licenses.find(l => l.id === id || l.key === id);
+  const ok = await customConfirm({
+    title:  'Permanently delete this license?',
+    body:   `${lic2 ? lic2.key + ' · ' + (lic2.name || lic2.email) : 'This license'} will be removed from Firebase. Cannot be undone.`,
+    okText: 'Delete forever', danger: true
+  });
+  if (!ok) return;
   const lic = S.licenses.find(l => l.id === id || l.key === id);
   if (!lic) { showToast('License not found', 'bad'); return; }
   if (!fbDb) { showToast('Firebase not connected — cannot delete', 'bad'); return; }
@@ -4792,6 +4994,162 @@ async function callActivateSubscription(_legacyUserId, planId, billingCycle, opt
 // ══════════════════════════════════════════
 //  SUBSCRIPTION LISTENER (Firestore source of truth)
 // ══════════════════════════════════════════
+// ══════════════════════════════════════════
+//  CHAIN BRANCH LICENSES
+// ══════════════════════════════════════════
+// Customers on a Chain-tier plan (maxBays >= 999) can issue free additional
+// license keys for their other branches. Each branch license inherits the
+// parent's plan, expiry, and limits at the moment of creation.
+let myBranchLicenses = [];
+let fbBranchesUnsub = null;
+
+function isChainTier(sub) {
+  if (!sub) return false;
+  // Chain plan id OR unlimited maxBays signals top tier
+  if (sub.plan === 'chain') return true;
+  if (typeof sub.maxBays === 'number' && sub.maxBays >= 999) return true;
+  // Look up in plans catalogue as a backup
+  const p = S.plans.find(p => p.id === sub.plan);
+  return p && p.maxBays >= 999;
+}
+
+function subscribeMyBranchLicenses() {
+  if (fbBranchesUnsub) { try { fbBranchesUnsub(); } catch(e){} fbBranchesUnsub = null; }
+  myBranchLicenses = [];
+  if (!fbDb || !fbAuth || !fbAuth.currentUser) return;
+  const uid = fbAuth.currentUser.uid;
+  try {
+    fbBranchesUnsub = fbDb.collection('licenses')
+      .where('parentUid', '==', uid)
+      .onSnapshot(snap => {
+        myBranchLicenses = [];
+        snap.forEach(doc => {
+          const d = doc.data() || {};
+          myBranchLicenses.push({
+            key:         d.key || doc.id,
+            branchName:  d.branchName || 'Branch',
+            contactEmail:d.contactEmail || '',
+            plan:        d.plan, planName: d.planName,
+            status:      d.status || 'active',
+            expiry:      d.expiry && d.expiry.toDate ? d.expiry.toDate().toISOString() : d.expiry,
+            createdAt:   d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toISOString() : d.createdAt
+          });
+        });
+        myBranchLicenses.sort((a,b) => (a.branchName || '').localeCompare(b.branchName || ''));
+        if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
+      }, e => console.warn('Branches listener:', e));
+  } catch (e) { console.warn('subscribeMyBranchLicenses failed:', e); }
+}
+
+async function addBranchLicense() {
+  if (!fbAuth || !fbAuth.currentUser || !fbDb) return showToast('Sign in first', 'bad');
+  const sub = currentSubscription;
+  if (!isChainTier(sub)) return showToast('Branch licenses are a Chain-plan feature', 'bad');
+  const name  = document.getElementById('branch-name').value.trim();
+  const email = document.getElementById('branch-email').value.trim();
+  const errEl = document.getElementById('branch-err');
+  errEl.textContent = '';
+  if (!name) { errEl.textContent = 'Branch name is required.'; return; }
+  const uid = fbAuth.currentUser.uid;
+  const parentEmail = fbAuth.currentUser.email;
+  const parentKey   = sub.licenseKey;
+  const parentPlan  = sub.plan;
+  const parentPlanName = sub.planName || (S.plans.find(p => p.id === parentPlan) || {}).name || 'Chain';
+  const expiry      = sub.expiry ? firebase.firestore.Timestamp.fromDate(new Date(sub.expiry)) : null;
+  const licenseKey  = generateLicenseKey();
+  const now         = firebase.firestore.Timestamp.now();
+
+  const doc = {
+    key:           licenseKey,
+    parentKey:     parentKey,
+    parentUid:     uid,
+    parentEmail:   parentEmail,
+    isBranch:      true,
+    branchName:    name,
+    contactEmail:  email || '',
+    name:          name,
+    email:         email || parentEmail,
+    garageName:    (sub.garageName || ''),
+    plan:          parentPlan,
+    planName:      parentPlanName,
+    billingCycle:  sub.billingCycle || 'monthly',
+    status:        'active',
+    activatedAt:   now,
+    expiry:        expiry,
+    indefinite:    !expiry,
+    maxBays:       sub.maxBays || 999,
+    maxWorkers:    sub.maxWorkers || 999,
+    maxBookings:   sub.maxBookings || 999,
+    paidStatus:    'included-with-chain',
+    issuedByAdmin: false,
+    createdAt:     now
+  };
+  try {
+    await fbDb.collection('licenses').doc(licenseKey).set(doc);
+    document.getElementById('branch-name').value  = '';
+    document.getElementById('branch-email').value = '';
+    document.getElementById('branchForm').classList.remove('open');
+    showToast(`Branch "${name}" added — key ${licenseKey}`, 'good');
+    // Email the branch contact if email notifications are on
+    if (email) {
+      sendLicenseEmail({name, email}, {
+        licenseKey,
+        planName:     parentPlanName,
+        billingCycle: 'Branch (inherits ' + (sub.billingCycle || 'monthly') + ')',
+        expiry:       expiry ? expiry.toDate().toISOString() : null,
+        isTrial:      false,
+        isManual:     true,
+        garageName:   sub.garageName || ''
+      });
+    }
+  } catch (e) {
+    errEl.textContent = 'Failed: ' + (e.message || e.code || 'unknown');
+  }
+}
+
+async function revokeBranchLicense(key) {
+  const ok = await customConfirm({
+    title: 'Revoke this branch license?',
+    body:  'The branch will lose access to the software immediately. You can reactivate from the admin panel.',
+    okText:'Revoke branch'
+  });
+  if (!ok) return;
+  try {
+    await fbDb.collection('licenses').doc(key).set({
+      status:'revoked',
+      revokedAt: firebase.firestore.Timestamp.now()
+    }, { merge: true });
+    showToast('Branch revoked', 'good');
+  } catch (e) {
+    showToast('Failed: ' + (e.message || 'unknown'), 'bad');
+  }
+}
+
+async function deleteBranchLicense(key) {
+  const ok = await customConfirm({
+    title: 'Permanently delete this branch?',
+    body:  'The license document will be removed from Firebase. Cannot be undone.',
+    okText:'Delete branch', danger:true
+  });
+  if (!ok) return;
+  try {
+    await fbDb.collection('licenses').doc(key).delete();
+    showToast('Branch deleted', 'good');
+  } catch (e) {
+    showToast('Failed: ' + (e.message || 'unknown'), 'bad');
+  }
+}
+
+function toggleBranchForm(show) {
+  const f = document.getElementById('branchForm');
+  if (show === undefined) f.classList.toggle('open');
+  else                    f.classList.toggle('open', show);
+  if (f.classList.contains('open')) {
+    document.getElementById('branch-err').textContent = '';
+    setTimeout(() => document.getElementById('branch-name').focus(), 60);
+  }
+}
+
 function subscribeToUserSubscription() {
   if (fbSubUnsub) { try { fbSubUnsub(); } catch(e){} fbSubUnsub = null; }
   currentSubscription = null;
@@ -4986,7 +5344,8 @@ function renderUserDashboard() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
         Subscription status verified from secure server. Updates in real time.
       </div>
-    </div>`;
+    </div>
+    ${isChainTier(sub) ? renderBranchSection() : ''}`;
   } else {
     // No subscription in Firestore — show empty state
     area.innerHTML = `<div class="lic-empty">
@@ -5013,6 +5372,75 @@ function renderUserDashboard() {
     document.getElementById('udSavedCard').style.display = 'none';
   }
 }
+function renderBranchSection() {
+  const branches = myBranchLicenses || [];
+  const rowsHtml = branches.length
+    ? branches.map(b => {
+        const statusTag = b.status === 'active'
+          ? '<span class="lic-status-tag active">● Active</span>'
+          : '<span class="lic-status-tag revoked">● Revoked</span>';
+        const expStr = b.expiry ? new Date(b.expiry).toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'}) : 'No expiry';
+        const safeKey = String(b.key).replace(/'/g, "\\'");
+        const actions = b.status === 'active'
+          ? `<button class="tiny-btn warn" onclick="revokeBranchLicense('${safeKey}')">Revoke</button>
+             <button class="tiny-btn danger" onclick="deleteBranchLicense('${safeKey}')">Delete</button>`
+          : `<button class="tiny-btn danger" onclick="deleteBranchLicense('${safeKey}')">Delete</button>`;
+        return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:14px 16px;background:var(--bg2);border:1px solid var(--brd);border-radius:11px;margin-bottom:10px">
+          <div style="flex:1;min-width:220px">
+            <div style="font-weight:700;font-size:14.5px;margin-bottom:3px">${b.branchName}${b.contactEmail ? ` <span style="color:var(--faint);font-weight:500;font-size:12.5px">· ${b.contactEmail}</span>` : ''}</div>
+            <div style="font-family:'Courier New',monospace;font-size:12.5px;color:var(--acc2);letter-spacing:.5px">${b.key}</div>
+            <div style="font-size:11.5px;color:var(--faint);margin-top:4px">Expires ${expStr}</div>
+          </div>
+          <div>${statusTag}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="tiny-btn" onclick="copyKey('${safeKey}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button>
+            ${actions}
+          </div>
+        </div>`;
+      }).join('')
+    : '<div style="padding:18px;background:var(--bg2);border:1px dashed var(--brd);border-radius:11px;color:var(--faint);text-align:center;font-size:13.5px">No branch licenses yet. Add your first one below.</div>';
+
+  return `<div class="lic-card" style="margin-top:18px;background:linear-gradient(135deg,rgba(120,140,255,.06),rgba(32,227,178,.04));border:1px solid rgba(120,140,255,.22)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:#9db0ff;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 9h6M9 13h6M9 17h6"/></svg>
+          Chain · Branch licenses
+        </div>
+        <div style="font-family:var(--fd);font-size:18px;font-weight:800">Issue keys for your other branches</div>
+        <div style="color:var(--dim);font-size:13.5px;margin-top:4px">Free with your Chain plan. Each branch gets a key with the same limits and expiry as your main subscription.</div>
+      </div>
+      <button class="btn btn-ghost" style="padding:9px 16px;font-size:13.5px" onclick="toggleBranchForm()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+        Add branch
+      </button>
+    </div>
+
+    <div id="branchForm" style="display:none;background:var(--surf);border:1px solid var(--brd2);border-radius:12px;padding:18px;margin-bottom:14px">
+      <div class="form-row">
+        <div class="form-group"><label>Branch name</label><input id="branch-name" type="text" placeholder="Mumbai Branch" /></div>
+        <div class="form-group"><label>Branch contact email (optional)</label><input id="branch-email" type="email" placeholder="mumbai@speedauto.in" /></div>
+      </div>
+      <div id="branch-err" style="font-size:13px;color:#ff6b6b;min-height:18px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:10px">
+        <button class="form-btn form-btn-save" onclick="addBranchLicense()">Generate branch key</button>
+        <button class="form-btn form-btn-cancel" onclick="toggleBranchForm(false)">Cancel</button>
+      </div>
+    </div>
+
+    ${rowsHtml}
+
+    <div style="margin-top:14px;font-size:12px;color:var(--faint);line-height:1.55">
+      <b style="color:var(--teal)">${branches.length}</b> branch licenses issued so far · Each branch installs Garage Pro and activates with its own key · Revoking a branch doesn't affect your main subscription.
+    </div>
+  </div>`;
+}
+
+/* Inline form animation for the branch creation card */
+const _branchStyle = document.createElement('style');
+_branchStyle.textContent = '#branchForm.open{display:block!important;animation:branchIn .25s cubic-bezier(.2,.7,.2,1)}@keyframes branchIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}';
+document.head.appendChild(_branchStyle);
+
 function userTriggerDownload() {
   if (!S.downloadUrl) {
     showToast('Installer not available yet — please contact support', 'bad');
@@ -5173,6 +5601,7 @@ function handleAuthStateChanged(fbUser) {
     };
     sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
     subscribeToUserSubscription();
+    subscribeMyBranchLicenses();
     // If the user clicked "Start free trial" before they had an account, kick
     // off the trial activation now that auth has settled.
     if (pendingAction === 'demo') {
@@ -5182,7 +5611,9 @@ function handleAuthStateChanged(fbUser) {
   } else {
     currentUser = null;
     currentSubscription = null;
+    myBranchLicenses = [];
     if (fbSubUnsub) { try { fbSubUnsub(); } catch(e){} fbSubUnsub = null; }
+    if (fbBranchesUnsub) { try { fbBranchesUnsub(); } catch(e){} fbBranchesUnsub = null; }
     sessionStorage.removeItem('gp_user');
   }
   renderNav();
@@ -5364,8 +5795,13 @@ function saveFirebaseConfig() {
   }
   setTimeout(() => { msg.textContent=''; }, 6000);
 }
-function disconnectFirebase() {
-  if (!confirm('Disconnect Firebase? Licenses will only be saved locally.')) return;
+async function disconnectFirebase() {
+  const ok = await customConfirm({
+    title: 'Disconnect Firebase?',
+    body:  'Licenses will only be saved locally on this device, and the site will stop receiving live updates from Firestore.',
+    okText:'Disconnect', danger:true
+  });
+  if (!ok) return;
   S.fbConfig = null;
   localStorage.removeItem(KEYS.fbConfig);
   if (fbUnsub) { try { fbUnsub(); } catch(e){} fbUnsub = null; }
@@ -5469,7 +5905,12 @@ async function addAdminAccount() {
   }
 }
 async function removeAdminAccount(username) {
-  if (!confirm(`Remove admin "${username}"? They will be unable to sign in.`)) return;
+  const ok = await customConfirm({
+    title: `Remove admin "${username}"?`,
+    body:  'They will be unable to sign in to the admin panel.',
+    okText:'Remove admin', danger:true
+  });
+  if (!ok) return;
   try {
     await fbDb.collection('admins').doc(username).delete();
     auditLog('remove_admin', username, '');
@@ -5560,7 +6001,12 @@ async function createDiscountCode() {
   }
 }
 async function deleteDiscountCode(code) {
-  if (!confirm(`Delete code ${code}?`)) return;
+  const ok = await customConfirm({
+    title: `Delete code ${code}?`,
+    body:  'Customers will no longer be able to redeem it. Past purchases that used the code keep their discount.',
+    okText:'Delete code', danger:true
+  });
+  if (!ok) return;
   try {
     await fbDb.collection('discounts').doc(code).delete();
     auditLog('delete_discount', code, '');
