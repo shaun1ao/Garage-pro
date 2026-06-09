@@ -4251,7 +4251,7 @@ async function bulkRevokeLicenses() {
   if (!ok) return;
   const keys = [...selectedLicenseKeys];
   const now = firebase.firestore.Timestamp.now();
-  let ok = 0, fail = 0;
+  let okCount = 0, failCount = 0;
   await Promise.all(keys.map(async k => {
     const lic = S.licenses.find(l => l.key === k);
     try {
@@ -4261,13 +4261,13 @@ async function bulkRevokeLicenses() {
           subscription: { status:'revoked', revokedAt: now }
         }, { merge:true });
       }
-      ok++;
-    } catch(e) { fail++; }
+      okCount++;
+    } catch(e) { failCount++; }
   }));
-  auditLog('bulk_revoke', `${ok} keys`, keys.slice(0,5).join(', ') + (keys.length > 5 ? ` +${keys.length-5} more` : ''));
+  auditLog('bulk_revoke', `${okCount} keys`, keys.slice(0,5).join(', ') + (keys.length > 5 ? ` +${keys.length-5} more` : ''));
   selectedLicenseKeys.clear();
   updateBulkBar();
-  showToast(`Revoked ${ok}${fail ? ` · ${fail} failed` : ''}`, fail ? 'bad' : 'good');
+  showToast(`Revoked ${okCount}${failCount ? ` · ${failCount} failed` : ''}`, failCount ? 'bad' : 'good');
 }
 async function bulkExtendLicenses() {
   if (!fbDb || !selectedLicenseKeys.size) return;
@@ -4315,7 +4315,7 @@ async function bulkDeleteLicenses() {
   });
   if (!ok) return;
   const keys = [...selectedLicenseKeys];
-  let ok = 0, fail = 0;
+  let okCount = 0, failCount = 0;
   await Promise.all(keys.map(async k => {
     const lic = S.licenses.find(l => l.key === k);
     try {
@@ -4325,13 +4325,13 @@ async function bulkDeleteLicenses() {
           subscription: firebase.firestore.FieldValue.delete()
         }, { merge:true });
       }
-      ok++;
-    } catch(e) { fail++; }
+      okCount++;
+    } catch(e) { failCount++; }
   }));
-  auditLog('bulk_delete', `${ok} keys`, keys.slice(0,5).join(', '));
+  auditLog('bulk_delete', `${okCount} keys`, keys.slice(0,5).join(', '));
   selectedLicenseKeys.clear();
   updateBulkBar();
-  showToast(`Deleted ${ok}${fail ? ` · ${fail} failed` : ''}`, fail ? 'bad' : 'good');
+  showToast(`Deleted ${okCount}${failCount ? ` · ${failCount} failed` : ''}`, failCount ? 'bad' : 'good');
 }
 function bulkExportSelectedCsv() {
   const keys = [...selectedLicenseKeys];
