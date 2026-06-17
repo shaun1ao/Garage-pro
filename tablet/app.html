@@ -1729,24 +1729,36 @@ function go(name){
 async function load(silent){
   if(_onlineMode && _workshopFSBase){
     try{
+      // Collections stored as {items: [...]} — a list of records
       const _col=async(name)=>{
         const r=await fetch(`${_workshopFSBase}/${name}/data`,{headers:{Accept:'application/json'}});
         if(!r.ok) return [];
         const doc=await r.json();
         if(!doc.fields) return [];
-        const d=fsMap(doc.fields); return d.items||[];
+        const d=fsMap(doc.fields);
+        return Array.isArray(d.items) ? d.items : [];
+      };
+      // Collections stored as {items: {...}} — a single object, not a list
+      // (e.g. access_config, which holds desktop_users/worker_tabs/etc as
+      // top-level keys of one dict rather than an array of records)
+      const _colObj=async(name)=>{
+        const r=await fetch(`${_workshopFSBase}/${name}/data`,{headers:{Accept:'application/json'}});
+        if(!r.ok) return {};
+        const doc=await r.json();
+        if(!doc.fields) return {};
+        const d=fsMap(doc.fields);
+        return (d.items && typeof d.items==='object' && !Array.isArray(d.items)) ? d.items : {};
       };
       const [bays,bookings,customers,mechanics,jobs,inventory,
-             parts_requests,timesheets,queue,sArr,acArr]=await Promise.all([
+             parts_requests,timesheets,queue,sArr,accessConfig]=await Promise.all([
         _col('bays'),_col('bookings'),_col('customers'),_col('mechanics'),
         _col('jobs'),_col('inventory'),_col('parts_requests'),_col('timesheets'),
-        _col('queue'),_col('settings'),_col('access_config')
+        _col('queue'),_col('settings'),_colObj('access_config')
       ]);
       const settings=sArr[0]||{};
       // access_config holds desktop_users / worker_tabs / custom_roles /
       // admin_pin — these sync separately from main settings via
       // save_settings()'s cloud push, so merge them in here.
-      const accessConfig=acArr[0]||{};
       const mergedDesktopUsers = accessConfig.desktop_users || settings.desktop_users || [];
       const mergedWorkerTabs   = accessConfig.worker_tabs   || settings.worker_tabs   || [];
       const mergedAdminPin     = accessConfig.admin_pin     ?? settings.admin_pin     ?? '';
@@ -1771,7 +1783,7 @@ async function load(silent){
            })),
          workers:mechanics};
       if(!window._pollTimer)
-        window._pollTimer=setInterval(async()=>{await load(true);if(typeof redraw==='function')redraw();},30000);
+        window._pollTimer=setInterval(async()=>{await load(true);if(typeof redraw==='function')redraw();},6000);
     }catch(e){ if(!silent) toast('Firebase error','err'); }
     // Show login screen if not logged in
     if(!currentWorker){ showLoginScreen(); return; }
@@ -1832,7 +1844,7 @@ function filt(f,el){
   document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
   el.classList.add('on');drawJobs();
 }
-function jobActive(j){return !['Delivered','Cancelled'].includes(j.status);}
+function jobActive(j){return !['Delivered','Cancelled','Complete'].includes(j.status);}
 // Filter jobs to current worker's name (admin sees all)
 function workerJobs(){
   if(!currentWorker) return D.jobs;
@@ -3299,12 +3311,29 @@ async function post(url,body){
   const td=_todayStr();
   if(url==='/api/checkin'){
     const bk=D.bookings.find(b=>b.id===body.booking_id);if(!bk)return{ok:false};
-    bk.status='Arrived';bk.bay_id=body.bay_id;bk.bay_name=(D.bays.find(b=>b.id===body.bay_id)||{}).name||'';
-    const bay=D.bays.find(b=>b.id===body.bay_id);
-    if(bay){bay.status='occupied';bay.booking_id=bk.id;bay.plate=bk.plate;}
+    // Free up the PREVIOUS bay if this booking was already parked somewhere
+    // (covers both initial check-in and "Move bay" re-using this endpoint)
+    const prevBayId = bk.bay_id;
+    const updatedBays = [];
+    if(prevBayId && prevBayId !== body.bay_id){
+      const prevBay = D.bays.find(b=>b.id===prevBayId);
+      if(prevBay){
+        prevBay.status='Available'; prevBay.booking_id=null; prevBay.plate='';
+        updatedBays.push(prevBay);
+      }
+    }
+    bk.status='Arrived';bk.bay_id=body.bay_id;
+    const newBay=D.bays.find(b=>b.id===body.bay_id);
+    bk.bay_name=newBay?.name||''; bk.bay_num=newBay?.num||bk.bay_num;
+    if(newBay){
+      newBay.status='occupied';newBay.booking_id=bk.id;newBay.plate=bk.plate;
+      updatedBays.push(newBay);
+    }
     let job=D.jobs.find(j=>j.booking_id===bk.id);
     if(!job){job={id:_uid(),booking_id:bk.id,plate:bk.plate,cust_name:bk.cust_name,type:bk.service||'',mechanic:bk.mechanic||'',mechanics:bk.mechanic?[bk.mechanic]:[],status:'Pending',parts:[],labour_notes:'',service_charges:[],photos:[],workflow_stage:'intake',parts_estimate:[],estimate_status:'none',invoice_profile:{},created_at:_nowStr(),completed_at:null};await _fb('jobs','append',job);}
-    await _fb('bookings','update',bk);if(bay)await _fb('bays','update',bay);
+    await _fb('bookings','update',bk);
+    // Push the FULL bays array (not just one bay) since we may have changed two
+    await _fbWrite('bays', D.bays);
     return{ok:true,booking:bk,bays:D.bays,jobs:D.jobs};
   }
   if(url==='/api/checkout'){
