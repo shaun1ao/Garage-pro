@@ -4032,6 +4032,57 @@ function _stopCamera(){
   }
 }
 
+// ── Local (in-memory D) lookups for online mode — no Flask server needed ──
+
+function _lookupVehicleLocal(rawCode){
+  // Strip control chars/whitespace and "VID:" prefix
+  let vid = (rawCode||'').replace(/[^\x20-\x7E]/g,'').trim();
+  if(vid.toUpperCase().startsWith('VID:')) vid = vid.slice(4);
+  if(!vid) return {ok:true, found:false};
+
+  const today = _todayStr();
+  for(const cust of (D.customers||[])){
+    for(const car of (cust.cars||[])){
+      const carVid = (car.vehicle_id||'').trim();
+      const carId   = (car.id||'').trim();
+      if((carVid && carVid===vid) || (carId && carId===vid) ||
+         (car.plate||'').toUpperCase()===vid.toUpperCase()){
+        const plate = car.plate;
+        const todayBks = (D.bookings||[])
+          .filter(b=>(b.plate||'').toUpperCase()===plate.toUpperCase() && b.date===today)
+          .map(b=>({id:b.id, ref:b.ref||'', service:b.service||b.type||'',
+                    time:b.time||'', status:b.status||'', mechanic:b.mechanic||''}));
+        const history = (D.bookings||[])
+          .filter(b=>(b.plate||'').toUpperCase()===plate.toUpperCase() &&
+                     ['Checked out','Delivered','Complete'].includes(b.status))
+          .sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+          .slice(0,5)
+          .map(h=>({date:h.date||'', service:h.service||h.type||'',
+                    cost:h.actual_cost ?? h.est_cost ?? 0}));
+        return {
+          ok:true, found:true,
+          customer:{id:cust.id, name:cust.name, phone:cust.phone||'', email:cust.email||''},
+          vehicle:{plate, model:car.model||'', year:car.year||'', color:car.color||car.colour||''},
+          today_bookings: todayBks,
+          history,
+        };
+      }
+    }
+  }
+  return {ok:true, found:false};
+}
+
+function _lookupBarcodeLocal(code){
+  const item = (D.inventory||[]).find(i=>(i.barcode||'').trim()===code);
+  if(item){
+    return {ok:true, found:true, item:{
+      id:item.id, name:item.name, category:item.category||'',
+      qty:item.qty, sell_price:item.sell_price||0, barcode:item.barcode||'',
+    }};
+  }
+  return {ok:true, found:false, barcode:code};
+}
+
 async function _onBarcodeScanned(code){
   // Stop camera immediately — show result, don't keep scanning
   _stopCamera();
@@ -4039,21 +4090,25 @@ async function _onBarcodeScanned(code){
   document.getElementById('scan-result-box').style.display  = 'none';
   document.getElementById('scan-unknown-box').style.display = 'none';
   try{
-    const r = await fetch(`/api/scan_barcode?code=${encodeURIComponent(code)}`);
-    const d = await r.json();
+    // Online mode: look up directly against the in-memory data pulled from
+    // Firebase (D) — no Flask server required.
+    // Local mode (desktop running Flask): hit the real API routes.
+    const d = _onlineMode
+      ? _lookupBarcodeLocal(code)
+      : await (await fetch(`/api/scan_barcode?code=${encodeURIComponent(code)}`)).json();
+
     if(_scanMode === 'vehicle_walkin' || _scanMode === 'vehicle_checkin'){
-      // Look up as vehicle barcode
-      try{
-        // Strip "VID:" prefix if present (vehicle QR codes are prefixed)
-        const vid = code.toUpperCase().startsWith("VID:") ? code.slice(4) : code;
-        const vr = await fetch(`/api/scan_vehicle?vid=${encodeURIComponent(vid)}`);
-        const vd = await vr.json();
-        if(vd.found){
-          _showVehicleScanResult(vd, _scanMode, code);
-          return;
-        }
-      }catch(e){}
-      // Not a vehicle tag
+      const vd = _onlineMode
+        ? _lookupVehicleLocal(code)
+        : await (async()=>{
+            const vid = code.toUpperCase().startsWith("VID:") ? code.slice(4) : code;
+            try{ return await (await fetch(`/api/scan_vehicle?vid=${encodeURIComponent(vid)}`)).json(); }
+            catch(e){ return {found:false}; }
+          })();
+      if(vd.found){
+        _showVehicleScanResult(vd, _scanMode, code);
+        return;
+      }
       document.getElementById('scan-hint').textContent = '⚠ Not a recognised vehicle tag';
       return;
     } else if(_scanMode === 'inv_add'){
@@ -4072,7 +4127,7 @@ async function _onBarcodeScanned(code){
       _showUnknownBarcode(code);
     }
   }catch(e){
-    document.getElementById('scan-hint').textContent = '⚠ Network error — try again';
+    document.getElementById('scan-hint').textContent = '⚠ Lookup error — try again';
   }
 }
 
