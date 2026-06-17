@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Garage Pro — Tablet Access</title>
+<meta name="description" content="Launch the Garage Pro tablet interface from any device, any network. Secure branch login." />
+<meta name="theme-color" content="#0a0e14" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:#0a0e14; --bg2:#0e131c; --surf:#141b26; --surf2:#1a2330;
+    --brd:rgba(255,255,255,0.08); --brd2:rgba(255,255,255,0.14);
+    --txt:#eef2f7; --dim:#9aa7b8; --faint:#6b7888;
+    --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2;
+    --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:var(--fb);background:var(--bg);color:var(--txt);
+    min-height:100vh;display:flex;flex-direction:column;
+    -webkit-font-smoothing:antialiased;line-height:1.5;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(900px 600px at 80% -10%,rgba(255,122,24,.16),transparent 60%),
+      radial-gradient(700px 500px at 10% 100%,rgba(32,227,178,.10),transparent 55%);
+  }
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3{font-family:var(--fd);font-weight:800;letter-spacing:-.02em;line-height:1.1}
+
+  header{position:relative;z-index:1;padding:22px 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--brd)}
+  .brand{display:flex;align-items:center;gap:11px;font-family:var(--fd);font-weight:800;font-size:18px}
+  .brand .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;box-shadow:0 6px 18px -4px rgba(255,122,24,.55)}
+  .brand .logo svg{width:21px;height:21px}
+  .brand small{font-family:var(--fb);font-size:11.5px;font-weight:600;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;margin-left:6px;padding:3px 9px;background:rgba(255,255,255,.04);border:1px solid var(--brd);border-radius:100px}
+  .back-link{font-size:13.5px;font-weight:600;color:var(--dim);display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:9px;border:1px solid var(--brd);transition:all .2s}
+  .back-link:hover{color:var(--txt);border-color:var(--brd2)}
+  .back-link svg{width:14px;height:14px}
+
+  main{position:relative;z-index:1;flex:1;display:flex;align-items:center;justify-content:center;padding:48px 24px}
+  .card{
+    width:100%;max-width:520px;background:linear-gradient(180deg,var(--surf),var(--bg2));
+    border:1px solid var(--brd2);border-radius:22px;padding:44px 36px;text-align:center;
+    box-shadow:0 24px 60px -20px rgba(0,0,0,.7);
+  }
+  .badge{
+    display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;
+    color:var(--teal);background:rgba(32,227,178,.10);
+    border:1px solid rgba(32,227,178,.28);padding:6px 12px;border-radius:100px;
+    letter-spacing:.08em;text-transform:uppercase;margin-bottom:22px;
+  }
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(32,227,178,.55);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(32,227,178,.55)}70%{box-shadow:0 0 0 8px rgba(32,227,178,0)}100%{box-shadow:0 0 0 0 rgba(32,227,178,0)}}
+
+  .card h1{font-size:30px;margin-bottom:12px}
+  .card .grad{background:linear-gradient(135deg,var(--acc),var(--acc2) 60%,var(--teal));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .card .sub{color:var(--dim);font-size:15.5px;margin-bottom:32px;line-height:1.6}
+
+  .launch-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:11px;
+    background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;
+    font-family:var(--fb);font-weight:700;font-size:16px;
+    padding:16px 32px;border-radius:12px;border:0;cursor:pointer;
+    box-shadow:0 14px 36px -10px rgba(255,122,24,.65);
+    transition:transform .2s,box-shadow .2s;width:100%;
+  }
+  .launch-btn:hover{transform:translateY(-2px);box-shadow:0 20px 44px -10px rgba(255,122,24,.8)}
+  .launch-btn:active{transform:translateY(0)}
+  .launch-btn svg{width:20px;height:20px}
+
+  .steps{
+    text-align:left;background:var(--bg2);border:1px solid var(--brd);border-radius:14px;
+    padding:22px 24px;margin-top:28px;display:grid;gap:14px;
+  }
+  .step{display:flex;gap:14px;align-items:flex-start}
+  .step-num{flex:none;width:26px;height:26px;border-radius:50%;background:rgba(255,122,24,.15);color:var(--acc2);font-family:var(--fd);font-weight:800;font-size:13px;display:grid;place-items:center;border:1px solid rgba(255,122,24,.28)}
+  .step-text{font-size:14px;color:var(--dim);line-height:1.55}
+  .step-text b{color:var(--txt);font-weight:600}
+
+  .meta{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:center;margin-top:24px;font-size:12.5px;color:var(--faint)}
+  .meta span{display:inline-flex;align-items:center;gap:6px}
+  .meta svg{width:13px;height:13px;color:var(--teal)}
+
+  footer{position:relative;z-index:1;padding:24px;text-align:center;font-size:12.5px;color:var(--faint);border-top:1px solid var(--brd)}
+  footer a{color:var(--acc2)}
+
+  @media(max-width:520px){
+    header{padding:16px 18px}
+    main{padding:32px 18px}
+    .card{padding:36px 24px;border-radius:18px}
+    .card h1{font-size:25px}
+    .card .sub{font-size:14.5px}
+    .steps{padding:18px 18px}
+    .brand small{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="../" class="brand">
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
+    </span>
+    Garage&nbsp;Pro <small>Tablet</small>
+  </a>
+  <a href="../" class="back-link">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    Main site
+  </a>
+</header>
+
+<main>
+  <div class="card">
+    <span class="badge"><span class="dot"></span>Cloud-synced tablet</span>
+    <h1>Open your <span class="grad">workshop tablet</span> from anywhere</h1>
+    <p class="sub">
+      Use any device with a browser — no install, no local network. Sign in with your branch credentials and a worker PIN, and you're on the shop floor.
+    </p>
+
+    <button class="launch-btn" onclick="launchTablet()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/><circle cx="12" cy="11" r="2.2" fill="currentColor"/></svg>
+      Launch Tablet
+    </button>
+
+    <div class="steps">
+      <div class="step">
+        <span class="step-num">1</span>
+        <div class="step-text">Enter your <b>Branch ID</b> and password — set up once in the Garage Pro desktop app under <b>Settings → Online Access</b>.</div>
+      </div>
+      <div class="step">
+        <span class="step-num">2</span>
+        <div class="step-text">Pick the worker (or admin) on the <b>PIN pad</b> — same PINs your team already uses on the in-shop tablets.</div>
+      </div>
+      <div class="step">
+        <span class="step-num">3</span>
+        <div class="step-text">Update jobs, check vehicles in/out, scan barcodes, clock in/out — all live-synced with the desktop app.</div>
+      </div>
+    </div>
+
+    <div class="meta">
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>HTTPS · SHA-256 password</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Your data, your Firebase</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/></svg>Works on any network</span>
+    </div>
+  </div>
+</main>
+
+<footer>
+  &copy; <span id="year"></span> Garage Pro · Need help? <a href="../#faq">Read the FAQ</a> or contact support
+</footer>
+
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  function launchTablet() {
+    // Open the tablet app in the same tab. If the file is missing this will
+    // hit the deploy-instructions placeholder so the operator knows what to do.
+    window.location.href = 'app.html';
+  }
+
+  // Friendly Enter / Space → Launch
+  document.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && !e.target.matches('input,textarea')) {
+      e.preventDefault();
+      launchTablet();
+    }
+  });
+</script>
+</body>
+</html>
