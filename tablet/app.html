@@ -578,6 +578,29 @@ input[type=file].hidden-file{display:none}
     <button class="login-btn" id="li-btn">Sign In</button>
     <div id="li-err"></div>
     <div id="li-status"></div>
+
+    <!-- Advanced: manual Firebase config upload (fallback) -->
+    <div style="margin-top:18px;border-top:1px solid var(--bdr);padding-top:14px">
+      <button type="button" id="li-adv-toggle"
+        style="background:none;border:none;color:var(--muted);font-size:.78rem;
+               cursor:pointer;font-family:var(--font);padding:0;text-decoration:underline">
+        Advanced: manually connect Firebase
+      </button>
+      <div id="li-adv-panel" style="display:none;margin-top:10px">
+        <div class="login-label">Firebase Project ID</div>
+        <input class="login-input" id="li-adv-projid" type="text"
+          placeholder="e.g. my-garage-abc123">
+        <button type="button" class="login-btn" id="li-adv-connect"
+          style="background:var(--bdr);color:var(--txt);margin-top:8px">
+          Connect with Project ID
+        </button>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:8px;line-height:1.5">
+          Find this in Garage Pro desktop → Settings → Online Access, or in your
+          firebase_key.json file under "project_id". Use this only if normal
+          sign-in says your branch isn't configured.
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 <script>
@@ -589,6 +612,15 @@ document.addEventListener('DOMContentLoaded', function() {
   if(btn) btn.addEventListener('click', function(){ doBranchLogin(); });
   if(pw)  pw.addEventListener('keydown',  function(e){ if(e.key==='Enter') doBranchLogin(); });
   if(br)  br.addEventListener('keydown',  function(e){ if(e.key==='Enter') pw && pw.focus(); });
+
+  // Advanced manual Firebase connect
+  var advToggle = document.getElementById('li-adv-toggle');
+  var advPanel  = document.getElementById('li-adv-panel');
+  var advBtn    = document.getElementById('li-adv-connect');
+  if(advToggle) advToggle.addEventListener('click', function(){
+    advPanel.style.display = advPanel.style.display === 'none' ? 'block' : 'none';
+  });
+  if(advBtn) advBtn.addEventListener('click', function(){ doManualConnect(); });
 });
 </script>
 
@@ -602,6 +634,12 @@ document.addEventListener('DOMContentLoaded', function() {
   <!-- Step 1: worker grid -->
   <div id="login-card">
     <div id="login-workers"></div>
+    <button type="button" id="disconnect-branch-btn"
+      style="background:none;border:none;color:var(--muted);font-size:.75rem;
+             text-decoration:underline;cursor:pointer;font-family:inherit;
+             margin-top:14px;display:block;width:100%;text-align:center">
+      Not your workshop? Disconnect
+    </button>
   </div>
 
   <!-- Step 2: PIN pad (hidden until worker selected) -->
@@ -1162,7 +1200,7 @@ async function doBranchLogin(){
     sessionStorage.setItem("gp_demo","1");
     document.getElementById("branch-login").style.display="none";
     btn.disabled=false;
-    ini(); sched();
+    sched();
     return;
   }
 
@@ -1174,19 +1212,74 @@ async function doBranchLogin(){
     if(!data.active){ errEl.textContent="Branch is inactive. Contact support."; btn.disabled=false; stEl.textContent=""; return; }
     const hash = await sha256hex(pw);
     if(hash !== data.password_hash){ errEl.textContent="Incorrect password."; btn.disabled=false; stEl.textContent=""; return; }
-    const projId = data.firebase_project_id;
-    if(!projId){ errEl.textContent="Branch not configured. Run setup in the desktop app first."; btn.disabled=false; stEl.textContent=""; return; }
-    _workshopFSBase = `https://firestore.googleapis.com/v1/projects/${projId}/databases/(default)/documents`;
-    _onlineMode = true;
-    stEl.textContent = "✓ Authenticated — loading…";
-    // Store in session so page refresh doesn't require re-login
-    sessionStorage.setItem("gp_branch", brId);
-    sessionStorage.setItem("gp_ws_base", _workshopFSBase);
-    await load();
-    document.getElementById("branch-login").style.display="none";
-    ini(); sched();   // start the main app + scheduler
+
+    // Prefer a locally-remembered project ID for this branch (set the first
+    // time someone used "manually connect"), falling back to the branch doc.
+    let projId = data.firebase_project_id;
+    try{
+      const map = JSON.parse(localStorage.getItem("gp_branch_projects") || "{}");
+      if(map[brId]) projId = map[brId];
+    }catch(e){}
+
+    if(!projId){
+      errEl.textContent="This branch has no Firebase project linked yet. Use \"Advanced: manually connect Firebase\" below, or re-save Online Access in the desktop app's Settings.";
+      btn.disabled=false; stEl.textContent=""; return;
+    }
+    await _connectToWorkshop(projId, brId);
   }catch(e){
     errEl.textContent=`Error: ${e.message}`; btn.disabled=false; stEl.textContent="";
+  }
+}
+
+// Shared connection logic — used by both normal login and manual connect.
+// Saves the Firebase project ID keyed to the branch ID so it's remembered
+// and never needs to be entered manually again for this branch.
+async function _connectToWorkshop(projId, brId){
+  const stEl = document.getElementById("li-status");
+  const btn  = document.getElementById("li-btn");
+  _workshopFSBase = `https://firestore.googleapis.com/v1/projects/${projId}/databases/(default)/documents`;
+  _onlineMode = true;
+  if(stEl) stEl.textContent = "✓ Connecting to workshop…";
+
+  const branchKey = brId || "manual";
+  // Persist in session (fast resume on refresh) and locally (survives browser close)
+  sessionStorage.setItem("gp_branch", branchKey);
+  sessionStorage.setItem("gp_ws_base", _workshopFSBase);
+  localStorage.setItem("gp_branch_saved", branchKey);
+  localStorage.setItem("gp_ws_base_saved", _workshopFSBase);
+  // Remember the project ID specifically for this branch, so normal login
+  // next time uses the known-good ID even if the branch doc's copy is stale
+  try{
+    const map = JSON.parse(localStorage.getItem("gp_branch_projects") || "{}");
+    map[branchKey] = projId;
+    localStorage.setItem("gp_branch_projects", JSON.stringify(map));
+  }catch(e){}
+
+  if(typeof load !== "function"){
+    if(stEl) stEl.textContent = "";
+    const errEl = document.getElementById("li-err");
+    if(errEl) errEl.textContent = "App did not load correctly. Please refresh the page and try again.";
+    if(btn) btn.disabled=false;
+    return;
+  }
+
+  await load();
+  document.getElementById("branch-login").style.display="none";
+  if(btn) btn.disabled=false;
+  if(typeof sched === "function") sched();
+}
+
+// Manual Firebase connect — bypasses branch doc, for troubleshooting
+async function doManualConnect(){
+  const projId = (document.getElementById("li-adv-projid")?.value||"").trim();
+  const errEl  = document.getElementById("li-err");
+  const stEl   = document.getElementById("li-status");
+  if(!projId){ errEl.textContent="Enter a Firebase Project ID"; return; }
+  errEl.textContent=""; stEl.textContent="Connecting…";
+  try{
+    await _connectToWorkshop(projId, "manual");
+  }catch(e){
+    errEl.textContent=`Connection failed: ${e.message}`; stEl.textContent="";
   }
 }
 
@@ -1598,6 +1691,18 @@ async function doLogout(){
   selectedLoginWorker = null;
   showLoginScreen();
 }
+
+function disconnectBranch(){
+  if(!confirm('Disconnect from this workshop? You will need to enter branch credentials again.')) return;
+  sessionStorage.removeItem('gp_ws_base');
+  sessionStorage.removeItem('gp_branch');
+  localStorage.removeItem('gp_ws_base_saved');
+  localStorage.removeItem('gp_branch_saved');
+  location.reload();
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('disconnect-branch-btn')?.addEventListener('click', disconnectBranch);
+});
 
 // ══════════════════════════════════════════════════
 // CLOCK
@@ -4225,20 +4330,51 @@ function closeScanner(){
 // ══════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════
-// Expose functions needed by HTML onclick handlers
-// Boot — try session restore, Flask, or show branch login
+// Boot — try session restore, saved login, Flask, or show branch login
 (async()=>{
-  const saved=sessionStorage.getItem('gp_ws_base');
-  if(saved){
-    _workshopFSBase=saved;_onlineMode=true;
-    try{await load();document.getElementById('branch-login').style.display='none';ini();sched();return;}
-    catch(e){sessionStorage.clear();}
+  // 1. Same-tab session (fastest — survives page refresh)
+  const sessSaved = sessionStorage.getItem('gp_ws_base');
+  if(sessSaved){
+    _workshopFSBase = sessSaved; _onlineMode = true;
+    try{
+      await load();
+      document.getElementById('branch-login').style.display='none';
+      sched();
+      return;
+    }catch(e){ sessionStorage.clear(); }
   }
+
+  // 2. Saved login from a previous visit (survives browser restart)
+  const localSaved = localStorage.getItem('gp_ws_base_saved');
+  if(localSaved){
+    _workshopFSBase = localSaved; _onlineMode = true;
+    try{
+      await load();
+      sessionStorage.setItem('gp_ws_base', localSaved);
+      const savedBranch = localStorage.getItem('gp_branch_saved');
+      if(savedBranch) sessionStorage.setItem('gp_branch', savedBranch);
+      document.getElementById('branch-login').style.display='none';
+      sched();
+      return;
+    }catch(e){
+      // Saved credentials no longer work — clear them and show login
+      localStorage.removeItem('gp_ws_base_saved');
+      localStorage.removeItem('gp_branch_saved');
+    }
+  }
+
+  // 3. Local Flask server (desktop tablet, not the online one)
   try{
-    const r=await fetch('/api/data',{signal:AbortSignal.timeout(2000)});
-    if(r.ok){D=await r.json();document.getElementById('branch-login').style.display='none';ini();sched();return;}
+    const r = await fetch('/api/data',{signal:AbortSignal.timeout(2000)});
+    if(r.ok){
+      D = await r.json();
+      document.getElementById('branch-login').style.display='none';
+      sched();
+      return;
+    }
   }catch(e){}
-  // Show branch login screen
+
+  // 4. Nothing worked — show branch login screen (already visible by default)
 })();
 </script>
 
