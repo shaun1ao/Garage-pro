@@ -1737,20 +1737,38 @@ async function load(silent){
         const d=fsMap(doc.fields); return d.items||[];
       };
       const [bays,bookings,customers,mechanics,jobs,inventory,
-             parts_requests,timesheets,queue,sArr]=await Promise.all([
+             parts_requests,timesheets,queue,sArr,acArr]=await Promise.all([
         _col('bays'),_col('bookings'),_col('customers'),_col('mechanics'),
         _col('jobs'),_col('inventory'),_col('parts_requests'),_col('timesheets'),
-        _col('queue'),_col('settings')
+        _col('queue'),_col('settings'),_col('access_config')
       ]);
       const settings=sArr[0]||{};
+      // access_config holds desktop_users / worker_tabs / custom_roles /
+      // admin_pin — these sync separately from main settings via
+      // save_settings()'s cloud push, so merge them in here.
+      const accessConfig=acArr[0]||{};
+      const mergedDesktopUsers = accessConfig.desktop_users || settings.desktop_users || [];
+      const mergedWorkerTabs   = accessConfig.worker_tabs   || settings.worker_tabs   || [];
+      const mergedAdminPin     = accessConfig.admin_pin     ?? settings.admin_pin     ?? '';
+      const tabletAdmins       = new Set(accessConfig.tablet_admins || settings.tablet_admins || []);
+      const ADMIN_ROLES        = ['owner','manager'];
+
       D={bays,bookings,customers,mechanics,jobs,inventory,parts_requests,timesheets,queue,
          settings,workshop:{name:settings.workshop_name||'Workshop'},
          now:new Date().toISOString(),today:new Date().toISOString().slice(0,10),
          delivery_checklist:settings.delivery_checklist||[],
          services:settings.services||[],bay_types:settings.bay_types||[],
          vehicle_makes:settings.vehicle_makes||{},
-         worker_tabs:settings.worker_tabs||['checkin','jobs','bays','queue','parts','inventory','timesheet'],
-         desktop_users:(settings.desktop_users||[]).filter(u=>u.tablet_admin),
+         admin_pin:mergedAdminPin,
+         worker_tabs:mergedWorkerTabs.length?mergedWorkerTabs:
+                     ['checkin','jobs','bays','queue','parts','inventory','timesheet'],
+         desktop_users:mergedDesktopUsers
+           .filter(u=>tabletAdmins.has(u.id) || ADMIN_ROLES.includes(u.role||''))
+           .map(u=>({
+             id:u.id, name:u.name, username:u.username||'',
+             role:u.role||'', password_hash:u.password||u.password_hash||'',
+             _is_admin:true, _is_desktop_user:true,
+           })),
          workers:mechanics};
       if(!window._pollTimer)
         window._pollTimer=setInterval(async()=>{await load(true);if(typeof redraw==='function')redraw();},30000);
