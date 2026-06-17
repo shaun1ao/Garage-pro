@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3989,44 +3990,46 @@ async function openScanner(mode, jobId){
 // Capture frames from video and send to Flask/cv2 for server-side decoding
 // Works on ALL browsers — Safari, Chrome, Firefox, any device
 function _startServerDecode(video){
-  const canvas = document.createElement('canvas');
-  const ctx    = canvas.getContext('2d');
-  let   _busy  = false;
+  let _busy = false;
 
   async function tick(){
     if(!_scanRunning) return;
     if(!_busy && video.readyState >= video.HAVE_ENOUGH_DATA){
       _busy = true;
       try{
-        const scale = Math.min(1, 640 / video.videoWidth);
-        canvas.width  = Math.round(video.videoWidth  * scale);
-        canvas.height = Math.round(video.videoHeight * scale);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Online mode: use ZXing browser decode directly off the <canvas>.
-        // BrowserMultiFormatReader supports decoding straight from a canvas
-        // element — no need to round-trip through an <img>/data-URL, which
-        // was racing ahead of image load and never actually decoding anything.
-        if(_onlineMode && typeof ZXing !== 'undefined'){
+        if(_onlineMode){
+          // ZXing decodes directly from the video element — no canvas needed
+          if(typeof ZXing === 'undefined'){
+            document.getElementById('scan-hint').textContent =
+              '⏳ Scanner loading… please wait';
+            _busy = false;
+            if(_scanRunning) setTimeout(tick, 500);
+            return;
+          }
+          if(!window._zxReader)
+            window._zxReader = new ZXing.BrowserMultiFormatReader();
           try{
-            if(!window._zxReader) window._zxReader = new ZXing.BrowserMultiFormatReader();
-            const result = window._zxReader.decode(canvas);
+            const result = window._zxReader.decodeFromVideoElement(video);
             if(result){
               const now = Date.now();
               if(now - _scanDebounce > 2000){
-                _scanDebounce = now;
+                _scanDebounce = now;  // set BEFORE the await
+                _busy = false;
                 await _onBarcodeScanned(result.getText());
-                _busy = false; return;
+                return;
               }
             }
-          }catch(e){ /* NotFoundException — no barcode in this frame, expected */ }
-        } else if(_onlineMode){
-          // ZXing may still be loading (it's the last script on the page)
-          // or failed to load from the CDN entirely (network/ad-blocker).
-          document.getElementById('scan-hint').textContent =
-            '⏳ Loading scanner… if this persists, check your connection and refresh';
+          }catch(e){ /* NotFoundException — no barcode this frame, normal */ }
+          _busy = false;
+          if(_scanRunning) setTimeout(tick, 250);
         } else {
-          // Local mode: use server-side cv2 decode
+          // Local Flask mode — send frame to server
+          const canvas = document.createElement('canvas');
+          const ctx    = canvas.getContext('2d');
+          const scale  = Math.min(1, 640 / video.videoWidth);
+          canvas.width  = Math.round(video.videoWidth  * scale);
+          canvas.height = Math.round(video.videoHeight * scale);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           canvas.toBlob(async blob=>{
             try{
               const fd = new FormData(); fd.append('frame', blob, 'frame.jpg');
@@ -4041,12 +4044,15 @@ function _startServerDecode(video){
             _busy = false;
             if(_scanRunning) setTimeout(tick, 200);
           },'image/jpeg', 0.7);
-          return;
+          return;  // don't reset _busy here — toBlob callback does it
         }
-      }catch(e){}
-      _busy = false;
+      }catch(e){
+        _busy = false;
+        if(_scanRunning) setTimeout(tick, 250);
+      }
+    } else if(_scanRunning){
+      setTimeout(tick, 100);
     }
-    if(_scanRunning) setTimeout(tick, 250);
   }
   tick();
 }
