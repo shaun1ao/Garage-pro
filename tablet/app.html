@@ -3362,6 +3362,15 @@ async function _flaskPost(url,body){
 }
 
 async function post(url,body){
+  // worker_event only ever wrote to the desktop's LOCAL audit log — there's no
+  // Firebase sync for it. On the hosted tablet (garagepro.me, no Flask), the
+  // POST would 405. Short-circuit BEFORE the mode check so it's always a no-op
+  // when there's no local Flask reachable. The desktop bundles its own Flask
+  // on 127.0.0.1, so we still send the POST there.
+  if(url==='/api/worker_event'){
+    const onLocalhost = /^(127\.|localhost|192\.168\.|10\.)/.test(location.hostname);
+    if(!onLocalhost) return {ok:true};
+  }
   if(!_onlineMode) return _flaskPost(url,body);
   const td=_todayStr();
   if(url==='/api/checkin'){
