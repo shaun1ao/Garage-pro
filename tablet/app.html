@@ -3492,6 +3492,34 @@ async function post(url,body){
     if(body.action==='edit'){if(body.service!==undefined)bk.service=body.service;if(body.mechanic!==undefined)bk.mechanic=body.mechanic;if(body.notes!==undefined)bk.notes=body.notes;if(body.cost!==undefined)bk.est_cost=body.cost;}
     await _fb('bookings','update',bk);return{ok:true,booking:bk};
   }
+  if(url==='/api/job_photo'){
+    const job=D.jobs.find(j=>j.id===body.job_id);if(!job)return{ok:false,error:'Job not found'};
+    const action=body.action||'add';
+    if(action==='add'){
+      const b64=body.data||'';
+      if(!b64) return{ok:false,error:'No image data'};
+      job.photos=job.photos||[];
+      job.photos.push({label:body.label||'Photo',data:b64,description:''});
+    } else if(action==='remove'){
+      const idx=parseInt(body.idx,10);
+      const photos=job.photos||[];
+      if(idx>=0 && idx<photos.length) photos.splice(idx,1);
+    } else if(action==='set_include'){
+      job.include_photos_in_email = !!body.value;
+    }
+    await _fb('jobs','update',job);
+    return{ok:true,photos:job.photos||[]};
+  }
+  if(url==='/api/worker_event'){
+    // Desktop's equivalent route only writes a local audit-log entry —
+    // audit logs are intentionally local-only and never synced to
+    // Firebase (same as the desktop app). There's nothing to push here;
+    // just acknowledge so callers don't treat this as a failure. Without
+    // this branch, post() fell through to _flaskPost() and tried to POST
+    // to this page's own static-hosted domain, which has no Flask
+    // backend — producing the 404/405 errors seen in the console.
+    return {ok:true};
+  }
   return _flaskPost(url,body);
 }
 
