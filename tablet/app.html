@@ -4092,33 +4092,55 @@ async function openScanner(mode, jobId){
       _startServerDecode(video);
     }
   }catch(e){
-    // IMPORTANT: log the real error. Camera-unavailable, permission-denied,
-    // and "ZXingBrowser failed to load from CDN" all looked IDENTICAL to
-    // the user before this — every failure just showed the same generic
-    // manual-entry fallback with no way to tell them apart. Open the
-    // browser console (Safari: Settings > Advanced > Web Inspector, then
-    // connect to a Mac; Chrome on Android: chrome://inspect from a
-    // computer) to see exactly which error this actually is.
     console.error('[Scanner] openScanner failed:', e);
-    // TEMPORARY: alert() guarantees this is seen regardless of any CSS,
-    // layout, or other display issue that might be hiding the on-screen
-    // text. Remove once the real error is identified.
-    alert('[Scanner debug] ' + (e?.name||'') + ': ' + (e?.message||String(e)) + ' | online=' + _onlineMode + ' | ZXingBrowser=' + (typeof ZXingBrowser));
-    document.getElementById('scan-hint').innerHTML =
-      '<div style="color:var(--amber);margin-bottom:6px">📷 Camera not available</div>' +
-      '<div style="font-size:.72rem;color:#9ca3af;margin-bottom:10px">'+
-      x((e?.name?e.name+': ':'')+(e?.message||String(e)))+'</div>' +
-      '<div style="font-size:.85rem;color:#9ca3af;margin-bottom:12px">' +
-      'Use a Bluetooth barcode scanner or type the barcode:</div>' +
-      '<input id="manual-barcode" type="text" ' +
-      'style="padding:13px 16px;border-radius:8px;border:2px solid var(--amber);' +
-      'background:#222;color:#fff;font-size:1.1rem;width:260px;text-align:center;' +
-      'outline:none;display:block;margin:0 auto" ' +
-      'placeholder="Scan or type barcode">' +
-      '<button id="manual-barcode-btn" ' +
-      'style="display:block;margin:12px auto 0;padding:12px 32px;' +
-      'background:var(--amber);color:#000;border:none;' +
-      'border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer">Look up</button>';
+    // Classify the failure so we can show the user something actionable
+    const name = e?.name || '';
+    const msg  = e?.message || String(e);
+    let title, advice;
+    if (/still loading|ZXingBrowser/.test(msg) || (typeof ZXingBrowser === 'undefined')) {
+      title = 'Scanner library still loading';
+      advice = window._zxingLoadError
+        ? 'Could not load the barcode-decoding library from any CDN. Check your internet connection or any ad-blockers blocking unpkg.com / cdn.jsdelivr.net, then refresh this page.'
+        : 'Just give it a couple of seconds — the barcode library is still downloading. Close this and tap Scan again.';
+    } else if (name === 'NotAllowedError' || /Permission denied/i.test(msg)) {
+      title = 'Camera permission was denied';
+      advice = 'Tap the 🔒 padlock (or camera icon) in your browser\'s address bar, set Camera to "Allow", then reload the page. On iOS Safari: Settings → Safari → Camera → Allow.';
+    } else if (name === 'NotFoundError' || /no camera/i.test(msg)) {
+      title = 'No camera detected on this device';
+      advice = 'Try the camera app first to confirm it works, then come back. Or use the manual-entry box below.';
+    } else if (name === 'NotReadableError' || /in use/i.test(msg)) {
+      title = 'Camera is being used by another app';
+      advice = 'Close any other browser tab, video-call app, or camera app and try again.';
+    } else if (name === 'SecurityError' || /https/i.test(msg)) {
+      title = 'Camera requires HTTPS';
+      advice = 'This page must be loaded over https://. If you opened the file directly (file://...) the camera won\'t start.';
+    } else if (name === 'OverconstrainedError') {
+      title = 'Camera doesn\'t support this resolution';
+      advice = 'Reload the page — the scanner will retry with looser constraints next time.';
+    } else {
+      title = 'Scanner couldn\'t start';
+      advice = name + ': ' + msg;
+    }
+    const hint = document.getElementById('scan-hint');
+    hint.style.display = '';
+    hint.innerHTML =
+      '<div style="background:#0e131c;border:1px solid #2a3445;border-radius:12px;padding:18px 20px;text-align:left;max-width:420px;margin:0 auto">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:18px">⚠️</span><b style="color:var(--amber);font-size:.95rem">' + x(title) + '</b></div>' +
+        '<div style="color:#cbd2dc;font-size:.82rem;line-height:1.5;margin-bottom:14px">' + x(advice) + '</div>' +
+        '<div style="font-family:Courier New,monospace;font-size:.7rem;color:#6b7888;border-top:1px solid #2a3445;padding-top:8px;margin-bottom:14px">' +
+          'online=' + _onlineMode + ' · ZXing=' + (typeof ZXingBrowser === 'undefined' ? 'NOT LOADED' : 'loaded') +
+          '<br>' + x(name + (msg ? ': ' + msg : '')) +
+        '</div>' +
+        '<div style="font-size:.78rem;color:#9aa7b8;margin-bottom:6px">Scan manually:</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<input id="manual-barcode" type="text" placeholder="Type or paste barcode" ' +
+            'style="flex:1;padding:11px 13px;border-radius:8px;border:1px solid var(--amber);' +
+            'background:#1a1f29;color:#fff;font-size:.95rem;outline:none">' +
+          '<button id="manual-barcode-btn" ' +
+            'style="padding:11px 18px;background:var(--amber);color:#000;border:none;' +
+            'border-radius:8px;font-weight:700;font-size:.9rem;cursor:pointer">Go</button>' +
+        '</div>' +
+      '</div>';
     const mbtn = document.getElementById('manual-barcode-btn');
     const minp = document.getElementById('manual-barcode');
     if(mbtn) mbtn.onclick = ()=>{ const v=minp?.value.trim(); if(v) _onBarcodeScanned(v); };
@@ -4624,7 +4646,45 @@ function closeScanner(){
 </script>
 
 <!-- @zxing/browser's UMD bundle is self-contained (bundles its own copy of
-     the core decoding library internally) — only this one script is needed. -->
-<script src="https://unpkg.com/@zxing/browser@0.1.5"></script>
+     the core decoding library internally). Loaded from unpkg with a jsdelivr
+     fallback in case unpkg is blocked on the user's network. -->
+<script>
+  // Helper that tries each CDN in order. Resolves once ZXingBrowser is defined.
+  (function loadZXing(){
+    const sources = [
+      'https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js',
+      'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js',
+      'https://unpkg.com/@zxing/browser@0.1.5',
+      'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5'
+    ];
+    let i = 0;
+    function tryNext(){
+      if (i >= sources.length) {
+        console.error('[ZXing] all CDN sources failed. Scanner will not work.');
+        window._zxingLoadError = 'All CDN sources failed';
+        return;
+      }
+      const src = sources[i++];
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = false;
+      s.onload  = () => {
+        if (typeof ZXingBrowser !== 'undefined') {
+          console.log('[ZXing] loaded successfully from', src);
+          window._zxingLoaded = true;
+        } else {
+          console.warn('[ZXing] script loaded from', src, 'but ZXingBrowser global is undefined — trying next');
+          tryNext();
+        }
+      };
+      s.onerror = () => {
+        console.warn('[ZXing] failed to load from', src, '— trying next');
+        tryNext();
+      };
+      document.head.appendChild(s);
+    }
+    tryNext();
+  })();
+</script>
 </body>
 </html>
