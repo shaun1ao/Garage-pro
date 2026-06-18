@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3957,13 +3956,43 @@ async function openScanner(mode, jobId){
   const video = document.getElementById('scan-video');
   video.style.display = 'block';  // restore if hidden from previous scan
   try{
-    _scanStream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }
-    });
-    video.srcObject = _scanStream;
-    await video.play();
-    _scanRunning = true;
-    _startServerDecode(video);
+    if(_onlineMode){
+      // @zxing/browser owns the whole camera+decode lifecycle here —
+      // getUserMedia, binding to <video>, continuous frame decoding, and
+      // calling us back the moment a result is found. This replaced a
+      // hand-rolled canvas/frame-loop that had repeated, hard-to-spot bugs.
+      if(typeof ZXingBrowser === 'undefined'){
+        throw new Error('Scanner library still loading');
+      }
+      if(!window._zxReader){
+        window._zxReader = new ZXingBrowser.BrowserMultiFormatReader();
+      }
+      _scanRunning = true;
+      window._zxControls = await window._zxReader.decodeFromConstraints(
+        { video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} } },
+        video,
+        async (result, err, controls) => {
+          if(!_scanRunning) return;
+          if(result){
+            const now = Date.now();
+            if(now - _scanDebounce > 2000){
+              _scanDebounce = now;
+              await _onBarcodeScanned(result.getText());
+            }
+          }
+          // err is a routine NotFoundException on frames with no code —
+          // nothing to do, the reader keeps scanning automatically.
+        }
+      );
+    } else {
+      _scanStream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }
+      });
+      video.srcObject = _scanStream;
+      await video.play();
+      _scanRunning = true;
+      _startServerDecode(video);
+    }
   }catch(e){
     // Camera unavailable — show manual input fallback
     document.getElementById('scan-hint').innerHTML =
@@ -3987,72 +4016,44 @@ async function openScanner(mode, jobId){
   }
 }
 
-// Capture frames from video and send to Flask/cv2 for server-side decoding
-// Works on ALL browsers — Safari, Chrome, Firefox, any device
+// Capture frames and send to Flask/cv2 for server-side decoding.
+// LOCAL MODE ONLY — online mode uses @zxing/browser's own camera+decode
+// loop instead (see openScanner), which replaced the previous approach
+// here due to repeated bugs in the manual canvas/frame-capture cycle.
 function _startServerDecode(video){
-  let _busy = false;
+  const canvas = document.createElement('canvas');
+  const ctx    = canvas.getContext('2d');
+  let   _busy  = false;
 
   async function tick(){
     if(!_scanRunning) return;
     if(!_busy && video.readyState >= video.HAVE_ENOUGH_DATA){
       _busy = true;
       try{
-        if(_onlineMode){
-          // ZXing decodes directly from the video element — no canvas needed
-          if(typeof ZXing === 'undefined'){
-            document.getElementById('scan-hint').textContent =
-              '⏳ Scanner loading… please wait';
-            _busy = false;
-            if(_scanRunning) setTimeout(tick, 500);
-            return;
-          }
-          if(!window._zxReader)
-            window._zxReader = new ZXing.BrowserMultiFormatReader();
+        const scale = Math.min(1, 640 / video.videoWidth);
+        canvas.width  = Math.round(video.videoWidth  * scale);
+        canvas.height = Math.round(video.videoHeight * scale);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(async blob=>{
           try{
-            const result = window._zxReader.decodeFromVideoElement(video);
-            if(result){
-              const now = Date.now();
-              if(now - _scanDebounce > 2000){
-                _scanDebounce = now;  // set BEFORE the await
-                _busy = false;
-                await _onBarcodeScanned(result.getText());
-                return;
-              }
+            const fd = new FormData(); fd.append('frame', blob, 'frame.jpg');
+            const r  = await fetch('/api/scan_frame',{method:'POST',body:fd});
+            const d  = await r.json();
+            const now = Date.now();
+            if(d.found && d.code && now - _scanDebounce > 2000){
+              _scanDebounce = now;
+              await _onBarcodeScanned(d.code);
             }
-          }catch(e){ /* NotFoundException — no barcode this frame, normal */ }
+          }catch(e){}
           _busy = false;
-          if(_scanRunning) setTimeout(tick, 250);
-        } else {
-          // Local Flask mode — send frame to server
-          const canvas = document.createElement('canvas');
-          const ctx    = canvas.getContext('2d');
-          const scale  = Math.min(1, 640 / video.videoWidth);
-          canvas.width  = Math.round(video.videoWidth  * scale);
-          canvas.height = Math.round(video.videoHeight * scale);
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob(async blob=>{
-            try{
-              const fd = new FormData(); fd.append('frame', blob, 'frame.jpg');
-              const r  = await fetch('/api/scan_frame',{method:'POST',body:fd});
-              const d  = await r.json();
-              const now = Date.now();
-              if(d.found && d.code && now - _scanDebounce > 2000){
-                _scanDebounce = now;
-                await _onBarcodeScanned(d.code);
-              }
-            }catch(e){}
-            _busy = false;
-            if(_scanRunning) setTimeout(tick, 200);
-          },'image/jpeg', 0.7);
-          return;  // don't reset _busy here — toBlob callback does it
-        }
-      }catch(e){
-        _busy = false;
-        if(_scanRunning) setTimeout(tick, 250);
-      }
-    } else if(_scanRunning){
-      setTimeout(tick, 100);
+          if(_scanRunning) setTimeout(tick, 200);
+        },'image/jpeg', 0.7);
+        return;
+      }catch(e){}
+      _busy = false;
     }
+    if(_scanRunning) setTimeout(tick, 250);
   }
   tick();
 }
@@ -4061,6 +4062,12 @@ function _startServerDecode(video){
 function _stopCamera(){
   // Stop camera stream but keep overlay open to show results
   _scanRunning = false;
+  // @zxing/browser (online mode) owns its own stream via `controls` —
+  // stopping it also releases the camera and clears the video element.
+  if(window._zxControls){
+    try{ window._zxControls.stop(); }catch(e){}
+    window._zxControls = null;
+  }
   if(_scanStream){
     _scanStream.getTracks().forEach(t=>t.stop());
     _scanStream = null;
@@ -4431,6 +4438,10 @@ async function scanSaveNew(){
 function closeScanner(){
   _scanRunning = false;
   _scanDebounce = 0;
+  if(window._zxControls){
+    try{ window._zxControls.stop(); }catch(e){}
+    window._zxControls = null;
+  }
   if(_scanStream){
     _scanStream.getTracks().forEach(t=>t.stop());
     _scanStream = null;
@@ -4492,5 +4503,6 @@ function closeScanner(){
 </script>
 
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js"></script>
 </body>
 </html>
