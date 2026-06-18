@@ -1498,6 +1498,37 @@ async function _tryRestoreSession(){
 // ── Online mode helpers ─────────────────────────────────────────────────────
 function _uid(){ return Math.random().toString(36).slice(2,10); }
 function _nowStr(){ return new Date().toISOString().replace('T',' ').slice(0,19); }
+
+// Matches Python's now_str() format exactly ("%d %b %Y %H:%M", e.g.
+// "18 Jun 2026 14:32") so clock_in/clock_out timestamps look consistent
+// regardless of whether they were created on desktop or the online tablet.
+function _nowStrDesktop(){
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d=new Date();
+  const dd=String(d.getDate()).padStart(2,'0');
+  const mon=MONTHS[d.getMonth()];
+  const yyyy=d.getFullYear();
+  const hh=String(d.getHours()).padStart(2,'0');
+  const mm=String(d.getMinutes()).padStart(2,'0');
+  return `${dd} ${mon} ${yyyy} ${hh}:${mm}`;
+}
+
+// Timesheet clock_in values can come from either device and look like
+// "18 Jun 2026 14:32" (desktop's now_str()) or "2026-06-18 14:32:05"
+// (this tablet's _nowStr()). Extract a YYYY-MM-DD key from either so
+// "today's entries" filtering works regardless of which device wrote it.
+const _MONTH_IDX = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',
+                     Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+function _dateKeyFromTs(ts){
+  if(!ts) return '';
+  // ISO-ish: "2026-06-18 14:32:05" or "2026-06-18T..."
+  const iso = ts.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  // Desktop: "18 Jun 2026 14:32"
+  const d = ts.match(/^(\d{2})\s+(\w{3})\s+(\d{4})/);
+  if(d && _MONTH_IDX[d[2]]) return `${d[3]}-${_MONTH_IDX[d[2]]}-${d[1]}`;
+  return '';
+}
 function _todayStr(){ return new Date().toISOString().slice(0,10); }
 
 async function _fbWrite(collection,items){
@@ -3393,10 +3424,25 @@ async function post(url,body){
     return{ok:true};
   }
   if(url==='/api/timesheet_clock'){
-    const ex=D.timesheets.find(t=>t.worker_id===body.worker_id&&t.date===td&&!t.clock_out);
-    if(ex){ex.clock_out=_nowStr().slice(11,16);await _fb('timesheets','update',ex);return{ok:true,action:'out',entry:ex};}
-    const entry={id:_uid(),worker_id:body.worker_id,worker_name:body.worker_name,date:td,clock_in:_nowStr().slice(11,16),clock_out:null};
-    await _fb('timesheets','append',entry);return{ok:true,action:'in',entry};
+    // Schema MUST match the desktop app exactly (main.py's api_timesheet_clock
+    // and _toggle_clock_for_worker): id, worker_id, worker_name, clock_in,
+    // clock_out, status ("clocked_in"/"clocked_out"), notes. The desktop UI's
+    // clock in/out buttons key off `status`, not a `date` field — an earlier
+    // version of this tablet code used a different shape (date + null
+    // clock_out) that desktop never recognised, so entries made on one side
+    // looked "closed"/invisible to the other and workers appeared stuck
+    // clocked-out even after clocking in here.
+    const ex=D.timesheets.find(t=>t.worker_id===body.worker_id&&t.status==='clocked_in');
+    if(ex){
+      ex.clock_out=_nowStrDesktop();
+      ex.status='clocked_out';
+      await _fb('timesheets','update',ex);
+      return{ok:true,action:'out',entry:ex};
+    }
+    const entry={id:_uid(),worker_id:body.worker_id,worker_name:body.worker_name,
+                 clock_in:_nowStrDesktop(),clock_out:null,status:'clocked_in',notes:''};
+    await _fb('timesheets','append',entry);
+    return{ok:true,action:'in',entry};
   }
   if(url==='/api/inventory_qty'){
     const item=D.inventory.find(i=>i.id===body.item_id);if(!item)return{ok:false};
@@ -3459,7 +3505,7 @@ function drawTimesheet(){
     const isIn   = sorted[0]&&sorted[0].status==='clocked_in';
     btn.textContent = isIn ? '🛑 Clock Out' : '⏱ Clock In';
     btn.className   = 'ts-clock-btn '+(isIn?'clock-out':'clock-in');
-    const todayTs = myTs.filter(t=>t.clock_in&&t.clock_in.slice(0,10)===today);
+    const todayTs = myTs.filter(t=>t.clock_in&&_dateKeyFromTs(t.clock_in)===today);
     renderTsRows(list, todayTs);
   } else {
     // ── Admin view: all workers, ability to toggle any ────────────────────
@@ -3481,7 +3527,7 @@ function drawTimesheet(){
       wBtns.appendChild(b);
     });
     // Show all today's entries
-    const todayAll = allTs.filter(t=>t.clock_in&&t.clock_in.slice(0,10)===today);
+    const todayAll = allTs.filter(t=>t.clock_in&&_dateKeyFromTs(t.clock_in)===today);
     renderTsRows(list, todayAll);
   }
 }
