@@ -4092,9 +4092,18 @@ async function openScanner(mode, jobId){
       _startServerDecode(video);
     }
   }catch(e){
-    // Camera unavailable — show manual input fallback
+    // IMPORTANT: log the real error. Camera-unavailable, permission-denied,
+    // and "ZXingBrowser failed to load from CDN" all looked IDENTICAL to
+    // the user before this — every failure just showed the same generic
+    // manual-entry fallback with no way to tell them apart. Open the
+    // browser console (Safari: Settings > Advanced > Web Inspector, then
+    // connect to a Mac; Chrome on Android: chrome://inspect from a
+    // computer) to see exactly which error this actually is.
+    console.error('[Scanner] openScanner failed:', e);
     document.getElementById('scan-hint').innerHTML =
-      '<div style="color:var(--amber);margin-bottom:12px">📷 Camera not available</div>' +
+      '<div style="color:var(--amber);margin-bottom:6px">📷 Camera not available</div>' +
+      '<div style="font-size:.72rem;color:#9ca3af;margin-bottom:10px">'+
+      x(e?.message||String(e))+'</div>' +
       '<div style="font-size:.85rem;color:#9ca3af;margin-bottom:12px">' +
       'Use a Bluetooth barcode scanner or type the barcode:</div>' +
       '<input id="manual-barcode" type="text" ' +
