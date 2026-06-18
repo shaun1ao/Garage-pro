@@ -4100,10 +4100,14 @@ async function openScanner(mode, jobId){
     // connect to a Mac; Chrome on Android: chrome://inspect from a
     // computer) to see exactly which error this actually is.
     console.error('[Scanner] openScanner failed:', e);
+    // TEMPORARY: alert() guarantees this is seen regardless of any CSS,
+    // layout, or other display issue that might be hiding the on-screen
+    // text. Remove once the real error is identified.
+    alert('[Scanner debug] ' + (e?.name||'') + ': ' + (e?.message||String(e)) + ' | online=' + _onlineMode + ' | ZXingBrowser=' + (typeof ZXingBrowser));
     document.getElementById('scan-hint').innerHTML =
       '<div style="color:var(--amber);margin-bottom:6px">📷 Camera not available</div>' +
       '<div style="font-size:.72rem;color:#9ca3af;margin-bottom:10px">'+
-      x(e?.message||String(e))+'</div>' +
+      x((e?.name?e.name+': ':'')+(e?.message||String(e)))+'</div>' +
       '<div style="font-size:.85rem;color:#9ca3af;margin-bottom:12px">' +
       'Use a Bluetooth barcode scanner or type the barcode:</div>' +
       '<input id="manual-barcode" type="text" ' +
