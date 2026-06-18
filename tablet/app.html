@@ -1074,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     <!-- Video + aiming frame -->
     <div style="position:relative;width:100%;max-width:480px;flex-shrink:0">
-      <video id="scan-video" playsinline
+      <video id="scan-video" playsinline autoplay muted
         style="width:100%;border-radius:14px;display:block;background:#111"></video>
       <div style="position:absolute;inset:0;display:flex;align-items:center;
                   justify-content:center;pointer-events:none;border-radius:14px;overflow:hidden">
@@ -1471,30 +1471,6 @@ function hideLoginScreen(){
 // fsVal/fsMap/sha256hex defined in early script above
 
 // doBranchLogin defined in early script above
-async function _tryRestoreSession(){
-  const saved = sessionStorage.getItem("gp_ws_base");
-  if(saved){
-    _workshopFSBase = saved;
-    _onlineMode = true;
-    try{
-      await load();
-      document.getElementById("branch-login").style.display="none";
-      return true;
-    }catch(e){ sessionStorage.clear(); }
-  }
-  // Check if running with local Flask server
-  try{
-    const r = await fetch("/api/data",{signal:AbortSignal.timeout(2000)});
-    if(r.ok){
-      D = await r.json();
-      document.getElementById("branch-login").style.display="none";
-      return true; // local Flask mode — skip branch login
-    }
-  }catch(e){}
-  return false; // show branch login
-}
-
-
 // ── Online mode helpers ─────────────────────────────────────────────────────
 function _uid(){ return Math.random().toString(36).slice(2,10); }
 function _nowStr(){ return new Date().toISOString().replace('T',' ').slice(0,19); }
@@ -1705,8 +1681,44 @@ document.addEventListener('keydown', e=>{
 });
 function showLogoutConfirm(){
   if(!currentWorker) return;
-  if(!confirm('Log out ' + currentWorker.name + '?')) return;
-  doLogout();
+  // Two genuinely different actions live behind "Log Out":
+  //   1. This worker is done for now, but the tablet stays connected to
+  //      this workshop (the common case — a shared tablet, next worker
+  //      taps their own PIN).
+  //   2. This tablet itself should stop being THIS workshop's tablet —
+  //      e.g. it's being handed to a different branch/account.
+  // Previously only #1 was reachable from "Log Out", and switching
+  // workshops required knowing about a separate hidden link. That meant
+  // logging out and logging back in with different branch credentials
+  // silently kept using the OLD workshop's Firebase connection — the
+  // login screen never appeared because of the saved-session auto
+  // -reconnect. Surfacing the real choice here fixes that directly.
+  const name = x(currentWorker.name);
+  const ov = mkOv(`<h2>Log out?</h2>
+    <div style="margin-bottom:14px;font-size:.88rem;color:var(--muted)">
+      Logging out ${name} from this tablet.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn bw" style="width:100%" onclick="this.closest('.ov').remove();doLogout();">
+        ⏻ Just log out ${name}
+        <div style="font-size:.74rem;font-weight:400;opacity:.85;margin-top:2px">
+          Stay connected to this workshop — another worker can log in next
+        </div>
+      </button>
+      <button class="btn bg" style="width:100%" onclick="this.closest('.ov').remove();confirmSwitchWorkshop();">
+        🔄 Switch to a different workshop
+        <div style="font-size:.74rem;font-weight:400;opacity:.7;margin-top:2px">
+          Disconnect this tablet and enter different branch credentials
+        </div>
+      </button>
+      <button class="btn bg" style="width:100%" onclick="this.closest('.ov').remove()">Cancel</button>
+    </div>`);
+  document.body.appendChild(ov);
+}
+
+function confirmSwitchWorkshop(){
+  if(!confirm('Disconnect this tablet from the current workshop? You will need to enter different branch credentials to continue.')) return;
+  doLogout().finally(()=>disconnectBranch(true));
 }
 
 async function doLogout(){
@@ -1723,16 +1735,27 @@ async function doLogout(){
   showLoginScreen();
 }
 
-function disconnectBranch(){
-  if(!confirm('Disconnect from this workshop? You will need to enter branch credentials again.')) return;
+function disconnectBranch(skipConfirm){
+  if(!skipConfirm && !confirm('Disconnect from this workshop? You will need to enter branch credentials again.')) return;
+  // Clear the saved-login state so the NEXT load shows the branch login
+  // screen instead of silently auto-reconnecting to this workshop again.
+  // (The per-branch Firebase-project-ID cache, gp_branch_projects, is left
+  // alone on purpose — it's keyed by branch ID, so a different branch
+  // logging in next simply won't have an entry in it. It only ever helps
+  // this same branch reconnect faster later; clearing it here wouldn't
+  // fix anything and would just force a needless re-lookup.)
   sessionStorage.removeItem('gp_ws_base');
   sessionStorage.removeItem('gp_branch');
   localStorage.removeItem('gp_ws_base_saved');
   localStorage.removeItem('gp_branch_saved');
+  // In-memory state from the old workshop must not survive into the new
+  // login — a full reload is the simplest way to guarantee every module-
+  // level variable (D, currentWorker, _workshopFSBase, etc.) resets to
+  // its initial state rather than relying on each one being reset by hand.
   location.reload();
 }
 document.addEventListener('DOMContentLoaded', ()=>{
-  document.getElementById('disconnect-branch-btn')?.addEventListener('click', disconnectBranch);
+  document.getElementById('disconnect-branch-btn')?.addEventListener('click', ()=>disconnectBranch(false));
 });
 
 // ══════════════════════════════════════════════════
@@ -4334,8 +4357,16 @@ function _showVehicleScanResult(vd, mode, code){
   scanAgainBtn.style.cssText = 'flex:1;margin-right:8px;margin-top:10px';
   scanAgainBtn.textContent = '📷 Scan another';
   scanAgainBtn.onclick = ()=>{
-    const m = _scanMode; closeScanner();
-    setTimeout(()=>openScanner(m), 150);
+    // Reopen the camera in the SAME synchronous click handler that closed
+    // it — no setTimeout. Safari's user-gesture requirement for
+    // getUserMedia() is tied to the call stack of the gesture itself;
+    // putting any async gap (even a short timer) before the re-request
+    // risks Safari treating the new call as gesture-less and silently
+    // rejecting it. closeScanner() is fully synchronous, so there's
+    // nothing to actually wait for here.
+    const m = _scanMode;
+    closeScanner();
+    openScanner(m);
   };
   const doneBtn = document.createElement('button');
   doneBtn.className = 'btn bw';
@@ -4423,10 +4454,12 @@ function _showScanResult(item){
   scanAgainBtn.className = 'btn bg'; scanAgainBtn.style.cssText='flex:1;margin-right:8px';
   scanAgainBtn.textContent = '📷 Scan another';
   scanAgainBtn.onclick = ()=>{
-    // Reopen camera in same mode
+    // See the other "Scan another" handler for why this is synchronous,
+    // not setTimeout-delayed — keeps the getUserMedia() call inside the
+    // same user-gesture call stack that Safari expects.
     const mode = _scanMode; const jid = _scanJobId;
     closeScanner();
-    setTimeout(()=>openScanner(mode, jid), 150);
+    openScanner(mode, jid);
   };
 
   const doneBtn = document.createElement('button');
@@ -4548,7 +4581,8 @@ function closeScanner(){
 })();
 </script>
 
-<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
-<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js"></script>
+<!-- @zxing/browser's UMD bundle is self-contained (bundles its own copy of
+     the core decoding library internally) — only this one script is needed. -->
+<script src="https://unpkg.com/@zxing/browser@0.1.5"></script>
 </body>
 </html>
