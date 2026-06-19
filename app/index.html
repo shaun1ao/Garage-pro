@@ -889,6 +889,23 @@ input[list]{background:var(--bg2)}
   </div>
 </div>
 
+<!-- Secondary modal — overlays the main one for confirms, prompts, alerts,
+     and sub-forms (e.g. adding a vehicle inside the customer form). -->
+<div class="gp-modal gp-submodal" id="gpSubModal">
+  <div class="gp-modal-box" style="max-width:440px">
+    <div class="gp-modal-head">
+      <h3 id="gpSubModalTitle">—</h3>
+      <button class="gp-modal-close" onclick="closeSubModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="gp-modal-body" id="gpSubModalBody"></div>
+    <div class="gp-modal-foot" id="gpSubModalFoot"></div>
+  </div>
+</div>
+<style>
+  /* Sub-modal sits a layer above the main modal so confirms / sub-forms stack cleanly */
+  .gp-submodal { z-index: 1300; }
+</style>
+
 <script>
 // ══════════════════════════════════════════
 //  FIREBASE INIT (same project as the marketing site)
@@ -1446,8 +1463,29 @@ function wsRef() {
 }
 function wsCol(name) { return wsRef().collection(name); }
 
-async function wsLoad(name)        { const d = await wsCol(name).doc('data').get(); return d.exists ? (d.data().items || []) : []; }
-async function wsSave(name, items) { return wsCol(name).doc('data').set({ items, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }); }
+async function wsLoad(name) {
+  try {
+    const d = await wsCol(name).doc('data').get();
+    return d.exists ? (d.data().items || []) : [];
+  } catch (e) {
+    console.warn(`[wsLoad ${name}] failed:`, e);
+    if (typeof showToast === 'function') showToast(`Couldn't load ${name}: ${e.message || e}`, 'bad');
+    return [];
+  }
+}
+async function wsSave(name, items) {
+  try {
+    await wsCol(name).doc('data').set({ items, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    return true;
+  } catch (e) {
+    console.error(`[wsSave ${name}] failed:`, e);
+    const msg = (e && e.code === 'permission-denied')
+      ? `Save blocked: Firestore rules don't allow writing "${name}". Publish the latest firestore.rules.`
+      : `Save failed for ${name}: ${e.message || e}`;
+    if (typeof showToast === 'function') showToast(msg, 'bad');
+    throw e;
+  }
+}
 window.wsRef = wsRef; window.wsCol = wsCol; window.wsLoad = wsLoad; window.wsSave = wsSave;
 
 // ══════════════════════════════════════════
@@ -1462,34 +1500,36 @@ const D = {
 let _loadingPromise = null;
 
 async function loadAllData(force = false) {
-  // Coalesce concurrent calls — only one fetch in flight at a time
-  if (_loadingPromise && !force) return _loadingPromise;
+  // Serialise loads. If a load is already in flight, wait for it. Then decide
+  // whether a fresh read is still needed. This prevents two parallel reads
+  // (e.g. saveX → render that also calls load) from racing and clobbering D.
+  if (_loadingPromise) {
+    try { await _loadingPromise; } catch (e) {}
+    if (!force) return;  // someone else already refreshed; nothing more to do
+  }
   if (!force && D.loadedAt && (Date.now() - D.loadedAt < 4000)) return; // 4s grace
   _loadingPromise = (async () => {
-    try {
-      const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, settingsArr] =
-        await Promise.all([
-          wsLoad('bookings'), wsLoad('bays'),     wsLoad('jobs'),
-          wsLoad('queue'),    wsLoad('customers'),wsLoad('mechanics'),
-          wsLoad('inventory'),wsLoad('timesheets'),wsLoad('parts_requests'),
-          wsLoad('settings')
-        ]);
-      D.bookings       = bookings       || [];
-      D.bays           = bays           || [];
-      D.jobs           = jobs           || [];
-      D.queue          = queue          || [];
-      D.customers      = customers      || [];
-      D.mechanics      = mechanics      || [];
-      D.inventory      = inventory      || [];
-      D.timesheets     = timesheets     || [];
-      D.parts_requests = parts_requests || [];
-      D.settings       = (settingsArr && settingsArr[0]) || {};
-      D.loadedAt       = Date.now();
-    } finally {
-      _loadingPromise = null;
-    }
+    const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, settingsArr] =
+      await Promise.all([
+        wsLoad('bookings'), wsLoad('bays'),     wsLoad('jobs'),
+        wsLoad('queue'),    wsLoad('customers'),wsLoad('mechanics'),
+        wsLoad('inventory'),wsLoad('timesheets'),wsLoad('parts_requests'),
+        wsLoad('settings')
+      ]);
+    D.bookings       = bookings       || [];
+    D.bays           = bays           || [];
+    D.jobs           = jobs           || [];
+    D.queue          = queue          || [];
+    D.customers      = customers      || [];
+    D.mechanics      = mechanics      || [];
+    D.inventory      = inventory      || [];
+    D.timesheets     = timesheets     || [];
+    D.parts_requests = parts_requests || [];
+    D.settings       = (settingsArr && settingsArr[0]) || {};
+    D.loadedAt       = Date.now();
   })();
-  return _loadingPromise;
+  try { await _loadingPromise; }
+  finally { _loadingPromise = null; }
 }
 window.D = D; window.loadAllData = loadAllData;
 
@@ -1656,6 +1696,111 @@ window.closeModal = function() {
 document.getElementById('gpModal').addEventListener('click', (e) => {
   if (e.target.id === 'gpModal') closeModal();
 });
+
+// ══════════════════════════════════════════
+//  CUSTOM DIALOGS — alert, confirm, prompt (replace native browser dialogs)
+//  Use the secondary modal so they can overlay an already-open form modal.
+// ══════════════════════════════════════════
+function _openSubModal({ title, bodyHtml, footHtml }) {
+  document.getElementById('gpSubModalTitle').textContent = title;
+  document.getElementById('gpSubModalBody').innerHTML = bodyHtml;
+  document.getElementById('gpSubModalFoot').innerHTML = footHtml;
+  document.getElementById('gpSubModal').classList.add('open');
+}
+window.closeSubModal = function() {
+  document.getElementById('gpSubModal').classList.remove('open');
+};
+document.getElementById('gpSubModal').addEventListener('click', (e) => {
+  if (e.target.id === 'gpSubModal') closeSubModal();
+});
+
+window.customAlert = function(message, { title = 'Notice', okLabel = 'OK', danger = false } = {}) {
+  return new Promise(resolve => {
+    _openSubModal({
+      title,
+      bodyHtml: `<div style="color:var(--txt);font-size:14px;line-height:1.55;white-space:pre-wrap">${escapeHtml(message)}</div>`,
+      footHtml: `<div style="flex:1"></div><button class="fbtn ${danger ? 'fbtn-danger' : 'fbtn-save'}" id="_alertOk">${escapeHtml(okLabel)}</button>`
+    });
+    const ok = () => { closeSubModal(); resolve(true); };
+    document.getElementById('_alertOk').onclick = ok;
+    setTimeout(() => document.getElementById('_alertOk')?.focus(), 50);
+  });
+};
+
+window.customConfirm = function(message, { title = 'Confirm', okLabel = 'Confirm', cancelLabel = 'Cancel', danger = true } = {}) {
+  return new Promise(resolve => {
+    _openSubModal({
+      title,
+      bodyHtml: `<div style="color:var(--txt);font-size:14px;line-height:1.55;white-space:pre-wrap">${escapeHtml(message)}</div>`,
+      footHtml: `<div style="flex:1"></div>
+        <button class="fbtn fbtn-cancel" id="_confCancel">${escapeHtml(cancelLabel)}</button>
+        <button class="fbtn ${danger ? 'fbtn-danger' : 'fbtn-save'}" id="_confOk">${escapeHtml(okLabel)}</button>`
+    });
+    document.getElementById('_confCancel').onclick = () => { closeSubModal(); resolve(false); };
+    document.getElementById('_confOk').onclick     = () => { closeSubModal(); resolve(true); };
+    setTimeout(() => document.getElementById('_confOk')?.focus(), 50);
+  });
+};
+
+window.customPrompt = function(message, { title = 'Input', placeholder = '', initial = '', okLabel = 'OK', cancelLabel = 'Cancel', required = false, type = 'text' } = {}) {
+  return new Promise(resolve => {
+    _openSubModal({
+      title,
+      bodyHtml: `
+        ${message ? `<div style="color:var(--dim);font-size:13.5px;margin-bottom:10px">${escapeHtml(message)}</div>` : ''}
+        <input id="_promptInput" type="${escapeHtml(type)}" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(initial)}"
+          style="width:100%;padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" />
+        <div class="f-err" id="_promptErr" style="margin-top:8px;color:var(--red);font-size:12.5px"></div>`,
+      footHtml: `<div style="flex:1"></div>
+        <button class="fbtn fbtn-cancel" id="_promptCancel">${escapeHtml(cancelLabel)}</button>
+        <button class="fbtn fbtn-save"   id="_promptOk">${escapeHtml(okLabel)}</button>`
+    });
+    const inp = document.getElementById('_promptInput');
+    const err = document.getElementById('_promptErr');
+    const finish = (val) => { closeSubModal(); resolve(val); };
+    document.getElementById('_promptCancel').onclick = () => finish(null);
+    document.getElementById('_promptOk').onclick     = () => {
+      const v = (inp.value || '').trim();
+      if (required && !v) { err.textContent = 'This field is required.'; inp.focus(); return; }
+      finish(v);
+    };
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') document.getElementById('_promptOk').click();
+      if (ev.key === 'Escape') document.getElementById('_promptCancel').click();
+    });
+    setTimeout(() => inp.focus(), 50);
+  });
+};
+
+// ══════════════════════════════════════════
+//  QR LIBRARY — ensure it's loaded before we try to draw a code
+//  Falls back through 3 CDNs so a single blocked host doesn't break QR.
+// ══════════════════════════════════════════
+let _qrLoadPromise = null;
+function ensureQR() {
+  if (typeof QRCode !== 'undefined') return Promise.resolve(true);
+  if (_qrLoadPromise) return _qrLoadPromise;
+  const sources = [
+    'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
+    'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js'
+  ];
+  _qrLoadPromise = new Promise((resolve, reject) => {
+    let idx = 0;
+    const tryNext = () => {
+      if (typeof QRCode !== 'undefined') return resolve(true);
+      if (idx >= sources.length) return reject(new Error('Failed to load QR library from any CDN'));
+      const s = document.createElement('script');
+      s.src = sources[idx++];
+      s.onload  = () => (typeof QRCode !== 'undefined') ? resolve(true) : tryNext();
+      s.onerror = () => tryNext();
+      document.head.appendChild(s);
+    };
+    tryNext();
+  });
+  return _qrLoadPromise;
+}
+window.ensureQR = ensureQR;
 
 // Small unique-ish ID for new records (matches desktop's _uid())
 function uid(prefix = '') { return (prefix ? prefix + '-' : '') + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -1832,7 +1977,7 @@ async function saveBooking(id) {
 window.cancelBooking = async function(id) {
   const b = D.bookings.find(x => x.id === id);
   if (!b) return;
-  if (!confirm(`Cancel booking for ${b.plate}?`)) return;
+  if (!(await customConfirm(`Cancel booking for ${b.plate}?`, { title: 'Cancel booking', okLabel: 'Cancel booking' }))) return;
   b.status = 'Cancelled';
   b.updated_at = nowStr();
   // Free the bay if one was assigned
@@ -2227,7 +2372,7 @@ async function saveJob(id) {
 window.deleteJob = async function(id) {
   const j = D.jobs.find(x => x.id === id);
   if (!j) return;
-  if (!confirm(`Delete job card for ${j.plate}? The booking stays, only the job card is removed.`)) return;
+  if (!(await customConfirm(`Delete job card for ${j.plate}?\n\nThe booking stays — only the job card is removed.`, { title: 'Delete job card', okLabel: 'Delete' }))) return;
   D.jobs = D.jobs.filter(x => x.id !== id);
   await wsSave('jobs', D.jobs);
   showToast('Job deleted', 'good');
@@ -2263,17 +2408,21 @@ async function renderCustomers(force = false) {
   }
   wrap.innerHTML = `<table class="list-tbl">
     <thead><tr>
-      <th>Name</th><th>Phone</th><th>Email</th><th>Visits</th><th>Total spend</th>
+      <th>Name</th><th>Phone</th><th>Vehicles</th><th>Visits</th><th>Total spend</th>
       <th style="text-align:right">Actions</th>
     </tr></thead>
     <tbody>${list.map(c => {
       const visits = D.bookings.filter(b => b.cust_name === c.name).length;
       const spend  = D.bookings.filter(b => b.cust_name === c.name)
         .reduce((s,b) => s + (Number(b.actual_cost) || Number(b.cost_estimate) || 0), 0);
+      const vehicles = Array.isArray(c.vehicles) ? c.vehicles : [];
+      const vehCell = vehicles.length
+        ? vehicles.slice(0,3).map(v => `<span class="plate" style="margin-right:4px">${escapeHtml(v.plate)}</span>`).join('') + (vehicles.length > 3 ? `<span style="color:var(--faint);font-size:11px">+${vehicles.length-3}</span>` : '')
+        : '<span style="color:var(--faint);font-size:12px">—</span>';
       return `<tr>
-        <td class="k">${escapeHtml(c.name || '—')}</td>
+        <td class="k">${escapeHtml(c.name || '—')}<div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(c.email || '')}</div></td>
         <td>${escapeHtml(c.phone || '—')}</td>
-        <td>${escapeHtml(c.email || '—')}</td>
+        <td>${vehCell}</td>
         <td>${visits || '—'}</td>
         <td>${spend ? '₹' + spend.toLocaleString('en-IN') : '—'}</td>
         <td><div class="row-act">
@@ -2354,76 +2503,103 @@ function _renderVehiclesInForm() {
     </div>`).join('');
 }
 
-window._addVehicleInline = function() {
-  // Use the customPrompt-style modal to gather plate + model + year + color
-  // For inline simplicity, we use a small native prompt sequence — quick to type
-  const plate = prompt('Plate number (e.g. MH12 AB 1234):');
-  if (!plate) return;
-  const model = prompt('Make & model (e.g. Maruti Swift):') || '';
-  const year  = prompt('Year (optional):') || '';
-  const color = prompt('Colour (optional):') || '';
-  _editingVehicles.push({
-    id: uid('veh'),
-    plate: plate.trim().toUpperCase(),
-    model: model.trim(),
-    year:  year.trim(),
-    color: color.trim(),
-    added_at: nowStr()
+// Opens a single-form sub-modal with plate / model / year / colour — works for
+// both Add (idx = null) and Edit (idx = existing index). Returns nothing; the
+// caller's _editingVehicles array is mutated in place and the parent list re-rendered.
+function _openVehicleForm(idx) {
+  const editing = (idx != null && idx >= 0);
+  const v = editing ? (_editingVehicles[idx] || {}) : {};
+  _openSubModal({
+    title: editing ? `Edit vehicle · ${v.plate || ''}` : 'Add vehicle',
+    bodyHtml: `
+      <div class="f-row">
+        <div class="f-grp"><label>Plate number <span class="req">*</span></label>
+          <input id="vf-plate" type="text" value="${escapeHtml(v.plate || '')}" placeholder="MH12 AB 1234" style="text-transform:uppercase" required />
+        </div>
+        <div class="f-grp"><label>Make &amp; model</label>
+          <input id="vf-model" type="text" value="${escapeHtml(v.model || '')}" placeholder="Maruti Swift" />
+        </div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Year</label>
+          <input id="vf-year" type="text" value="${escapeHtml(v.year || '')}" placeholder="2022" />
+        </div>
+        <div class="f-grp"><label>Colour</label>
+          <input id="vf-color" type="text" value="${escapeHtml(v.color || '')}" placeholder="White" />
+        </div>
+      </div>
+      <div class="f-err" id="vf-err" style="margin-top:8px;color:var(--red);font-size:12.5px"></div>`,
+    footHtml: `<div style="flex:1"></div>
+      <button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>
+      <button class="fbtn fbtn-save"   id="_vfSave">${editing ? 'Save changes' : 'Add vehicle'}</button>`
   });
-  _renderVehiclesInForm();
-};
+  setTimeout(() => document.getElementById('vf-plate')?.focus(), 50);
+  document.getElementById('_vfSave').onclick = () => {
+    const plate = document.getElementById('vf-plate').value.trim().toUpperCase();
+    if (!plate) { document.getElementById('vf-err').textContent = 'Plate number is required.'; return; }
+    const data = {
+      plate,
+      model: document.getElementById('vf-model').value.trim(),
+      year:  document.getElementById('vf-year').value.trim(),
+      color: document.getElementById('vf-color').value.trim()
+    };
+    if (editing) {
+      _editingVehicles[idx] = { ...v, ...data };
+    } else {
+      _editingVehicles.push({ id: uid('veh'), ...data, added_at: nowStr() });
+    }
+    closeSubModal();
+    _renderVehiclesInForm();
+  };
+}
+window._addVehicleInline  = function()    { _openVehicleForm(null); };
+window._editVehicleInline = function(idx) { _openVehicleForm(idx);  };
 
-window._editVehicleInline = function(idx) {
-  const v = _editingVehicles[idx];
-  if (!v) return;
-  const plate = prompt('Plate number:', v.plate || '');
-  if (plate === null) return;
-  const model = prompt('Make & model:', v.model || '');
-  if (model === null) return;
-  const year  = prompt('Year:', v.year || '');
-  if (year === null) return;
-  const color = prompt('Colour:', v.color || '');
-  if (color === null) return;
-  _editingVehicles[idx] = { ...v, plate: plate.trim().toUpperCase(), model: model.trim(), year: year.trim(), color: color.trim() };
-  _renderVehiclesInForm();
-};
-
-window._removeVehicleInline = function(idx) {
-  if (!confirm(`Remove ${_editingVehicles[idx].plate}?`)) return;
+window._removeVehicleInline = async function(idx) {
+  const v = _editingVehicles[idx]; if (!v) return;
+  if (!(await customConfirm(`Remove vehicle ${v.plate}?`, { title: 'Remove vehicle', okLabel: 'Remove' }))) return;
   _editingVehicles.splice(idx, 1);
   _renderVehiclesInForm();
 };
 
-// QR display modal — generates the QR for a vehicle and offers Print / Download
-window._showVehicleQR = function(idx) {
+// QR display — overlays the customer form via the sub-modal so the form stays open underneath.
+// Uses ensureQR() so the library loads on demand from any of 3 CDNs.
+window._showVehicleQR = async function(idx) {
   const v = _editingVehicles[idx];
   if (!v) return;
   const qrText = 'GPV-' + v.id;
-  // Re-use the shared modal frame — render canvas after open
-  document.getElementById('gpModalTitle').textContent = `${v.plate} — vehicle QR`;
-  document.getElementById('gpModalBody').innerHTML = `
-    <div style="text-align:center;padding:10px 0">
-      <div style="background:#fff;display:inline-block;padding:18px;border-radius:14px;box-shadow:0 8px 24px -6px rgba(0,0,0,.6)">
-        <canvas id="qrCanvas" style="display:block;margin:0 auto"></canvas>
-        <div style="margin-top:14px;font-family:'Courier New',monospace;font-size:13px;color:#1a1a1a;font-weight:700">${escapeHtml(v.plate)}</div>
-        <div style="margin-top:2px;font-family:'Courier New',monospace;font-size:11px;color:#6b7888">${escapeHtml(qrText)}</div>
-      </div>
-      <div style="margin-top:16px;font-size:13px;color:var(--dim);line-height:1.5">
-        Stick this on the customer's windshield or keychain. Scanning it from
-        the Scan button instantly starts a walk-in booking or checks the
-        vehicle into an existing booking.
-      </div>
-    </div>`;
-  document.getElementById('gpModalFoot').innerHTML = `
-    <button class="fbtn fbtn-cancel" onclick="closeModal()">Close</button>
-    <button class="fbtn fbtn-cancel" onclick="_printVehicleQR('${escapeHtml(v.plate)}','${escapeHtml(qrText)}')">Print</button>
-    <button class="fbtn fbtn-save" onclick="_downloadVehicleQR('${escapeHtml(v.plate)}')">Download PNG</button>`;
-  document.getElementById('gpModal').classList.add('open');
-  // Render the QR
-  if (typeof QRCode !== 'undefined') {
-    QRCode.toCanvas(document.getElementById('qrCanvas'), qrText, { width: 220, margin: 2, color: { dark: '#0a0e14', light: '#ffffff' } }, () => {});
-  } else {
-    document.getElementById('qrCanvas').replaceWith(Object.assign(document.createElement('div'), { textContent: 'QR library still loading — close and try again', style: 'color:#666;padding:30px' }));
+  _openSubModal({
+    title: `${v.plate} — vehicle QR`,
+    bodyHtml: `
+      <div style="text-align:center;padding:6px 0">
+        <div style="background:#fff;display:inline-block;padding:18px;border-radius:14px;box-shadow:0 8px 24px -6px rgba(0,0,0,.6)">
+          <canvas id="qrCanvas" style="display:block;margin:0 auto;min-width:220px;min-height:220px"></canvas>
+          <div style="margin-top:14px;font-family:'Courier New',monospace;font-size:13px;color:#1a1a1a;font-weight:700">${escapeHtml(v.plate)}</div>
+          <div style="margin-top:2px;font-family:'Courier New',monospace;font-size:11px;color:#6b7888">${escapeHtml(qrText)}</div>
+        </div>
+        <div id="qrStatus" style="margin-top:12px;font-size:12.5px;color:var(--faint)">Loading QR library…</div>
+        <div style="margin-top:8px;font-size:13px;color:var(--dim);line-height:1.5">
+          Stick this on the customer's windshield or keychain. Scanning it instantly
+          starts a walk-in or checks the vehicle into an existing booking.
+        </div>
+      </div>`,
+    footHtml: `<div style="flex:1"></div>
+      <button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>
+      <button class="fbtn fbtn-cancel" id="qrPrintBtn" disabled>Print</button>
+      <button class="fbtn fbtn-save"   id="qrDlBtn"    disabled>Download PNG</button>`
+  });
+  try {
+    await ensureQR();
+    await QRCode.toCanvas(document.getElementById('qrCanvas'), qrText, {
+      width: 220, margin: 2, color: { dark: '#0a0e14', light: '#ffffff' }
+    });
+    document.getElementById('qrStatus').textContent = 'Ready — print or download.';
+    document.getElementById('qrPrintBtn').disabled = false;
+    document.getElementById('qrDlBtn').disabled    = false;
+    document.getElementById('qrPrintBtn').onclick  = () => _printVehicleQR(v.plate, qrText);
+    document.getElementById('qrDlBtn').onclick     = () => _downloadVehicleQR(v.plate);
+  } catch (e) {
+    document.getElementById('qrStatus').innerHTML = `<span style="color:var(--red)">Couldn't load QR library — check your internet connection and try again.</span>`;
   }
 };
 
@@ -2486,9 +2662,9 @@ window.deleteCustomer = async function(id) {
   if (!c) return;
   const hasBookings = D.bookings.some(b => b.cust_name === c.name);
   const msg = hasBookings
-    ? `Delete ${c.name}? They have past bookings — those records stay, but the customer profile is removed from the list.`
+    ? `Delete ${c.name}?\n\nThey have past bookings — those records stay, but the customer profile is removed from the list.`
     : `Delete ${c.name}?`;
-  if (!confirm(msg)) return;
+  if (!(await customConfirm(msg, { title: 'Delete customer', okLabel: 'Delete' }))) return;
   D.customers = D.customers.filter(x => x.id !== id);
   await wsSave('customers', D.customers);
   showToast('Customer deleted', 'good');
@@ -2865,7 +3041,7 @@ async function saveInventory(id) {
 window.deleteInventory = async function(id) {
   const i = D.inventory.find(x => x.id === id);
   if (!i) return;
-  if (!confirm(`Delete "${i.name}" from inventory?`)) return;
+  if (!(await customConfirm(`Delete "${i.name}" from inventory?`, { title: 'Delete item', okLabel: 'Delete' }))) return;
   D.inventory = D.inventory.filter(x => x.id !== id);
   await wsSave('inventory', D.inventory);
   showToast('Item deleted', 'good');
@@ -3025,7 +3201,7 @@ window.setPartStatus = async function(id, status) {
 window.deletePartRequest = async function(id) {
   const r = D.parts_requests.find(x => x.id === id);
   if (!r) return;
-  if (!confirm(`Delete request for "${r.part_name}"?`)) return;
+  if (!(await customConfirm(`Delete request for "${r.part_name}"?`, { title: 'Delete request', okLabel: 'Delete' }))) return;
   D.parts_requests = D.parts_requests.filter(x => x.id !== id);
   await wsSave('parts_requests', D.parts_requests);
   showToast('Request deleted', 'good');
@@ -3129,7 +3305,7 @@ window.clockToggle = async function() {
 };
 window.deleteShift = async function(id) {
   if (!isAdminRole()) return showToast('Only managers can delete shifts', 'bad');
-  if (!confirm('Delete this shift?')) return;
+  if (!(await customConfirm('Delete this shift?', { title: 'Delete shift', okLabel: 'Delete' }))) return;
   D.timesheets = D.timesheets.filter(t => t.id !== id);
   await wsSave('timesheets', D.timesheets);
   showToast('Shift deleted', 'good');
@@ -3183,15 +3359,42 @@ async function renderSettings(force = false) {
   document.getElementById('settingsBody').innerHTML = `
     <div style="display:grid;gap:18px">
 
+      <!-- Branding (used on invoices, receipts, customer-facing pages) -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Branding</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Your workshop name &amp; address show on the top-left of every invoice. The logo shows on the top-right. PNG / JPG / SVG — max ~2&nbsp;MB, automatically resized to 400&nbsp;px.</div>
+        <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:0 0 180px">
+            <div id="logoPreviewWrap" style="width:180px;height:180px;border:1px dashed var(--brd2);border-radius:12px;background:#fff;display:grid;place-items:center;overflow:hidden;padding:10px">
+              ${s.logo
+                ? `<img id="logoPreview" src="${escapeHtml(s.logo)}" alt="Logo" style="max-width:100%;max-height:100%;object-fit:contain" />`
+                : `<div style="color:#888;font-size:12.5px;text-align:center;padding:10px;font-family:var(--fb)">No logo<br>uploaded yet</div>`}
+            </div>
+          </div>
+          <div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:10px">
+            <input type="file" id="sf-logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp" onchange="_uploadLogo(event)" style="font-family:var(--fb);font-size:13px;color:var(--txt)" />
+            <div style="color:var(--faint);font-size:12px">Preview shows what will print at the top-right of invoices. Square or wide logos both work — they fit inside the box without cropping.</div>
+            <div style="display:flex;gap:8px">
+              <button class="refresh-btn" onclick="document.getElementById('sf-logoFile').click()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>${s.logo ? 'Replace logo' : 'Upload logo'}</button>
+              ${s.logo ? `<button class="mini-btn danger" onclick="_removeLogo()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Remove</button>` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Workshop info -->
       <div class="card" style="padding:18px">
-        <h3 style="margin:0 0 14px">Workshop info</h3>
+        <h3 style="margin:0 0 6px">Workshop info</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Prints on the top-left of every invoice — name (bold heading), then address, then contact email.</div>
         <div class="f-row">
-          <div class="f-grp"><label>Workshop name</label><input id="sf-name" type="text" value="${escapeHtml(s.workshop_name || '')}" /></div>
-          <div class="f-grp"><label>Phone</label><input id="sf-phone" type="text" value="${escapeHtml(s.phone || '')}" /></div>
+          <div class="f-grp"><label>Workshop name</label><input id="sf-name" type="text" value="${escapeHtml(s.workshop_name || '')}" placeholder="Chequered Flags" /></div>
+          <div class="f-grp"><label>Contact email</label><input id="sf-email" type="email" value="${escapeHtml(s.email || '')}" placeholder="service@yourshop.in" /></div>
         </div>
         <div class="f-row r1">
-          <div class="f-grp"><label>Address</label><textarea id="sf-addr">${escapeHtml(s.address || '')}</textarea></div>
+          <div class="f-grp"><label>Phone</label><input id="sf-phone" type="text" value="${escapeHtml(s.phone || '')}" placeholder="+91 …" /></div>
+        </div>
+        <div class="f-row r1">
+          <div class="f-grp"><label>Address</label><textarea id="sf-addr" placeholder="Street, area, city, state PIN, country">${escapeHtml(s.address || '')}</textarea></div>
         </div>
         <div class="f-row r3">
           <div class="f-grp"><label>GSTIN</label><input id="sf-gst" type="text" value="${escapeHtml(s.gstin || '')}" /></div>
@@ -3250,6 +3453,7 @@ async function renderSettings(force = false) {
 window.saveWorkshopInfo = async function() {
   D.settings = D.settings || {};
   D.settings.workshop_name = document.getElementById('sf-name').value.trim();
+  D.settings.email         = document.getElementById('sf-email').value.trim();
   D.settings.phone         = document.getElementById('sf-phone').value.trim();
   D.settings.address       = document.getElementById('sf-addr').value.trim();
   D.settings.gstin         = document.getElementById('sf-gst').value.trim();
@@ -3258,6 +3462,75 @@ window.saveWorkshopInfo = async function() {
   await wsSaveSettings();
   showToast('Workshop info saved', 'good');
 };
+
+// ─── Logo upload ─────────────────────────────────────────────────
+// Downscale to max 400px on the longest side, encode as data URL, save to settings.logo.
+// SVGs are kept as-is (already small + crisp at any size).
+window._uploadLogo = async function(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) return showToast('Logo too large — keep it under 2 MB', 'bad');
+  try {
+    const dataUrl = file.type === 'image/svg+xml'
+      ? await _fileToDataUrl(file)
+      : await _resizeImageToDataUrl(file, 400);
+    D.settings = D.settings || {};
+    D.settings.logo = dataUrl;
+    await wsSaveSettings();
+    showToast('Logo uploaded', 'good');
+    await renderSettings(true);
+  } catch (e) {
+    console.error(e);
+    showToast('Could not read that image', 'bad');
+  }
+};
+
+window._removeLogo = async function() {
+  if (!(await customConfirm('Remove the workshop logo?\n\nInvoices will print without a logo until you upload a new one.', { title: 'Remove logo', okLabel: 'Remove' }))) return;
+  D.settings = D.settings || {};
+  delete D.settings.logo;
+  await wsSaveSettings();
+  showToast('Logo removed', 'good');
+  await renderSettings(true);
+};
+
+function _fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function _resizeImageToDataUrl(file, maxDim) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = reject;
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width  * scale);
+        const h = Math.round(img.height * scale);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        // Keep transparency for PNGs/WebPs; flatten others onto white only if JPEG
+        if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        // PNG keeps transparency; quality arg ignored for PNG. JPEGs come out tighter at 0.85.
+        const mime = (file.type === 'image/jpeg' || file.type === 'image/jpg') ? 'image/jpeg' : 'image/png';
+        resolve(c.toDataURL(mime, 0.85));
+      };
+      img.onerror = reject;
+      img.src = r.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
 
 window.saveRolePerms = async function() {
   const perms = {};
@@ -3289,7 +3562,7 @@ window.addCustomRole = async function() {
 };
 
 window.removeCustomRole = async function(role) {
-  if (!confirm(`Remove role "${role}"? Workers with this role will fall back to "mechanic" permissions.`)) return;
+  if (!(await customConfirm(`Remove role "${role}"?\n\nWorkers with this role will fall back to "mechanic" permissions.`, { title: 'Remove role', okLabel: 'Remove' }))) return;
   if (D.settings?.role_perms?.[role]) {
     delete D.settings.role_perms[role];
     await wsSaveSettings();
@@ -3299,8 +3572,13 @@ window.removeCustomRole = async function(role) {
 };
 
 window.wipeCollection = async function(coll) {
-  if (!confirm(`Wipe ALL ${coll}? This cannot be undone.`)) return;
-  if (!confirm(`Really? Type-equivalent: delete every ${coll} record.`)) return;
+  const typed = await customPrompt(`Type "${coll}" to confirm wiping every record in this collection. This cannot be undone.`, {
+    title: `Wipe ${coll}`, placeholder: coll, okLabel: 'Wipe collection'
+  });
+  if (typed === null) return;
+  if (typed.trim().toLowerCase() !== coll.toLowerCase()) {
+    return customAlert('Confirmation text did not match — nothing was deleted.', { title: 'Cancelled' });
+  }
   D[coll] = [];
   await wsSave(coll, []);
   showToast(`${coll} wiped`, 'good');
@@ -3611,9 +3889,9 @@ window.deleteWorker = async function(id) {
     (j.mechanic === w.name || (j.mechanics || []).includes(w.name))
     && !['Delivered','Cancelled'].includes(j.status));
   const msg = activeJobs.length
-    ? `Delete ${w.name}? They have ${activeJobs.length} active job${activeJobs.length === 1 ? '' : 's'} assigned. The jobs stay, but the worker is removed.`
+    ? `Delete ${w.name}?\n\nThey have ${activeJobs.length} active job${activeJobs.length === 1 ? '' : 's'} assigned. The jobs stay, but the worker is removed from the roster.`
     : `Delete ${w.name}?`;
-  if (!confirm(msg)) return;
+  if (!(await customConfirm(msg, { title: 'Delete worker', okLabel: 'Delete' }))) return;
   D.mechanics = D.mechanics.filter(x => x.id !== id);
   await wsSave('mechanics', D.mechanics);
   showToast('Worker deleted', 'good');
@@ -3621,9 +3899,9 @@ window.deleteWorker = async function(id) {
 };
 </script>
 
-<!-- QRCode.js — generates QR codes client-side. Used for the per-vehicle QR
-     that the scanner can read to trigger walk-in or check-in. -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<!-- QRCode.js is loaded on-demand via ensureQR() with multi-CDN fallback —
+     no eager <script> tag so a blocked CDN doesn't show a console error on every page load. -->
+
 
 <!-- ZXing — barcode + QR decoder. Multi-CDN fallback so blocked unpkg falls
      through to jsdelivr. Loaded with no `defer` so it's ready by the time
