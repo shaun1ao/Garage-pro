@@ -382,17 +382,93 @@ input[list]{background:var(--bg2)}
 .toast.bad::before{content:"✕  ";color:var(--red)}
 
 /* ── responsive ── */
+/* ── Hamburger (only visible on mobile) ── */
+.hamburger{display:none;background:var(--surf);border:1px solid var(--brd2);width:38px;height:38px;border-radius:9px;align-items:center;justify-content:center;cursor:pointer;color:var(--dim);flex:none;margin-right:auto}
+.hamburger svg{width:18px;height:18px}
+.hamburger:hover{color:var(--txt);border-color:var(--brd2)}
+
+/* ── Mobile backdrop for the sidebar drawer ── */
+.sidebar-backdrop{display:none;position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);animation:fadeIn .15s}
+.sidebar-backdrop.open{display:block}
+
+/* ════════════════════════════════════════════════
+   Tablet (≤960px) — tighter spacing, collapse 3-col form rows
+   ════════════════════════════════════════════════ */
+@media(max-width:960px){
+  .content{padding:22px 22px}
+  .f-row.r3{grid-template-columns:1fr 1fr}
+  .gp-modal-box{max-width:560px}
+}
+
+/* ════════════════════════════════════════════════
+   Phone (≤760px) — sidebar becomes a left drawer
+   ════════════════════════════════════════════════ */
 @media(max-width:760px){
-  :root{--sidebar-w:100%}
+  /* Sidebar slides in from the left over the content */
+  .sidebar{
+    position:fixed; top:0; left:0; bottom:0;
+    width:280px; max-width:84vw;
+    z-index:100;
+    transform:translateX(-100%);
+    transition:transform .25s ease;
+    border-right:1px solid var(--brd);
+    border-bottom:0;
+    box-shadow:0 12px 40px rgba(0,0,0,.6);
+  }
+  .sidebar.open{transform:translateX(0)}
   .app-body{flex-direction:column}
-  .sidebar{width:100%;height:auto;flex-direction:row;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--brd);padding:8px 12px;gap:6px}
-  .sidebar .section-label{display:none}
-  .snav{padding:9px 12px;font-size:13px;white-space:nowrap;flex:none}
-  .content{padding:20px 18px}
-  .app-header{padding:0 14px;gap:10px}
-  .app-header .brand small{display:none}
-  .user-menu .name{display:none}
-  .ws-switcher .ws-name{max-width:120px}
+  .content{padding:18px 14px;width:100%}
+  .hamburger{display:inline-flex}
+  .app-header{padding:0 12px;gap:8px;height:54px}
+  .app-header .tab-title{font-size:15px;padding-left:0}
+  .tablet-pill{display:none}             /* save space */
+  .sync-pill span:not(.sync-dot){display:none}  /* dot only */
+
+  /* Header layout when hamburger is in play */
+  .app-header .header-spacer{display:none}
+
+  /* Forms — collapse all multi-col rows */
+  .f-row, .f-row.r3, .f-row.r1{grid-template-columns:1fr; gap:10px}
+
+  /* Modals — go nearly full-width and tighter padding */
+  .gp-modal{padding:14px 10px}
+  .gp-modal-box{max-width:100%; border-radius:14px}
+  .gp-modal-head{padding:14px 16px}
+  .gp-modal-head h3{font-size:16px}
+  .gp-modal-body{padding:16px; max-height:none}
+  .gp-modal-foot{padding:12px 14px; flex-wrap:wrap}
+  .gp-modal-foot .fbtn{flex:1; min-width:120px}
+
+  /* Tables — horizontal scroll instead of squashing content */
+  #ivTableWrap, #prTableWrap, #tsTableWrap, #cuTableWrap, #wkTableWrap,
+  .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch}
+  .list-tbl{min-width:560px; font-size:13px}
+  .list-tbl th, .list-tbl td{padding:11px 12px}
+
+  /* Toolbar items wrap properly */
+  .toolbar{gap:8px}
+  .toolbar input[type="text"]{flex:1 1 100%; min-width:0}
+  .toolbar select, .toolbar input[type="date"]{flex:1 1 calc(50% - 4px)}
+
+  /* Page head: title + actions stack */
+  .page-head{align-items:flex-start; gap:10px}
+  .page-head h2{font-size:20px}
+  .page-head > div:last-child{display:flex; flex-wrap:wrap; gap:8px}
+
+  /* Stat row goes 2 cols then 1 col at very narrow widths */
+  .stat-row{grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:20px}
+
+  /* Stop iOS zooming inputs on focus — anything ≥16px doesn't zoom */
+  input, textarea, select{font-size:16px !important}
+
+  /* Auth card padding */
+  .auth-card{margin:18px 14px; padding:26px 22px}
+}
+
+@media(max-width:380px){
+  .stat-row{grid-template-columns:1fr}
+  .gp-modal-foot{flex-direction:column-reverse}
+  .gp-modal-foot .fbtn{width:100%}
 }
 </style>
 </head>
@@ -529,6 +605,9 @@ input[list]{background:var(--bg2)}
 <div class="app-frame" id="appFrame">
 
   <header class="app-header">
+    <button class="hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <div class="tab-title" id="hdrTabTitle">Dashboard</div>
     <div class="header-spacer"></div>
     <div class="tablet-pill" title="Open the floor tablet on any device on your network">
@@ -541,6 +620,7 @@ input[list]{background:var(--bg2)}
       <span id="syncLabel">Synced</span>
     </div>
   </header>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
 
   <div class="app-body">
 
@@ -755,8 +835,39 @@ input[list]{background:var(--bg2)}
         </div>
         <div id="jbTableWrap"></div>
       </div>
-      <div class="tab-panel" id="tab-bays"><div class="page-head"><div><h2>Bays</h2><div class="crumb">Coming in step 7</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
-      <div class="tab-panel" id="tab-queue"><div class="page-head"><div><h2>Queue</h2><div class="crumb">Coming next</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added next.</p></div></div>
+      <div class="tab-panel" id="tab-bays">
+        <div class="page-head">
+          <div><h2>Bays</h2><div class="dash-meta"><span class="live-dot"></span><span id="bayCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderBays(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="add-btn" onclick="openBayTypesModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Manage bay types</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <select id="bayFt" onchange="renderBays()"><option value="">All types</option></select>
+          <select id="bayFs" onchange="renderBays()">
+            <option value="">All statuses</option>
+            <option value="available">Available</option>
+            <option value="occupied">Occupied</option>
+            <option value="maintenance">Maintenance</option>
+          </select>
+        </div>
+        <div class="stat-row" id="bayStats" style="margin-bottom:18px"></div>
+        <div id="baysGrouped"></div>
+      </div>
+
+      <div class="tab-panel" id="tab-queue">
+        <div class="page-head">
+          <div><h2>Live Queue</h2><div class="dash-meta"><span class="live-dot"></span><span id="qCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderQueue(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:11px;padding:14px 18px;font-size:13px;color:var(--dim);margin-bottom:18px;line-height:1.55">
+          Cars land here automatically when they check in but no matching bay is free. When a bay opens up — either a job finishes or maintenance is cleared — the next car waiting for that bay type is offered the spot.
+        </div>
+        <div id="qTableWrap"></div>
+      </div>
       <div class="tab-panel" id="tab-schedule"><div class="page-head"><div><h2>Schedule</h2><div class="crumb">Coming next</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>Weekly calendar view of all bookings will live here.</p></div></div>
       <div class="tab-panel" id="tab-parts"><div class="page-head"><div><h2>Parts Requests</h2><div class="crumb">Coming next</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>Workers request parts from a job card → request lands here for approval.</p></div></div>
       <div class="tab-panel" id="tab-customers">
@@ -1886,14 +1997,6 @@ function _bookingFormHTML(b) {
       <div class="f-grp"><label>Phone</label>
         <input id="bf-phone" type="tel" value="${escapeHtml(b.cust_phone || '')}" placeholder="+91 ..." /></div>
     </div>
-    <!-- Vehicle picker: appears only when the customer has saved vehicles. Selecting one auto-fills plate + vehicle text. -->
-    <div class="f-row r1" id="bf-vehPickerWrap" style="display:none">
-      <div class="f-grp"><label>Pick a registered vehicle</label>
-        <select id="bf-vehPicker" onchange="_bookingPickVehicle()">
-          <option value="">— Choose from saved vehicles —</option>
-        </select>
-      </div>
-    </div>
     <div class="f-row r3">
       <div class="f-grp"><label>Plate <span class="req">*</span></label>
         <input id="bf-plate" type="text" value="${escapeHtml(b.plate || '')}" placeholder="MH12 AB 1234" style="text-transform:uppercase" /></div>
@@ -1929,61 +2032,98 @@ function _bookingFormHTML(b) {
   `;
 }
 
+// Tracks the last matched customer so we don't re-trigger auto-fill on every keystroke.
+let _lastBookingCustomerId = null;
+
 window.openBookingForm = function(id) {
   const existing = id ? D.bookings.find(b => b.id === id) : null;
   const b = existing || {};
   const isNew = !existing;
+  // Reset so editing an existing booking doesn't fire the picker for its already-set customer.
+  _lastBookingCustomerId = null;
+  if (existing && existing.cust_name) {
+    const c = D.customers.find(x => (x.name || '').toLowerCase() === existing.cust_name.toLowerCase());
+    if (c) _lastBookingCustomerId = c.id;
+  }
   openModal({
     title: isNew ? 'New booking' : `Edit booking · ${b.plate || b.id}`,
     body: _bookingFormHTML(b),
     saveLabel: isNew ? 'Create booking' : 'Save changes',
     onSave: () => saveBooking(b.id || null)
   });
-  // If we're editing a booking whose customer already has saved vehicles, populate the picker right away.
-  setTimeout(() => _bookingFillCustomer(), 0);
 };
 
-// Called as the customer field is typed/picked. Auto-fills phone, and (re)builds the
-// vehicle picker dropdown so saved cars are one click away.
+// Called as the customer field is typed/picked.
+//   • Phone auto-fills when empty
+//   • If the matched customer has exactly 1 saved vehicle → fill it in silently
+//   • If they have 2+ vehicles → open a custom picker modal so they can choose
+//   • Only fires when the matched customer actually changes (not every keystroke)
 window._bookingFillCustomer = function() {
   const name = (document.getElementById('bf-cust')?.value || '').trim();
-  const c = name ? D.customers.find(x => (x.name || '').toLowerCase() === name.toLowerCase()) : null;
+  const c    = name ? D.customers.find(x => (x.name || '').toLowerCase() === name.toLowerCase()) : null;
+  const newId = c ? c.id : null;
+  if (newId === _lastBookingCustomerId) return;   // matched customer unchanged
+  _lastBookingCustomerId = newId;
+  if (!c) return;
 
   // Phone auto-fill (only if empty so we don't clobber a typed-in number)
   const phoneInp = document.getElementById('bf-phone');
-  if (c && c.phone && phoneInp && !phoneInp.value) phoneInp.value = c.phone;
+  if (c.phone && phoneInp && !phoneInp.value) phoneInp.value = c.phone;
 
-  // Vehicle picker — show only when we have a known customer with ≥1 registered vehicle
-  const wrap   = document.getElementById('bf-vehPickerWrap');
-  const picker = document.getElementById('bf-vehPicker');
-  if (!wrap || !picker) return;
-  const vehicles = (c && Array.isArray(c.vehicles)) ? c.vehicles : [];
-  if (!vehicles.length) { wrap.style.display = 'none'; picker.innerHTML = '<option value="">— Choose from saved vehicles —</option>'; return; }
-
-  // Try to pre-select whichever vehicle matches the current plate (so editing an old booking lands on the right car)
-  const currentPlate = (document.getElementById('bf-plate')?.value || '').trim().toUpperCase();
-  picker.innerHTML = `<option value="">— Choose from saved vehicles —</option>` +
-    vehicles.map(v => {
-      const label = `${(v.plate || '').toUpperCase()} — ${v.model || 'Vehicle'}${v.year ? ' (' + v.year + ')' : ''}${v.color ? ' · ' + v.color : ''}`;
-      return `<option value="${escapeHtml(v.id)}" ${(v.plate || '').toUpperCase() === currentPlate ? 'selected' : ''}>${escapeHtml(label)}</option>`;
-    }).join('');
-  wrap.style.display = '';
+  const vehicles = Array.isArray(c.vehicles) ? c.vehicles : [];
+  if (vehicles.length === 0) return;
+  if (vehicles.length === 1) { _applyVehicleToBookingForm(vehicles[0]); return; }
+  // 2+ vehicles → ask which one
+  _openBookingVehiclePicker(c, vehicles);
 };
 
-// When the user picks a registered vehicle, auto-fill plate + vehicle text fields.
-window._bookingPickVehicle = function() {
-  const picker = document.getElementById('bf-vehPicker');
-  const vehId  = picker?.value;
-  if (!vehId) return;
-  const custName = (document.getElementById('bf-cust')?.value || '').trim();
-  const c = D.customers.find(x => (x.name || '').toLowerCase() === custName.toLowerCase());
-  const v = c && (c.vehicles || []).find(x => x.id === vehId);
-  if (!v) return;
-  document.getElementById('bf-plate').value = (v.plate || '').toUpperCase();
-  // Combine model + year for the vehicle text field
-  const vehText = [v.model, v.year].filter(Boolean).join(', ') + (v.color ? ' · ' + v.color : '');
-  document.getElementById('bf-veh').value = vehText.trim();
-};
+// Custom picker modal — overlays the booking form via the sub-modal so the form stays open underneath.
+function _openBookingVehiclePicker(customer, vehicles) {
+  _openSubModal({
+    title: `${customer.name} — pick a vehicle`,
+    bodyHtml: `
+      <div style="color:var(--dim);font-size:13.5px;margin-bottom:12px">
+        This customer has <b>${vehicles.length} registered vehicles</b>. Pick which one this booking is for:
+      </div>
+      <div style="display:grid;gap:8px">
+        ${vehicles.map(v => `
+          <button type="button" class="snav" data-vehid="${escapeHtml(v.id)}"
+            style="background:var(--bg2);border:1px solid var(--brd2);padding:14px;border-radius:10px;text-align:left;cursor:pointer;font-family:var(--fb);width:100%">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="plate" style="flex:none">${escapeHtml(v.plate || '—')}</span>
+              <div style="flex:1">
+                <div style="font-weight:700;color:var(--txt);font-size:14px">${escapeHtml(v.model || 'Vehicle')}${v.year ? ' · ' + escapeHtml(v.year) : ''}${v.color ? ' · ' + escapeHtml(v.color) : ''}</div>
+                <div style="font-size:11.5px;color:var(--faint);margin-top:2px;font-family:'Courier New',monospace">QR: ${escapeHtml(v.id || '—')}</div>
+              </div>
+            </div>
+          </button>`).join('')}
+        <button type="button" class="snav" id="_vpSkip"
+          style="background:transparent;border:1px dashed var(--brd2);padding:11px;border-radius:10px;cursor:pointer;font-family:var(--fb);color:var(--faint);font-size:13px">
+          Skip — I'll type the vehicle myself
+        </button>
+      </div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>`
+  });
+  document.querySelectorAll('#gpSubModalBody [data-vehid]').forEach(btn => {
+    btn.onclick = () => {
+      const v = vehicles.find(x => x.id === btn.dataset.vehid);
+      if (v) _applyVehicleToBookingForm(v);
+      closeSubModal();
+    };
+  });
+  document.getElementById('_vpSkip').onclick = () => closeSubModal();
+}
+
+// Fills the booking form's plate + vehicle text fields from a saved vehicle record.
+function _applyVehicleToBookingForm(v) {
+  const plateInp = document.getElementById('bf-plate');
+  const vehInp   = document.getElementById('bf-veh');
+  if (plateInp) plateInp.value = (v.plate || '').toUpperCase();
+  if (vehInp) {
+    const parts = [v.model, v.year].filter(Boolean).join(', ');
+    vehInp.value = (parts + (v.color ? ' · ' + v.color : '')).trim();
+  }
+}
 
 async function saveBooking(id) {
   const get = (k) => document.getElementById('bf-' + k).value.trim();
@@ -2963,12 +3103,439 @@ window.switchTab = function(tab) {
   if (tab === 'inventory')  renderInventory();
   if (tab === 'timesheets') renderTimesheets();
   if (tab === 'settings')   renderSettings();
+  if (tab === 'bays')       renderBays();
+  if (tab === 'queue')      renderQueue();
+  // Auto-close the mobile drawer after picking a tab
+  closeSidebar();
 };
+
+// ══════════════════════════════════════════
+//  MOBILE SIDEBAR DRAWER
+// ══════════════════════════════════════════
+window.toggleSidebar = function() {
+  const sb = document.getElementById('sidebar');
+  const bd = document.getElementById('sidebarBackdrop');
+  if (!sb) return;
+  const open = sb.classList.toggle('open');
+  if (bd) bd.classList.toggle('open', open);
+};
+window.closeSidebar = function() {
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('sidebarBackdrop')?.classList.remove('open');
+};
+// Esc closes the drawer too
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
 
 function renderSchedule() {
   const wrap = document.getElementById('tab-schedule');
   if (!wrap || wrap.dataset.rendered) return;
 }
+
+// ══════════════════════════════════════════
+//  BAYS  — view, note, toggle maintenance, manage bay types
+// ══════════════════════════════════════════
+// Each bay record: { id, type, num, status: 'available'|'occupied', plate, booking_id, note, maintenance: bool }
+// settings.bay_defs is the source of truth: [{ name: 'Mechanical bay', count: 3 }, …]
+
+async function renderBays(force = false) {
+  await loadAllData(force);
+  _syncBaysFromDefs();  // make sure D.bays matches settings.bay_defs (handles count changes)
+
+  const types = [...new Set(D.bays.map(b => b.type).filter(Boolean))].sort();
+  const ftSel = document.getElementById('bayFt');
+  const ftCur = ftSel.value;
+  ftSel.innerHTML = '<option value="">All types</option>' +
+    types.map(t => `<option value="${escapeHtml(t)}" ${t === ftCur ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('');
+
+  // Stats
+  const total = D.bays.length;
+  const avail = D.bays.filter(b => _bayState(b) === 'available').length;
+  const occ   = D.bays.filter(b => _bayState(b) === 'occupied').length;
+  const maint = D.bays.filter(b => _bayState(b) === 'maintenance').length;
+  document.getElementById('bayCrumb').textContent =
+    `${total} bay${total === 1 ? '' : 's'} · ${avail} available · ${occ} occupied · ${maint} in maintenance`;
+  document.getElementById('bayStats').innerHTML = `
+    ${_statCard('Total bays', total, 'var(--txt)')}
+    ${_statCard('Available',  avail, 'var(--teal)')}
+    ${_statCard('Occupied',   occ,   'var(--red)')}
+    ${_statCard('In maintenance', maint, 'var(--acc2)')}`;
+
+  const ft = ftSel.value, fs = document.getElementById('bayFs').value;
+  const grouped = {};
+  for (const b of D.bays) {
+    if (ft && b.type !== ft) continue;
+    if (fs && _bayState(b) !== fs) continue;
+    (grouped[b.type] = grouped[b.type] || []).push(b);
+  }
+  const out = document.getElementById('baysGrouped');
+  if (!Object.keys(grouped).length) {
+    out.innerHTML = `<div class="placeholder"><h3>${total ? 'No bays match your filters' : 'No bays configured yet'}</h3><p>${total ? 'Clear the filters above.' : 'Click "Manage bay types" to set up the bays in your workshop — e.g. 3 mechanical bays + 1 paint bay.'}</p></div>`;
+    return;
+  }
+  out.innerHTML = Object.entries(grouped).sort((a,b) => a[0].localeCompare(b[0])).map(([type, list]) => {
+    const groupAvail = list.filter(b => _bayState(b) === 'available').length;
+    return `
+      <div style="margin-bottom:24px">
+        <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:10px">
+          <h3 style="font-family:var(--fd);font-size:16px;font-weight:800;color:var(--txt)">${escapeHtml(type)}</h3>
+          <span style="font-size:12.5px;color:var(--faint)">${groupAvail}/${list.length} available</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px">
+          ${list.sort((a,b) => (a.num||0) - (b.num||0)).map(b => _renderBayChip(b)).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+window.renderBays = renderBays;
+
+function _bayState(b) {
+  if (b.maintenance) return 'maintenance';
+  return ((b.status || '').toLowerCase() === 'occupied') ? 'occupied' : 'available';
+}
+function _statCard(label, val, color) {
+  return `<div style="background:var(--surf);border:1px solid var(--brd);border-radius:13px;padding:16px 18px">
+    <div style="font-family:var(--fd);font-size:26px;font-weight:800;color:${color}">${val}</div>
+    <div style="font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:2px">${escapeHtml(label)}</div>
+  </div>`;
+}
+
+function _renderBayChip(b) {
+  const state = _bayState(b);
+  const palette = state === 'maintenance'
+    ? { bg:'rgba(255,179,71,.10)', fg:'var(--acc2)', border:'rgba(255,179,71,.32)' }
+    : state === 'occupied'
+    ? { bg:'rgba(255,107,107,.10)', fg:'var(--red)', border:'rgba(255,107,107,.30)' }
+    : { bg:'rgba(32,227,178,.10)',  fg:'var(--teal)', border:'rgba(32,227,178,.28)' };
+  const statusText = state === 'maintenance' ? 'MAINTENANCE'
+    : state === 'occupied' ? (b.plate || 'Occupied')
+    : 'Available';
+  const subText = state === 'occupied' && b.booking_id
+    ? (() => {
+        const bk = D.bookings.find(x => x.id === b.booking_id);
+        return bk ? (bk.cust_name || '') + (bk.service ? ' · ' + bk.service : '') : '';
+      })()
+    : '';
+  return `
+    <div style="background:${palette.bg};border:1px solid ${palette.border};border-radius:11px;padding:12px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-family:var(--fd);font-weight:800;font-size:14px;color:var(--txt)">Bay ${escapeHtml(String(b.num || '?'))}</span>
+        <span style="font-size:10.5px;letter-spacing:.08em;color:${palette.fg};font-weight:700">${escapeHtml(statusText)}</span>
+      </div>
+      ${subText ? `<div style="font-size:11.5px;color:var(--faint);line-height:1.35">${escapeHtml(subText)}</div>` : ''}
+      ${b.note ? `<div style="font-size:11px;color:var(--dim);background:rgba(255,255,255,.03);padding:6px 8px;border-radius:6px;line-height:1.4"><b style="color:var(--faint);font-size:10px">NOTE</b><br>${escapeHtml(b.note)}</div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:auto">
+        <button class="mini-btn" style="flex:1;justify-content:center" onclick="editBayNote('${escapeHtml(b.id)}')">${b.note ? 'Edit note' : 'Add note'}</button>
+        <button class="mini-btn ${state === 'maintenance' ? 'good' : ''}" style="flex:1;justify-content:center" onclick="toggleBayMaintenance('${escapeHtml(b.id)}')">${state === 'maintenance' ? 'End maint.' : 'Maintenance'}</button>
+      </div>
+    </div>`;
+}
+
+
+window.toggleBayMaintenance = async function(id) {
+  const bay = D.bays.find(b => b.id === id);
+  if (!bay) return;
+  if (!bay.maintenance && (bay.status || '').toLowerCase() === 'occupied') {
+    return customAlert('This bay is currently occupied. Check the car out first before setting it under maintenance.', { title: 'Bay is occupied' });
+  }
+  const wasInMaint = !!bay.maintenance;
+  bay.maintenance = !bay.maintenance;
+  if (bay.maintenance) {
+    // Going into maintenance — force-free it
+    bay.status = 'available';
+    bay.plate = '';
+    bay.booking_id = null;
+  }
+  await wsSave('bays', D.bays);
+  showToast(bay.maintenance ? 'Bay set under maintenance' : 'Maintenance ended', 'good');
+  // If we just freed a bay (ended maintenance), see if anyone in queue wants it
+  if (wasInMaint && !bay.maintenance) {
+    await promoteNextFromQueue(bay.type);
+  }
+  await renderBays(true);
+};
+
+// ── Bay type management (add / edit / remove with count) ──
+window.openBayTypesModal = async function() {
+  if (!isAdminRole()) return customAlert('Only owners or managers can change bay setup.', { title: 'Admin only' });
+  await loadAllData(true);
+  D.settings = D.settings || {};
+  D.settings.bay_defs = Array.isArray(D.settings.bay_defs) ? D.settings.bay_defs : [];
+  _renderBayTypesEditor();
+};
+
+function _renderBayTypesEditor() {
+  const defs = D.settings.bay_defs;
+  openModal({
+    title: 'Manage bay types',
+    body: `
+      <div style="color:var(--dim);font-size:13.5px;margin-bottom:14px;line-height:1.55">
+        Add the types of bays you have and how many of each. When you change a count, the bays are renumbered to match. Bays that are currently occupied won't be deleted — finish those jobs first.
+      </div>
+      <div id="bayDefsRows" style="display:grid;gap:10px"></div>
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <input type="text" id="newBayTypeName" placeholder="New type (e.g. Wash bay)" style="flex:1;padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" />
+        <input type="number" id="newBayTypeCount" min="1" step="1" value="1" style="width:80px;padding:11px 12px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" />
+        <button class="refresh-btn" onclick="_addBayType()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+      </div>
+      <div class="f-err" id="bayDefsErr" style="margin-top:10px;color:var(--red);font-size:12.5px"></div>`,
+    saveLabel: 'Done',
+    onSave: async () => { closeModal(); await renderBays(true); }
+  });
+  _drawBayDefsRows();
+}
+function _drawBayDefsRows() {
+  const wrap = document.getElementById('bayDefsRows');
+  if (!wrap) return;
+  const defs = D.settings.bay_defs;
+  if (!defs.length) {
+    wrap.innerHTML = `<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No bay types yet. Add one below.</div>`;
+    return;
+  }
+  wrap.innerHTML = defs.map((d, idx) => `
+    <div style="display:flex;gap:8px;align-items:center;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:10px 12px">
+      <input type="text" value="${escapeHtml(d.name)}" data-bdidx="${idx}" data-bdfield="name"
+        style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt);font-family:var(--fb);font-size:13.5px" />
+      <input type="number" value="${escapeHtml(String(d.count))}" min="0" step="1" data-bdidx="${idx}" data-bdfield="count"
+        style="width:74px;padding:9px 10px;border-radius:8px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt);font-family:var(--fb);font-size:13.5px" />
+      <button class="mini-btn" onclick="_saveBayTypeRow(${idx})">Save</button>
+      <button class="mini-btn danger" onclick="_removeBayType(${idx})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+    </div>`).join('');
+}
+window._addBayType = async function() {
+  const name = (document.getElementById('newBayTypeName').value || '').trim();
+  const count = Math.max(1, Math.floor(Number(document.getElementById('newBayTypeCount').value) || 1));
+  if (!name) { document.getElementById('bayDefsErr').textContent = 'Give the bay type a name.'; return; }
+  if (D.settings.bay_defs.find(d => d.name.toLowerCase() === name.toLowerCase())) {
+    document.getElementById('bayDefsErr').textContent = 'A bay type with that name already exists — edit the row above instead.';
+    return;
+  }
+  D.settings.bay_defs.push({ name, count });
+  _syncBaysFromDefs();
+  await wsSaveSettings();
+  await wsSave('bays', D.bays);
+  document.getElementById('newBayTypeName').value = '';
+  document.getElementById('newBayTypeCount').value = '1';
+  document.getElementById('bayDefsErr').textContent = '';
+  showToast(`Added ${count} × ${name}`, 'good');
+  _drawBayDefsRows();
+};
+window._saveBayTypeRow = async function(idx) {
+  const wrap = document.getElementById('bayDefsRows');
+  const nameInp  = wrap.querySelector(`input[data-bdidx="${idx}"][data-bdfield="name"]`);
+  const countInp = wrap.querySelector(`input[data-bdidx="${idx}"][data-bdfield="count"]`);
+  const newName = (nameInp.value || '').trim();
+  const newCount = Math.max(0, Math.floor(Number(countInp.value) || 0));
+  if (!newName) return customAlert('Bay type name cannot be empty.', { title: 'Invalid name' });
+  const old = D.settings.bay_defs[idx];
+  const renamed = old.name !== newName;
+  // Block name conflict
+  if (D.settings.bay_defs.some((d, i) => i !== idx && d.name.toLowerCase() === newName.toLowerCase())) {
+    return customAlert('Another bay type already uses that name.', { title: 'Duplicate name' });
+  }
+  // If shrinking, refuse to drop occupied bays
+  if (newCount < old.count) {
+    const occupiedInType = D.bays.filter(b => b.type === old.name && (b.status || '').toLowerCase() === 'occupied').length;
+    if (newCount < occupiedInType) {
+      return customAlert(`Can't shrink ${old.name} to ${newCount} — ${occupiedInType} bay${occupiedInType === 1 ? ' is' : 's are'} currently occupied. Finish those jobs first.`, { title: 'Bays in use' });
+    }
+  }
+  if (renamed) {
+    // Rename in bays
+    D.bays.forEach(b => { if (b.type === old.name) b.type = newName; });
+  }
+  D.settings.bay_defs[idx] = { name: newName, count: newCount };
+  _syncBaysFromDefs();
+  await wsSaveSettings();
+  await wsSave('bays', D.bays);
+  showToast(`${newName} updated`, 'good');
+  _drawBayDefsRows();
+};
+window._removeBayType = async function(idx) {
+  const def = D.settings.bay_defs[idx];
+  const occupied = D.bays.filter(b => b.type === def.name && (b.status || '').toLowerCase() === 'occupied').length;
+  if (occupied > 0) {
+    return customAlert(`Can't remove ${def.name} — ${occupied} bay${occupied === 1 ? ' is' : 's are'} currently occupied.`, { title: 'Bays in use' });
+  }
+  if (!(await customConfirm(`Remove all ${def.count} ${def.name} bay${def.count === 1 ? '' : 's'}?`, { title: 'Remove bay type', okLabel: 'Remove' }))) return;
+  D.bays = D.bays.filter(b => b.type !== def.name);
+  D.settings.bay_defs.splice(idx, 1);
+  await wsSaveSettings();
+  await wsSave('bays', D.bays);
+  showToast(`${def.name} removed`, 'good');
+  _drawBayDefsRows();
+};
+
+// Reconciles D.bays with settings.bay_defs. Keeps existing bay records (so notes/maintenance/occupancy
+// survive), adds new ones when count grows, drops the highest-numbered free ones when count shrinks.
+function _syncBaysFromDefs() {
+  const defs = (D.settings && D.settings.bay_defs) || [];
+  if (!defs.length) return;
+  const bayByType = {};
+  for (const b of D.bays) (bayByType[b.type] = bayByType[b.type] || []).push(b);
+  const next = [];
+  for (const def of defs) {
+    const existing = (bayByType[def.name] || []).sort((a,b) => (a.num||0) - (b.num||0));
+    // Keep the first `count` existing bays; if more exist, only drop ones that are free + not in maintenance
+    const keep = [];
+    for (const b of existing) {
+      if (keep.length < def.count) { keep.push(b); continue; }
+      if ((b.status || '').toLowerCase() === 'occupied' || b.maintenance) keep.push(b); // can't drop, keep regardless
+    }
+    // Add new ones until we hit the requested count
+    let nextNum = keep.length ? Math.max(...keep.map(b => b.num || 0)) + 1 : 1;
+    while (keep.length < def.count) {
+      keep.push({
+        id: `${def.name.toLowerCase().replace(/\s+/g,'_')}_${nextNum}_${Math.random().toString(36).slice(2,5)}`,
+        type: def.name, num: nextNum, status: 'available',
+        plate: '', booking_id: null, note: '', maintenance: false
+      });
+      nextNum++;
+    }
+    // Renumber 1..n in order so the grid stays tidy
+    keep.sort((a,b) => (a.num||0) - (b.num||0)).forEach((b, i) => b.num = i + 1);
+    next.push(...keep);
+  }
+  // Drop bays whose type no longer exists (only if they're free — keep occupied ones until checkout)
+  for (const b of D.bays) {
+    if (!defs.find(d => d.name === b.type) && ((b.status || '').toLowerCase() === 'occupied' || b.maintenance)) {
+      next.push(b);
+    }
+  }
+  D.bays = next;
+}
+
+// ══════════════════════════════════════════
+//  QUEUE  — waiting cars, assign / reorder / remove, auto-promote on bay free
+// ══════════════════════════════════════════
+async function renderQueue(force = false) {
+  await loadAllData(force);
+  const list = D.queue.slice();
+  document.getElementById('qCrumb').textContent =
+    `${list.length} car${list.length === 1 ? '' : 's'} waiting`;
+  const wrap = document.getElementById('qTableWrap');
+  if (!list.length) {
+    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">No cars in the queue right now. Cars get added here automatically when they check in but no matching bay is free.</td></tr></table>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="list-tbl">
+    <thead><tr>
+      <th style="width:36px">#</th><th>Plate</th><th>Customer</th><th>Bay type</th>
+      <th>Notes</th><th>Waiting since</th><th style="text-align:right">Actions</th>
+    </tr></thead>
+    <tbody>${list.map((q, i) => `<tr>
+      <td class="k">${i + 1}</td>
+      <td><span class="plate">${escapeHtml(q.plate || '—')}</span></td>
+      <td class="k">${escapeHtml(q.cust_name || '—')}</td>
+      <td>${q.type ? escapeHtml(q.type) : '<span style="color:var(--faint);font-size:12px">Any</span>'}</td>
+      <td style="font-size:12.5px;color:var(--faint);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml((q.notes || ''))}</td>
+      <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((q.added_at || '').slice(0,16))}</td>
+      <td><div class="row-act" style="justify-content:flex-end">
+        <button class="mini-btn good" onclick="qAssignNow('${escapeHtml(q.id)}')">Assign now</button>
+        <button class="mini-btn" onclick="qMove('${escapeHtml(q.id)}',-1)" ${i === 0 ? 'disabled style="opacity:.3"' : ''}>↑</button>
+        <button class="mini-btn" onclick="qMove('${escapeHtml(q.id)}', 1)" ${i === list.length - 1 ? 'disabled style="opacity:.3"' : ''}>↓</button>
+        <button class="mini-btn danger" onclick="qRemove('${escapeHtml(q.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+window.renderQueue = renderQueue;
+
+window.qAssignNow = async function(qid) {
+  await loadAllData(true);
+  const q = D.queue.find(x => x.id === qid);
+  if (!q) return;
+  const free = D.bays.filter(b => _bayState(b) === 'available'
+    && (!q.type || b.type === q.type));
+  const allFree = D.bays.filter(b => _bayState(b) === 'available');
+  const choices = free.length ? free : allFree;
+  if (!choices.length) {
+    return customAlert('No bays are free right now. End maintenance or check a car out first.', { title: 'No bays available' });
+  }
+  // Build a picker
+  _openSubModal({
+    title: `Assign ${q.plate} to a bay`,
+    bodyHtml: `
+      <div style="color:var(--dim);font-size:13px;margin-bottom:12px">${q.cust_name || ''} · requested <b>${escapeHtml(q.type || 'Any')}</b>. ${free.length ? '' : 'No exact-type matches — pick any free bay:'}</div>
+      <div style="display:grid;gap:8px">
+        ${choices.map(b => `
+          <button type="button" class="snav" data-bayid="${escapeHtml(b.id)}"
+            style="background:var(--bg2);border:1px solid var(--brd2);padding:13px;border-radius:10px;text-align:left;cursor:pointer;font-family:var(--fb)">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="plate" style="background:rgba(32,227,178,.14);color:var(--teal);border-color:rgba(32,227,178,.28)">Bay ${escapeHtml(String(b.num))}</span>
+              <div style="flex:1"><b style="color:var(--txt)">${escapeHtml(b.type)}</b></div>
+            </div>
+          </button>`).join('')}
+      </div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>`
+  });
+  document.querySelectorAll('#gpSubModalBody [data-bayid]').forEach(btn => {
+    btn.onclick = async () => {
+      const bayId = btn.dataset.bayid;
+      await _assignQueueToBay(qid, bayId);
+      closeSubModal();
+    };
+  });
+};
+
+async function _assignQueueToBay(qid, bayId) {
+  await loadAllData(true);
+  const q = D.queue.find(x => x.id === qid);
+  const bay = D.bays.find(b => b.id === bayId);
+  const bk = q && D.bookings.find(b => b.id === q.booking_id);
+  if (!q || !bay) return;
+  if (_bayState(bay) !== 'available') return showToast('That bay was taken — refresh and try again', 'bad');
+  bay.status = 'occupied';
+  bay.plate = q.plate;
+  bay.booking_id = q.booking_id;
+  if (bk) {
+    bk.bay_id = bay.id;
+    bk.bay_name = bay.type + ' · ' + bay.num;
+    bk.bay_num = bay.num;
+    bk.status = 'Arrived';
+    bk.checked_in_at = bk.checked_in_at || nowStr();
+    bk.updated_at = nowStr();
+  }
+  D.queue = D.queue.filter(x => x.id !== qid);
+  await Promise.all([
+    wsSave('bays', D.bays),
+    wsSave('queue', D.queue),
+    bk ? wsSave('bookings', D.bookings) : Promise.resolve()
+  ]);
+  showToast(`${q.plate} assigned to Bay ${bay.num}`, 'good');
+  await renderQueue(true);
+}
+
+window.qMove = async function(qid, dir) {
+  await loadAllData(true);
+  const idx = D.queue.findIndex(x => x.id === qid);
+  if (idx < 0) return;
+  const ni = idx + dir;
+  if (ni < 0 || ni >= D.queue.length) return;
+  const [item] = D.queue.splice(idx, 1);
+  D.queue.splice(ni, 0, item);
+  await wsSave('queue', D.queue);
+  await renderQueue(true);
+};
+
+window.qRemove = async function(qid) {
+  const q = D.queue.find(x => x.id === qid);
+  if (!q) return;
+  if (!(await customConfirm(`Remove ${q.plate} from the queue?`, { title: 'Remove from queue', okLabel: 'Remove' }))) return;
+  D.queue = D.queue.filter(x => x.id !== qid);
+  await wsSave('queue', D.queue);
+  showToast('Removed from queue', 'good');
+  await renderQueue(true);
+};
+
+// Called whenever a bay frees up (checkout, maintenance ended). Finds the next car
+// in the queue that wanted this bay type (or any type) and toasts a reminder.
+async function promoteNextFromQueue(freedBayType) {
+  if (!D.queue || !D.queue.length) return;
+  const next = D.queue.find(q => !q.type || q.type === freedBayType);
+  if (!next) return;
+  showToast(`Bay ${freedBayType} free — next in queue: ${next.plate} (${next.cust_name || ''})`, 'good');
+}
+window.promoteNextFromQueue = promoteNextFromQueue;
 
 // ══════════════════════════════════════════
 //  INVENTORY
