@@ -800,11 +800,53 @@ input[list]{background:var(--bg2)}
         </div>
         <div id="wkTableWrap"></div>
       </div>
-      <div class="tab-panel" id="tab-inventory"><div class="page-head"><div><h2>Inventory</h2><div class="crumb">Coming in step 11</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
-      <div class="tab-panel" id="tab-timesheets"><div class="page-head"><div><h2>Timesheets</h2><div class="crumb">Coming in step 12</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
+      <div class="tab-panel" id="tab-inventory">
+        <div class="page-head">
+          <div><h2>Inventory</h2><div class="dash-meta"><span class="live-dot"></span><span id="ivCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderInventory(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="add-btn" onclick="openInventoryForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add item</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="ivSearch" placeholder="Search name, category, supplier, barcode…" oninput="renderInventory()" />
+          <select id="ivCat" onchange="renderInventory()"><option value="">All categories</option></select>
+          <select id="ivStock" onchange="renderInventory()">
+            <option value="">Any stock</option>
+            <option value="low">Low stock</option>
+            <option value="out">Out of stock</option>
+            <option value="in">In stock</option>
+          </select>
+          <button class="refresh-btn" onclick="document.getElementById('ivSearch').value='';document.getElementById('ivCat').value='';document.getElementById('ivStock').value='';renderInventory()">Clear</button>
+          <span class="pill"><b id="ivCount">0</b>&nbsp;items</span>
+        </div>
+        <div id="ivTableWrap"></div>
+      </div>
+      <div class="tab-panel" id="tab-timesheets">
+        <div class="page-head">
+          <div><h2>Timesheets</h2><div class="dash-meta"><span class="live-dot"></span><span id="tsCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderTimesheets(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="add-btn" id="tsClockBtn" onclick="clockToggle()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span id="tsClockLabel">Clock in</span></button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <select id="tsWorker" onchange="renderTimesheets()"></select>
+          <input type="date" id="tsFrom" onchange="renderTimesheets()" />
+          <input type="date" id="tsTo"   onchange="renderTimesheets()" />
+          <button class="refresh-btn" onclick="_tsThisWeek()">This week</button>
+          <button class="refresh-btn" onclick="_tsClearRange()">Clear dates</button>
+          <span class="pill"><b id="tsTotalHrs">0</b>&nbsp;hrs total</span>
+          <span class="pill" id="tsScopePill"></span>
+        </div>
+        <div id="tsTableWrap"></div>
+      </div>
       <div class="tab-panel" id="tab-reports"><div class="page-head"><div><h2>Reports</h2><div class="crumb">Coming in step 13</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
       <div class="tab-panel" id="tab-audit"><div class="page-head"><div><h2>Audit Log</h2><div class="crumb">Coming in step 14</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
-      <div class="tab-panel" id="tab-settings"><div class="page-head"><div><h2>Settings</h2><div class="crumb">Coming in step 15</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
+      <div class="tab-panel" id="tab-settings">
+        <div class="page-head"><div><h2>Settings</h2><div class="dash-meta"><span class="live-dot"></span><span>Workshop preferences &amp; access</span></div></div></div>
+        <div id="settingsBody"></div>
+      </div>
 
     </main>
   </div>
@@ -1232,8 +1274,60 @@ function renderHeader() {
   if (c) c.textContent = `${userProfile?.workshop_name || 'Workshop'} · ${currentWorker?.name || 'No worker'} · ${currentUser.email}`;
 }
 
+// ══════════════════════════════════════════
+//  ROLES & PERMISSIONS
+// ══════════════════════════════════════════
+// Defaults if the workshop hasn't customised role permissions yet.
+// Owner always sees everything regardless of what's stored.
+const DEFAULT_ROLE_PERMS = {
+  owner:        ['dashboard','bookings','schedule','checkin','jobs','queue','customers','workers','bays','inventory','parts','reports','timesheets','audit','settings'],
+  manager:      ['dashboard','bookings','schedule','checkin','jobs','queue','customers','workers','bays','inventory','parts','reports','timesheets','audit'],
+  receptionist: ['dashboard','bookings','schedule','checkin','queue','customers','timesheets'],
+  mechanic:     ['dashboard','checkin','jobs','queue','bays','inventory','parts','timesheets']
+};
+const ADMIN_ROLES = ['owner','manager'];
+
+function currentRole() { return (currentWorker?.role || 'mechanic').toLowerCase(); }
+function isAdminRole() { return ADMIN_ROLES.includes(currentRole()); }
+function isOwnerRole() { return currentRole() === 'owner'; }
+
+// Pull the active role permissions: owner override → settings.role_perms[role] → DEFAULT_ROLE_PERMS[role] → []
+function getRolePerms(role) {
+  if (role === 'owner') return DEFAULT_ROLE_PERMS.owner;
+  const cfg = (D.settings && D.settings.role_perms) || {};
+  if (cfg[role] && Array.isArray(cfg[role])) return cfg[role];
+  return DEFAULT_ROLE_PERMS[role] || ['dashboard'];
+}
+
+function canSee(tabId) {
+  if (!currentWorker) return false;
+  if (isOwnerRole()) return true;
+  const perms = getRolePerms(currentRole());
+  // "_newbk" is the New Booking shortcut — show whenever Bookings is allowed
+  if (tabId === '_newbk') return perms.includes('bookings');
+  return perms.includes(tabId);
+}
+
 function renderSidebarVisibility() {
-  // TODO: gate by worker.role + worker.tab_perms in a later step. For now, show everything.
+  // Hide / show each sidebar tab according to the current worker's role permissions
+  document.querySelectorAll('.sidebar .snav[data-tab]').forEach(btn => {
+    const tab = btn.dataset.tab;
+    btn.style.display = canSee(tab) ? '' : 'none';
+  });
+  // Hide section labels whose children are all hidden
+  document.querySelectorAll('.sidebar .section-label').forEach(lbl => {
+    let next = lbl.nextElementSibling, anyVisible = false;
+    while (next && !next.classList.contains('section-label')) {
+      if (next.classList.contains('snav') && next.style.display !== 'none') { anyVisible = true; break; }
+      next = next.nextElementSibling;
+    }
+    lbl.style.display = anyVisible ? '' : 'none';
+  });
+  // If the active tab is no longer allowed, jump to dashboard (or first allowed)
+  if (currentTab && !canSee(currentTab)) {
+    const fallback = ['dashboard','checkin','jobs','timesheets'].find(t => canSee(t)) || 'dashboard';
+    if (fallback !== currentTab) switchTab(fallback);
+  }
 }
 
 // ══════════════════════════════════════════
@@ -1268,12 +1362,56 @@ document.addEventListener('click', (e) => {
 });
 
 // ══════════════════════════════════════════
-//  SIGN OUT
+//  SIGN OUT — choice between "switch worker" and "sign out of workshop"
 // ══════════════════════════════════════════
-window.doSignOut = async function() {
+window.doSignOut = function() {
+  closeAllDropdowns();
+  const workerName = currentWorker?.name || 'this worker';
+  openModal({
+    title: 'Sign out',
+    body: `
+      <div style="color:var(--dim);font-size:14px;line-height:1.6;margin-bottom:14px">
+        Pick how you want to sign out:
+      </div>
+      <div style="display:grid;gap:10px">
+        <button type="button" class="snav" style="background:var(--bg2);border:1px solid var(--brd2);padding:14px;border-radius:10px;text-align:left;cursor:pointer;font-family:var(--fb)" onclick="_signOutWorker()">
+          <span style="display:flex;align-items:center;gap:12px;width:100%">
+            <span style="width:34px;height:34px;border-radius:8px;background:rgba(255,179,71,.14);color:var(--acc2);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M16 17l5-5-5-5M21 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg></span>
+            <span style="flex:1">
+              <span style="display:block;font-weight:700;color:var(--txt);margin-bottom:2px">Switch worker</span>
+              <span style="display:block;font-size:12.5px;color:var(--faint)">Sign out as <b>${escapeHtml(workerName)}</b> only. Back to PIN-pad so the next person can sign in.</span>
+            </span>
+          </span>
+        </button>
+        <button type="button" class="snav" style="background:var(--bg2);border:1px solid var(--brd2);padding:14px;border-radius:10px;text-align:left;cursor:pointer;font-family:var(--fb)" onclick="_signOutFully()">
+          <span style="display:flex;align-items:center;gap:12px;width:100%">
+            <span style="width:34px;height:34px;border-radius:8px;background:rgba(255,107,107,.14);color:var(--red);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></span>
+            <span style="flex:1">
+              <span style="display:block;font-weight:700;color:var(--txt);margin-bottom:2px">Sign out of workshop</span>
+              <span style="display:block;font-size:12.5px;color:var(--faint)">Full sign-out — back to the workshop login screen. You'll need email + password to come back.</span>
+            </span>
+          </span>
+        </button>
+      </div>`,
+    saveLabel: 'Cancel',
+    onSave: () => closeModal()
+  });
+  // Override the footer to just have Cancel
+  document.getElementById('gpModalFoot').innerHTML = `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeModal()">Cancel</button>`;
+};
+
+window._signOutWorker = function() {
+  closeModal();
+  switchWorker();   // existing helper — clears worker session, shows PIN-pad
+};
+
+window._signOutFully = async function() {
+  closeModal();
   try {
+    sessionStorage.removeItem('gp_worker:' + (currentUser?.uid || ''));
+    currentWorker = null;
     await fbAuth.signOut();
-    location.href = '../';
+    // onAuthStateChanged shows the sign-in screen automatically
   } catch (e) {
     showToast('Sign out failed', 'bad');
   }
@@ -1318,6 +1456,7 @@ window.wsRef = wsRef; window.wsCol = wsCol; window.wsLoad = wsLoad; window.wsSav
 const D = {
   bookings: [], bays: [], jobs: [], queue: [],
   customers: [], mechanics: [], inventory: [], timesheets: [],
+  parts_requests: [],
   settings: {}, loadedAt: 0
 };
 let _loadingPromise = null;
@@ -1328,23 +1467,24 @@ async function loadAllData(force = false) {
   if (!force && D.loadedAt && (Date.now() - D.loadedAt < 4000)) return; // 4s grace
   _loadingPromise = (async () => {
     try {
-      const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, settingsArr] =
+      const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, settingsArr] =
         await Promise.all([
           wsLoad('bookings'), wsLoad('bays'),     wsLoad('jobs'),
           wsLoad('queue'),    wsLoad('customers'),wsLoad('mechanics'),
-          wsLoad('inventory'),wsLoad('timesheets'),
+          wsLoad('inventory'),wsLoad('timesheets'),wsLoad('parts_requests'),
           wsLoad('settings')
         ]);
-      D.bookings   = bookings   || [];
-      D.bays       = bays       || [];
-      D.jobs       = jobs       || [];
-      D.queue      = queue      || [];
-      D.customers  = customers  || [];
-      D.mechanics  = mechanics  || [];
-      D.inventory  = inventory  || [];
-      D.timesheets = timesheets || [];
-      D.settings   = (settingsArr && settingsArr[0]) || {};
-      D.loadedAt   = Date.now();
+      D.bookings       = bookings       || [];
+      D.bays           = bays           || [];
+      D.jobs           = jobs           || [];
+      D.queue          = queue          || [];
+      D.customers      = customers      || [];
+      D.mechanics      = mechanics      || [];
+      D.inventory      = inventory      || [];
+      D.timesheets     = timesheets     || [];
+      D.parts_requests = parts_requests || [];
+      D.settings       = (settingsArr && settingsArr[0]) || {};
+      D.loadedAt       = Date.now();
     } finally {
       _loadingPromise = null;
     }
@@ -2147,9 +2287,13 @@ async function renderCustomers(force = false) {
 }
 window.renderCustomers = renderCustomers;
 
+// State for the vehicles being edited inside the customer form
+let _editingVehicles = [];
+
 window.openCustomerForm = function(id) {
   const c = id ? (D.customers.find(x => x.id === id) || {}) : {};
   const isNew = !id;
+  _editingVehicles = Array.isArray(c.vehicles) ? c.vehicles.map(v => ({...v})) : [];
   openModal({
     title: isNew ? 'New customer' : `Edit · ${c.name}`,
     body: `
@@ -2157,19 +2301,153 @@ window.openCustomerForm = function(id) {
         <div class="f-grp"><label>Full name <span class="req">*</span></label><input id="cf-name" type="text" value="${escapeHtml(c.name || '')}" required /></div>
         <div class="f-grp"><label>Phone</label><input id="cf-phone" type="tel" value="${escapeHtml(c.phone || '')}" placeholder="+91 ..." /></div>
       </div>
-      <div class="f-row r1">
+      <div class="f-row">
         <div class="f-grp"><label>Email</label><input id="cf-email" type="email" value="${escapeHtml(c.email || '')}" placeholder="customer@example.in" /></div>
-      </div>
-      <div class="f-row r1">
-        <div class="f-grp"><label>Address</label><textarea id="cf-addr" placeholder="Shop 12, MG Road, Pune">${escapeHtml(c.address || '')}</textarea></div>
+        <div class="f-grp"><label>Address</label><input id="cf-addr" type="text" value="${escapeHtml(c.address || '')}" placeholder="Shop 12, MG Road, Pune" /></div>
       </div>
       <div class="f-row r1">
         <div class="f-grp"><label>Notes</label><textarea id="cf-notes" placeholder="VIP, prefers WhatsApp, etc.">${escapeHtml(c.notes || '')}</textarea></div>
       </div>
+
+      <!-- ─── Vehicles ─── -->
+      <div style="margin-top:8px;padding-top:14px;border-top:1px solid var(--brd)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div>
+            <div style="font-family:var(--fd);font-size:14px;font-weight:700">Registered vehicles</div>
+            <div style="font-size:12px;color:var(--faint);margin-top:2px">Each vehicle gets a unique QR code for quick walk-in &amp; check-in</div>
+          </div>
+          <button type="button" class="mini-btn" onclick="_addVehicleInline()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add vehicle
+          </button>
+        </div>
+        <div id="cf-vehicles"></div>
+      </div>
+
       <div class="f-err" id="cf-err"></div>`,
     saveLabel: isNew ? 'Add customer' : 'Save changes',
     onSave: () => saveCustomer(id || null)
   });
+  _renderVehiclesInForm();
+};
+
+function _renderVehiclesInForm() {
+  const wrap = document.getElementById('cf-vehicles');
+  if (!wrap) return;
+  if (!_editingVehicles.length) {
+    wrap.innerHTML = `<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No vehicles registered. Add one above.</div>`;
+    return;
+  }
+  wrap.innerHTML = _editingVehicles.map((v, idx) => `
+    <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <span class="plate">${escapeHtml(v.plate || '—')}</span>
+        <div style="flex:1;min-width:120px">
+          <div style="font-weight:600;font-size:13.5px;color:var(--txt)">${escapeHtml(v.model || 'Vehicle')}${v.year ? ' · ' + escapeHtml(v.year) : ''}${v.color ? ' · ' + escapeHtml(v.color) : ''}</div>
+          <div style="font-size:11px;color:var(--faint);margin-top:2px;font-family:'Courier New',monospace">QR: ${escapeHtml(v.id || '—')}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="mini-btn" onclick="_editVehicleInline(${idx})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>
+          <button type="button" class="mini-btn good" onclick="_showVehicleQR(${idx})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h6v6M15 18h.01M18 15v.01"/></svg>QR</button>
+          <button type="button" class="mini-btn danger" onclick="_removeVehicleInline(${idx})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+window._addVehicleInline = function() {
+  // Use the customPrompt-style modal to gather plate + model + year + color
+  // For inline simplicity, we use a small native prompt sequence — quick to type
+  const plate = prompt('Plate number (e.g. MH12 AB 1234):');
+  if (!plate) return;
+  const model = prompt('Make & model (e.g. Maruti Swift):') || '';
+  const year  = prompt('Year (optional):') || '';
+  const color = prompt('Colour (optional):') || '';
+  _editingVehicles.push({
+    id: uid('veh'),
+    plate: plate.trim().toUpperCase(),
+    model: model.trim(),
+    year:  year.trim(),
+    color: color.trim(),
+    added_at: nowStr()
+  });
+  _renderVehiclesInForm();
+};
+
+window._editVehicleInline = function(idx) {
+  const v = _editingVehicles[idx];
+  if (!v) return;
+  const plate = prompt('Plate number:', v.plate || '');
+  if (plate === null) return;
+  const model = prompt('Make & model:', v.model || '');
+  if (model === null) return;
+  const year  = prompt('Year:', v.year || '');
+  if (year === null) return;
+  const color = prompt('Colour:', v.color || '');
+  if (color === null) return;
+  _editingVehicles[idx] = { ...v, plate: plate.trim().toUpperCase(), model: model.trim(), year: year.trim(), color: color.trim() };
+  _renderVehiclesInForm();
+};
+
+window._removeVehicleInline = function(idx) {
+  if (!confirm(`Remove ${_editingVehicles[idx].plate}?`)) return;
+  _editingVehicles.splice(idx, 1);
+  _renderVehiclesInForm();
+};
+
+// QR display modal — generates the QR for a vehicle and offers Print / Download
+window._showVehicleQR = function(idx) {
+  const v = _editingVehicles[idx];
+  if (!v) return;
+  const qrText = 'GPV-' + v.id;
+  // Re-use the shared modal frame — render canvas after open
+  document.getElementById('gpModalTitle').textContent = `${v.plate} — vehicle QR`;
+  document.getElementById('gpModalBody').innerHTML = `
+    <div style="text-align:center;padding:10px 0">
+      <div style="background:#fff;display:inline-block;padding:18px;border-radius:14px;box-shadow:0 8px 24px -6px rgba(0,0,0,.6)">
+        <canvas id="qrCanvas" style="display:block;margin:0 auto"></canvas>
+        <div style="margin-top:14px;font-family:'Courier New',monospace;font-size:13px;color:#1a1a1a;font-weight:700">${escapeHtml(v.plate)}</div>
+        <div style="margin-top:2px;font-family:'Courier New',monospace;font-size:11px;color:#6b7888">${escapeHtml(qrText)}</div>
+      </div>
+      <div style="margin-top:16px;font-size:13px;color:var(--dim);line-height:1.5">
+        Stick this on the customer's windshield or keychain. Scanning it from
+        the Scan button instantly starts a walk-in booking or checks the
+        vehicle into an existing booking.
+      </div>
+    </div>`;
+  document.getElementById('gpModalFoot').innerHTML = `
+    <button class="fbtn fbtn-cancel" onclick="closeModal()">Close</button>
+    <button class="fbtn fbtn-cancel" onclick="_printVehicleQR('${escapeHtml(v.plate)}','${escapeHtml(qrText)}')">Print</button>
+    <button class="fbtn fbtn-save" onclick="_downloadVehicleQR('${escapeHtml(v.plate)}')">Download PNG</button>`;
+  document.getElementById('gpModal').classList.add('open');
+  // Render the QR
+  if (typeof QRCode !== 'undefined') {
+    QRCode.toCanvas(document.getElementById('qrCanvas'), qrText, { width: 220, margin: 2, color: { dark: '#0a0e14', light: '#ffffff' } }, () => {});
+  } else {
+    document.getElementById('qrCanvas').replaceWith(Object.assign(document.createElement('div'), { textContent: 'QR library still loading — close and try again', style: 'color:#666;padding:30px' }));
+  }
+};
+
+window._downloadVehicleQR = function(plate) {
+  const c = document.getElementById('qrCanvas');
+  if (!c) return;
+  const a = document.createElement('a');
+  a.href = c.toDataURL('image/png');
+  a.download = `garage-pro-qr-${plate.replace(/\s/g, '-')}.png`;
+  document.body.appendChild(a); a.click(); a.remove();
+};
+
+window._printVehicleQR = function(plate, qrText) {
+  const canvas = document.getElementById('qrCanvas');
+  if (!canvas) return;
+  const dataUrl = canvas.toDataURL('image/png');
+  const w = window.open('', '_blank');
+  w.document.write(`<!doctype html><html><head><title>QR — ${plate}</title>
+    <style>body{font-family:system-ui,sans-serif;text-align:center;padding:30px}
+    img{width:280px;height:280px;border:1px solid #eee;padding:14px;background:#fff}
+    h1{font-size:22px;margin:18px 0 4px}.code{font-family:Courier New,monospace;color:#666;font-size:13px}
+    </style></head><body><img src="${dataUrl}"><h1>${plate}</h1><div class="code">${qrText}</div>
+    <script>setTimeout(()=>{window.print();},250)<\/script></body></html>`);
+  w.document.close();
 };
 
 async function saveCustomer(id) {
@@ -2184,7 +2462,7 @@ async function saveCustomer(id) {
   if (!id && D.customers.find(c => (c.name || '').toLowerCase() === name.toLowerCase())) {
     throw new Error('A customer with that name already exists');
   }
-  const patch = { name, phone, email, address: addr, notes, updated_at: nowStr() };
+  const patch = { name, phone, email, address: addr, notes, vehicles: _editingVehicles.slice(), updated_at: nowStr() };
   const idx = id ? D.customers.findIndex(c => c.id === id) : -1;
   if (idx >= 0) D.customers[idx] = { ...D.customers[idx], ...patch };
   else          D.customers.push({ id: uid('c'), ...patch, created_at: nowStr() });
@@ -2192,6 +2470,15 @@ async function saveCustomer(id) {
   closeModal();
   showToast(id ? 'Customer updated' : 'Customer added', 'good');
   await renderCustomers(true);
+}
+
+// ── Vehicle lookup helpers (used by the scanner GPV- handler) ──
+function findVehicleByQRId(vehId) {
+  for (const c of D.customers) {
+    const v = (c.vehicles || []).find(x => x.id === vehId);
+    if (v) return { customer: c, vehicle: v };
+  }
+  return null;
 }
 
 window.deleteCustomer = async function(id) {
@@ -2429,17 +2716,598 @@ window.switchTab = function(tab) {
   _origSwitchTab(tab);
   const ht = document.getElementById('hdrTabTitle');
   if (ht) ht.textContent = TAB_TITLES[tab] || tab;
-  if (tab === 'schedule') renderSchedule();
-  if (tab === 'parts')    renderParts();
+  if (tab === 'schedule')   renderSchedule();
+  if (tab === 'parts')      renderParts();
+  if (tab === 'inventory')  renderInventory();
+  if (tab === 'timesheets') renderTimesheets();
+  if (tab === 'settings')   renderSettings();
 };
 
 function renderSchedule() {
   const wrap = document.getElementById('tab-schedule');
-  if (!wrap || wrap.dataset.rendered) return;  // placeholder only for now
-}
-function renderParts() {
-  const wrap = document.getElementById('tab-parts');
   if (!wrap || wrap.dataset.rendered) return;
+}
+
+// ══════════════════════════════════════════
+//  INVENTORY
+// ══════════════════════════════════════════
+async function renderInventory(force = false) {
+  await loadAllData(force);
+  document.getElementById('ivCrumb').textContent =
+    `${D.inventory.length} item${D.inventory.length === 1 ? '' : 's'} · ${D.inventory.filter(i => isLowStock(i)).length} low/out of stock`;
+  // Populate category dropdown
+  const catSel = document.getElementById('ivCat');
+  const existingCats = [...new Set(D.inventory.map(i => i.category).filter(Boolean))].sort();
+  const currentCat = catSel.value;
+  catSel.innerHTML = '<option value="">All categories</option>' + existingCats.map(c => `<option value="${escapeHtml(c)}" ${c === currentCat ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+  const q = (document.getElementById('ivSearch').value || '').toLowerCase().trim();
+  const cat = catSel.value;
+  const stockFilter = document.getElementById('ivStock').value;
+  let list = D.inventory.slice();
+  if (q) list = list.filter(i =>
+    (i.name || '').toLowerCase().includes(q) ||
+    (i.category || '').toLowerCase().includes(q) ||
+    (i.supplier || '').toLowerCase().includes(q) ||
+    (i.barcode || '').toLowerCase().includes(q) ||
+    (i.location || '').toLowerCase().includes(q));
+  if (cat) list = list.filter(i => i.category === cat);
+  if (stockFilter === 'low') list = list.filter(i => isLowStock(i) && (Number(i.qty)||0) > 0);
+  if (stockFilter === 'out') list = list.filter(i => (Number(i.qty) || 0) <= 0);
+  if (stockFilter === 'in')  list = list.filter(i => (Number(i.qty) || 0) > 0);
+  list.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  document.getElementById('ivCount').textContent = list.length;
+  const wrap = document.getElementById('ivTableWrap');
+  if (!list.length) {
+    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">${D.inventory.length === 0 ? 'No inventory yet. Click "Add item" to start tracking parts.' : 'No items match your filters.'}</td></tr></table>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="list-tbl">
+    <thead><tr>
+      <th>Name</th><th>Category</th><th>Qty</th><th>Sell ₹</th><th>HSN/SAC</th><th>Location</th>
+      <th>Barcode</th><th style="text-align:right">Actions</th>
+    </tr></thead>
+    <tbody>${list.map(i => {
+      const low = isLowStock(i);
+      const out = (Number(i.qty) || 0) <= 0;
+      return `<tr>
+        <td class="k">${escapeHtml(i.name || '—')}${i.supplier ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(i.supplier)}</span>` : ''}</td>
+        <td>${escapeHtml(i.category || '—')}</td>
+        <td>${out ? '<span class="status-pill s-warn">● Out</span>' : low ? `<span class="status-pill s-arrived">● ${escapeHtml(String(i.qty || 0))} ${escapeHtml(i.unit || '')}</span>` : `<span class="k">${escapeHtml(String(i.qty || 0))} ${escapeHtml(i.unit || 'pcs')}</span>`}</td>
+        <td>${i.sell_price ? '₹' + Number(i.sell_price).toLocaleString('en-IN') : '—'}</td>
+        <td style="font-family:'Courier New',monospace;font-size:12.5px;color:var(--faint)">${escapeHtml(i.hsn || '—')}</td>
+        <td>${escapeHtml(i.location || '—')}</td>
+        <td style="font-family:'Courier New',monospace;font-size:12.5px;color:var(--faint)">${escapeHtml(i.barcode || '—')}</td>
+        <td><div class="row-act">
+          <button class="mini-btn" onclick="openInventoryForm('${escapeHtml(i.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+          <button class="mini-btn danger" onclick="deleteInventory('${escapeHtml(i.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+window.renderInventory = renderInventory;
+function isLowStock(i) {
+  const q = Number(i.qty) || 0;
+  const lo = Number(i.low_stock) || 0;
+  return lo > 0 && q <= lo;
+}
+
+window.openInventoryForm = function(id) {
+  const i = id ? (D.inventory.find(x => x.id === id) || {}) : {};
+  const isNew = !id;
+  const existingCats = [...new Set(D.inventory.map(x => x.category).filter(Boolean))];
+  openModal({
+    title: isNew ? 'Add inventory item' : `Edit · ${i.name}`,
+    body: `
+      <datalist id="ivCatList">${existingCats.map(c => `<option value="${escapeHtml(c)}">`).join('')}</datalist>
+      <div class="f-row">
+        <div class="f-grp"><label>Name <span class="req">*</span></label><input id="if-name" type="text" value="${escapeHtml(i.name || '')}" required /></div>
+        <div class="f-grp"><label>Category</label><input list="ivCatList" id="if-cat" type="text" value="${escapeHtml(i.category || '')}" placeholder="e.g. Filters, Oils, Belts" /></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Quantity</label><input id="if-qty" type="number" min="0" step="1" value="${escapeHtml(String(i.qty || 0))}" /></div>
+        <div class="f-grp"><label>Unit</label><input id="if-unit" type="text" value="${escapeHtml(i.unit || 'pcs')}" placeholder="pcs, ltrs, kg" /></div>
+        <div class="f-grp"><label>Low-stock threshold</label><input id="if-lo" type="number" min="0" step="1" value="${escapeHtml(String(i.low_stock || 0))}" /></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Sell price (₹)</label><input id="if-sell" type="number" min="0" step="0.01" value="${escapeHtml(String(i.sell_price || ''))}" /></div>
+        <div class="f-grp"><label>Cost price (₹)</label><input id="if-cost" type="number" min="0" step="0.01" value="${escapeHtml(String(i.cost_price || ''))}" /></div>
+        <div class="f-grp"><label>HSN / SAC</label><input id="if-hsn" type="text" value="${escapeHtml(i.hsn || '')}" placeholder="e.g. 87082900" /></div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Storage location</label><input id="if-loc" type="text" value="${escapeHtml(i.location || '')}" placeholder="Rack 3, Bin B" /></div>
+        <div class="f-grp"><label>Supplier</label><input id="if-sup" type="text" value="${escapeHtml(i.supplier || '')}" placeholder="Bosch India Pvt Ltd" /></div>
+      </div>
+      <div class="f-row r1">
+        <div class="f-grp"><label>Barcode</label>
+          <div style="display:flex;gap:8px"><input id="if-bar" type="text" value="${escapeHtml(i.barcode || '')}" placeholder="Type or scan…" style="flex:1" />
+          <button type="button" class="mini-btn" onclick="_scanIntoInventoryField()" style="padding:11px 14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h6v6M15 18h.01M18 15v.01"/></svg>Scan</button></div>
+        </div>
+      </div>
+      <div class="f-err" id="if-err"></div>`,
+    saveLabel: isNew ? 'Add item' : 'Save changes',
+    onSave: () => saveInventory(id || null)
+  });
+};
+window._scanIntoInventoryField = function() {
+  openScanner('inventory-add', (code) => {
+    const inp = document.getElementById('if-bar');
+    if (inp) { inp.value = code; inp.focus(); }
+    showToast(`Barcode ${code} filled in`, 'good');
+  }, 'Scan to fill barcode');
+};
+async function saveInventory(id) {
+  const name = document.getElementById('if-name').value.trim();
+  if (!name) throw new Error('Name is required');
+  await loadAllData(true);
+  const patch = {
+    name,
+    category:   document.getElementById('if-cat').value.trim(),
+    qty:        Number(document.getElementById('if-qty').value) || 0,
+    unit:       document.getElementById('if-unit').value.trim() || 'pcs',
+    low_stock:  Number(document.getElementById('if-lo').value) || 0,
+    sell_price: Number(document.getElementById('if-sell').value) || 0,
+    cost_price: Number(document.getElementById('if-cost').value) || 0,
+    hsn:        document.getElementById('if-hsn').value.trim(),
+    location:   document.getElementById('if-loc').value.trim(),
+    supplier:   document.getElementById('if-sup').value.trim(),
+    barcode:    document.getElementById('if-bar').value.trim(),
+    updated_at: nowStr()
+  };
+  const idx = id ? D.inventory.findIndex(x => x.id === id) : -1;
+  if (idx >= 0) D.inventory[idx] = { ...D.inventory[idx], ...patch };
+  else          D.inventory.push({ id: uid('inv'), ...patch, created_at: nowStr() });
+  await wsSave('inventory', D.inventory);
+  closeModal();
+  showToast(id ? 'Item updated' : 'Item added', 'good');
+  await renderInventory(true);
+}
+window.deleteInventory = async function(id) {
+  const i = D.inventory.find(x => x.id === id);
+  if (!i) return;
+  if (!confirm(`Delete "${i.name}" from inventory?`)) return;
+  D.inventory = D.inventory.filter(x => x.id !== id);
+  await wsSave('inventory', D.inventory);
+  showToast('Item deleted', 'good');
+  await renderInventory(true);
+};
+
+// ══════════════════════════════════════════
+//  PARTS REQUESTS  (role-aware)
+// ══════════════════════════════════════════
+const REQ_STATUSES = ['Pending','Approved','Ordered','Received','Declined'];
+
+async function renderParts(force = false) {
+  await loadAllData(force);
+  const wrap = document.getElementById('tab-parts');
+  // First render builds the static toolbar; we keep it cached so the inputs don't reset
+  if (!wrap.dataset.rendered) {
+    wrap.innerHTML = `
+      <div class="page-head">
+        <div><h2>Parts Requests</h2><div class="dash-meta"><span class="live-dot"></span><span id="prCrumb">—</span></div></div>
+        <div style="display:flex;gap:8px">
+          <button class="refresh-btn" onclick="renderParts(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+          <button class="add-btn" onclick="openPartRequestForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Request part</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <input type="text" id="prSearch" placeholder="Search part, plate, requester…" oninput="renderParts()" />
+        <select id="prStatus" onchange="renderParts()">
+          <option value="">All statuses</option>
+          ${REQ_STATUSES.map(s => `<option value="${s}">${s}</option>`).join('')}
+        </select>
+        <span class="pill" id="prScopePill"></span>
+        <span class="pill"><b id="prCount">0</b>&nbsp;requests</span>
+      </div>
+      <div id="prTableWrap"></div>`;
+    wrap.dataset.rendered = '1';
+  }
+  const all = D.parts_requests.slice();
+  const isAdmin = isAdminRole();
+  const myId = currentWorker?.id || '';
+  // Workers see only their own requests; admins see all
+  let list = isAdmin ? all : all.filter(r => r.requested_by_id === myId || r.requested_by === currentWorker?.name);
+  document.getElementById('prScopePill').innerHTML = isAdmin
+    ? '<b>All workers</b> · admin view'
+    : `<b>Your requests</b> only`;
+  const q = (document.getElementById('prSearch').value || '').toLowerCase().trim();
+  const st = document.getElementById('prStatus').value;
+  if (q) list = list.filter(r =>
+    (r.part_name || '').toLowerCase().includes(q) ||
+    (r.plate     || '').toLowerCase().includes(q) ||
+    (r.requested_by || '').toLowerCase().includes(q));
+  if (st) list = list.filter(r => (r.status || 'Pending') === st);
+  list.sort((a,b) => (b.requested_at || '').localeCompare(a.requested_at || ''));
+  document.getElementById('prCount').textContent = list.length;
+  document.getElementById('prCrumb').textContent = `${D.parts_requests.length} total · ${D.parts_requests.filter(r => (r.status||'Pending') === 'Pending').length} pending`;
+  const tbl = document.getElementById('prTableWrap');
+  if (!list.length) {
+    tbl.innerHTML = `<table class="list-tbl"><tr><td class="empty">${all.length === 0 ? 'No part requests yet. Click "Request part" to ask the manager for one.' : isAdmin ? 'No requests match your filters.' : 'You haven\'t made any requests yet.'}</td></tr></table>`;
+    return;
+  }
+  tbl.innerHTML = `<table class="list-tbl">
+    <thead><tr>
+      <th>Requested</th>${isAdmin ? '<th>By</th>' : ''}<th>Part</th><th>Qty</th><th>For job</th>
+      <th>Urgency</th><th>Status</th><th style="text-align:right">Actions</th>
+    </tr></thead>
+    <tbody>${list.map(r => {
+      const s = r.status || 'Pending';
+      const adminActions = isAdmin && s === 'Pending' ?
+        `<button class="mini-btn good" onclick="setPartStatus('${escapeHtml(r.id)}','Approved')">Approve</button>
+         <button class="mini-btn danger" onclick="setPartStatus('${escapeHtml(r.id)}','Declined')">Decline</button>` :
+        isAdmin && s === 'Approved' ? `<button class="mini-btn" onclick="setPartStatus('${escapeHtml(r.id)}','Ordered')">Mark ordered</button>` :
+        isAdmin && s === 'Ordered' ? `<button class="mini-btn good" onclick="setPartStatus('${escapeHtml(r.id)}','Received')">Mark received</button>` : '';
+      const canDelete = isAdmin || (r.requested_by_id === myId && s === 'Pending');
+      return `<tr>
+        <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((r.requested_at||'').slice(0,16))}</td>
+        ${isAdmin ? `<td class="k">${escapeHtml(r.requested_by || '—')}</td>` : ''}
+        <td class="k">${escapeHtml(r.part_name || '—')}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
+        <td>${escapeHtml(String(r.qty || 1))}</td>
+        <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>` : '—'}</td>
+        <td>${escapeHtml(r.urgency || 'Normal')}</td>
+        <td>${statusPill(s)}</td>
+        <td><div class="row-act">
+          ${adminActions}
+          ${canDelete ? `<button class="mini-btn danger" onclick="deletePartRequest('${escapeHtml(r.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>` : ''}
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+window.openPartRequestForm = function(prefill) {
+  prefill = prefill || {};
+  const activeJobs = D.jobs.filter(j => !['Delivered','Cancelled'].includes(j.status));
+  openModal({
+    title: 'Request a part',
+    body: `
+      <div class="f-row">
+        <div class="f-grp"><label>Part name <span class="req">*</span></label><input id="pf-name" type="text" value="${escapeHtml(prefill.part_name || '')}" placeholder="Brake pad set, oil filter…" required /></div>
+        <div class="f-grp"><label>Quantity</label><input id="pf-qty" type="number" min="1" step="1" value="${prefill.qty || 1}" /></div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>For job (optional)</label>
+          <select id="pf-job"><option value="">— None / general stock —</option>
+          ${activeJobs.map(j => `<option value="${escapeHtml(j.id)}" ${prefill.job_id === j.id ? 'selected' : ''}>${escapeHtml(j.plate)} · ${escapeHtml(j.cust_name || '—')}</option>`).join('')}
+          </select></div>
+        <div class="f-grp"><label>Urgency</label>
+          <select id="pf-urg"><option>Low</option><option selected>Normal</option><option>High</option><option>Critical</option></select></div>
+      </div>
+      <div class="f-row r1">
+        <div class="f-grp"><label>Notes</label><textarea id="pf-notes" placeholder="Specific brand, size, supplier preference…">${escapeHtml(prefill.notes || '')}</textarea></div>
+      </div>
+      <div class="f-err" id="pf-err"></div>`,
+    saveLabel: 'Send request',
+    onSave: () => savePartRequest()
+  });
+};
+
+async function savePartRequest() {
+  if (!currentWorker) throw new Error('You must be signed in as a worker');
+  const partName = document.getElementById('pf-name').value.trim();
+  if (!partName) throw new Error('Part name is required');
+  await loadAllData(true);
+  const jobId = document.getElementById('pf-job').value || '';
+  const job = jobId ? D.jobs.find(j => j.id === jobId) : null;
+  const req = {
+    id: uid('preq'),
+    part_name: partName,
+    qty: Number(document.getElementById('pf-qty').value) || 1,
+    urgency: document.getElementById('pf-urg').value,
+    notes: document.getElementById('pf-notes').value.trim(),
+    job_id: jobId,
+    plate: job?.plate || '',
+    requested_by_id: currentWorker.id,
+    requested_by: currentWorker.name,
+    status: 'Pending',
+    requested_at: nowStr()
+  };
+  D.parts_requests.unshift(req);
+  await wsSave('parts_requests', D.parts_requests);
+  closeModal();
+  showToast('Part requested', 'good');
+  await renderParts(true);
+}
+
+window.setPartStatus = async function(id, status) {
+  if (!isAdminRole()) return showToast('Only managers can change request status', 'bad');
+  await loadAllData(true);
+  const r = D.parts_requests.find(x => x.id === id);
+  if (!r) return;
+  r.status = status;
+  r.updated_at = nowStr();
+  r.updated_by = currentWorker?.name || '';
+  await wsSave('parts_requests', D.parts_requests);
+  showToast(`Marked ${status}`, 'good');
+  await renderParts(true);
+};
+
+window.deletePartRequest = async function(id) {
+  const r = D.parts_requests.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`Delete request for "${r.part_name}"?`)) return;
+  D.parts_requests = D.parts_requests.filter(x => x.id !== id);
+  await wsSave('parts_requests', D.parts_requests);
+  showToast('Request deleted', 'good');
+  await renderParts(true);
+};
+
+// ══════════════════════════════════════════
+//  TIMESHEETS  (worker self-clock + admin view all)
+// ══════════════════════════════════════════
+async function renderTimesheets(force = false) {
+  await loadAllData(force);
+  const isAdmin = isAdminRole();
+  const myId = currentWorker?.id || '';
+  // Populate worker selector
+  const sel = document.getElementById('tsWorker');
+  const cur = sel.value;
+  if (isAdmin) {
+    sel.disabled = false;
+    sel.innerHTML = `<option value="">All workers</option>` +
+      D.mechanics.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`).join('');
+    sel.value = cur || '';
+  } else {
+    sel.innerHTML = `<option value="${escapeHtml(myId)}">${escapeHtml(currentWorker?.name || 'You')}</option>`;
+    sel.value = myId;
+    sel.disabled = true;
+  }
+  document.getElementById('tsScopePill').innerHTML = isAdmin
+    ? `<b>Admin view</b> · ${D.mechanics.length} workers`
+    : `<b>Your timesheet</b> only`;
+  // Update clock button
+  const open = _openShift();
+  document.getElementById('tsClockLabel').textContent = open ? 'Clock out' : 'Clock in';
+  document.getElementById('tsClockBtn').style.background = open ? 'var(--red)' : '';
+  // Filter
+  const fromV = document.getElementById('tsFrom').value;
+  const toV   = document.getElementById('tsTo').value;
+  const wId   = sel.value;
+  let list = D.timesheets.slice();
+  if (!isAdmin) list = list.filter(t => t.worker_id === myId);
+  else if (wId) list = list.filter(t => t.worker_id === wId);
+  if (fromV) list = list.filter(t => (t.clock_in || '').slice(0,10) >= fromV);
+  if (toV)   list = list.filter(t => (t.clock_in || '').slice(0,10) <= toV);
+  list.sort((a,b) => (b.clock_in || '').localeCompare(a.clock_in || ''));
+  // Total hours
+  const totalMin = list.reduce((s, t) => s + (Number(t.minutes) || 0), 0);
+  document.getElementById('tsTotalHrs').textContent = (totalMin / 60).toFixed(1);
+  document.getElementById('tsCrumb').textContent = `${list.length} shift${list.length === 1 ? '' : 's'} · ${(totalMin/60).toFixed(1)} hours`;
+  const wrap = document.getElementById('tsTableWrap');
+  if (!list.length) {
+    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">No shifts yet. ${isAdmin ? 'Workers clock in/out from this tab or the tablet.' : 'Click "Clock in" to start your shift.'}</td></tr></table>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="list-tbl">
+    <thead><tr>
+      ${isAdmin ? '<th>Worker</th>' : ''}<th>Date</th><th>Clock in</th><th>Clock out</th><th>Duration</th><th>Notes</th>
+      ${isAdmin ? '<th style="text-align:right">Actions</th>' : ''}
+    </tr></thead>
+    <tbody>${list.map(t => {
+      const open = !t.clock_out;
+      const dur = open ? '<span class="status-pill s-arrived">● Open</span>' : `${(Number(t.minutes||0) / 60).toFixed(2)} hrs`;
+      return `<tr>
+        ${isAdmin ? `<td class="k">${escapeHtml(t.worker || '—')}</td>` : ''}
+        <td>${escapeHtml((t.clock_in || '').slice(0,10))}</td>
+        <td style="font-family:'Courier New',monospace">${escapeHtml((t.clock_in || '').slice(11,16))}</td>
+        <td style="font-family:'Courier New',monospace">${open ? '—' : escapeHtml((t.clock_out || '').slice(11,16))}</td>
+        <td class="k">${dur}</td>
+        <td style="color:var(--faint);font-size:12.5px">${escapeHtml(t.notes || '')}</td>
+        ${isAdmin ? `<td><div class="row-act"><button class="mini-btn danger" onclick="deleteShift('${escapeHtml(t.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></div></td>` : ''}
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+function _openShift() {
+  if (!currentWorker) return null;
+  return D.timesheets.find(t => t.worker_id === currentWorker.id && !t.clock_out) || null;
+}
+window.clockToggle = async function() {
+  if (!currentWorker) return showToast('No worker signed in', 'bad');
+  await loadAllData(true);
+  const open = _openShift();
+  if (open) {
+    open.clock_out = nowStr();
+    const minutes = Math.max(0, Math.round((new Date(open.clock_out) - new Date(open.clock_in)) / 60000));
+    open.minutes = minutes;
+    await wsSave('timesheets', D.timesheets);
+    showToast(`Clocked out · ${(minutes/60).toFixed(2)} hrs`, 'good');
+  } else {
+    D.timesheets.push({
+      id: uid('ts'),
+      worker_id: currentWorker.id,
+      worker: currentWorker.name,
+      clock_in: nowStr(),
+      clock_out: '',
+      minutes: 0,
+      notes: ''
+    });
+    await wsSave('timesheets', D.timesheets);
+    showToast('Clocked in', 'good');
+  }
+  await renderTimesheets(true);
+};
+window.deleteShift = async function(id) {
+  if (!isAdminRole()) return showToast('Only managers can delete shifts', 'bad');
+  if (!confirm('Delete this shift?')) return;
+  D.timesheets = D.timesheets.filter(t => t.id !== id);
+  await wsSave('timesheets', D.timesheets);
+  showToast('Shift deleted', 'good');
+  await renderTimesheets(true);
+};
+window._tsThisWeek = function() {
+  const today = new Date();
+  const day = today.getDay() || 7;
+  const mon = new Date(today); mon.setDate(today.getDate() - (day - 1));
+  document.getElementById('tsFrom').value = mon.toISOString().slice(0,10);
+  document.getElementById('tsTo').value   = today.toISOString().slice(0,10);
+  renderTimesheets();
+};
+window._tsClearRange = function() {
+  document.getElementById('tsFrom').value = '';
+  document.getElementById('tsTo').value   = '';
+  renderTimesheets();
+};
+
+// ══════════════════════════════════════════
+//  SETTINGS  (workshop info + role permissions + danger zone)
+// ══════════════════════════════════════════
+const ALL_TABS = [
+  { id:'dashboard',   label:'Dashboard' },
+  { id:'bookings',    label:'Bookings' },
+  { id:'schedule',    label:'Schedule' },
+  { id:'checkin',     label:'Check-in' },
+  { id:'jobs',        label:'Job Cards' },
+  { id:'queue',       label:'Live Queue' },
+  { id:'customers',   label:'Customers' },
+  { id:'workers',     label:'Workers' },
+  { id:'bays',        label:'Bays' },
+  { id:'inventory',   label:'Inventory' },
+  { id:'parts',       label:'Parts Requests' },
+  { id:'reports',     label:'Reports' },
+  { id:'timesheets',  label:'Timesheets' },
+  { id:'audit',       label:'Audit Log' },
+  { id:'settings',    label:'Settings' }
+];
+
+async function renderSettings(force = false) {
+  await loadAllData(force);
+  if (!isAdminRole()) {
+    document.getElementById('settingsBody').innerHTML = `<div class="placeholder"><h3>Admin only</h3><p>Settings can only be changed by an owner or manager. Ask your admin to update permissions.</p></div>`;
+    return;
+  }
+  const s = D.settings || {};
+  const perms = s.role_perms || {};
+  const customRoles = Object.keys(perms).filter(r => !DEFAULT_ROLE_PERMS[r]);
+  const allRoles = ['owner','manager','receptionist','mechanic', ...customRoles];
+  document.getElementById('settingsBody').innerHTML = `
+    <div style="display:grid;gap:18px">
+
+      <!-- Workshop info -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 14px">Workshop info</h3>
+        <div class="f-row">
+          <div class="f-grp"><label>Workshop name</label><input id="sf-name" type="text" value="${escapeHtml(s.workshop_name || '')}" /></div>
+          <div class="f-grp"><label>Phone</label><input id="sf-phone" type="text" value="${escapeHtml(s.phone || '')}" /></div>
+        </div>
+        <div class="f-row r1">
+          <div class="f-grp"><label>Address</label><textarea id="sf-addr">${escapeHtml(s.address || '')}</textarea></div>
+        </div>
+        <div class="f-row r3">
+          <div class="f-grp"><label>GSTIN</label><input id="sf-gst" type="text" value="${escapeHtml(s.gstin || '')}" /></div>
+          <div class="f-grp"><label>Currency symbol</label><input id="sf-cur" type="text" value="${escapeHtml(s.currency || '₹')}" /></div>
+          <div class="f-grp"><label>Default tax %</label><input id="sf-tax" type="number" step="0.01" value="${escapeHtml(String(s.tax_pct ?? 18))}" /></div>
+        </div>
+        <div style="margin-top:12px;text-align:right"><button class="add-btn" onclick="saveWorkshopInfo()">Save workshop info</button></div>
+      </div>
+
+      <!-- Role permissions -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Role permissions</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Tick which tabs each role can see in the sidebar. Owner is fixed and always sees everything. Workers see only their own timesheets and parts requests regardless of these toggles.</div>
+        <div style="overflow:auto"><table class="list-tbl" style="min-width:780px">
+          <thead><tr><th style="width:170px">Tab</th>${allRoles.map(r => `<th style="text-align:center">${escapeHtml(r)}${customRoles.includes(r) ? ` <button class="mini-btn danger" style="margin-left:6px" onclick="removeCustomRole('${escapeHtml(r)}')">×</button>` : ''}</th>`).join('')}</tr></thead>
+          <tbody>${ALL_TABS.map(t => `<tr>
+            <td class="k">${escapeHtml(t.label)}</td>
+            ${allRoles.map(r => {
+              const checked = getRolePerms(r).includes(t.id);
+              const disabled = r === 'owner';
+              return `<td style="text-align:center"><input type="checkbox" data-role="${escapeHtml(r)}" data-tab="${escapeHtml(t.id)}" ${checked?'checked':''} ${disabled?'disabled':''} /></td>`;
+            }).join('')}
+          </tr>`).join('')}</tbody>
+        </table></div>
+        <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="sf-newrole" placeholder="New role name (e.g. Supervisor)" style="flex:1;min-width:200px;padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb)" />
+          <button class="refresh-btn" onclick="addCustomRole()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add role</button>
+          <button class="add-btn" onclick="saveRolePerms()">Save role permissions</button>
+        </div>
+      </div>
+
+      <!-- Worker PIN reset (admin tool) -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Worker access</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Manage workers and their roles from the <b>Workers</b> tab. Their role here drives sidebar access.</div>
+        <button class="refresh-btn" onclick="switchTab('workers')">Open Workers tab →</button>
+      </div>
+
+      <!-- Danger zone -->
+      <div class="card" style="padding:18px;border:1px solid rgba(255,107,107,.3)">
+        <h3 style="margin:0 0 6px;color:var(--red)">Danger zone</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Wipe specific collections. Cannot be undone.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="mini-btn danger" onclick="wipeCollection('bookings')">Wipe bookings</button>
+          <button class="mini-btn danger" onclick="wipeCollection('jobs')">Wipe jobs</button>
+          <button class="mini-btn danger" onclick="wipeCollection('queue')">Wipe queue</button>
+          <button class="mini-btn danger" onclick="wipeCollection('timesheets')">Wipe timesheets</button>
+          <button class="mini-btn danger" onclick="wipeCollection('parts_requests')">Wipe parts requests</button>
+          <button class="mini-btn danger" onclick="wipeCollection('inventory')">Wipe inventory</button>
+          <button class="mini-btn danger" onclick="wipeCollection('customers')">Wipe customers</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+window.saveWorkshopInfo = async function() {
+  D.settings = D.settings || {};
+  D.settings.workshop_name = document.getElementById('sf-name').value.trim();
+  D.settings.phone         = document.getElementById('sf-phone').value.trim();
+  D.settings.address       = document.getElementById('sf-addr').value.trim();
+  D.settings.gstin         = document.getElementById('sf-gst').value.trim();
+  D.settings.currency      = document.getElementById('sf-cur').value.trim() || '₹';
+  D.settings.tax_pct       = Number(document.getElementById('sf-tax').value) || 0;
+  await wsSaveSettings();
+  showToast('Workshop info saved', 'good');
+};
+
+window.saveRolePerms = async function() {
+  const perms = {};
+  document.querySelectorAll('#settingsBody input[type=checkbox][data-role]').forEach(cb => {
+    const r = cb.dataset.role, t = cb.dataset.tab;
+    if (r === 'owner') return;
+    perms[r] = perms[r] || [];
+    if (cb.checked) perms[r].push(t);
+  });
+  D.settings = D.settings || {};
+  D.settings.role_perms = perms;
+  await wsSaveSettings();
+  showToast('Role permissions saved', 'good');
+  renderSidebarVisibility();
+};
+
+window.addCustomRole = async function() {
+  const inp = document.getElementById('sf-newrole');
+  const name = (inp.value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (!name) return showToast('Type a role name first', 'bad');
+  if (DEFAULT_ROLE_PERMS[name] || ((D.settings?.role_perms || {})[name])) return showToast('Role already exists', 'bad');
+  D.settings = D.settings || {};
+  D.settings.role_perms = D.settings.role_perms || {};
+  D.settings.role_perms[name] = ['dashboard'];   // sensible default
+  await wsSaveSettings();
+  inp.value = '';
+  showToast(`Role "${name}" added`, 'good');
+  await renderSettings(true);
+};
+
+window.removeCustomRole = async function(role) {
+  if (!confirm(`Remove role "${role}"? Workers with this role will fall back to "mechanic" permissions.`)) return;
+  if (D.settings?.role_perms?.[role]) {
+    delete D.settings.role_perms[role];
+    await wsSaveSettings();
+    showToast(`Role "${role}" removed`, 'good');
+    await renderSettings(true);
+  }
+};
+
+window.wipeCollection = async function(coll) {
+  if (!confirm(`Wipe ALL ${coll}? This cannot be undone.`)) return;
+  if (!confirm(`Really? Type-equivalent: delete every ${coll} record.`)) return;
+  D[coll] = [];
+  await wsSave(coll, []);
+  showToast(`${coll} wiped`, 'good');
+};
+
+async function wsSaveSettings() {
+  await wsSave('settings', [D.settings || {}]);
 }
 
 // ══════════════════════════════════════════
@@ -2582,10 +3450,73 @@ async function _onScanDecoded(code) {
   // Default behaviour: look up the code against the workshop's data
   _stopScannerCamera();
   await loadAllData(false);
+
+  // ── GPV-{vehicleId} → customer vehicle QR (from the customer card) ──
+  if (/^GPV-/i.test(code.trim())) {
+    const vehId = code.trim().slice(4);
+    const found = findVehicleByQRId(vehId);
+    if (found) {
+      _renderVehicleQRResult(code, found.customer, found.vehicle);
+      return;
+    }
+    _renderScanResult(code, null, null);  // unknown vehicle QR
+    return;
+  }
+
+  // ── Regular barcode → part / plate lookup ──
   const part = D.inventory.find(p => (p.barcode || '').toUpperCase() === code.toUpperCase());
   const booking = D.bookings.find(b => (b.plate || '').replace(/\s/g, '').toUpperCase() === code.replace(/\s/g, '').toUpperCase());
   _renderScanResult(code, part, booking);
 }
+
+function _renderVehicleQRResult(code, customer, vehicle) {
+  // Look for an active booking on this plate that's still Scheduled (awaiting arrival)
+  const today = todayStr();
+  const activeBooking = D.bookings.find(b =>
+    (b.plate || '').replace(/\s/g, '').toUpperCase() === (vehicle.plate || '').replace(/\s/g, '').toUpperCase()
+    && (b.status === 'Scheduled' || !b.status)
+    && (b.date === today || b.date >= today));
+  const box = document.getElementById('scanResult');
+  box.innerHTML = `
+    <div class="r-icon good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/></svg></div>
+    <h4>${escapeHtml(vehicle.plate)} — ${escapeHtml(customer.name || 'Customer')}</h4>
+    <div class="r-meta">${escapeHtml(vehicle.model || 'Vehicle')}${vehicle.year ? ' · ' + escapeHtml(vehicle.year) : ''}${vehicle.color ? ' · ' + escapeHtml(vehicle.color) : ''}${customer.phone ? '<br>📞 ' + escapeHtml(customer.phone) : ''}</div>
+    <code class="r-code">${escapeHtml(code)}</code>
+    ${activeBooking
+      ? `<div style="background:rgba(120,140,255,.10);border:1px solid rgba(120,140,255,.28);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:var(--blue)">
+          📅 Has a booking scheduled${activeBooking.time ? ' at <b>' + escapeHtml(activeBooking.time) + '</b>' : ''} — check in?
+        </div>`
+      : ''}
+    <div class="r-acts">
+      <button class="fbtn fbtn-cancel" onclick="closeScanner()">Close</button>
+      ${activeBooking
+        ? `<button class="fbtn fbtn-save" onclick="closeScanner();openCheckinForm('${escapeHtml(activeBooking.id)}')">Check in</button>`
+        : `<button class="fbtn fbtn-save" onclick="closeScanner();_walkInFromVehicleQR('${escapeHtml(customer.id)}','${escapeHtml(vehicle.id)}')">Start walk-in</button>`}
+    </div>`;
+  box.classList.add('open');
+}
+
+// Open the walk-in flow pre-filled from a scanned vehicle QR
+window._walkInFromVehicleQR = function(customerId, vehicleId) {
+  const cust = D.customers.find(c => c.id === customerId);
+  if (!cust) return showToast('Customer not found', 'bad');
+  const veh = (cust.vehicles || []).find(v => v.id === vehicleId);
+  if (!veh) return showToast('Vehicle not found', 'bad');
+  // Pre-populate a walk-in booking from this vehicle
+  const b = {
+    date: todayStr(), time: toTime(),
+    cust_name: cust.name, cust_phone: cust.phone || '',
+    plate: veh.plate,
+    vehicle: [veh.model, veh.year, veh.color].filter(Boolean).join(' · '),
+    _walkin: true
+  };
+  openModal({
+    title: `Walk-in · ${veh.plate}`,
+    body: _bookingFormHTML(b),
+    saveLabel: 'Create + check in',
+    onSave: () => saveWalkin()
+  });
+};
 
 function _renderScanResult(code, part, booking) {
   const box = document.getElementById('scanResult');
@@ -2689,6 +3620,10 @@ window.deleteWorker = async function(id) {
   await renderWorkers(true);
 };
 </script>
+
+<!-- QRCode.js — generates QR codes client-side. Used for the per-vehicle QR
+     that the scanner can read to trigger walk-in or check-in. -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
 <!-- ZXing — barcode + QR decoder. Multi-CDN fallback so blocked unpkg falls
      through to jsdelivr. Loaded with no `defer` so it's ready by the time
