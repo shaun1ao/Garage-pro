@@ -687,6 +687,10 @@ input[list]{background:var(--bg2)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
           Parts Requests
         </button>
+        <button class="snav" data-tab="request_parts" onclick="switchTab('request_parts')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a2 2 0 0 1 2 2v2h-10V4a2 2 0 0 1 2-2z"/><path d="M5 6h14l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+          Request Parts
+        </button>
 
         <div class="section-label">Management</div>
         <button class="snav" data-tab="reports" onclick="switchTab('reports')">
@@ -870,6 +874,16 @@ input[list]{background:var(--bg2)}
       </div>
       <div class="tab-panel" id="tab-schedule"><div class="page-head"><div><h2>Schedule</h2><div class="crumb">Coming next</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>Weekly calendar view of all bookings will live here.</p></div></div>
       <div class="tab-panel" id="tab-parts"><div class="page-head"><div><h2>Parts Requests</h2><div class="crumb">Coming next</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>Workers request parts from a job card → request lands here for approval.</p></div></div>
+      <div class="tab-panel" id="tab-request_parts">
+        <div class="page-head">
+          <div><h2>Request Parts</h2><div class="dash-meta"><span class="live-dot"></span><span id="rpCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderRequestParts(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="add-btn" onclick="openRequestPartForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Request a part</button>
+          </div>
+        </div>
+        <div id="rpTableWrap"></div>
+      </div>
       <div class="tab-panel" id="tab-customers">
         <div class="page-head">
           <div><h2>Customers</h2><div class="dash-meta"><span class="live-dot"></span><span id="cuCrumb">—</span></div></div>
@@ -1408,10 +1422,10 @@ function renderHeader() {
 // Defaults if the workshop hasn't customised role permissions yet.
 // Owner always sees everything regardless of what's stored.
 const DEFAULT_ROLE_PERMS = {
-  owner:        ['dashboard','bookings','schedule','checkin','jobs','queue','customers','workers','bays','inventory','parts','reports','timesheets','audit','settings'],
-  manager:      ['dashboard','bookings','schedule','checkin','jobs','queue','customers','workers','bays','inventory','parts','reports','timesheets','audit'],
+  owner:        ['dashboard','bookings','schedule','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','reports','timesheets','audit','settings'],
+  manager:      ['dashboard','bookings','schedule','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','reports','timesheets','audit'],
   receptionist: ['dashboard','bookings','schedule','checkin','queue','customers','timesheets'],
-  mechanic:     ['dashboard','checkin','jobs','queue','bays','inventory','parts','timesheets']
+  mechanic:     ['dashboard','checkin','jobs','queue','bays','inventory','request_parts','timesheets']
 };
 const ADMIN_ROLES = ['owner','manager'];
 
@@ -2307,8 +2321,11 @@ async function doCheckin(bookingId) {
     b.status = 'Arrived';
     await wsSave('bays', D.bays);
   } else {
-    // No bay available — add to queue
-    D.queue.push({ id: uid('q'), booking_id: b.id, plate: b.plate, cust_name: b.cust_name, added_at: nowStr() });
+    // No bay available — add to queue (track requested bay type so promotion can match it)
+    D.queue.push({
+      id: uid('q'), booking_id: b.id, plate: b.plate, cust_name: b.cust_name,
+      type: b.bay_type || '', notes: b.notes || '', added_at: nowStr()
+    });
     b.status = 'Arrived';
     await wsSave('queue', D.queue);
   }
@@ -2376,10 +2393,14 @@ async function doCheckout(bookingId) {
   const cost = (document.getElementById('co-cost').value || '').trim();
   const pay  = document.getElementById('co-pay').value;
   const notes= document.getElementById('co-notes').value.trim();
-  // Free the bay
+  // Free the bay (remember its type so we can promote the right queue entry)
+  let freedBayType = '';
   if (b.bay_id) {
     const bay = D.bays.find(x => x.id === b.bay_id);
-    if (bay) { bay.status = 'Available'; bay.booking_id = null; bay.plate = ''; }
+    if (bay) {
+      freedBayType = bay.type || '';
+      bay.status = 'available'; bay.booking_id = null; bay.plate = '';
+    }
     await wsSave('bays', D.bays);
   }
   // Update job to Delivered
@@ -2391,13 +2412,6 @@ async function doCheckout(bookingId) {
     if (notes) job.delivery_notes = notes;
     await wsSave('jobs', D.jobs);
   }
-  // Promote one queued booking if any are waiting and a bay just opened
-  if (D.queue.length) {
-    const next = D.queue.shift();
-    const nb = D.bookings.find(x => x.id === next.booking_id);
-    if (nb) { nb.bay_id = b.bay_id; }
-    await wsSave('queue', D.queue);
-  }
   b.status = 'Delivered';
   if (cost) b.actual_cost = Number(cost);
   b.payment_status = pay;
@@ -2408,6 +2422,14 @@ async function doCheckout(bookingId) {
   await wsSave('bookings', D.bookings);
   closeModal();
   showToast(`${b.plate} delivered`, 'good');
+  // Notify next-in-queue waiting for this bay type (matches main.py _promote_from_queue)
+  if (freedBayType) await promoteNextFromQueue(freedBayType);
+  // Offer to generate the invoice right after checkout
+  if (job) {
+    if (await customConfirm(`Generate an invoice for ${b.plate} now?`, { title: 'Print invoice?', okLabel: 'Generate invoice', cancelLabel: 'Later', danger: false })) {
+      await generateInvoice(job.id);
+    }
+  }
   await renderCheckin(true);
 }
 
@@ -2484,6 +2506,7 @@ async function renderJobs(force = false) {
       <td>${statusPill(j.status || 'Awaiting Approval')}</td>
       <td><div class="row-act">
         <button class="mini-btn" onclick="openJobForm('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+        <button class="mini-btn good" onclick="generateInvoice('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Invoice</button>
         <button class="mini-btn danger" onclick="deleteJob('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
       </div></td>
     </tr>`).join('')}</tbody>
@@ -3057,7 +3080,7 @@ async function saveWorker(id) {
 const TAB_TITLES = {
   dashboard:'Dashboard', bookings:'Bookings', checkin:'Check-in', jobs:'Job Cards',
   bays:'Bays', queue:'Queue', schedule:'Schedule', customers:'Customers',
-  workers:'Workers', inventory:'Inventory', parts:'Parts Requests',
+  workers:'Workers', inventory:'Inventory', parts:'Parts Requests', request_parts:'Request Parts',
   reports:'Reports', timesheets:'Timesheets', audit:'Audit Log', settings:'Settings'
 };
 
@@ -3103,8 +3126,9 @@ window.switchTab = function(tab) {
   if (tab === 'inventory')  renderInventory();
   if (tab === 'timesheets') renderTimesheets();
   if (tab === 'settings')   renderSettings();
-  if (tab === 'bays')       renderBays();
-  if (tab === 'queue')      renderQueue();
+  if (tab === 'bays')          renderBays();
+  if (tab === 'queue')         renderQueue();
+  if (tab === 'request_parts') renderRequestParts();
   // Auto-close the mobile drawer after picking a tab
   closeSidebar();
 };
@@ -3230,6 +3254,22 @@ function _renderBayChip(b) {
     </div>`;
 }
 
+
+window.editBayNote = async function(id) {
+  const bay = D.bays.find(b => b.id === id);
+  if (!bay) return;
+  const note = await customPrompt('Parts on order, lift broken, scheduled service, etc.', {
+    title: `${bay.type} - Bay ${bay.num} note`,
+    placeholder: 'e.g. lift hydraulics serviced 14 Jun',
+    initial: bay.note || '',
+    okLabel: 'Save note'
+  });
+  if (note === null) return;
+  bay.note = note.trim();
+  await wsSave('bays', D.bays);
+  showToast('Note saved', 'good');
+  await renderBays(true);
+};
 
 window.toggleBayMaintenance = async function(id) {
   const bay = D.bays.find(b => b.id === id);
@@ -3711,14 +3751,11 @@ async function renderParts(force = false) {
       <div id="prTableWrap"></div>`;
     wrap.dataset.rendered = '1';
   }
-  const all = D.parts_requests.slice();
-  const isAdmin = isAdminRole();
-  const myId = currentWorker?.id || '';
-  // Workers see only their own requests; admins see all
-  let list = isAdmin ? all : all.filter(r => r.requested_by_id === myId || r.requested_by === currentWorker?.name);
-  document.getElementById('prScopePill').innerHTML = isAdmin
-    ? '<b>All workers</b> · admin view'
-    : `<b>Your requests</b> only`;
+  // This tab always shows ALL requests. Access is gated by Settings → Role permissions
+  // (only roles with the "parts" tab can see it). Workers who should only request their
+  // own use the separate "Request Parts" tab.
+  let list = D.parts_requests.slice();
+  document.getElementById('prScopePill').innerHTML = '<b>All workers</b> · full view';
   const q = (document.getElementById('prSearch').value || '').toLowerCase().trim();
   const st = document.getElementById('prStatus').value;
   if (q) list = list.filter(r =>
@@ -3731,38 +3768,82 @@ async function renderParts(force = false) {
   document.getElementById('prCrumb').textContent = `${D.parts_requests.length} total · ${D.parts_requests.filter(r => (r.status||'Pending') === 'Pending').length} pending`;
   const tbl = document.getElementById('prTableWrap');
   if (!list.length) {
-    tbl.innerHTML = `<table class="list-tbl"><tr><td class="empty">${all.length === 0 ? 'No part requests yet. Click "Request part" to ask the manager for one.' : isAdmin ? 'No requests match your filters.' : 'You haven\'t made any requests yet.'}</td></tr></table>`;
+    tbl.innerHTML = `<table class="list-tbl"><tr><td class="empty">${D.parts_requests.length === 0 ? 'No part requests yet. Workers can submit them from the "Request Parts" tab.' : 'No requests match your filters.'}</td></tr></table>`;
     return;
   }
   tbl.innerHTML = `<table class="list-tbl">
     <thead><tr>
-      <th>Requested</th>${isAdmin ? '<th>By</th>' : ''}<th>Part</th><th>Qty</th><th>For job</th>
+      <th>Requested</th><th>By</th><th>Part</th><th>Qty</th><th>For job</th>
       <th>Urgency</th><th>Status</th><th style="text-align:right">Actions</th>
     </tr></thead>
     <tbody>${list.map(r => {
       const s = r.status || 'Pending';
-      const adminActions = isAdmin && s === 'Pending' ?
-        `<button class="mini-btn good" onclick="setPartStatus('${escapeHtml(r.id)}','Approved')">Approve</button>
-         <button class="mini-btn danger" onclick="setPartStatus('${escapeHtml(r.id)}','Declined')">Decline</button>` :
-        isAdmin && s === 'Approved' ? `<button class="mini-btn" onclick="setPartStatus('${escapeHtml(r.id)}','Ordered')">Mark ordered</button>` :
-        isAdmin && s === 'Ordered' ? `<button class="mini-btn good" onclick="setPartStatus('${escapeHtml(r.id)}','Received')">Mark received</button>` : '';
-      const canDelete = isAdmin || (r.requested_by_id === myId && s === 'Pending');
+      const actions = s === 'Pending'
+        ? `<button class="mini-btn good" onclick="setPartStatus('${escapeHtml(r.id)}','Approved')">Approve</button>
+           <button class="mini-btn danger" onclick="setPartStatus('${escapeHtml(r.id)}','Declined')">Decline</button>`
+        : s === 'Approved'
+          ? `<button class="mini-btn" onclick="setPartStatus('${escapeHtml(r.id)}','Ordered')">Mark ordered</button>`
+        : s === 'Ordered'
+          ? `<button class="mini-btn good" onclick="setPartStatus('${escapeHtml(r.id)}','Received')">Mark received</button>`
+        : '';
       return `<tr>
         <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((r.requested_at||'').slice(0,16))}</td>
-        ${isAdmin ? `<td class="k">${escapeHtml(r.requested_by || '—')}</td>` : ''}
+        <td class="k">${escapeHtml(r.requested_by || '—')}</td>
         <td class="k">${escapeHtml(r.part_name || '—')}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
         <td>${escapeHtml(String(r.qty || 1))}</td>
         <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>` : '—'}</td>
         <td>${escapeHtml(r.urgency || 'Normal')}</td>
         <td>${statusPill(s)}</td>
         <td><div class="row-act">
-          ${adminActions}
-          ${canDelete ? `<button class="mini-btn danger" onclick="deletePartRequest('${escapeHtml(r.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>` : ''}
+          ${actions}
+          <button class="mini-btn danger" onclick="deletePartRequest('${escapeHtml(r.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
         </div></td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
 }
+
+// ─── Request Parts (worker-only, own only) ─────────────────────────────
+// Same data store (D.parts_requests). This view shows only the current worker's
+// requests so they can see status without touching anyone else's submissions.
+async function renderRequestParts(force = false) {
+  await loadAllData(force);
+  const myId = currentWorker?.id || '';
+  const myName = currentWorker?.name || '';
+  const mine = D.parts_requests
+    .filter(r => r.requested_by_id === myId || r.requested_by === myName)
+    .sort((a,b) => (b.requested_at || '').localeCompare(a.requested_at || ''));
+  document.getElementById('rpCrumb').textContent =
+    `${mine.length} request${mine.length === 1 ? '' : 's'} by you · ${mine.filter(r => (r.status || 'Pending') === 'Pending').length} pending`;
+  const wrap = document.getElementById('rpTableWrap');
+  if (!mine.length) {
+    wrap.innerHTML = `<div class="placeholder"><h3>No requests yet</h3><p>Click <b>Request a part</b> above to ask your manager to order one. You'll see the status update here when they act on it.</p></div>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="list-tbl">
+    <thead><tr>
+      <th>Requested</th><th>Part</th><th>Qty</th><th>For job</th>
+      <th>Urgency</th><th>Status</th><th style="text-align:right">Actions</th>
+    </tr></thead>
+    <tbody>${mine.map(r => {
+      const s = r.status || 'Pending';
+      return `<tr>
+        <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((r.requested_at||'').slice(0,16))}</td>
+        <td class="k">${escapeHtml(r.part_name || '—')}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
+        <td>${escapeHtml(String(r.qty || 1))}</td>
+        <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>` : '—'}</td>
+        <td>${escapeHtml(r.urgency || 'Normal')}</td>
+        <td>${statusPill(s)}</td>
+        <td><div class="row-act">
+          ${s === 'Pending' ? `<button class="mini-btn danger" onclick="deletePartRequest('${escapeHtml(r.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Cancel</button>` : '<span style="color:var(--faint);font-size:12px">—</span>'}
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+window.renderRequestParts = renderRequestParts;
+// Reuse the existing request form
+window.openRequestPartForm = function(prefill) { return openPartRequestForm(prefill); };
 
 window.openPartRequestForm = function(prefill) {
   prefill = prefill || {};
@@ -3815,7 +3896,7 @@ async function savePartRequest() {
   await wsSave('parts_requests', D.parts_requests);
   closeModal();
   showToast('Part requested', 'good');
-  await renderParts(true);
+  await _refreshActivePartsView();
 }
 
 window.setPartStatus = async function(id, status) {
@@ -3828,7 +3909,7 @@ window.setPartStatus = async function(id, status) {
   r.updated_by = currentWorker?.name || '';
   await wsSave('parts_requests', D.parts_requests);
   showToast(`Marked ${status}`, 'good');
-  await renderParts(true);
+  await _refreshActivePartsView();
 };
 
 window.deletePartRequest = async function(id) {
@@ -3838,8 +3919,15 @@ window.deletePartRequest = async function(id) {
   D.parts_requests = D.parts_requests.filter(x => x.id !== id);
   await wsSave('parts_requests', D.parts_requests);
   showToast('Request deleted', 'good');
-  await renderParts(true);
+  await _refreshActivePartsView();
 };
+
+// Refresh whichever parts view the user is currently looking at (admin "Parts Requests"
+// or worker "Request Parts"). Both render off D.parts_requests so the data is shared.
+async function _refreshActivePartsView() {
+  if (currentTab === 'request_parts') return renderRequestParts(true);
+  return renderParts(true);
+}
 
 // ══════════════════════════════════════════
 //  TIMESHEETS  (worker self-clock + admin view all)
@@ -3972,7 +4060,8 @@ const ALL_TABS = [
   { id:'workers',     label:'Workers' },
   { id:'bays',        label:'Bays' },
   { id:'inventory',   label:'Inventory' },
-  { id:'parts',       label:'Parts Requests' },
+  { id:'parts',         label:'Parts Requests (all)' },
+  { id:'request_parts', label:'Request Parts (own)' },
   { id:'reports',     label:'Reports' },
   { id:'timesheets',  label:'Timesheets' },
   { id:'audit',       label:'Audit Log' },
@@ -4034,6 +4123,21 @@ async function renderSettings(force = false) {
           <div class="f-grp"><label>Currency symbol</label><input id="sf-cur" type="text" value="${escapeHtml(s.currency || '₹')}" /></div>
           <div class="f-grp"><label>Default tax %</label><input id="sf-tax" type="number" step="0.01" value="${escapeHtml(String(s.tax_pct ?? 18))}" /></div>
         </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--brd)">
+          <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--txt);margin-bottom:8px">Bank transfer details (printed at the bottom of invoices)</div>
+          <div class="f-row">
+            <div class="f-grp"><label>Bank name</label><input id="sf-bank" type="text" value="${escapeHtml(s.bank_name || '')}" placeholder="ICICI" /></div>
+            <div class="f-grp"><label>Branch</label><input id="sf-branch" type="text" value="${escapeHtml(s.bank_branch || '')}" placeholder="MADHAPOOR" /></div>
+          </div>
+          <div class="f-row">
+            <div class="f-grp"><label>Account no.</label><input id="sf-acc" type="text" value="${escapeHtml(s.bank_account || '')}" placeholder="123456789" /></div>
+            <div class="f-grp"><label>IFSC code</label><input id="sf-ifsc" type="text" value="${escapeHtml(s.bank_ifsc || '')}" placeholder="ICIC0001234" /></div>
+          </div>
+          <div class="f-row">
+            <div class="f-grp"><label>SWIFT / sort code</label><input id="sf-swift" type="text" value="${escapeHtml(s.bank_swift || '')}" placeholder="64345678765" /></div>
+            <div class="f-grp"><label>Terms</label><input id="sf-terms" type="text" value="${escapeHtml(s.bank_terms || 'WIRE')}" placeholder="WIRE" /></div>
+          </div>
+        </div>
         <div style="margin-top:12px;text-align:right"><button class="add-btn" onclick="saveWorkshopInfo()">Save workshop info</button></div>
       </div>
 
@@ -4092,6 +4196,12 @@ window.saveWorkshopInfo = async function() {
   D.settings.gstin         = document.getElementById('sf-gst').value.trim();
   D.settings.currency      = document.getElementById('sf-cur').value.trim() || '₹';
   D.settings.tax_pct       = Number(document.getElementById('sf-tax').value) || 0;
+  D.settings.bank_name     = document.getElementById('sf-bank').value.trim();
+  D.settings.bank_branch   = document.getElementById('sf-branch').value.trim();
+  D.settings.bank_account  = document.getElementById('sf-acc').value.trim();
+  D.settings.bank_ifsc     = document.getElementById('sf-ifsc').value.trim();
+  D.settings.bank_swift    = document.getElementById('sf-swift').value.trim();
+  D.settings.bank_terms    = document.getElementById('sf-terms').value.trim();
   await wsSaveSettings();
   showToast('Workshop info saved', 'good');
 };
@@ -4530,6 +4640,244 @@ window.deleteWorker = async function(id) {
   showToast('Worker deleted', 'good');
   await renderWorkers(true);
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+//  INVOICES — matches the Chequered Flags PDF layout
+//  Top-left: workshop name + address + email
+//  Top-right: logo
+//  Bill To / Invoice meta box (right) — invoice no, date, vehicle, service, mechanic
+//  Line items: # | Part | HSN/SAC | Qty | Unit Price | Disc | Taxable | Parts Total
+//  Service charge row
+//  Totals: Parts Total | Labour Total | GST Total | Discount Total | Grand Total | Round off | Balance
+//  Amount in words, bank details, payment status, footer signature line
+// ══════════════════════════════════════════════════════════════════════════
+
+// Build invoice data from a job + its booking + workshop settings.
+// Parts get enriched with sell_price + hsn from the inventory (matched on name).
+function buildInvoiceData(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) throw new Error('Job not found');
+  const b = D.bookings.find(x => x.id === j.booking_id) || {};
+  const s = D.settings || {};
+  const c = D.customers.find(x => (x.name || '').toLowerCase() === (b.cust_name || j.cust_name || '').toLowerCase()) || {};
+  const taxPct = Number(s.tax_pct || 0);
+  const discPct = Number(s.default_disc_pct || 0);
+  const lines = (j.parts || []).map((p, i) => {
+    const invItem = D.inventory.find(it => (it.name || '').toLowerCase() === (p.name || '').toLowerCase());
+    const unit = Number(p.unit_price ?? (invItem && invItem.sell_price) ?? 0);
+    const qty  = Math.max(1, Number(p.qty || 1));
+    const hsn  = p.hsn || (invItem && invItem.hsn) || '';
+    const lineDiscPct = Number(p.disc_pct ?? discPct);
+    const gross    = unit * qty;
+    const discAmt  = +(gross * lineDiscPct / 100).toFixed(2);
+    const taxable  = +(gross - discAmt).toFixed(2);
+    const tax      = +(taxable * taxPct / 100).toFixed(2);
+    const lineTotal= +(taxable + tax).toFixed(2);
+    return { i: i + 1, name: p.name, hsn, qty, unit, discPct: lineDiscPct, discAmt, taxable, tax, lineTotal };
+  });
+  const charges = (j.service_charges || []).map(ch => ({ name: ch.name, amount: Number(ch.amount || 0) }));
+  const partsTotal  = +lines.reduce((s, l) => s + l.lineTotal, 0).toFixed(2);
+  const labourTotal = +charges.reduce((s, l) => s + l.amount, 0).toFixed(2);
+  const gstTotal    = +lines.reduce((s, l) => s + l.tax, 0).toFixed(2);
+  const discTotal   = +lines.reduce((s, l) => s + l.discAmt, 0).toFixed(2);
+  const grand       = +(partsTotal + labourTotal).toFixed(2);
+  const roundOff    = Math.round(grand);
+  return {
+    job: j, booking: b, settings: s, customer: c, lines, charges,
+    partsTotal, labourTotal, gstTotal, discTotal, grand, roundOff,
+    invoiceNo: 'BK-' + (b.id || j.id || '').slice(-4).toUpperCase(),
+    issueDate: (j.completed_at || nowStr()).slice(0, 10),
+    currency: s.currency || 'INR',
+    paymentStatus: (b.payment_status || 'Outstanding')
+  };
+}
+
+// Build the full HTML for the invoice window (self-contained, no external CSS).
+function _invoiceHTML(inv) {
+  const s = inv.settings;
+  const cur = inv.currency;
+  const fmt = (n) => `${cur} ${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const paid = (inv.paymentStatus || '').toLowerCase() === 'paid';
+  return `<!doctype html><html><head><meta charset="utf-8" />
+<title>Invoice ${escapeHtml(inv.invoiceNo)}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:36px 44px;font-size:13px;line-height:1.5}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:38px}
+  .top-left h1{font-size:22px;font-weight:700;margin-bottom:6px}
+  .top-left .addr{color:#444;font-size:12.5px;line-height:1.55;max-width:380px}
+  .top-left .email{color:#444;font-size:12.5px;margin-top:2px}
+  .top-right img{max-width:170px;max-height:90px;display:block}
+  .blocks{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:32px}
+  .blocks h3{font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:10px}
+  .bill-to .name{font-size:13px;color:#222;margin-bottom:2px}
+  .bill-to .email{font-size:12.5px;color:#666}
+  .meta-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 24px;font-size:12.5px;color:#444}
+  .meta-grid .v{text-align:right;color:#1a1a1a;font-weight:600}
+  table.items{width:100%;border-collapse:collapse;margin-bottom:24px;border:1px solid #d9dde2}
+  table.items th{background:#f6f7f9;color:#1a1a1a;font-size:11.5px;font-weight:700;padding:11px 10px;text-align:left;border-bottom:1px solid #d9dde2}
+  table.items th.right{text-align:right}
+  table.items td{padding:11px 10px;font-size:12.5px;border-bottom:1px solid #eef1f4;vertical-align:top}
+  table.items td.right{text-align:right;white-space:nowrap}
+  table.items tr:last-child td{border-bottom:0}
+  .totals-wrap{display:flex;justify-content:flex-end;margin-bottom:24px}
+  .totals{min-width:280px;font-size:12.5px}
+  .totals .row{display:flex;justify-content:space-between;padding:6px 0;color:#444}
+  .totals .row.grand{border-top:1px solid #d9dde2;margin-top:6px;padding-top:10px;color:#1a1a1a;font-weight:600}
+  .totals .row.balance{border-top:2px solid #1a1a1a;margin-top:6px;padding-top:10px;font-weight:700;font-size:14px}
+  .words{font-size:12.5px;color:#444;margin-bottom:24px}
+  .bank{margin-bottom:20px}
+  .bank h3{font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:10px}
+  .bank-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 24px;font-size:12.5px;color:#444;max-width:380px;margin-left:auto;text-align:left}
+  .bank-grid .v{color:#1a1a1a;font-weight:600}
+  .pay-status{font-size:12.5px;color:${paid ? '#16a34a' : '#dc2626'};font-weight:600;margin-top:8px}
+  .pay-status b{font-weight:700}
+  hr{border:0;border-top:1px solid #d9dde2;margin:28px 0}
+  .foot{font-size:11.5px;color:#666;line-height:1.55;margin-bottom:8px}
+  .foot.cert{margin-top:32px}
+  @media print { body{padding:24px 32px} .no-print{display:none} }
+</style></head><body>
+  <div class="top">
+    <div class="top-left">
+      <h1>${escapeHtml(s.workshop_name || 'Workshop')}</h1>
+      <div class="addr">${escapeHtml(s.address || '')}</div>
+      <div class="email">${escapeHtml(s.email || '')}</div>
+    </div>
+    <div class="top-right">
+      ${s.logo ? `<img src="${escapeHtml(s.logo)}" alt="Logo" />` : ''}
+    </div>
+  </div>
+
+  <div class="blocks">
+    <div class="bill-to">
+      <h3>BILL TO</h3>
+      <div class="name">${escapeHtml(inv.booking.cust_name || inv.job.cust_name || '—')}</div>
+      <div class="email">${escapeHtml(inv.customer.email || '')}</div>
+      ${inv.customer.phone ? `<div class="email">${escapeHtml(inv.customer.phone)}</div>` : ''}
+    </div>
+    <div class="meta">
+      <h3>INVOICE</h3>
+      <div class="meta-grid">
+        <div>Invoice No:</div><div class="v">${escapeHtml(inv.invoiceNo)}</div>
+        <div>Issue Date:</div><div class="v">${escapeHtml(inv.issueDate)}</div>
+        <div>Vehicle:</div><div class="v">${escapeHtml(inv.booking.plate || inv.job.plate || '—')}</div>
+        <div>Service:</div><div class="v">${escapeHtml((inv.booking.service || inv.job.type || '—').toUpperCase())}</div>
+        <div>Mechanic:</div><div class="v">${escapeHtml((inv.job.mechanic || inv.booking.mechanic || '—').toUpperCase())}</div>
+      </div>
+    </div>
+  </div>
+
+  <table class="items">
+    <thead><tr>
+      <th>#</th><th>Part Name</th><th>HSN/SAC</th>
+      <th class="right">Qty</th><th class="right">Unit Price</th>
+      <th class="right">Disc</th><th class="right">Taxable</th><th class="right">Total</th>
+    </tr></thead>
+    <tbody>
+      ${inv.lines.length === 0 && inv.charges.length === 0
+        ? `<tr><td colspan="8" style="text-align:center;color:#888;padding:30px">No line items on this job card yet.</td></tr>`
+        : ''}
+      ${inv.lines.map(l => `
+        <tr>
+          <td>${l.i}</td>
+          <td>${escapeHtml(l.name)}</td>
+          <td>${escapeHtml(l.hsn || '')}</td>
+          <td class="right">${l.qty}</td>
+          <td class="right">${fmt(l.unit)}</td>
+          <td class="right">${l.discPct ? l.discPct + '%' : '—'}</td>
+          <td class="right">${fmt(l.taxable)}</td>
+          <td class="right">${fmt(l.lineTotal)}</td>
+        </tr>`).join('')}
+      ${inv.charges.map(ch => `
+        <tr>
+          <td></td>
+          <td>${escapeHtml(ch.name)}</td>
+          <td></td>
+          <td class="right">—</td><td class="right">—</td><td class="right">—</td><td class="right">—</td>
+          <td class="right">${fmt(ch.amount)}</td>
+        </tr>`).join('')}
+    </tbody>
+  </table>
+
+  <div class="totals-wrap"><div class="totals">
+    <div class="row"><span>Parts Total</span><span>${fmt(inv.partsTotal - inv.gstTotal)}</span></div>
+    <div class="row"><span>Labour Total</span><span>${fmt(inv.labourTotal)}</span></div>
+    <div class="row"><span>GST Total</span><span>${fmt(inv.gstTotal)}</span></div>
+    <div class="row"><span>Discount Total</span><span>${fmt(inv.discTotal)}</span></div>
+    <div class="row grand"><span>Grand Total</span><span>${fmt(inv.grand)}</span></div>
+    <div class="row"><span>Round off</span><span>${fmt(inv.roundOff)}</span></div>
+    <div class="row balance"><span>Balance</span><span>${fmt(inv.roundOff)}</span></div>
+  </div></div>
+
+  <div class="words">Amount (in Words): ${escapeHtml(inv.currency)} ${escapeHtml(numberToWordsIndian(inv.roundOff))} Only</div>
+
+  ${s.bank_account ? `
+    <div class="bank">
+      <h3>PAY BY BANK TRANSFER</h3>
+      <div class="bank-grid">
+        <div>Bank Name:</div><div class="v">${escapeHtml(s.bank_name || '')}</div>
+        <div>Account No:</div><div class="v">${escapeHtml(s.bank_account || '')}</div>
+        <div>IFSC Code:</div><div class="v">${escapeHtml(s.bank_ifsc || '')}</div>
+        <div>Branch:</div><div class="v">${escapeHtml(s.bank_branch || '')}</div>
+        <div>Sort/SWIFT:</div><div class="v">${escapeHtml(s.bank_swift || '')}</div>
+        <div>Terms:</div><div class="v">${escapeHtml(s.bank_terms || 'WIRE')}</div>
+      </div>
+    </div>` : ''}
+
+  <div class="pay-status">Payment Status: <b>${escapeHtml(inv.paymentStatus)}</b></div>
+
+  <hr>
+  <div class="foot cert">I certify that the work has been done to my satisfaction and that I have taken delivery of the vehicle in good condition, with all items / valuables and parts intact.</div>
+  <hr>
+  <div class="foot">Thank you for choosing ${escapeHtml(s.workshop_name || 'us')}. Please retain this invoice for your records.</div>
+
+  <div class="no-print" style="margin-top:24px;text-align:center">
+    <button onclick="window.print()" style="background:#1a1a1a;color:#fff;border:0;padding:10px 20px;border-radius:7px;cursor:pointer;font-size:13px">Print invoice</button>
+  </div>
+
+  <script>setTimeout(() => window.print(), 400);<\/script>
+</body></html>`;
+}
+
+window.generateInvoice = async function(jobId) {
+  await loadAllData(true);
+  let inv;
+  try { inv = buildInvoiceData(jobId); }
+  catch (e) { return showToast(e.message, 'bad'); }
+  const html = _invoiceHTML(inv);
+  const w = window.open('', '_blank');
+  if (!w) return customAlert('Browser blocked the new tab. Allow pop-ups for this site to print invoices.', { title: 'Pop-up blocked' });
+  w.document.open(); w.document.write(html); w.document.close();
+  // Stamp the invoice number on the booking + job so we can retrieve later
+  const j = D.jobs.find(x => x.id === jobId);
+  const b = D.bookings.find(x => x.id === j.booking_id);
+  if (j && !j.invoice_no) { j.invoice_no = inv.invoiceNo; await wsSave('jobs', D.jobs); }
+  if (b && !b.invoice_no) { b.invoice_no = inv.invoiceNo; await wsSave('bookings', D.bookings); }
+};
+
+// ─── Number to words (Indian numbering: thousand → lakh → crore) ─────────
+function numberToWordsIndian(n) {
+  n = Math.round(Number(n) || 0);
+  if (n === 0) return 'Zero Rupees';
+  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const twoDigits = (x) => x < 20 ? ones[x] : tens[Math.floor(x / 10)] + (x % 10 ? ' ' + ones[x % 10] : '');
+  const threeDigits = (x) => {
+    const h = Math.floor(x / 100); const r = x % 100;
+    return (h ? ones[h] + ' Hundred' + (r ? ' ' : '') : '') + (r ? twoDigits(r) : '');
+  };
+  const cr = Math.floor(n / 10000000); n %= 10000000;
+  const la = Math.floor(n / 100000);   n %= 100000;
+  const th = Math.floor(n / 1000);     n %= 1000;
+  const hd = n;
+  let out = '';
+  if (cr) out += twoDigits(cr) + ' Crore ';
+  if (la) out += twoDigits(la) + ' Lakh ';
+  if (th) out += twoDigits(th) + ' Thousand ';
+  if (hd) out += threeDigits(hd);
+  return (out.trim() + ' Rupees');
+}
+window.numberToWordsIndian = numberToWordsIndian;
 </script>
 
 <!-- QRCode.js is loaded on-demand via ensureQR() with multi-CDN fallback —
