@@ -693,6 +693,10 @@ input[list]{background:var(--bg2)}
         </button>
 
         <div class="section-label">Management</div>
+        <button class="snav" data-tab="invoices" onclick="switchTab('invoices')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+          Invoices
+        </button>
         <button class="snav" data-tab="reports" onclick="switchTab('reports')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
           Reports
@@ -965,6 +969,27 @@ input[list]{background:var(--bg2)}
           <span class="pill" id="tsScopePill"></span>
         </div>
         <div id="tsTableWrap"></div>
+      </div>
+      <div class="tab-panel" id="tab-invoices">
+        <div class="page-head">
+          <div><h2>Invoices</h2><div class="dash-meta"><span class="live-dot"></span><span id="invCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderInvoices(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="add-btn" onclick="openInvoiceForm(null)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Create invoice</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="invSearch" placeholder="Search invoice no, plate, customer…" oninput="renderInvoices()" />
+          <select id="invStatus" onchange="renderInvoices()">
+            <option value="">All statuses</option>
+            <option value="Draft">Draft</option>
+            <option value="Issued">Issued</option>
+            <option value="Paid">Paid</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <span class="pill"><b id="invCount">0</b>&nbsp;invoices</span>
+        </div>
+        <div id="invTableWrap"></div>
       </div>
       <div class="tab-panel" id="tab-reports"><div class="page-head"><div><h2>Reports</h2><div class="crumb">Coming in step 13</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
       <div class="tab-panel" id="tab-audit"><div class="page-head"><div><h2>Audit Log</h2><div class="crumb">Coming in step 14</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
@@ -1422,9 +1447,9 @@ function renderHeader() {
 // Defaults if the workshop hasn't customised role permissions yet.
 // Owner always sees everything regardless of what's stored.
 const DEFAULT_ROLE_PERMS = {
-  owner:        ['dashboard','bookings','schedule','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','reports','timesheets','audit','settings'],
-  manager:      ['dashboard','bookings','schedule','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','reports','timesheets','audit'],
-  receptionist: ['dashboard','bookings','schedule','checkin','queue','customers','timesheets'],
+  owner:        ['dashboard','bookings','schedule','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','audit','settings'],
+  manager:      ['dashboard','bookings','schedule','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','audit'],
+  receptionist: ['dashboard','bookings','schedule','checkin','queue','customers','invoices','timesheets'],
   mechanic:     ['dashboard','checkin','jobs','queue','bays','inventory','request_parts','timesheets']
 };
 const ADMIN_ROLES = ['owner','manager'];
@@ -1619,7 +1644,7 @@ window.wsRef = wsRef; window.wsCol = wsCol; window.wsLoad = wsLoad; window.wsSav
 const D = {
   bookings: [], bays: [], jobs: [], queue: [],
   customers: [], mechanics: [], inventory: [], timesheets: [],
-  parts_requests: [],
+  parts_requests: [], invoices: [],
   settings: {}, loadedAt: 0
 };
 let _loadingPromise = null;
@@ -1634,12 +1659,12 @@ async function loadAllData(force = false) {
   }
   if (!force && D.loadedAt && (Date.now() - D.loadedAt < 4000)) return; // 4s grace
   _loadingPromise = (async () => {
-    const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, settingsArr] =
+    const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, invoices, settingsArr] =
       await Promise.all([
         wsLoad('bookings'), wsLoad('bays'),     wsLoad('jobs'),
         wsLoad('queue'),    wsLoad('customers'),wsLoad('mechanics'),
         wsLoad('inventory'),wsLoad('timesheets'),wsLoad('parts_requests'),
-        wsLoad('settings')
+        wsLoad('invoices'), wsLoad('settings')
       ]);
     D.bookings       = bookings       || [];
     D.bays           = bays           || [];
@@ -1650,6 +1675,7 @@ async function loadAllData(force = false) {
     D.inventory      = inventory      || [];
     D.timesheets     = timesheets     || [];
     D.parts_requests = parts_requests || [];
+    D.invoices       = invoices       || [];
     D.settings       = (settingsArr && settingsArr[0]) || {};
     D.loadedAt       = Date.now();
   })();
@@ -1953,6 +1979,8 @@ async function renderBookings(force = false) {
     (b.plate||'').toLowerCase().includes(q) ||
     (b.cust_name||'').toLowerCase().includes(q) ||
     (b.id||'').toLowerCase().includes(q) ||
+    (b.booking_no||'').toLowerCase().includes(q) ||
+    (b.booking_ref||'').toLowerCase().includes(q) ||
     (b.service||'').toLowerCase().includes(q));
   if (st) list = list.filter(b => (b.status || 'Scheduled') === st);
   if (dt) list = list.filter(b => b.date === dt);
@@ -1966,7 +1994,7 @@ async function renderBookings(force = false) {
   }
   wrap.innerHTML = `<table class="list-tbl">
     <thead><tr>
-      <th>Date</th><th>Time</th><th>Plate</th><th>Customer</th>
+      <th>Booking #</th><th>Date</th><th>Time</th><th>Plate</th><th>Customer</th>
       <th>Service</th><th>Bay</th><th>Mechanic</th><th>Status</th><th style="text-align:right">Actions</th>
     </tr></thead>
     <tbody>${list.map(b => {
@@ -1975,6 +2003,7 @@ async function renderBookings(force = false) {
       const isDelivered = status === 'Delivered';
       const canCancel = !isCancelled && !isDelivered;
       return `<tr>
+        <td class="k" style="font-family:'Courier New',monospace;font-size:12.5px">${escapeHtml(b.booking_no || '—')}${b.booking_ref ? `<br><span style="font-size:10.5px;color:var(--faint)">ref ${escapeHtml(b.booking_ref)}</span>` : ''}</td>
         <td class="k">${escapeHtml(b.date || '—')}</td>
         <td>${escapeHtml(b.time || '—')}</td>
         <td><span class="plate">${escapeHtml(b.plate || '—')}</span></td>
@@ -1996,9 +2025,11 @@ async function renderBookings(force = false) {
 window.renderBookings = renderBookings;
 
 function _bookingFormHTML(b) {
-  const bayTypes = (D.settings.bay_types && D.settings.bay_types.length)
-    ? D.settings.bay_types.map(t => typeof t === 'string' ? t : (t.name || ''))
-    : ['Mechanical bay','Paint bay','2-post lift','Wash bay'];
+  // Bay types come from settings.bay_defs (set up in the Bays tab). No hard-coded defaults —
+  // an empty list shows "(none configured)" so the workshop knows to add their own.
+  const bayTypes = (D.settings.bay_defs || [])
+    .map(t => typeof t === 'string' ? t : (t.name || ''))
+    .filter(Boolean);
   const services = (D.settings.services && D.settings.services.length)
     ? D.settings.services : ['Oil change','Brake job','Tyre change','Diagnosis','General service','Paint job','Other'];
   const today = todayStr();
@@ -2154,13 +2185,19 @@ async function saveBooking(id) {
 
   await loadAllData(true);   // grab fresh in case another device just edited
   const idx = id ? D.bookings.findIndex(b => b.id === id) : -1;
+  const existing = idx >= 0 ? D.bookings[idx] : null;
+  // Allocate booking number + short reference for new bookings (keep on edit)
+  const bookingNo  = existing?.booking_no  || _nextBookingNo();
+  const bookingRef = existing?.booking_ref || _shortRef(4);
   const patch = {
     id: id || uid('bk'),
+    booking_no: bookingNo,
+    booking_ref: bookingRef,
     cust_name: cust, cust_phone: phone, plate, vehicle: veh, mechanic: mech,
     service, bay_type: bayType, date, time,
     cost_estimate: cost ? Number(cost) : 0,
     notes,
-    status: id && idx >= 0 ? (D.bookings[idx].status || 'Scheduled') : 'Scheduled',
+    status: existing ? (existing.status || 'Scheduled') : 'Scheduled',
     updated_at: nowStr()
   };
   if (idx >= 0) D.bookings[idx] = { ...D.bookings[idx], ...patch };
@@ -3081,7 +3118,7 @@ const TAB_TITLES = {
   dashboard:'Dashboard', bookings:'Bookings', checkin:'Check-in', jobs:'Job Cards',
   bays:'Bays', queue:'Queue', schedule:'Schedule', customers:'Customers',
   workers:'Workers', inventory:'Inventory', parts:'Parts Requests', request_parts:'Request Parts',
-  reports:'Reports', timesheets:'Timesheets', audit:'Audit Log', settings:'Settings'
+  invoices:'Invoices', reports:'Reports', timesheets:'Timesheets', audit:'Audit Log', settings:'Settings'
 };
 
 // Override renderHeader for the new layout (workshop name in sidebar, worker pill in sidebar foot)
@@ -3129,6 +3166,7 @@ window.switchTab = function(tab) {
   if (tab === 'bays')          renderBays();
   if (tab === 'queue')         renderQueue();
   if (tab === 'request_parts') renderRequestParts();
+  if (tab === 'invoices')      renderInvoices();
   // Auto-close the mobile drawer after picking a tab
   closeSidebar();
 };
@@ -3247,12 +3285,70 @@ function _renderBayChip(b) {
       </div>
       ${subText ? `<div style="font-size:11.5px;color:var(--faint);line-height:1.35">${escapeHtml(subText)}</div>` : ''}
       ${b.note ? `<div style="font-size:11px;color:var(--dim);background:rgba(255,255,255,.03);padding:6px 8px;border-radius:6px;line-height:1.4"><b style="color:var(--faint);font-size:10px">NOTE</b><br>${escapeHtml(b.note)}</div>` : ''}
-      <div style="display:flex;gap:6px;margin-top:auto">
-        <button class="mini-btn" style="flex:1;justify-content:center" onclick="editBayNote('${escapeHtml(b.id)}')">${b.note ? 'Edit note' : 'Add note'}</button>
-        <button class="mini-btn ${state === 'maintenance' ? 'good' : ''}" style="flex:1;justify-content:center" onclick="toggleBayMaintenance('${escapeHtml(b.id)}')">${state === 'maintenance' ? 'End maint.' : 'Maintenance'}</button>
+      <div style="display:flex;gap:6px;margin-top:auto;flex-wrap:wrap">
+        <button class="mini-btn" style="flex:1;min-width:90px;justify-content:center" onclick="editBayNote('${escapeHtml(b.id)}')">${b.note ? 'Edit note' : 'Add note'}</button>
+        ${state === 'occupied' ? `<button class="mini-btn good" style="flex:1;min-width:90px;justify-content:center" onclick="moveCarToBay('${escapeHtml(b.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><polyline points="9 18 15 12 9 6"/></svg>Move</button>` : ''}
+        <button class="mini-btn ${state === 'maintenance' ? 'good' : ''}" style="flex:1;min-width:90px;justify-content:center" onclick="toggleBayMaintenance('${escapeHtml(b.id)}')">${state === 'maintenance' ? 'End maint.' : 'Maintenance'}</button>
       </div>
     </div>`;
 }
+
+// Move the occupant of one bay to another free bay. Picks via the sub-modal.
+window.moveCarToBay = async function(fromBayId) {
+  await loadAllData(true);
+  const from = D.bays.find(b => b.id === fromBayId);
+  if (!from || (from.status || '').toLowerCase() !== 'occupied') return;
+  const free = D.bays.filter(b => _bayState(b) === 'available' && b.id !== fromBayId);
+  if (!free.length) return customAlert('No other free bays right now.', { title: 'No free bays' });
+  // Prefer same-type bays at the top of the list
+  free.sort((a, b) => {
+    if (a.type === from.type && b.type !== from.type) return -1;
+    if (b.type === from.type && a.type !== from.type) return 1;
+    return (a.type || '').localeCompare(b.type || '') || (a.num - b.num);
+  });
+  _openSubModal({
+    title: `Move ${from.plate || 'car'} from Bay ${from.num}`,
+    bodyHtml: `
+      <div style="color:var(--dim);font-size:13px;margin-bottom:12px">Pick the destination bay:</div>
+      <div style="display:grid;gap:8px">
+        ${free.map(b => `
+          <button type="button" class="snav" data-tobay="${escapeHtml(b.id)}"
+            style="background:var(--bg2);border:1px solid var(--brd2);padding:13px;border-radius:10px;text-align:left;cursor:pointer;font-family:var(--fb)">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="plate" style="background:rgba(32,227,178,.14);color:var(--teal);border-color:rgba(32,227,178,.28)">Bay ${escapeHtml(String(b.num))}</span>
+              <div style="flex:1"><b style="color:var(--txt)">${escapeHtml(b.type)}</b>${b.type === from.type ? ' <span style="font-size:11px;color:var(--teal)">· same type</span>' : ''}</div>
+            </div>
+          </button>`).join('')}
+      </div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>`
+  });
+  document.querySelectorAll('#gpSubModalBody [data-tobay]').forEach(btn => {
+    btn.onclick = async () => {
+      const toId = btn.dataset.tobay;
+      const to = D.bays.find(b => b.id === toId);
+      if (!to || _bayState(to) !== 'available') return showToast('That bay was taken — refresh and try again', 'bad');
+      // Move occupancy
+      to.status = 'occupied';
+      to.plate = from.plate;
+      to.booking_id = from.booking_id;
+      from.status = 'available';
+      from.plate = ''; from.booking_id = null;
+      // Update the booking pointer
+      const bk = D.bookings.find(x => x.id === to.booking_id);
+      if (bk) {
+        bk.bay_id = to.id;
+        bk.bay_name = to.type + ' · ' + to.num;
+        bk.bay_num = to.num;
+        bk.updated_at = nowStr();
+        await wsSave('bookings', D.bookings);
+      }
+      await wsSave('bays', D.bays);
+      closeSubModal();
+      showToast(`Moved to Bay ${to.num}`, 'good');
+      await renderBays(true);
+    };
+  });
+};
 
 
 window.editBayNote = async function(id) {
@@ -4062,6 +4158,7 @@ const ALL_TABS = [
   { id:'inventory',   label:'Inventory' },
   { id:'parts',         label:'Parts Requests (all)' },
   { id:'request_parts', label:'Request Parts (own)' },
+  { id:'invoices',      label:'Invoices' },
   { id:'reports',     label:'Reports' },
   { id:'timesheets',  label:'Timesheets' },
   { id:'audit',       label:'Audit Log' },
@@ -4878,6 +4975,561 @@ function numberToWordsIndian(n) {
   return (out.trim() + ' Rupees');
 }
 window.numberToWordsIndian = numberToWordsIndian;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  BOOKING NUMBERS / REFERENCES
+// ══════════════════════════════════════════════════════════════════════════
+// Sequential booking number across the whole workshop. Format: BK-0001
+function _nextBookingNo() {
+  let max = 0;
+  for (const b of D.bookings || []) {
+    const m = /^BK-(\d+)$/.exec(b.booking_no || '');
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return 'BK-' + String(max + 1).padStart(4, '0');
+}
+// Short random reference: 4 uppercase hex chars (BK-B7BD-style suffix).
+function _shortRef(n) {
+  const c = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < (n || 4); i++) out += c[Math.floor(Math.random() * c.length)];
+  return out;
+}
+window._nextBookingNo = _nextBookingNo;
+window._shortRef = _shortRef;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  INVOICES TAB — create / edit / view / print / delete, persisted to Firestore
+// ══════════════════════════════════════════════════════════════════════════
+// Invoice record:
+//   { id, number, booking_id?, job_id?, status: Draft|Issued|Paid|Cancelled,
+//     workshop_snapshot, customer: { name, email, phone, address },
+//     vehicle: { plate, model }, service, mechanic, issue_date,
+//     lines: [{ name, hsn, qty, unit_price, disc_pct }],
+//     charges: [{ name, amount }],
+//     payment_status, payment_method,
+//     created_at, updated_at, created_by }
+const _invStatuses = ['Draft','Issued','Paid','Cancelled'];
+
+async function renderInvoices(force = false) {
+  await loadAllData(force);
+  const all = (D.invoices || []).slice();
+  const q  = (document.getElementById('invSearch').value || '').toLowerCase().trim();
+  const st = document.getElementById('invStatus').value;
+  let list = all;
+  if (q) list = list.filter(i =>
+    (i.number || '').toLowerCase().includes(q) ||
+    (i.vehicle?.plate || '').toLowerCase().includes(q) ||
+    (i.customer?.name || '').toLowerCase().includes(q));
+  if (st) list = list.filter(i => (i.status || 'Draft') === st);
+  list.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  document.getElementById('invCrumb').textContent =
+    `${all.length} invoice${all.length === 1 ? '' : 's'} on file`;
+  document.getElementById('invCount').textContent = list.length;
+  const wrap = document.getElementById('invTableWrap');
+  if (!list.length) {
+    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">${all.length === 0 ? 'No invoices yet. Click "Create invoice" above, or generate one from a job card.' : 'No invoices match your filters.'}</td></tr></table>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="list-tbl">
+    <thead><tr>
+      <th>Invoice #</th><th>Date</th><th>Customer</th><th>Vehicle</th>
+      <th>Total</th><th>Status</th><th style="text-align:right">Actions</th>
+    </tr></thead>
+    <tbody>${list.map(inv => {
+      const total = _invoiceTotals(inv).roundOff;
+      const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
+      return `<tr>
+        <td class="k">${escapeHtml(inv.number || '—')}</td>
+        <td style="white-space:nowrap;font-size:12.5px;color:var(--faint)">${escapeHtml((inv.issue_date || (inv.created_at || '').slice(0, 10)))}</td>
+        <td>${escapeHtml(inv.customer?.name || '—')}</td>
+        <td>${inv.vehicle?.plate ? `<span class="plate">${escapeHtml(inv.vehicle.plate)}</span>` : '—'}</td>
+        <td class="k" style="white-space:nowrap">${escapeHtml(cur)} ${total.toLocaleString('en-IN')}</td>
+        <td>${statusPill(inv.status || 'Draft')}</td>
+        <td><div class="row-act">
+          <button class="mini-btn good" onclick="viewInvoice('${escapeHtml(inv.id)}')" title="View / print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>
+          <button class="mini-btn" onclick="openInvoiceForm('${escapeHtml(inv.id)}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+          <button class="mini-btn danger" onclick="deleteInvoice('${escapeHtml(inv.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+window.renderInvoices = renderInvoices;
+
+// Pure-math totals from an invoice record. Mirrors buildInvoiceData but operates
+// on a saved invoice (which carries unit_price + tax_pct inline, so the numbers
+// stay frozen even if inventory prices change later).
+function _invoiceTotals(inv) {
+  const taxPct = Number(inv.tax_pct ?? inv.workshop_snapshot?.tax_pct ?? D.settings.tax_pct ?? 0);
+  let partsTaxable = 0, gst = 0, disc = 0;
+  for (const l of inv.lines || []) {
+    const unit = Number(l.unit_price || 0);
+    const qty  = Math.max(1, Number(l.qty || 1));
+    const dp   = Number(l.disc_pct || 0);
+    const gross   = unit * qty;
+    const da      = +(gross * dp / 100).toFixed(2);
+    const taxable = +(gross - da).toFixed(2);
+    const tx      = +(taxable * taxPct / 100).toFixed(2);
+    partsTaxable += taxable;
+    gst          += tx;
+    disc         += da;
+  }
+  const labour = (inv.charges || []).reduce((s, c) => s + Number(c.amount || 0), 0);
+  const grand  = +(partsTaxable + gst + labour).toFixed(2);
+  return {
+    partsTaxable: +partsTaxable.toFixed(2),
+    gst: +gst.toFixed(2),
+    disc: +disc.toFixed(2),
+    labour: +labour.toFixed(2),
+    grand,
+    roundOff: Math.round(grand)
+  };
+}
+
+// Open the create/edit form. Pass null to create a new one; pass an id to edit.
+// You can also call openInvoiceForm({ from_job_id: 'xyz' }) to seed from a job card.
+window.openInvoiceForm = function(idOrSeed) {
+  let inv;
+  if (typeof idOrSeed === 'string' && idOrSeed) {
+    inv = (D.invoices || []).find(x => x.id === idOrSeed);
+    if (!inv) return showToast('Invoice not found', 'bad');
+  } else if (idOrSeed && typeof idOrSeed === 'object' && idOrSeed.from_job_id) {
+    inv = _seedInvoiceFromJob(idOrSeed.from_job_id);
+  } else {
+    inv = _blankInvoice();
+  }
+  _editingInvoice = JSON.parse(JSON.stringify(inv));   // deep copy for cancel-safe editing
+  openModal({
+    title: _editingInvoice.id && (D.invoices || []).find(x => x.id === _editingInvoice.id)
+      ? `Edit invoice · ${_editingInvoice.number}`
+      : 'Create invoice',
+    body: _invoiceFormHTML(),
+    saveLabel: 'Save invoice',
+    onSave: () => saveInvoice()
+  });
+  setTimeout(() => _drawInvoiceLineRows(), 0);
+};
+
+function _blankInvoice() {
+  const num = 'INV-' + String(((D.invoices || []).length + 1)).padStart(4, '0');
+  return {
+    id: uid('inv'),
+    number: num,
+    status: 'Draft',
+    issue_date: todayStr(),
+    booking_id: '', job_id: '',
+    customer: { name: '', email: '', phone: '', address: '' },
+    vehicle: { plate: '', model: '' },
+    service: '', mechanic: '',
+    lines: [], charges: [],
+    tax_pct: Number(D.settings.tax_pct || 0),
+    payment_status: 'Outstanding', payment_method: '',
+    notes: '',
+    workshop_snapshot: _workshopSnapshot(),
+    created_at: '', updated_at: '', created_by: currentWorker?.name || ''
+  };
+}
+
+function _workshopSnapshot() {
+  const s = D.settings || {};
+  return {
+    workshop_name: s.workshop_name || '', address: s.address || '', email: s.email || '',
+    phone: s.phone || '', gstin: s.gstin || '', currency: s.currency || '₹',
+    tax_pct: Number(s.tax_pct || 0), logo: s.logo || '',
+    bank_name: s.bank_name || '', bank_branch: s.bank_branch || '', bank_account: s.bank_account || '',
+    bank_ifsc: s.bank_ifsc || '', bank_swift: s.bank_swift || '', bank_terms: s.bank_terms || 'WIRE'
+  };
+}
+
+function _seedInvoiceFromJob(jobId) {
+  const inv = _blankInvoice();
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return inv;
+  const b = D.bookings.find(x => x.id === j.booking_id) || {};
+  const c = D.customers.find(x => (x.name || '').toLowerCase() === (b.cust_name || j.cust_name || '').toLowerCase()) || {};
+  // Use the original booking ref for the invoice number when we can, matches the PDF format BK-XXXX
+  inv.number = b.booking_ref ? ('BK-' + b.booking_ref) : ('BK-' + (b.id || j.id || '').slice(-4).toUpperCase());
+  inv.booking_id = b.id || '';
+  inv.job_id = j.id;
+  inv.customer = { name: b.cust_name || j.cust_name || '', email: c.email || '', phone: c.phone || b.cust_phone || '', address: c.address || '' };
+  inv.vehicle  = { plate: b.plate || j.plate || '', model: b.vehicle || '' };
+  inv.service  = b.service || j.type || '';
+  inv.mechanic = j.mechanic || b.mechanic || '';
+  inv.payment_status = b.payment_status || 'Outstanding';
+  // Pull parts with inventory enrichment
+  inv.lines = (j.parts || []).map(p => {
+    const itm = D.inventory.find(it => (it.name || '').toLowerCase() === (p.name || '').toLowerCase());
+    return {
+      name: p.name || '',
+      hsn: p.hsn || (itm && itm.hsn) || '',
+      qty: Math.max(1, Number(p.qty || 1)),
+      unit_price: Number(p.unit_price ?? (itm && itm.sell_price) ?? 0),
+      disc_pct: Number(p.disc_pct ?? D.settings.default_disc_pct ?? 0)
+    };
+  });
+  inv.charges = (j.service_charges || []).map(ch => ({ name: ch.name || '', amount: Number(ch.amount || 0) }));
+  return inv;
+}
+
+let _editingInvoice = null;
+
+function _invoiceFormHTML() {
+  const inv = _editingInvoice;
+  return `
+    <div class="f-row r3">
+      <div class="f-grp"><label>Invoice number</label><input id="if-num" type="text" value="${escapeHtml(inv.number)}" /></div>
+      <div class="f-grp"><label>Issue date</label><input id="if-date" type="date" value="${escapeHtml(inv.issue_date)}" /></div>
+      <div class="f-grp"><label>Status</label>
+        <select id="if-status">${_invStatuses.map(s => `<option value="${s}" ${(inv.status || 'Draft') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+    </div>
+    <div class="f-row">
+      <div class="f-grp"><label>Customer name <span class="req">*</span></label><input id="if-cname" type="text" value="${escapeHtml(inv.customer?.name || '')}" required /></div>
+      <div class="f-grp"><label>Customer email</label><input id="if-cemail" type="email" value="${escapeHtml(inv.customer?.email || '')}" /></div>
+    </div>
+    <div class="f-row r3">
+      <div class="f-grp"><label>Phone</label><input id="if-cphone" type="text" value="${escapeHtml(inv.customer?.phone || '')}" /></div>
+      <div class="f-grp"><label>Plate</label><input id="if-vplate" type="text" value="${escapeHtml(inv.vehicle?.plate || '')}" style="text-transform:uppercase" /></div>
+      <div class="f-grp"><label>Vehicle</label><input id="if-vmodel" type="text" value="${escapeHtml(inv.vehicle?.model || '')}" placeholder="Maruti Swift, 2019" /></div>
+    </div>
+    <div class="f-row r3">
+      <div class="f-grp"><label>Service</label><input id="if-service" type="text" value="${escapeHtml(inv.service || '')}" /></div>
+      <div class="f-grp"><label>Mechanic</label><input id="if-mech" type="text" value="${escapeHtml(inv.mechanic || '')}" /></div>
+      <div class="f-grp"><label>Tax % (GST)</label><input id="if-tax" type="number" step="0.01" value="${escapeHtml(String(inv.tax_pct ?? 0))}" /></div>
+    </div>
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-family:var(--fd);font-weight:700;font-size:14px">Line items (parts)</div>
+        <button type="button" class="mini-btn" onclick="_addInvoiceLine()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add line</button>
+      </div>
+      <div id="if-lines"></div>
+    </div>
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-family:var(--fd);font-weight:700;font-size:14px">Service charges (labour)</div>
+        <button type="button" class="mini-btn" onclick="_addInvoiceCharge()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add charge</button>
+      </div>
+      <div id="if-charges"></div>
+    </div>
+
+    <div class="f-row r3" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+      <div class="f-grp"><label>Payment status</label>
+        <select id="if-pay-status">
+          <option ${inv.payment_status === 'Outstanding' ? 'selected' : ''}>Outstanding</option>
+          <option ${inv.payment_status === 'Paid' ? 'selected' : ''}>Paid</option>
+          <option ${inv.payment_status === 'Partial' ? 'selected' : ''}>Partial</option>
+        </select>
+      </div>
+      <div class="f-grp"><label>Payment method</label><input id="if-pay-method" type="text" value="${escapeHtml(inv.payment_method || '')}" placeholder="Cash, UPI, bank transfer…" /></div>
+      <div class="f-grp" style="display:flex;flex-direction:column;justify-content:flex-end">
+        <div id="if-totals" style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:10px 12px;font-size:12.5px;color:var(--dim);line-height:1.7"></div>
+      </div>
+    </div>
+    <div class="f-err" id="if-err"></div>`;
+}
+
+window._addInvoiceLine = function() {
+  _editingInvoice.lines.push({ name: '', hsn: '', qty: 1, unit_price: 0, disc_pct: 0 });
+  _drawInvoiceLineRows();
+};
+window._addInvoiceCharge = function() {
+  _editingInvoice.charges.push({ name: '', amount: 0 });
+  _drawInvoiceLineRows();
+};
+window._removeInvoiceLine = function(idx) {
+  _editingInvoice.lines.splice(idx, 1);
+  _drawInvoiceLineRows();
+};
+window._removeInvoiceCharge = function(idx) {
+  _editingInvoice.charges.splice(idx, 1);
+  _drawInvoiceLineRows();
+};
+
+// Re-render the lines + charges grids. Each input writes back to _editingInvoice
+// onchange so totals stay live and the model is always the source of truth.
+function _drawInvoiceLineRows() {
+  // Pull the tax % from the form first so totals update if the user edited it
+  const taxInp = document.getElementById('if-tax');
+  if (taxInp) _editingInvoice.tax_pct = Number(taxInp.value) || 0;
+
+  const lines = document.getElementById('if-lines');
+  if (lines) {
+    lines.innerHTML = _editingInvoice.lines.length
+      ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:640px">
+          <thead><tr>
+            <th>Part name</th><th>HSN/SAC</th><th style="width:60px">Qty</th>
+            <th style="width:110px">Unit price</th><th style="width:80px">Disc %</th><th></th>
+          </tr></thead>
+          <tbody>${_editingInvoice.lines.map((l, i) => `<tr>
+            <td><input type="text" data-line="${i}" data-field="name" value="${escapeHtml(l.name)}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="text" data-line="${i}" data-field="hsn" value="${escapeHtml(l.hsn || '')}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="1" step="1" data-line="${i}" data-field="qty" value="${escapeHtml(String(l.qty))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="0.01" data-line="${i}" data-field="unit_price" value="${escapeHtml(String(l.unit_price))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="0.01" data-line="${i}" data-field="disc_pct" value="${escapeHtml(String(l.disc_pct || 0))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><button class="mini-btn danger" type="button" onclick="_removeInvoiceLine(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
+          </tr>`).join('')}</tbody></table></div>`
+      : '<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No line items. Click "Add line" above.</div>';
+    lines.querySelectorAll('input[data-line]').forEach(inp => {
+      inp.addEventListener('input', (ev) => {
+        const i = Number(ev.target.dataset.line);
+        const f = ev.target.dataset.field;
+        const v = ev.target.value;
+        _editingInvoice.lines[i][f] = (f === 'name' || f === 'hsn') ? v : Number(v) || 0;
+        _updateInvoiceTotalsBox();
+      });
+    });
+  }
+  const charges = document.getElementById('if-charges');
+  if (charges) {
+    charges.innerHTML = _editingInvoice.charges.length
+      ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:420px">
+          <thead><tr><th>Charge name</th><th style="width:140px">Amount</th><th></th></tr></thead>
+          <tbody>${_editingInvoice.charges.map((c, i) => `<tr>
+            <td><input type="text" data-chg="${i}" data-field="name" value="${escapeHtml(c.name)}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="0.01" data-chg="${i}" data-field="amount" value="${escapeHtml(String(c.amount))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><button class="mini-btn danger" type="button" onclick="_removeInvoiceCharge(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
+          </tr>`).join('')}</tbody></table></div>`
+      : '<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No service charges. Click "Add charge" above.</div>';
+    charges.querySelectorAll('input[data-chg]').forEach(inp => {
+      inp.addEventListener('input', (ev) => {
+        const i = Number(ev.target.dataset.chg);
+        const f = ev.target.dataset.field;
+        const v = ev.target.value;
+        _editingInvoice.charges[i][f] = f === 'name' ? v : Number(v) || 0;
+        _updateInvoiceTotalsBox();
+      });
+    });
+  }
+  // Re-bind tax % to live-update totals
+  if (taxInp) taxInp.addEventListener('input', () => {
+    _editingInvoice.tax_pct = Number(taxInp.value) || 0;
+    _updateInvoiceTotalsBox();
+  });
+  _updateInvoiceTotalsBox();
+}
+
+function _updateInvoiceTotalsBox() {
+  const box = document.getElementById('if-totals');
+  if (!box) return;
+  const t = _invoiceTotals(_editingInvoice);
+  const cur = D.settings.currency || '₹';
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between"><span>Parts taxable</span><b>${cur}${t.partsTaxable.toLocaleString('en-IN')}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>GST</span><b>${cur}${t.gst.toLocaleString('en-IN')}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Labour</span><b>${cur}${t.labour.toLocaleString('en-IN')}</b></div>
+    <div style="display:flex;justify-content:space-between"><span>Discount</span><b>${cur}${t.disc.toLocaleString('en-IN')}</b></div>
+    <div style="display:flex;justify-content:space-between;border-top:1px solid var(--brd);padding-top:4px;margin-top:4px;color:var(--txt)"><span>Total (rounded)</span><b>${cur}${t.roundOff.toLocaleString('en-IN')}</b></div>`;
+}
+
+async function saveInvoice() {
+  // Pull the simple top-level fields back from the form
+  const inv = _editingInvoice;
+  inv.number          = document.getElementById('if-num').value.trim() || inv.number;
+  inv.issue_date      = document.getElementById('if-date').value || todayStr();
+  inv.status          = document.getElementById('if-status').value;
+  inv.customer.name   = document.getElementById('if-cname').value.trim();
+  inv.customer.email  = document.getElementById('if-cemail').value.trim();
+  inv.customer.phone  = document.getElementById('if-cphone').value.trim();
+  inv.vehicle.plate   = document.getElementById('if-vplate').value.trim().toUpperCase();
+  inv.vehicle.model   = document.getElementById('if-vmodel').value.trim();
+  inv.service         = document.getElementById('if-service').value.trim();
+  inv.mechanic        = document.getElementById('if-mech').value.trim();
+  inv.tax_pct         = Number(document.getElementById('if-tax').value) || 0;
+  inv.payment_status  = document.getElementById('if-pay-status').value;
+  inv.payment_method  = document.getElementById('if-pay-method').value.trim();
+  if (!inv.customer.name) throw new Error('Customer name is required');
+  // Refresh workshop snapshot on every save so the latest logo/address is captured
+  inv.workshop_snapshot = _workshopSnapshot();
+  inv.updated_at = nowStr();
+  await loadAllData(true);
+  const idx = (D.invoices || []).findIndex(x => x.id === inv.id);
+  if (idx >= 0) D.invoices[idx] = { ...D.invoices[idx], ...inv };
+  else { inv.created_at = nowStr(); D.invoices.push(inv); }
+  await wsSave('invoices', D.invoices);
+  closeModal();
+  showToast(`Invoice ${inv.number} saved`, 'good');
+  await renderInvoices(true);
+}
+
+window.viewInvoice = async function(id) {
+  await loadAllData(true);
+  const inv = (D.invoices || []).find(x => x.id === id);
+  if (!inv) return showToast('Invoice not found', 'bad');
+  const html = _invoiceHTMLFromRecord(inv);
+  const w = window.open('', '_blank');
+  if (!w) return customAlert('Browser blocked the new tab. Allow pop-ups for this site.', { title: 'Pop-up blocked' });
+  w.document.open(); w.document.write(html); w.document.close();
+};
+
+window.deleteInvoice = async function(id) {
+  const inv = (D.invoices || []).find(x => x.id === id);
+  if (!inv) return;
+  if (!(await customConfirm(`Delete invoice ${inv.number}? This cannot be undone.`, { title: 'Delete invoice', okLabel: 'Delete' }))) return;
+  D.invoices = D.invoices.filter(x => x.id !== id);
+  await wsSave('invoices', D.invoices);
+  showToast('Invoice deleted', 'good');
+  await renderInvoices(true);
+};
+
+// Render an invoice record (saved version, not live from job) using the workshop_snapshot.
+function _invoiceHTMLFromRecord(inv) {
+  const ws  = inv.workshop_snapshot || _workshopSnapshot();
+  const t   = _invoiceTotals(inv);
+  const cur = ws.currency || '₹';
+  const fmt = (n) => `${cur} ${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const paid = (inv.payment_status || '').toLowerCase() === 'paid';
+  // Re-use the styles from _invoiceHTML but feed it the saved values
+  return `<!doctype html><html><head><meta charset="utf-8" /><title>Invoice ${escapeHtml(inv.number)}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:36px 44px;font-size:13px;line-height:1.5}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:38px}
+  .top-left h1{font-size:22px;font-weight:700;margin-bottom:6px}
+  .top-left .addr{color:#444;font-size:12.5px;line-height:1.55;max-width:380px}
+  .top-left .email{color:#444;font-size:12.5px;margin-top:2px}
+  .top-right img{max-width:170px;max-height:90px;display:block}
+  .blocks{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:32px}
+  .blocks h3{font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:10px}
+  .bill-to .name{font-size:13px;color:#222;margin-bottom:2px}
+  .bill-to .email{font-size:12.5px;color:#666}
+  .meta-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 24px;font-size:12.5px;color:#444}
+  .meta-grid .v{text-align:right;color:#1a1a1a;font-weight:600}
+  table.items{width:100%;border-collapse:collapse;margin-bottom:24px;border:1px solid #d9dde2}
+  table.items th{background:#f6f7f9;color:#1a1a1a;font-size:11.5px;font-weight:700;padding:11px 10px;text-align:left;border-bottom:1px solid #d9dde2}
+  table.items th.right{text-align:right}
+  table.items td{padding:11px 10px;font-size:12.5px;border-bottom:1px solid #eef1f4;vertical-align:top}
+  table.items td.right{text-align:right;white-space:nowrap}
+  table.items tr:last-child td{border-bottom:0}
+  .totals-wrap{display:flex;justify-content:flex-end;margin-bottom:24px}
+  .totals{min-width:280px;font-size:12.5px}
+  .totals .row{display:flex;justify-content:space-between;padding:6px 0;color:#444}
+  .totals .row.grand{border-top:1px solid #d9dde2;margin-top:6px;padding-top:10px;color:#1a1a1a;font-weight:600}
+  .totals .row.balance{border-top:2px solid #1a1a1a;margin-top:6px;padding-top:10px;font-weight:700;font-size:14px}
+  .words{font-size:12.5px;color:#444;margin-bottom:24px}
+  .bank h3{font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:10px}
+  .bank-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 24px;font-size:12.5px;color:#444;max-width:380px;margin-left:auto;text-align:left}
+  .bank-grid .v{color:#1a1a1a;font-weight:600}
+  .pay-status{font-size:12.5px;color:${paid ? '#16a34a' : '#dc2626'};font-weight:600;margin-top:8px}
+  hr{border:0;border-top:1px solid #d9dde2;margin:28px 0}
+  .foot{font-size:11.5px;color:#666;line-height:1.55;margin-bottom:8px}
+  @media print { body{padding:24px 32px} .no-print{display:none} }
+</style></head><body>
+  <div class="top">
+    <div class="top-left">
+      <h1>${escapeHtml(ws.workshop_name || 'Workshop')}</h1>
+      <div class="addr">${escapeHtml(ws.address || '')}</div>
+      <div class="email">${escapeHtml(ws.email || '')}</div>
+    </div>
+    <div class="top-right">${ws.logo ? `<img src="${escapeHtml(ws.logo)}" alt="Logo" />` : ''}</div>
+  </div>
+  <div class="blocks">
+    <div class="bill-to">
+      <h3>BILL TO</h3>
+      <div class="name">${escapeHtml(inv.customer?.name || '—')}</div>
+      <div class="email">${escapeHtml(inv.customer?.email || '')}</div>
+      ${inv.customer?.phone ? `<div class="email">${escapeHtml(inv.customer.phone)}</div>` : ''}
+    </div>
+    <div class="meta">
+      <h3>INVOICE</h3>
+      <div class="meta-grid">
+        <div>Invoice No:</div><div class="v">${escapeHtml(inv.number)}</div>
+        <div>Issue Date:</div><div class="v">${escapeHtml(inv.issue_date)}</div>
+        <div>Vehicle:</div><div class="v">${escapeHtml(inv.vehicle?.plate || '—')}</div>
+        <div>Service:</div><div class="v">${escapeHtml((inv.service || '—').toUpperCase())}</div>
+        <div>Mechanic:</div><div class="v">${escapeHtml((inv.mechanic || '—').toUpperCase())}</div>
+      </div>
+    </div>
+  </div>
+  <table class="items">
+    <thead><tr>
+      <th>#</th><th>Part Name</th><th>HSN/SAC</th>
+      <th class="right">Qty</th><th class="right">Unit Price</th>
+      <th class="right">Disc</th><th class="right">Taxable</th><th class="right">Total</th>
+    </tr></thead>
+    <tbody>
+      ${(inv.lines || []).length === 0 && (inv.charges || []).length === 0
+        ? `<tr><td colspan="8" style="text-align:center;color:#888;padding:30px">No line items.</td></tr>`
+        : ''}
+      ${(inv.lines || []).map((l, i) => {
+        const unit = Number(l.unit_price || 0), qty = Math.max(1, Number(l.qty || 1));
+        const dp = Number(l.disc_pct || 0);
+        const gross = unit * qty;
+        const da = +(gross * dp / 100).toFixed(2);
+        const taxable = +(gross - da).toFixed(2);
+        const tx = +(taxable * (inv.tax_pct || 0) / 100).toFixed(2);
+        return `<tr>
+          <td>${i + 1}</td><td>${escapeHtml(l.name)}</td><td>${escapeHtml(l.hsn || '')}</td>
+          <td class="right">${qty}</td><td class="right">${fmt(unit)}</td>
+          <td class="right">${dp ? dp + '%' : '—'}</td>
+          <td class="right">${fmt(taxable)}</td><td class="right">${fmt(taxable + tx)}</td>
+        </tr>`;
+      }).join('')}
+      ${(inv.charges || []).map(ch => `<tr>
+        <td></td><td>${escapeHtml(ch.name)}</td><td></td>
+        <td class="right">—</td><td class="right">—</td><td class="right">—</td><td class="right">—</td>
+        <td class="right">${fmt(ch.amount)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>
+  <div class="totals-wrap"><div class="totals">
+    <div class="row"><span>Parts Total</span><span>${fmt(t.partsTaxable)}</span></div>
+    <div class="row"><span>Labour Total</span><span>${fmt(t.labour)}</span></div>
+    <div class="row"><span>GST Total</span><span>${fmt(t.gst)}</span></div>
+    <div class="row"><span>Discount Total</span><span>${fmt(t.disc)}</span></div>
+    <div class="row grand"><span>Grand Total</span><span>${fmt(t.grand)}</span></div>
+    <div class="row"><span>Round off</span><span>${fmt(t.roundOff)}</span></div>
+    <div class="row balance"><span>Balance</span><span>${fmt(t.roundOff)}</span></div>
+  </div></div>
+  <div class="words">Amount (in Words): ${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only</div>
+  ${ws.bank_account ? `
+    <div class="bank">
+      <h3>PAY BY BANK TRANSFER</h3>
+      <div class="bank-grid">
+        <div>Bank Name:</div><div class="v">${escapeHtml(ws.bank_name || '')}</div>
+        <div>Account No:</div><div class="v">${escapeHtml(ws.bank_account || '')}</div>
+        <div>IFSC Code:</div><div class="v">${escapeHtml(ws.bank_ifsc || '')}</div>
+        <div>Branch:</div><div class="v">${escapeHtml(ws.bank_branch || '')}</div>
+        <div>Sort/SWIFT:</div><div class="v">${escapeHtml(ws.bank_swift || '')}</div>
+        <div>Terms:</div><div class="v">${escapeHtml(ws.bank_terms || 'WIRE')}</div>
+      </div>
+    </div>` : ''}
+  <div class="pay-status">Payment Status: <b>${escapeHtml(inv.payment_status || 'Outstanding')}</b></div>
+  <hr><div class="foot">I certify that the work has been done to my satisfaction and that I have taken delivery of the vehicle in good condition, with all items / valuables and parts intact.</div>
+  <hr><div class="foot">Thank you for choosing ${escapeHtml(ws.workshop_name || 'us')}. Please retain this invoice for your records.</div>
+  <div class="no-print" style="margin-top:24px;text-align:center"><button onclick="window.print()" style="background:#1a1a1a;color:#fff;border:0;padding:10px 20px;border-radius:7px;cursor:pointer;font-size:13px">Print invoice</button></div>
+  <script>setTimeout(() => window.print(), 400);<\/script>
+</body></html>`;
+}
+
+// Reroute the legacy generateInvoice (called from Jobs row + checkout) to:
+//   1) seed an invoice from the job
+//   2) save it to D.invoices
+//   3) open the print window from the saved record
+window.generateInvoice = async function(jobId) {
+  await loadAllData(true);
+  // Reuse the existing invoice for this job if one already exists
+  let inv = (D.invoices || []).find(x => x.job_id === jobId);
+  if (!inv) {
+    inv = _seedInvoiceFromJob(jobId);
+    inv.status = 'Issued';
+    inv.created_at = nowStr();
+    inv.updated_at = nowStr();
+    inv.created_by = currentWorker?.name || '';
+    D.invoices.push(inv);
+    await wsSave('invoices', D.invoices);
+    // Stamp the invoice number on the booking + job so we can retrieve later
+    const j = D.jobs.find(x => x.id === jobId);
+    const b = j && D.bookings.find(x => x.id === j.booking_id);
+    if (j && !j.invoice_no) { j.invoice_no = inv.number; await wsSave('jobs', D.jobs); }
+    if (b && !b.invoice_no) { b.invoice_no = inv.number; await wsSave('bookings', D.bookings); }
+  }
+  const html = _invoiceHTMLFromRecord(inv);
+  const w = window.open('', '_blank');
+  if (!w) return customAlert('Browser blocked the new tab. Allow pop-ups for this site to print invoices.', { title: 'Pop-up blocked' });
+  w.document.open(); w.document.write(html); w.document.close();
+};
 </script>
 
 <!-- QRCode.js is loaded on-demand via ensureQR() with multi-CDN fallback —
