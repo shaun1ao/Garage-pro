@@ -24,9 +24,19 @@
   --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif;
 
   /* layout */
-  --sidebar-w: 224px;
-  --header-h:  60px;
+  --sidebar-w: 240px;
+  --header-h:  56px;
 }
+
+/* ── Light-mode override ── */
+body.light{
+  --bg:#f5f6f8; --bg2:#ffffff; --surf:#ffffff; --surf2:#f0f2f6;
+  --brd:rgba(0,0,0,.06); --brd2:rgba(0,0,0,.12);
+  --txt:#1a1f29; --dim:#5a6573; --faint:#8a96a8;
+}
+body.light .sidebar{background:#fafbfc}
+body.light .stat-card{background:#fff}
+body.light ::-webkit-scrollbar-thumb{background:rgba(0,0,0,.08)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{font-family:var(--fb);background:var(--bg);color:var(--txt);overflow:hidden;-webkit-font-smoothing:antialiased;line-height:1.5}
@@ -48,6 +58,66 @@ h1,h2,h3,h4{font-family:var(--fd);font-weight:800;letter-spacing:-.01em;line-hei
 .overlay p{color:var(--dim);font-size:15px;text-align:center;max-width:380px;margin-bottom:24px}
 .overlay .spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,122,24,.15);border-top-color:var(--acc);animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── AUTH CARD (sign-in / sign-up) ── */
+.auth-card{position:relative;z-index:1;width:100%;max-width:420px;background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd2);border-radius:18px;padding:34px 32px;box-shadow:var(--shad)}
+.auth-card .a-logo{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;margin-bottom:18px;box-shadow:0 6px 20px -4px rgba(255,122,24,.6)}
+.auth-card .a-logo svg{width:24px;height:24px}
+.auth-card h2{font-family:var(--fd);font-size:22px;margin-bottom:6px}
+.auth-card .a-sub{color:var(--dim);font-size:14px;margin-bottom:22px;line-height:1.5}
+.auth-tabs{display:flex;gap:4px;background:var(--bg2);border-radius:9px;padding:3px;margin-bottom:18px}
+.auth-tab{flex:1;padding:9px;border:0;border-radius:7px;background:transparent;color:var(--dim);font-family:var(--fb);font-weight:600;font-size:13.5px;cursor:pointer;transition:all .15s}
+.auth-tab.active{background:var(--surf2);color:var(--txt);box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.auth-form{display:none;flex-direction:column;gap:14px}
+.auth-form.active{display:flex}
+.auth-form label{font-size:12.5px;font-weight:600;color:var(--dim);display:block;margin-bottom:5px}
+.auth-form input{width:100%;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;padding:11px 13px;color:var(--txt);font-family:var(--fb);font-size:15px;outline:none;transition:border-color .15s}
+.auth-form input:focus{border-color:var(--acc)}
+.auth-form .a-err{font-size:13px;color:var(--red);min-height:18px}
+.auth-form .a-ok{font-size:13px;color:var(--teal);min-height:18px}
+.auth-form .full-btn{width:100%;justify-content:center;margin-top:2px}
+.auth-form .forgot{background:none;border:0;color:var(--acc2);font-size:13px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;text-align:right;margin-top:-8px}
+.auth-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fff;color:#1a1a1a;border:1px solid #dadce0;border-radius:9px;padding:11px 14px;font-family:var(--fb);font-weight:600;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.auth-google:hover{box-shadow:0 4px 12px rgba(0,0,0,.18);transform:translateY(-1px)}
+.auth-google:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.auth-google svg{flex:none}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:6px 0;color:var(--faint);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:var(--brd)}
+.auth-hint{font-size:12.5px;color:var(--faint);margin-top:12px;text-align:center;line-height:1.55}
+
+/* ── PIN PAD ── */
+.pin-screen{position:relative;z-index:1;width:100%;max-width:720px;display:flex;flex-direction:column;align-items:center;gap:24px}
+.pin-screen .ws-name{font-family:var(--fd);font-size:22px;font-weight:800;color:var(--txt);text-align:center}
+.pin-screen .ws-sub{color:var(--dim);font-size:14px;text-align:center}
+.worker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;width:100%;max-width:680px}
+.worker-tile{background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd2);border-radius:14px;padding:22px 18px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:all .15s}
+.worker-tile:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.22);box-shadow:0 12px 28px -10px rgba(0,0,0,.6)}
+.worker-tile .av{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:20px;color:#170f05;background:linear-gradient(135deg,var(--acc),var(--acc2))}
+.worker-tile .nm{font-weight:700;font-size:14px;color:var(--txt);text-align:center;line-height:1.3}
+.worker-tile .rl{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.worker-tile.admin .av{background:linear-gradient(135deg,#9db0ff,#6b82e0);color:#fff}
+.worker-tile.manager .av{background:linear-gradient(135deg,#20e3b2,#16c79a);color:#0a0e14}
+
+.pin-entry{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:340px}
+.pin-entry .nm{font-family:var(--fd);font-size:18px;font-weight:800;color:var(--txt)}
+.pin-entry .nm small{display:block;font-family:var(--fb);font-size:13px;font-weight:500;color:var(--dim);margin-top:4px}
+.pin-dots{display:flex;gap:14px;justify-content:center;margin:6px 0 4px}
+.pin-dot{width:14px;height:14px;border-radius:50%;background:transparent;border:2px solid var(--brd2);transition:all .15s}
+.pin-dot.filled{background:var(--acc);border-color:var(--acc);box-shadow:0 0 8px rgba(255,122,24,.5)}
+.pin-err{font-size:13px;color:var(--red);min-height:18px;text-align:center}
+.pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%}
+.pin-key{aspect-ratio:1.5/1;background:var(--surf);border:1px solid var(--brd2);border-radius:11px;font-family:var(--fd);font-weight:800;font-size:22px;color:var(--txt);cursor:pointer;transition:all .1s;user-select:none}
+.pin-key:hover{background:var(--surf2);border-color:rgba(255,255,255,.22)}
+.pin-key:active{transform:scale(.95);background:var(--bg2)}
+.pin-key.act{background:rgba(255,122,24,.10);border-color:rgba(255,122,24,.32);color:var(--acc2)}
+.pin-back{background:none;border:0;color:var(--dim);font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px;border-radius:7px;transition:color .15s}
+.pin-back:hover{color:var(--txt)}
+
+/* signed-in worker pill in header */
+.worker-pill{display:flex;align-items:center;gap:9px;background:rgba(255,122,24,.10);border:1px solid rgba(255,122,24,.28);border-radius:100px;padding:5px 14px 5px 6px;font-size:13px;font-weight:600;color:var(--acc2);cursor:pointer;transition:border-color .15s}
+.worker-pill:hover{border-color:var(--acc)}
+.worker-pill .pav{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:11px;color:#170f05}
+.worker-pill svg{width:13px;height:13px;color:var(--acc2)}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;font-weight:700;font-size:15px;padding:12px 22px;border-radius:10px;border:0;cursor:pointer;transition:transform .15s,box-shadow .2s;box-shadow:0 8px 22px -8px rgba(255,122,24,.55)}
 .btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px -8px rgba(255,122,24,.7)}
@@ -97,13 +167,77 @@ header.app-header{
 
 .sidebar{
   flex:none;width:var(--sidebar-w);background:var(--bg2);border-right:1px solid var(--brd);
-  padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
+  padding:0;overflow:hidden;display:flex;flex-direction:column;
 }
-.sidebar .section-label{font-size:11px;font-weight:700;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;padding:14px 12px 8px}
-.snav{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;border:0;background:transparent;color:var(--dim);font-family:var(--fb);font-weight:600;font-size:14px;cursor:pointer;text-align:left;width:100%;transition:all .15s;border:1px solid transparent}
-.snav svg{width:17px;height:17px;flex:none}
+.sidebar-scroll{flex:1;overflow-y:auto;padding:8px 10px 12px;display:flex;flex-direction:column;gap:1px}
+.sidebar .workshop-name{padding:14px 16px 4px;font-size:13.5px;color:var(--dim);font-weight:600}
+.sidebar .section-label{font-size:11px;font-weight:700;color:var(--faint);letter-spacing:.1em;text-transform:uppercase;padding:14px 14px 6px}
+.snav{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:7px;border:0;background:transparent;color:var(--dim);font-family:var(--fb);font-weight:500;font-size:13.5px;cursor:pointer;text-align:left;width:100%;transition:all .12s;border-left:2px solid transparent}
+.snav svg{width:16px;height:16px;flex:none;opacity:.8}
+.snav .snav-icon-plus{width:14px;height:14px;color:var(--acc2);opacity:1}
 .snav:hover{background:var(--surf);color:var(--txt)}
-.snav.active{background:rgba(255,122,24,.12);color:var(--acc2);border-color:rgba(255,122,24,.22)}
+.snav.active{background:rgba(255,122,24,.10);color:var(--acc2);border-left-color:var(--acc)}
+.snav.active svg{opacity:1}
+
+.sidebar-foot{flex:none;border-top:1px solid var(--brd);padding:6px 10px 10px}
+.sidebar-foot .snav.user-row{margin:6px 0 2px}
+.sidebar-foot .snav.user-row .av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:10.5px;color:#170f05;flex:none}
+.sidebar-foot .snav.danger:hover{color:var(--red);background:rgba(255,107,107,.06)}
+.sidebar-foot .snav.danger:hover svg{color:var(--red);opacity:1}
+
+/* ── HEADER refinements (matches screenshot) ── */
+.app-header{justify-content:space-between}
+.app-header .tab-title{font-family:var(--fd);font-weight:700;font-size:16px;color:var(--txt);padding-left:6px}
+.tablet-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(157,176,255,.10);border:1px solid rgba(157,176,255,.28);border-radius:100px;padding:4px 14px;font-size:12.5px;color:var(--dim);font-weight:500}
+.tablet-pill b{color:var(--blue);font-weight:700;margin-right:2px}
+.tablet-pill a{color:var(--blue);text-decoration:none}
+.tablet-pill a:hover{text-decoration:underline}
+.sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--teal);font-weight:600}
+.sync-pill .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(32,227,178,.55);animation:pulse 2.2s infinite}
+.sync-pill.syncing{color:var(--acc2)}
+.sync-pill.syncing .sync-dot{background:var(--acc2);animation:spinFast 1s linear infinite;box-shadow:none;border:2px solid var(--acc2);border-top-color:transparent;border-radius:50%;background:transparent}
+.sync-pill.bad{color:var(--red)}
+.sync-pill.bad .sync-dot{background:var(--red);animation:none}
+@keyframes spinFast{to{transform:rotate(360deg)}}
+
+/* Workshop hero on the content area */
+.workshop-hero{margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--brd)}
+.workshop-hero h1{font-family:var(--fd);font-size:30px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.workshop-hero h1 small{font-family:var(--fb);font-size:13px;font-weight:500;color:var(--faint);letter-spacing:0;text-transform:none}
+.workshop-hero .date-line{margin-top:6px;font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;font-weight:700}
+
+/* ── SCANNER OVERLAY (camera) ── */
+.scan-overlay{position:fixed;inset:0;z-index:240;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center;padding:0;color:#fff}
+.scan-overlay.open{display:flex}
+.scan-overlay .scan-video-wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.scan-overlay video{width:100%;height:100%;object-fit:cover;background:#000}
+.scan-overlay .scan-frame{position:absolute;width:78vmin;max-width:520px;height:36vmin;max-height:260px;border:3px solid rgba(255,122,24,.85);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.55);pointer-events:none}
+.scan-overlay .scan-frame::before,.scan-overlay .scan-frame::after{content:"";position:absolute;left:50%;right:50%;height:2px;background:linear-gradient(90deg,transparent,var(--acc),transparent);top:50%;animation:scanLine 2s ease-in-out infinite;width:0}
+.scan-overlay .scan-frame::before{animation-direction:normal}
+.scan-overlay .scan-frame::after{animation-direction:reverse}
+@keyframes scanLine{0%,100%{width:0;left:50%;right:50%}50%{width:100%;left:0%;right:0%}}
+.scan-overlay .scan-top{position:absolute;top:0;left:0;right:0;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(180deg,rgba(0,0,0,.7),transparent);color:#fff}
+.scan-overlay .scan-top h3{font-family:var(--fd);font-size:16px;font-weight:700}
+.scan-overlay .scan-close{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);color:#fff;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;cursor:pointer;transition:background .15s}
+.scan-overlay .scan-close:hover{background:rgba(255,255,255,.22)}
+.scan-overlay .scan-close svg{width:18px;height:18px}
+.scan-overlay .scan-hint{position:absolute;bottom:0;left:0;right:0;padding:24px 22px 30px;text-align:center;background:linear-gradient(0deg,rgba(0,0,0,.85),transparent);color:#fff;font-size:14px;font-weight:500}
+.scan-overlay .scan-hint b{color:var(--acc2);font-weight:700}
+.scan-overlay .scan-manual{display:flex;gap:8px;justify-content:center;margin-top:14px}
+.scan-overlay .scan-manual input{flex:1;max-width:280px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:10px 13px;color:#fff;font-family:var(--fb);font-size:14px;outline:none}
+.scan-overlay .scan-manual input::placeholder{color:rgba(255,255,255,.5)}
+.scan-overlay .scan-manual button{background:var(--acc);color:#170f05;border:0;padding:10px 18px;border-radius:8px;font-family:var(--fb);font-weight:700;font-size:13.5px;cursor:pointer}
+
+.scan-result{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:90%;max-width:420px;background:var(--surf);border:1px solid var(--brd2);border-radius:14px;padding:24px;color:var(--txt);box-shadow:0 32px 80px -16px rgba(0,0,0,.9);display:none}
+.scan-result.open{display:block;animation:modalIn .25s cubic-bezier(.2,.7,.2,1)}
+.scan-result .r-icon{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;margin-bottom:14px}
+.scan-result .r-icon.good{background:rgba(32,227,178,.18);color:var(--teal);border:1px solid rgba(32,227,178,.32)}
+.scan-result .r-icon.unknown{background:rgba(255,179,71,.18);color:var(--acc2);border:1px solid rgba(255,179,71,.32)}
+.scan-result h4{font-family:var(--fd);font-size:17px;font-weight:800;margin-bottom:6px}
+.scan-result .r-meta{font-size:13px;color:var(--dim);margin-bottom:14px;line-height:1.55}
+.scan-result .r-code{font-family:'Courier New',monospace;font-size:13px;color:var(--acc2);background:var(--bg2);border:1px dashed var(--brd2);border-radius:6px;padding:8px 12px;display:block;margin:8px 0 18px;word-break:break-all}
+.scan-result .r-acts{display:flex;gap:8px;flex-wrap:wrap}
+.scan-result .r-acts button{flex:1;min-width:120px}
 
 .content{flex:1;overflow-y:auto;padding:28px 32px;min-width:0}
 
@@ -269,155 +403,258 @@ input[list]{background:var(--bg2)}
   <div class="spinner"></div>
 </div>
 
-<!-- ═══════════════ NOT SIGNED IN ═══════════════ -->
+<!-- ═══════════════ SIGN IN / SIGN UP ═══════════════ -->
 <div class="overlay" id="overlaySignin" style="display:none">
-  <div class="logo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
+  <div class="auth-card">
+    <div class="a-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
+    </div>
+    <h2 id="authTitle">Sign in to Garage Pro</h2>
+    <div class="a-sub" id="authSubtitle">Use your workshop / branch credentials. Each branch in a chain has its own login.</div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="authTabSignin" onclick="switchAuth('signin')">Sign in</button>
+      <button class="auth-tab" id="authTabSignup" onclick="switchAuth('signup')">Create workshop</button>
+    </div>
+
+    <!-- SIGN IN -->
+    <form class="auth-form active" id="authFormSignin" onsubmit="doEmailSignIn(event)">
+      <button type="button" class="auth-google" onclick="doGoogleSignIn()">
+        <svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true">
+          <path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/>
+          <path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/>
+          <path fill="#FBBC05" d="M11.69 28.18c-.44-1.32-.69-2.73-.69-4.18s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24c0 3.55.85 6.91 2.34 9.88l7.35-5.7z"/>
+          <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/>
+        </svg>
+        Continue with Google
+      </button>
+      <div class="auth-divider"><span>or email</span></div>
+      <div><label>Email</label><input id="si-email" type="email" placeholder="branch@yourgarage.in" autocomplete="username" required /></div>
+      <div><label>Password</label><input id="si-pass" type="password" placeholder="••••••••" autocomplete="current-password" required /></div>
+      <button type="button" class="forgot" onclick="doForgotPassword()">Forgot password?</button>
+      <div class="a-err" id="si-err"></div>
+      <button type="submit" class="btn full-btn">Sign in</button>
+    </form>
+
+    <!-- SIGN UP -->
+    <form class="auth-form" id="authFormSignup" onsubmit="doEmailSignUp(event)">
+      <div><label>Workshop / branch name</label><input id="su-garage" type="text" placeholder="Speed Auto Care — Mumbai" required /></div>
+      <div><label>Your name (owner)</label><input id="su-name" type="text" placeholder="Rajesh Kumar" required /></div>
+      <div><label>Email</label><input id="su-email" type="email" placeholder="branch@yourgarage.in" autocomplete="email" required /></div>
+      <div><label>Password</label><input id="su-pass" type="password" placeholder="At least 6 characters" autocomplete="new-password" required minlength="6" /></div>
+      <div>
+        <label>Your owner PIN (4 digits)</label>
+        <input id="su-pin" type="text" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" placeholder="e.g. 1234" required />
+        <div style="font-size:11.5px;color:var(--faint);margin-top:4px">You'll type this PIN every time you start a shift on the floor.</div>
+      </div>
+      <div class="a-err" id="su-err"></div>
+      <button type="submit" class="btn full-btn">Create workshop</button>
+    </form>
+
+    <!-- FORGOT PASSWORD -->
+    <form class="auth-form" id="authFormReset" onsubmit="doSendReset(event)">
+      <div style="font-size:14px;color:var(--dim);margin-bottom:6px;line-height:1.5">Enter the email you signed up with. We'll send you a link to set a new password.</div>
+      <div><label>Email</label><input id="rs-email" type="email" placeholder="branch@yourgarage.in" required /></div>
+      <div class="a-err" id="rs-err"></div>
+      <div class="a-ok" id="rs-ok"></div>
+      <button type="submit" class="btn full-btn">Send reset link</button>
+      <button type="button" class="forgot" style="text-align:center" onclick="switchAuth('signin')">← Back to sign in</button>
+    </form>
+
+    <div class="auth-hint">Running a chain? Create one workshop login per branch. The head can sign in to any branch with that branch's credentials.</div>
   </div>
-  <h1>Sign in required</h1>
-  <p>This is the Garage Pro app. You need a customer account to use it — sign in or create one on the main site, then come back here.</p>
-  <a href="../" class="btn">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-    Go to garagepro.me
-  </a>
 </div>
 
-<!-- ═══════════════ NO WORKSHOP YET (post-signin, pre-setup) ═══════════════ -->
+<!-- ═══════════════ FIRST-RUN SETUP (Google sign-in landed without a workshop yet) ═══════════════ -->
 <div class="overlay" id="overlayNoWorkshop" style="display:none">
-  <div class="logo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 9h6M9 13h6M9 17h6"/></svg>
+  <div class="auth-card">
+    <div class="a-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 9h6M9 13h6M9 17h6"/></svg>
+    </div>
+    <h2>Set up your workshop</h2>
+    <div class="a-sub">Just three things and you're in.</div>
+    <form class="auth-form active" onsubmit="doFirstSetup(event)">
+      <div><label>Workshop name</label><input id="fs-garage" type="text" placeholder="Speed Auto Care" required /></div>
+      <div><label>Your name</label><input id="fs-name" type="text" placeholder="Rajesh Kumar" required /></div>
+      <div>
+        <label>Owner PIN (4 digits)</label>
+        <input id="fs-pin" type="text" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" placeholder="e.g. 1234" required />
+      </div>
+      <div class="a-err" id="fs-err"></div>
+      <button type="submit" class="btn full-btn">Create workshop</button>
+    </form>
+    <div class="auth-hint">Signed in as <span id="signedInEmail" style="color:var(--dim)">—</span> · <button type="button" class="forgot" onclick="doSignOut()" style="display:inline">Sign out</button></div>
   </div>
-  <h1>Set up your workshop</h1>
-  <p>Looks like you don't have a workshop configured yet. The setup wizard will be the next thing we build — for now, click below to create a default one and start exploring the app shell.</p>
-  <button class="btn" id="btnCreateDefault">Create default workshop</button>
-  <p style="margin-top:16px;font-size:13px;color:var(--faint)">Signed in as <span id="signedInEmail" style="color:var(--dim)">—</span></p>
+</div>
+
+<!-- ═══════════════ PIN PAD (worker selection) ═══════════════ -->
+<div class="overlay" id="overlayPinpad" style="display:none">
+  <div class="pin-screen">
+    <div>
+      <div class="ws-name" id="pinWsName">Workshop</div>
+      <div class="ws-sub" id="pinSub">Tap your name to start a shift</div>
+    </div>
+
+    <div id="pinWorkerListWrap" style="width:100%">
+      <div class="worker-grid" id="pinWorkerList"></div>
+    </div>
+
+    <div id="pinEntryWrap" class="pin-entry" style="display:none">
+      <div class="nm" id="pinSelectedName">—<small id="pinSelectedRole">—</small></div>
+      <div class="pin-dots" id="pinDots"></div>
+      <div class="pin-err" id="pinErr"></div>
+      <div class="pin-grid">
+        <button class="pin-key" type="button" data-d="1">1</button>
+        <button class="pin-key" type="button" data-d="2">2</button>
+        <button class="pin-key" type="button" data-d="3">3</button>
+        <button class="pin-key" type="button" data-d="4">4</button>
+        <button class="pin-key" type="button" data-d="5">5</button>
+        <button class="pin-key" type="button" data-d="6">6</button>
+        <button class="pin-key" type="button" data-d="7">7</button>
+        <button class="pin-key" type="button" data-d="8">8</button>
+        <button class="pin-key" type="button" data-d="9">9</button>
+        <button class="pin-key" type="button" data-d="clear">⌫</button>
+        <button class="pin-key" type="button" data-d="0">0</button>
+        <button class="pin-key" type="button" data-d="back" style="font-size:13px">Back</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button type="button" class="pin-back" onclick="doSignOut()">Sign out of workshop</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════════ MAIN APP ═══════════════ -->
 <div class="app-frame" id="appFrame">
 
   <header class="app-header">
-    <a href="../" class="brand">
-      <span class="logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
-      </span>
-      Garage Pro <small>App</small>
-    </a>
-
-    <div class="ws-switcher" id="wsSwitcher" onclick="toggleDropdown('ddWs')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21V12h6v9"/></svg>
-      <span class="ws-name" id="wsName">Loading…</span>
-      <span class="ws-tag" id="wsTag" style="display:none">CHAIN</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-      <div class="dropdown" id="ddWs">
-        <div id="wsList"></div>
-        <div class="sep"></div>
-        <a onclick="alert('Coming in Step 5 — onboarding wizard'); event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          Add workshop
-        </a>
-      </div>
-    </div>
-
+    <div class="tab-title" id="hdrTabTitle">Dashboard</div>
     <div class="header-spacer"></div>
-
-    <div class="user-menu" onclick="toggleDropdown('ddUser')">
-      <div class="av" id="userAv">U</div>
-      <span class="name" id="userName">User</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-      <div class="dropdown" id="ddUser">
-        <a href="../#pricing" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          Manage subscription
-        </a>
-        <a href="../" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/></svg>
-          Main website
-        </a>
-        <div class="sep"></div>
-        <a class="danger" onclick="doSignOut()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-          Sign out
-        </a>
-      </div>
+    <div class="tablet-pill" title="Open the floor tablet on any device on your network">
+      <b>Tablet</b>
+      <a href="../tablet/" target="_blank" rel="noopener" id="tabletLink">garagepro.me/tablet</a>
+    </div>
+    <div class="header-spacer"></div>
+    <div class="sync-pill" id="syncPill" title="Workshop data sync status">
+      <span class="sync-dot"></span>
+      <span id="syncLabel">Synced</span>
     </div>
   </header>
 
   <div class="app-body">
 
     <nav class="sidebar" id="sidebar">
-      <div class="section-label">Workshop</div>
-      <button class="snav active" data-tab="dashboard" onclick="switchTab('dashboard')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-        Dashboard
-      </button>
-      <button class="snav" data-tab="bookings" onclick="switchTab('bookings')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-        Bookings
-      </button>
-      <button class="snav" data-tab="checkin" onclick="switchTab('checkin')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        Check-in
-      </button>
-      <button class="snav" data-tab="jobs" onclick="switchTab('jobs')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
-        Jobs
-      </button>
-      <button class="snav" data-tab="bays" onclick="switchTab('bays')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-        Bays
-      </button>
-      <button class="snav" data-tab="queue" onclick="switchTab('queue')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-        Queue
-      </button>
+      <!-- Brand at the top of the sidebar (matches screenshot) -->
+      <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--brd)">
+        <span style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;flex:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
+        </span>
+        <span style="font-family:var(--fd);font-weight:800;font-size:15px">Garage Pro</span>
+      </div>
 
-      <div class="section-label">Records</div>
-      <button class="snav" data-tab="customers" onclick="switchTab('customers')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Customers
-      </button>
-      <button class="snav" data-tab="workers" onclick="switchTab('workers')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7"/></svg>
-        Workers
-      </button>
-      <button class="snav" data-tab="inventory" onclick="switchTab('inventory')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
-        Inventory
-      </button>
-      <button class="snav" data-tab="timesheets" onclick="switchTab('timesheets')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        Timesheets
-      </button>
+      <div class="sidebar-scroll">
+        <div class="workshop-name" id="sbWsName">Loading…</div>
 
-      <div class="section-label">Insights</div>
-      <button class="snav" data-tab="reports" onclick="switchTab('reports')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
-        Reports
-      </button>
-      <button class="snav" data-tab="audit" onclick="switchTab('audit')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        Audit Log
-      </button>
+        <div class="section-label">Operations</div>
+        <button class="snav active" data-tab="dashboard" onclick="switchTab('dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+          Dashboard
+        </button>
+        <button class="snav" data-tab="_newbk" onclick="switchTab('bookings'); setTimeout(()=>openBookingForm(),200)">
+          <svg class="snav-icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          New Booking
+        </button>
+        <button class="snav" data-tab="bookings" onclick="switchTab('bookings')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h6"/></svg>
+          Bookings
+        </button>
+        <button class="snav" data-tab="schedule" onclick="switchTab('schedule')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          Schedule
+        </button>
+        <button class="snav" data-tab="checkin" onclick="switchTab('checkin')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Check-in
+        </button>
+        <button class="snav" data-tab="jobs" onclick="switchTab('jobs')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
+          Job Cards
+        </button>
+        <button class="snav" data-tab="queue" onclick="switchTab('queue')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
+          Queue
+        </button>
 
-      <div class="section-label">Configure</div>
-      <button class="snav" data-tab="settings" onclick="switchTab('settings')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-        Settings
-      </button>
+        <div class="section-label">Workshop</div>
+        <button class="snav" data-tab="customers" onclick="switchTab('customers')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Customers
+        </button>
+        <button class="snav" data-tab="workers" onclick="switchTab('workers')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7"/></svg>
+          Workers
+        </button>
+        <button class="snav" data-tab="bays" onclick="switchTab('bays')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          Bays
+        </button>
+        <button class="snav" data-tab="inventory" onclick="switchTab('inventory')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
+          Inventory
+        </button>
+        <button class="snav" data-tab="parts" onclick="switchTab('parts')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+          Parts Requests
+        </button>
+
+        <div class="section-label">Management</div>
+        <button class="snav" data-tab="reports" onclick="switchTab('reports')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
+          Reports
+        </button>
+        <button class="snav" data-tab="timesheets" onclick="switchTab('timesheets')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          Timesheets
+        </button>
+        <button class="snav" data-tab="audit" onclick="switchTab('audit')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg>
+          Audit Log
+        </button>
+
+        <div class="section-label">System</div>
+        <button class="snav" data-tab="settings" onclick="switchTab('settings')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+          Settings
+        </button>
+      </div>
+
+      <!-- Sidebar footer: user pill + light mode + sign out -->
+      <div class="sidebar-foot">
+        <button class="snav user-row" onclick="switchWorker()" title="Switch worker">
+          <span class="av" id="sbWorkerAv">—</span>
+          <span id="sbWorkerName" style="flex:1;color:var(--txt)">—</span>
+        </button>
+        <button class="snav" onclick="toggleLightMode()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="lightIcon"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
+          <span id="lightLabel">Light mode</span>
+        </button>
+        <button class="snav danger" onclick="doSignOut()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          Sign out
+        </button>
+      </div>
     </nav>
 
     <main class="content">
 
       <div class="tab-panel active" id="tab-dashboard">
-        <div class="page-head">
-          <div>
-            <h2 id="dashTitle">Dashboard</h2>
-            <div class="dash-meta">
-              <span class="live-dot"></span>
-              <span id="dashCrumb">—</span>
-            </div>
-          </div>
+        <div class="workshop-hero">
+          <h1 id="dashTitle">Workshop <small>powered by Garage Pro</small></h1>
+          <div class="date-line" id="dashDateLine">DASHBOARD — —</div>
+        </div>
+        <div class="page-head" style="margin-top:-4px">
+          <div style="font-size:13px;color:var(--faint)"><span id="dashCrumb">—</span></div>
           <button class="refresh-btn" id="dashRefresh" onclick="renderDashboard(true)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
             Refresh
@@ -519,7 +756,9 @@ input[list]{background:var(--bg2)}
         <div id="jbTableWrap"></div>
       </div>
       <div class="tab-panel" id="tab-bays"><div class="page-head"><div><h2>Bays</h2><div class="crumb">Coming in step 7</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
-      <div class="tab-panel" id="tab-queue"><div class="page-head"><div><h2>Queue</h2><div class="crumb">Coming in step 8</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
+      <div class="tab-panel" id="tab-queue"><div class="page-head"><div><h2>Queue</h2><div class="crumb">Coming next</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added next.</p></div></div>
+      <div class="tab-panel" id="tab-schedule"><div class="page-head"><div><h2>Schedule</h2><div class="crumb">Coming next</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>Weekly calendar view of all bookings will live here.</p></div></div>
+      <div class="tab-panel" id="tab-parts"><div class="page-head"><div><h2>Parts Requests</h2><div class="crumb">Coming next</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>Workers request parts from a job card → request lands here for approval.</p></div></div>
       <div class="tab-panel" id="tab-customers">
         <div class="page-head">
           <div><h2>Customers</h2><div class="dash-meta"><span class="live-dot"></span><span id="cuCrumb">—</span></div></div>
@@ -574,6 +813,28 @@ input[list]{background:var(--bg2)}
 <!-- toast -->
 <div class="toast" id="toast"></div>
 
+<!-- ═══════════════ BARCODE / QR SCANNER ═══════════════ -->
+<div class="scan-overlay" id="scanOverlay">
+  <div class="scan-video-wrap">
+    <video id="scanVideo" playsinline autoplay muted></video>
+    <div class="scan-frame"></div>
+  </div>
+  <div class="scan-top">
+    <h3 id="scanTitle">Scan barcode or QR code</h3>
+    <button class="scan-close" onclick="closeScanner()" title="Close (Esc)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="scan-hint" id="scanHint">
+    <div>Point your camera at a <b>barcode</b> or <b>QR code</b> — hold steady, good light helps</div>
+    <div class="scan-manual">
+      <input id="scanManual" type="text" placeholder="Or type the code here…" autocomplete="off" />
+      <button onclick="_scanManualSubmit()">Look up</button>
+    </div>
+  </div>
+  <div class="scan-result" id="scanResult"></div>
+</div>
+
 <!-- ═══════════════ SHARED MODAL ═══════════════ -->
 <div class="gp-modal" id="gpModal">
   <div class="gp-modal-box">
@@ -606,141 +867,374 @@ fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
 // ══════════════════════════════════════════
 //  GLOBAL STATE
 // ══════════════════════════════════════════
-let currentUser     = null;   // Firebase Auth user
-let userProfile     = null;   // users/{uid} doc
-let workshops       = [];     // [{id, name, isPrimary, ...}]
-let currentWorkshop = null;   // selected workshop ({id, name, ...})
-let currentTab      = 'dashboard';
+let currentUser    = null;   // Firebase Auth user (the WORKSHOP account)
+let userProfile    = null;   // users/{uid} doc — workshop-level info (name, settings)
+let currentWorker  = null;   // who is currently logged in via PIN (a worker record)
+let currentTab     = 'dashboard';
 
 // ══════════════════════════════════════════
-//  AUTH GATE
+//  HELPERS
+// ══════════════════════════════════════════
+async function sha256(str) {
+  const buf = new TextEncoder().encode(String(str));
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function showOnly(overlayId) {
+  ['overlayLoading','overlaySignin','overlayNoWorkshop','overlayPinpad'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (id === overlayId) ? 'flex' : 'none';
+  });
+  document.getElementById('appFrame').classList.toggle('ready', overlayId === null);
+}
+
+// ══════════════════════════════════════════
+//  AUTH GATE  (Firebase Auth = workshop login)
 // ══════════════════════════════════════════
 fbAuth.onAuthStateChanged(async (user) => {
   if (!user) {
-    document.getElementById('overlayLoading').style.display = 'none';
-    document.getElementById('overlaySignin').style.display = 'flex';
+    currentUser = null; currentWorker = null;
+    sessionStorage.removeItem('gp_worker:' + (currentUser?.uid || ''));
+    showOnly('overlaySignin');
     return;
   }
   currentUser = user;
-  document.getElementById('signedInEmail').textContent = user.email || '—';
+  const el = document.getElementById('signedInEmail');
+  if (el) el.textContent = user.email || '—';
 
   try {
     await loadUserProfile();
-    await loadWorkshops();
-    if (!workshops.length) {
-      document.getElementById('overlayLoading').style.display = 'none';
-      document.getElementById('overlayNoWorkshop').style.display = 'flex';
+    // No workshop set up yet → first-run setup
+    if (!userProfile || !userProfile.workshop_name) {
+      showOnly('overlayNoWorkshop');
+      return;
+    }
+    // Workshop exists → check if a worker session is already cached on this device
+    const cached = sessionStorage.getItem('gp_worker:' + user.uid);
+    if (cached) {
+      try { currentWorker = JSON.parse(cached); }
+      catch(e) { currentWorker = null; }
+    }
+    await loadAllData(true);
+    // Need at least one worker to log in. If no workers exist yet, set up an owner.
+    if (!D.mechanics.length) {
+      showOnly('overlayNoWorkshop');
+      return;
+    }
+    if (!currentWorker || !D.mechanics.find(w => w.id === currentWorker.id)) {
+      showPinpad();
       return;
     }
     enterApp();
   } catch (e) {
     console.error('Boot failed:', e);
     showToast('Could not load your workshop: ' + (e.message || e), 'bad');
+    showOnly('overlaySignin');
   }
 });
 
 async function loadUserProfile() {
   const doc = await fbDb.collection('users').doc(currentUser.uid).get();
-  userProfile = doc.exists ? doc.data() : { email: currentUser.email, name: currentUser.displayName || '' };
-  // If they don't have a user doc yet, create a minimal one
-  if (!doc.exists) {
-    await fbDb.collection('users').doc(currentUser.uid).set({
-      uid:   currentUser.uid,
-      email: currentUser.email,
-      name:  currentUser.displayName || currentUser.email.split('@')[0],
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-  }
+  userProfile = doc.exists ? doc.data() : null;
 }
 
-async function loadWorkshops() {
-  const snap = await fbDb.collection('users').doc(currentUser.uid).collection('workshops').get();
-  workshops = [];
-  snap.forEach(d => workshops.push({ id: d.id, ...d.data() }));
-  workshops.sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0));   // primary first
-  if (workshops.length) {
-    const lastUsed = localStorage.getItem('gp_currentWorkshop:' + currentUser.uid);
-    currentWorkshop = workshops.find(w => w.id === lastUsed) || workshops[0];
-  }
-}
+// ══════════════════════════════════════════
+//  AUTH FORM HANDLERS
+// ══════════════════════════════════════════
+window.switchAuth = function(which) {
+  document.getElementById('authTabSignin').classList.toggle('active', which === 'signin');
+  document.getElementById('authTabSignup').classList.toggle('active', which === 'signup');
+  document.getElementById('authFormSignin').classList.toggle('active', which === 'signin');
+  document.getElementById('authFormSignup').classList.toggle('active', which === 'signup');
+  document.getElementById('authFormReset' ).classList.toggle('active', which === 'reset');
+  // Hide the top tabs row when on the reset view (it's a sub-screen)
+  document.querySelector('.auth-tabs').style.display = (which === 'reset') ? 'none' : '';
+  // Clear any stale messages
+  ['si-err','su-err','rs-err','rs-ok'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
+};
 
-document.getElementById('btnCreateDefault').addEventListener('click', async () => {
-  const btn = document.getElementById('btnCreateDefault');
-  btn.disabled = true;
-  btn.textContent = 'Creating…';
+window.doEmailSignIn = async function(e) {
+  e.preventDefault();
+  const email = document.getElementById('si-email').value.trim();
+  const pass  = document.getElementById('si-pass').value;
+  const err   = document.getElementById('si-err'); err.textContent = '';
+  const btn   = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.textContent = 'Signing in…';
   try {
-    const wsRef = fbDb.collection('users').doc(currentUser.uid).collection('workshops').doc('main');
-    await wsRef.set({
-      name:       userProfile.garageName || 'My Workshop',
-      isPrimary:  true,
-      createdAt:  firebase.firestore.FieldValue.serverTimestamp(),
-      // skeleton fields the desktop app expected — filled in by the Settings screen later
-      address: '', phone: '', gstin: '',
-      bankDetails: { holderName:'', accountNumber:'', ifsc:'', bankName:'' }
-    });
-    document.getElementById('overlayNoWorkshop').style.display = 'none';
-    document.getElementById('overlayLoading').style.display = 'flex';
-    await loadWorkshops();
-    enterApp();
+    await fbAuth.signInWithEmailAndPassword(email, pass);
+    // onAuthStateChanged handles the rest
+  } catch (e2) {
+    err.textContent = friendlyAuthError(e2);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+};
+
+window.doEmailSignUp = async function(e) {
+  e.preventDefault();
+  const garage = document.getElementById('su-garage').value.trim();
+  const name   = document.getElementById('su-name').value.trim();
+  const email  = document.getElementById('su-email').value.trim();
+  const pass   = document.getElementById('su-pass').value;
+  const pin    = document.getElementById('su-pin').value.trim();
+  const err    = document.getElementById('su-err'); err.textContent = '';
+  if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
+    if (cred.user.updateProfile) await cred.user.updateProfile({ displayName: name });
+    // Write workshop profile + bootstrap owner worker in one go
+    await provisionNewWorkshop(cred.user.uid, garage, name, pin, email);
+    // onAuthStateChanged fires next → loads everything → shows PIN-pad
+  } catch (e2) {
+    err.textContent = friendlyAuthError(e2);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create workshop';
+  }
+};
+
+window.doGoogleSignIn = async function() {
+  const errCurrent = document.getElementById(
+    document.getElementById('authFormSignup').classList.contains('active') ? 'su-err' : 'si-err'
+  );
+  if (errCurrent) errCurrent.textContent = '';
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    await fbAuth.signInWithPopup(provider);
+    // onAuthStateChanged decides next screen (first-run setup vs PIN-pad)
   } catch (e) {
-    btn.disabled = false;
-    btn.textContent = 'Create default workshop';
-    showToast('Failed: ' + (e.message || e), 'bad');
+    const code = e?.code || '';
+    if (code.includes('popup-closed-by-user') || code.includes('cancelled-popup-request')) return;
+    if (errCurrent) errCurrent.textContent = friendlyAuthError(e);
+  }
+};
+
+window.doForgotPassword = function() { switchAuth('reset'); };
+
+window.doSendReset = async function(e) {
+  e.preventDefault();
+  const email = document.getElementById('rs-email').value.trim();
+  const err = document.getElementById('rs-err'); err.textContent = '';
+  const ok  = document.getElementById('rs-ok');  ok.textContent  = '';
+  try {
+    await fbAuth.sendPasswordResetEmail(email);
+    ok.textContent = `Check ${email} for a link — may take a minute, also check spam.`;
+  } catch (e2) {
+    err.textContent = friendlyAuthError(e2);
+  }
+};
+
+window.doFirstSetup = async function(e) {
+  e.preventDefault();
+  const garage = document.getElementById('fs-garage').value.trim();
+  const name   = document.getElementById('fs-name').value.trim();
+  const pin    = document.getElementById('fs-pin').value.trim();
+  const err    = document.getElementById('fs-err'); err.textContent = '';
+  if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.textContent = 'Setting up…';
+  try {
+    await provisionNewWorkshop(currentUser.uid, garage, name, pin, currentUser.email);
+    await loadUserProfile();
+    await loadAllData(true);
+    showPinpad();
+  } catch (e2) {
+    err.textContent = e2.message || String(e2);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create workshop';
+  }
+};
+
+async function provisionNewWorkshop(uid, garage, ownerName, pin, email) {
+  // 1) Workshop profile at users/{uid}
+  await fbDb.collection('users').doc(uid).set({
+    uid, email,
+    name:           ownerName,
+    workshop_name:  garage,
+    createdAt:      firebase.firestore.FieldValue.serverTimestamp(),
+    settings_done:  false
+  }, { merge: true });
+  // 2) Initial owner worker so they can immediately PIN-in
+  const pinHash = await sha256(pin);
+  await fbDb.collection('users').doc(uid).collection('mechanics').doc('data').set({
+    items: [{
+      id:        'mech-owner',
+      name:      ownerName,
+      role:      'owner',
+      active:    true,
+      pin_hash:  pinHash,
+      pin_len:   pin.length,
+      created_at: new Date().toISOString()
+    }],
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  // 3) Initial settings doc — empty but present so other tabs don't 404
+  await fbDb.collection('users').doc(uid).collection('settings').doc('data').set({
+    items: [{
+      workshop_name: garage,
+      address: '', phone: '', gstin: '',
+      bay_types: [], services: []
+    }],
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+function friendlyAuthError(e) {
+  const code = (e && e.code) || '';
+  if (code.includes('email-already-in-use'))      return 'An account with that email already exists. Sign in instead.';
+  if (code.includes('user-not-found'))             return 'No account with that email. Create a workshop instead.';
+  if (code.includes('wrong-password'))             return 'Wrong password — try again or reset it.';
+  if (code.includes('invalid-credential'))         return 'Email or password is incorrect.';
+  if (code.includes('invalid-login-credentials'))  return 'Email or password is incorrect.';
+  if (code.includes('weak-password'))              return 'Password too weak — use at least 6 characters.';
+  if (code.includes('invalid-email'))              return 'That email address looks wrong.';
+  if (code.includes('too-many-requests'))          return 'Too many attempts. Wait a minute and try again.';
+  if (code.includes('popup-blocked'))              return 'Your browser blocked the Google popup.';
+  if (code.includes('unauthorized-domain'))        return 'This domain isn\'t authorised in Firebase Auth.';
+  if (code.includes('operation-not-allowed'))      return 'This sign-in method isn\'t enabled in Firebase.';
+  if (code.includes('network'))                    return 'Network error — check your connection.';
+  return (e && e.message) || 'Sign-in failed.';
+}
+
+// ══════════════════════════════════════════
+//  PIN PAD — pick a worker, enter their PIN
+// ══════════════════════════════════════════
+let _pinSelectedWorker = null;
+let _pinEntered = '';
+
+function showPinpad() {
+  showOnly('overlayPinpad');
+  document.getElementById('pinWsName').textContent = userProfile?.workshop_name || 'Workshop';
+  document.getElementById('pinSub').textContent = 'Tap your name to start a shift';
+  document.getElementById('pinWorkerListWrap').style.display = '';
+  document.getElementById('pinEntryWrap').style.display = 'none';
+  _pinSelectedWorker = null; _pinEntered = '';
+  // Render worker tiles
+  const list = document.getElementById('pinWorkerList');
+  const workers = (D.mechanics || []).filter(w => w.active !== false);
+  list.innerHTML = workers.map(w => {
+    const initials = (w.name || '?').split(' ').map(s => s[0]).slice(0,2).join('').toUpperCase();
+    const roleCls  = ['owner','manager'].includes((w.role || '').toLowerCase()) ? (w.role || '').toLowerCase() : '';
+    return `<div class="worker-tile ${roleCls}" onclick="selectWorker('${w.id.replace(/'/g, "\\'")}')">
+      <div class="av">${escapeHtml(initials)}</div>
+      <div class="nm">${escapeHtml(w.name || '—')}</div>
+      <div class="rl">${escapeHtml(w.role || 'mechanic')}</div>
+    </div>`;
+  }).join('') || '<div style="color:var(--dim);text-align:center;padding:24px;grid-column:1/-1">No active workers yet.</div>';
+}
+
+window.selectWorker = function(id) {
+  const w = (D.mechanics || []).find(x => x.id === id);
+  if (!w) return;
+  _pinSelectedWorker = w;
+  _pinEntered = '';
+  document.getElementById('pinWorkerListWrap').style.display = 'none';
+  document.getElementById('pinEntryWrap').style.display = 'flex';
+  document.getElementById('pinSelectedName').firstChild.textContent = w.name + ' ';
+  document.getElementById('pinSelectedRole').textContent = (w.role || 'mechanic').toUpperCase();
+  document.getElementById('pinErr').textContent = '';
+  renderPinDots();
+};
+
+function renderPinDots() {
+  const len = _pinSelectedWorker?.pin_len || 4;
+  const dots = document.getElementById('pinDots');
+  let html = '';
+  for (let i = 0; i < len; i++) html += `<div class="pin-dot ${i < _pinEntered.length ? 'filled' : ''}"></div>`;
+  dots.innerHTML = html;
+}
+
+// PIN key handler
+document.querySelectorAll('#overlayPinpad .pin-key').forEach(k => {
+  k.addEventListener('click', async (ev) => {
+    const d = k.getAttribute('data-d');
+    if (d === 'back') { showPinpad(); return; }
+    if (d === 'clear') {
+      _pinEntered = _pinEntered.slice(0, -1);
+      renderPinDots();
+      document.getElementById('pinErr').textContent = '';
+      return;
+    }
+    if (!_pinSelectedWorker) return;
+    const expectedLen = _pinSelectedWorker.pin_len || 4;
+    if (_pinEntered.length >= expectedLen) return;
+    _pinEntered += d;
+    renderPinDots();
+    if (_pinEntered.length === expectedLen) {
+      // Validate
+      const hash = await sha256(_pinEntered);
+      if (hash === _pinSelectedWorker.pin_hash) {
+        currentWorker = _pinSelectedWorker;
+        sessionStorage.setItem('gp_worker:' + currentUser.uid, JSON.stringify({
+          id: currentWorker.id, name: currentWorker.name, role: currentWorker.role
+        }));
+        enterApp();
+      } else {
+        document.getElementById('pinErr').textContent = 'Incorrect PIN';
+        _pinEntered = '';
+        setTimeout(() => { renderPinDots(); document.getElementById('pinErr').textContent = ''; }, 800);
+      }
+    }
+  });
+});
+
+// Keyboard shortcut: typing numbers from worker tile pre-selects nothing — only acts when PIN-pad is showing
+document.addEventListener('keydown', (ev) => {
+  if (document.getElementById('overlayPinpad').style.display !== 'flex') return;
+  if (!_pinSelectedWorker) return;
+  if (/^[0-9]$/.test(ev.key)) {
+    const btn = document.querySelector(`#overlayPinpad .pin-key[data-d="${ev.key}"]`);
+    if (btn) btn.click();
+  } else if (ev.key === 'Backspace') {
+    const btn = document.querySelector(`#overlayPinpad .pin-key[data-d="clear"]`);
+    if (btn) btn.click();
+  } else if (ev.key === 'Escape') {
+    showPinpad();
   }
 });
 
+window.switchWorker = function() {
+  closeAllDropdowns();
+  sessionStorage.removeItem('gp_worker:' + (currentUser?.uid || ''));
+  currentWorker = null;
+  showPinpad();
+};
+
 // ══════════════════════════════════════════
-//  ENTER APP
+//  ENTER APP (after PIN-pad success)
 // ══════════════════════════════════════════
 function enterApp() {
-  document.getElementById('overlayLoading').style.display = 'none';
-  document.getElementById('overlaySignin').style.display = 'none';
-  document.getElementById('overlayNoWorkshop').style.display = 'none';
-  document.getElementById('appFrame').classList.add('ready');
+  showOnly(null);
   renderHeader();
   renderSidebarVisibility();
   switchTab(currentTab);
 }
 
 function renderHeader() {
-  // workshop switcher
-  document.getElementById('wsName').textContent = currentWorkshop ? currentWorkshop.name : '—';
-  const isChain = workshops.length > 1 || (userProfile && userProfile.garageType === 'chain');
-  document.getElementById('wsTag').style.display = isChain ? '' : 'none';
-  // user menu
-  const name  = (userProfile && userProfile.name) || currentUser.email.split('@')[0];
-  const first = name.split(' ')[0] || name;
+  document.getElementById('wsName').textContent = userProfile?.workshop_name || 'Workshop';
+  const ownerName  = userProfile?.name || currentUser.email?.split('@')[0] || 'User';
+  const first      = ownerName.split(' ')[0];
   document.getElementById('userName').textContent = first;
   document.getElementById('userAv').textContent = (first[0] || '?').toUpperCase();
-  // dashboard subtitle
+  // worker pill
+  if (currentWorker) {
+    document.getElementById('workerName').textContent = currentWorker.name;
+    document.getElementById('workerAv').textContent =
+      (currentWorker.name || '?').split(' ').map(s => s[0]).slice(0,2).join('').toUpperCase();
+    document.getElementById('workerPill').style.display = '';
+  } else {
+    document.getElementById('workerPill').style.display = 'none';
+  }
   const c = document.getElementById('dashCrumb');
-  if (c) c.textContent = `${currentWorkshop ? currentWorkshop.name : 'No workshop'} · signed in as ${currentUser.email}`;
-  // workshop dropdown list
-  const list = document.getElementById('wsList');
-  list.innerHTML = workshops.map(w => {
-    const active = currentWorkshop && w.id === currentWorkshop.id;
-    return `<a onclick="selectWorkshop('${w.id.replace(/'/g, "\\'")}'); event.stopPropagation()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${active ? '<path d="M20 6 9 17l-5-5"/>' : '<circle cx="12" cy="12" r="9"/>'}</svg>
-      ${escapeHtml(w.name)}${w.isPrimary ? ' <span style="color:var(--faint);font-size:11px;margin-left:4px">primary</span>' : ''}
-    </a>`;
-  }).join('');
+  if (c) c.textContent = `${userProfile?.workshop_name || 'Workshop'} · ${currentWorker?.name || 'No worker'} · ${currentUser.email}`;
 }
 
 function renderSidebarVisibility() {
-  // For now everything is visible. Later we'll gate by role (owner / manager / receptionist).
+  // TODO: gate by worker.role + worker.tab_perms in a later step. For now, show everything.
 }
-
-window.selectWorkshop = function(id) {
-  const ws = workshops.find(w => w.id === id);
-  if (!ws) return;
-  currentWorkshop = ws;
-  localStorage.setItem('gp_currentWorkshop:' + currentUser.uid, ws.id);
-  closeAllDropdowns();
-  renderHeader();
-  // Re-render current tab so it reads the new workshop's data
-  switchTab(currentTab);
-  showToast(`Switched to ${ws.name}`, 'good');
-};
 
 // ══════════════════════════════════════════
 //  NAV / TABS
@@ -805,17 +1299,15 @@ function escapeHtml(s) {
 }
 
 // ══════════════════════════════════════════
-//  Path helpers — every collection lives under the current workshop
+//  Path helpers — every collection lives under the WORKSHOP (= Firebase Auth user)
+// New model: one Firebase Auth account = one workshop. No more workshops/{wsId} layer.
 // ══════════════════════════════════════════
 function wsRef() {
-  if (!currentUser || !currentWorkshop) throw new Error('No workshop context');
-  return fbDb.collection('users').doc(currentUser.uid)
-              .collection('workshops').doc(currentWorkshop.id);
+  if (!currentUser) throw new Error('No signed-in workshop');
+  return fbDb.collection('users').doc(currentUser.uid);
 }
-// e.g. wsCol('bookings').doc('data') — used by every subsequent step
 function wsCol(name) { return wsRef().collection(name); }
 
-// Convenience for the one-doc-per-collection pattern the desktop app uses
 async function wsLoad(name)        { const d = await wsCol(name).doc('data').get(); return d.exists ? (d.data().items || []) : []; }
 async function wsSave(name, items) { return wsCol(name).doc('data').set({ items, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }); }
 window.wsRef = wsRef; window.wsCol = wsCol; window.wsLoad = wsLoad; window.wsSave = wsSave;
@@ -1601,6 +2093,638 @@ window.deleteJob = async function(id) {
   showToast('Job deleted', 'good');
   await renderJobs(true);
 };
+
+// ══════════════════════════════════════════
+//  CUSTOMERS
+// ══════════════════════════════════════════
+async function renderCustomers(force = false) {
+  await loadAllData(force);
+  document.getElementById('cuCrumb').textContent =
+    `${D.customers.length} customer${D.customers.length === 1 ? '' : 's'} on file`;
+  const q = (document.getElementById('cuSearch').value || '').toLowerCase().trim();
+  let list = D.customers.slice();
+  if (q) {
+    // also match by plate (find customers whose plate matches a booking)
+    const matchedNamesFromPlate = new Set(
+      D.bookings.filter(b => (b.plate || '').toLowerCase().includes(q)).map(b => b.cust_name)
+    );
+    list = list.filter(c =>
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.phone || '').toLowerCase().includes(q) ||
+      (c.email || '').toLowerCase().includes(q) ||
+      matchedNamesFromPlate.has(c.name));
+  }
+  list.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  document.getElementById('cuCount').textContent = list.length;
+  const wrap = document.getElementById('cuTableWrap');
+  if (!list.length) {
+    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">${D.customers.length === 0 ? 'No customers yet. Customers are added automatically when you create a booking, or use the "New customer" button above.' : 'No customers match your search.'}</td></tr></table>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="list-tbl">
+    <thead><tr>
+      <th>Name</th><th>Phone</th><th>Email</th><th>Visits</th><th>Total spend</th>
+      <th style="text-align:right">Actions</th>
+    </tr></thead>
+    <tbody>${list.map(c => {
+      const visits = D.bookings.filter(b => b.cust_name === c.name).length;
+      const spend  = D.bookings.filter(b => b.cust_name === c.name)
+        .reduce((s,b) => s + (Number(b.actual_cost) || Number(b.cost_estimate) || 0), 0);
+      return `<tr>
+        <td class="k">${escapeHtml(c.name || '—')}</td>
+        <td>${escapeHtml(c.phone || '—')}</td>
+        <td>${escapeHtml(c.email || '—')}</td>
+        <td>${visits || '—'}</td>
+        <td>${spend ? '₹' + spend.toLocaleString('en-IN') : '—'}</td>
+        <td><div class="row-act">
+          <button class="mini-btn" onclick="openServiceHistory('${escapeHtml(c.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>History</button>
+          <button class="mini-btn" onclick="openCustomerForm('${escapeHtml(c.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+          <button class="mini-btn danger" onclick="deleteCustomer('${escapeHtml(c.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+window.renderCustomers = renderCustomers;
+
+window.openCustomerForm = function(id) {
+  const c = id ? (D.customers.find(x => x.id === id) || {}) : {};
+  const isNew = !id;
+  openModal({
+    title: isNew ? 'New customer' : `Edit · ${c.name}`,
+    body: `
+      <div class="f-row">
+        <div class="f-grp"><label>Full name <span class="req">*</span></label><input id="cf-name" type="text" value="${escapeHtml(c.name || '')}" required /></div>
+        <div class="f-grp"><label>Phone</label><input id="cf-phone" type="tel" value="${escapeHtml(c.phone || '')}" placeholder="+91 ..." /></div>
+      </div>
+      <div class="f-row r1">
+        <div class="f-grp"><label>Email</label><input id="cf-email" type="email" value="${escapeHtml(c.email || '')}" placeholder="customer@example.in" /></div>
+      </div>
+      <div class="f-row r1">
+        <div class="f-grp"><label>Address</label><textarea id="cf-addr" placeholder="Shop 12, MG Road, Pune">${escapeHtml(c.address || '')}</textarea></div>
+      </div>
+      <div class="f-row r1">
+        <div class="f-grp"><label>Notes</label><textarea id="cf-notes" placeholder="VIP, prefers WhatsApp, etc.">${escapeHtml(c.notes || '')}</textarea></div>
+      </div>
+      <div class="f-err" id="cf-err"></div>`,
+    saveLabel: isNew ? 'Add customer' : 'Save changes',
+    onSave: () => saveCustomer(id || null)
+  });
+};
+
+async function saveCustomer(id) {
+  const name  = document.getElementById('cf-name').value.trim();
+  const phone = document.getElementById('cf-phone').value.trim();
+  const email = document.getElementById('cf-email').value.trim();
+  const addr  = document.getElementById('cf-addr').value.trim();
+  const notes = document.getElementById('cf-notes').value.trim();
+  if (!name) throw new Error('Name is required');
+  await loadAllData(true);
+  // Check for duplicate name when creating new
+  if (!id && D.customers.find(c => (c.name || '').toLowerCase() === name.toLowerCase())) {
+    throw new Error('A customer with that name already exists');
+  }
+  const patch = { name, phone, email, address: addr, notes, updated_at: nowStr() };
+  const idx = id ? D.customers.findIndex(c => c.id === id) : -1;
+  if (idx >= 0) D.customers[idx] = { ...D.customers[idx], ...patch };
+  else          D.customers.push({ id: uid('c'), ...patch, created_at: nowStr() });
+  await wsSave('customers', D.customers);
+  closeModal();
+  showToast(id ? 'Customer updated' : 'Customer added', 'good');
+  await renderCustomers(true);
+}
+
+window.deleteCustomer = async function(id) {
+  const c = D.customers.find(x => x.id === id);
+  if (!c) return;
+  const hasBookings = D.bookings.some(b => b.cust_name === c.name);
+  const msg = hasBookings
+    ? `Delete ${c.name}? They have past bookings — those records stay, but the customer profile is removed from the list.`
+    : `Delete ${c.name}?`;
+  if (!confirm(msg)) return;
+  D.customers = D.customers.filter(x => x.id !== id);
+  await wsSave('customers', D.customers);
+  showToast('Customer deleted', 'good');
+  await renderCustomers(true);
+};
+
+window.openServiceHistory = function(id) {
+  const c = D.customers.find(x => x.id === id);
+  if (!c) return showToast('Customer not found', 'bad');
+  const bookings = D.bookings.filter(b => b.cust_name === c.name)
+    .sort((a,b) => ((b.date||'') + (b.time||'')).localeCompare((a.date||'') + (a.time||'')));
+  const plates = [...new Set(bookings.map(b => b.plate).filter(Boolean))];
+  const totalSpend = bookings.reduce((s,b) => s + (Number(b.actual_cost) || Number(b.cost_estimate) || 0), 0);
+  const rows = bookings.length ? bookings.map(b => {
+    const job = D.jobs.find(j => j.booking_id === b.id);
+    return `<tr>
+      <td class="k">${escapeHtml(b.date || '—')}</td>
+      <td><span class="plate">${escapeHtml(b.plate || '—')}</span></td>
+      <td>${escapeHtml(b.service || '—')}</td>
+      <td>${statusPill(b.status || 'Scheduled')}</td>
+      <td>${escapeHtml(job?.mechanic || b.mechanic || '—')}</td>
+      <td>${(b.actual_cost || b.cost_estimate) ? '₹' + Number(b.actual_cost || b.cost_estimate).toLocaleString('en-IN') : '—'}</td>
+    </tr>`;
+  }).join('') : `<tr><td class="empty" colspan="6">No service history yet.</td></tr>`;
+  openModal({
+    title: `${c.name} · service history`,
+    body: `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
+        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px"><div style="font-size:11px;color:var(--faint);text-transform:uppercase;font-weight:700">Visits</div><div style="font-family:var(--fd);font-size:22px;font-weight:800;margin-top:4px">${bookings.length}</div></div>
+        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px"><div style="font-size:11px;color:var(--faint);text-transform:uppercase;font-weight:700">Vehicles</div><div style="font-family:var(--fd);font-size:22px;font-weight:800;margin-top:4px">${plates.length}</div></div>
+        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px"><div style="font-size:11px;color:var(--faint);text-transform:uppercase;font-weight:700">Total spend</div><div style="font-family:var(--fd);font-size:22px;font-weight:800;margin-top:4px;color:var(--teal)">₹${totalSpend.toLocaleString('en-IN')}</div></div>
+      </div>
+      ${plates.length ? `<div style="margin-bottom:12px;font-size:13px;color:var(--dim)"><b style="color:var(--txt)">Vehicles:</b> ${plates.map(p => `<span class="plate" style="margin-right:5px">${escapeHtml(p)}</span>`).join('')}</div>` : ''}
+      <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;overflow:hidden">
+        <table class="dtbl">
+          <thead><tr><th>Date</th><th>Plate</th><th>Service</th><th>Status</th><th>Mechanic</th><th>Cost</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`,
+    saveLabel: 'Close',
+    onSave: () => closeModal()
+  });
+};
+
+// ══════════════════════════════════════════
+//  WORKERS (mechanics, admins, receptionists — anyone who PIN-logs-in)
+// ══════════════════════════════════════════
+async function renderWorkers(force = false) {
+  await loadAllData(force);
+  document.getElementById('wkCrumb').textContent =
+    `${D.mechanics.length} worker${D.mechanics.length === 1 ? '' : 's'} · ${D.mechanics.filter(w => w.active !== false).length} active`;
+  const q = (document.getElementById('wkSearch').value || '').toLowerCase().trim();
+  const role = document.getElementById('wkRole').value;
+  const activeF = document.getElementById('wkActive').value;
+  let list = D.mechanics.slice();
+  if (q) list = list.filter(w =>
+    (w.name || '').toLowerCase().includes(q) ||
+    (w.username || '').toLowerCase().includes(q) ||
+    (w.role || '').toLowerCase().includes(q) ||
+    (w.speciality || '').toLowerCase().includes(q));
+  if (role) list = list.filter(w => (w.role || '').toLowerCase() === role);
+  if (activeF === 'active')   list = list.filter(w => w.active !== false);
+  if (activeF === 'inactive') list = list.filter(w => w.active === false);
+  list.sort((a,b) => {
+    // owners first, then alphabetical
+    const ar = (a.role === 'owner') ? 0 : 1;
+    const br = (b.role === 'owner') ? 0 : 1;
+    if (ar !== br) return ar - br;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+  document.getElementById('wkCount').textContent = list.length;
+  const wrap = document.getElementById('wkTableWrap');
+  if (!list.length) {
+    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">No workers match your filters.</td></tr></table>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="list-tbl">
+    <thead><tr>
+      <th>Name</th><th>Role</th><th>Username</th><th>Speciality</th><th>PIN</th><th>Active</th>
+      <th style="text-align:right">Actions</th>
+    </tr></thead>
+    <tbody>${list.map(w => {
+      const isSelf = currentWorker && w.id === currentWorker.id;
+      return `<tr>
+        <td class="k">${escapeHtml(w.name || '—')}${isSelf ? ' <span style="color:var(--acc2);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-left:4px">YOU</span>' : ''}</td>
+        <td><span class="status-pill ${w.role === 'owner' ? 's-progress' : w.role === 'manager' ? 's-ready' : 's-scheduled'}"><span class="dot"></span>${escapeHtml(w.role || 'mechanic')}</span></td>
+        <td style="font-family:'Courier New',monospace;font-size:13px">${escapeHtml(w.username || '—')}</td>
+        <td>${escapeHtml(w.speciality || '—')}</td>
+        <td style="font-family:'Courier New',monospace;font-size:13px;color:var(--faint)">${'•'.repeat(w.pin_len || 4)}</td>
+        <td>${w.active === false ? '<span style="color:var(--faint)">Inactive</span>' : '<span style="color:var(--teal);font-weight:600">Active</span>'}</td>
+        <td><div class="row-act">
+          <button class="mini-btn" onclick="openWorkerForm('${escapeHtml(w.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+          <button class="mini-btn danger" onclick="deleteWorker('${escapeHtml(w.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+window.renderWorkers = renderWorkers;
+
+const ROLE_OPTS = ['owner','manager','receptionist','mechanic'];
+
+window.openWorkerForm = function(id) {
+  const w = id ? (D.mechanics.find(x => x.id === id) || {}) : {};
+  const isNew = !id;
+  openModal({
+    title: isNew ? 'Add worker' : `Edit · ${w.name}`,
+    body: `
+      <div class="f-row">
+        <div class="f-grp"><label>Full name <span class="req">*</span></label><input id="wf-name" type="text" value="${escapeHtml(w.name || '')}" required /></div>
+        <div class="f-grp"><label>Phone</label><input id="wf-phone" type="tel" value="${escapeHtml(w.phone || '')}" /></div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Role <span class="req">*</span></label>
+          <select id="wf-role">
+            ${ROLE_OPTS.map(r => `<option value="${r}" ${(w.role || 'mechanic') === r ? 'selected' : ''}>${r.charAt(0).toUpperCase() + r.slice(1)}</option>`).join('')}
+          </select></div>
+        <div class="f-grp"><label>Username (for the tablet)</label><input id="wf-user" type="text" value="${escapeHtml(w.username || '')}" placeholder="e.g. raj" autocomplete="off" /></div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>${isNew ? 'PIN (4–6 digits) ' : 'New PIN (leave blank to keep current)'}${isNew ? '<span class="req">*</span>' : ''}</label>
+          <input id="wf-pin" type="text" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" placeholder="${isNew ? '1234' : 'Leave blank to keep'}" ${isNew ? 'required' : ''} autocomplete="off" /></div>
+        <div class="f-grp"><label>Speciality</label><input id="wf-spec" type="text" value="${escapeHtml(w.speciality || '')}" placeholder="Diesel, paint, electrical…" /></div>
+      </div>
+      <div class="f-row r1">
+        <div class="f-grp">
+          <label style="display:flex;align-items:center;gap:9px;font-weight:500;cursor:pointer;color:var(--txt)">
+            <input id="wf-active" type="checkbox" ${w.active !== false ? 'checked' : ''} />
+            <span>Active — can log in via PIN on the tablet</span>
+          </label>
+        </div>
+      </div>
+      <div class="f-err" id="wf-err"></div>`,
+    saveLabel: isNew ? 'Add worker' : 'Save changes',
+    onSave: () => saveWorker(id || null)
+  });
+};
+
+async function saveWorker(id) {
+  const name = document.getElementById('wf-name').value.trim();
+  const phone= document.getElementById('wf-phone').value.trim();
+  const role = document.getElementById('wf-role').value;
+  const user = document.getElementById('wf-user').value.trim();
+  const pin  = document.getElementById('wf-pin').value.trim();
+  const spec = document.getElementById('wf-spec').value.trim();
+  const active = document.getElementById('wf-active').checked;
+  if (!name) throw new Error('Name is required');
+  if (!id && !/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4–6 digits');
+  if (pin && !/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4–6 digits');
+  await loadAllData(true);
+
+  // Last-owner protection — can't demote the only owner
+  if (id) {
+    const before = D.mechanics.find(x => x.id === id);
+    if (before && before.role === 'owner' && role !== 'owner') {
+      const otherOwners = D.mechanics.filter(x => x.role === 'owner' && x.id !== id);
+      if (!otherOwners.length) throw new Error("Can't demote the only owner — promote someone else first.");
+    }
+    if (before && before.role === 'owner' && active === false) {
+      const otherOwners = D.mechanics.filter(x => x.role === 'owner' && x.id !== id && x.active !== false);
+      if (!otherOwners.length) throw new Error("Can't deactivate the only active owner.");
+    }
+  }
+
+  const patch = { name, phone, role, username: user, speciality: spec, active, updated_at: nowStr() };
+  if (pin) {
+    patch.pin_hash = await sha256(pin);
+    patch.pin_len  = pin.length;
+  }
+  const idx = id ? D.mechanics.findIndex(w => w.id === id) : -1;
+  if (idx >= 0) D.mechanics[idx] = { ...D.mechanics[idx], ...patch };
+  else          D.mechanics.push({ id: uid('mech'), ...patch, created_at: nowStr() });
+  await wsSave('mechanics', D.mechanics);
+  closeModal();
+  showToast(id ? 'Worker updated' : 'Worker added', 'good');
+  await renderWorkers(true);
+}
+
+// ══════════════════════════════════════════
+//  HEADER + SIDEBAR RENDER (updated for new layout)
+//  Overrides the earlier renderHeader so the new sidebar/workshop name/sync
+//  indicator all stay in sync.
+// ══════════════════════════════════════════
+const TAB_TITLES = {
+  dashboard:'Dashboard', bookings:'Bookings', checkin:'Check-in', jobs:'Job Cards',
+  bays:'Bays', queue:'Queue', schedule:'Schedule', customers:'Customers',
+  workers:'Workers', inventory:'Inventory', parts:'Parts Requests',
+  reports:'Reports', timesheets:'Timesheets', audit:'Audit Log', settings:'Settings'
+};
+
+// Override renderHeader for the new layout (workshop name in sidebar, worker pill in sidebar foot)
+window.renderHeader = function() {
+  const wsName = userProfile?.workshop_name || 'Workshop';
+  // Sidebar workshop name
+  const sb = document.getElementById('sbWsName'); if (sb) sb.textContent = wsName;
+  // Sidebar worker row
+  if (currentWorker) {
+    document.getElementById('sbWorkerName').textContent = currentWorker.name;
+    document.getElementById('sbWorkerAv').textContent =
+      (currentWorker.name || '?').split(' ').map(s => s[0]).slice(0,2).join('').toUpperCase();
+  } else {
+    document.getElementById('sbWorkerName').textContent = '—';
+    document.getElementById('sbWorkerAv').textContent = '—';
+  }
+  // Header tab title
+  const ht = document.getElementById('hdrTabTitle');
+  if (ht) ht.textContent = TAB_TITLES[currentTab] || 'Dashboard';
+  // Dashboard hero workshop name
+  const dt = document.getElementById('dashTitle');
+  if (dt) dt.innerHTML = `${escapeHtml(wsName)} <small>powered by Garage Pro</small>`;
+  const dl = document.getElementById('dashDateLine');
+  if (dl) dl.textContent = `DASHBOARD — ${new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' }).toUpperCase()}`;
+  // Tablet pill — point at the live tablet URL
+  const tl = document.getElementById('tabletLink');
+  if (tl) {
+    const host = location.host || 'garagepro.me';
+    tl.textContent = host + '/tablet';
+    tl.href = '../tablet/';
+  }
+};
+
+// Override switchTab to update the header title too
+const _origSwitchTab = window.switchTab;
+window.switchTab = function(tab) {
+  _origSwitchTab(tab);
+  const ht = document.getElementById('hdrTabTitle');
+  if (ht) ht.textContent = TAB_TITLES[tab] || tab;
+  if (tab === 'schedule') renderSchedule();
+  if (tab === 'parts')    renderParts();
+};
+
+function renderSchedule() {
+  const wrap = document.getElementById('tab-schedule');
+  if (!wrap || wrap.dataset.rendered) return;  // placeholder only for now
+}
+function renderParts() {
+  const wrap = document.getElementById('tab-parts');
+  if (!wrap || wrap.dataset.rendered) return;
+}
+
+// ══════════════════════════════════════════
+//  LIGHT MODE
+// ══════════════════════════════════════════
+window.toggleLightMode = function() {
+  const light = !document.body.classList.contains('light');
+  document.body.classList.toggle('light', light);
+  localStorage.setItem('gp_light', light ? '1' : '0');
+  document.getElementById('lightLabel').textContent = light ? 'Dark mode' : 'Light mode';
+  const ic = document.getElementById('lightIcon');
+  if (ic) {
+    ic.innerHTML = light
+      ? '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'   // moon
+      : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/>';  // sun
+  }
+};
+// Apply saved preference on load
+if (localStorage.getItem('gp_light') === '1') {
+  document.body.classList.add('light');
+  setTimeout(() => {
+    const lbl = document.getElementById('lightLabel'); if (lbl) lbl.textContent = 'Dark mode';
+    const ic  = document.getElementById('lightIcon');  if (ic)  ic.innerHTML = '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+  }, 100);
+}
+
+// ══════════════════════════════════════════
+//  SYNC INDICATOR
+// ══════════════════════════════════════════
+const _origLoadAllData = window.loadAllData;
+window.loadAllData = async function(force) {
+  setSyncStatus('syncing', 'Syncing…');
+  try {
+    await _origLoadAllData(force);
+    setSyncStatus('good', 'Synced · ' + new Date().toLocaleTimeString('en-IN', {hour:'numeric', minute:'2-digit'}));
+  } catch (e) {
+    setSyncStatus('bad', 'Sync failed');
+    throw e;
+  }
+};
+function setSyncStatus(state, label) {
+  const p = document.getElementById('syncPill');
+  if (!p) return;
+  p.className = 'sync-pill' + (state === 'syncing' ? ' syncing' : state === 'bad' ? ' bad' : '');
+  document.getElementById('syncLabel').textContent = label;
+}
+
+// ══════════════════════════════════════════
+//  BARCODE / QR SCANNER — uses @zxing/browser, device camera
+// ══════════════════════════════════════════
+// Loaded with multi-CDN fallback at the bottom of this file. Decodes:
+//   Linear: CODE-39, CODE-128, EAN-8/13, UPC-A/E, ITF, Codabar, RSS-14
+//   2D:     QR Code, Data Matrix, Aztec, PDF417
+let _scanReader = null;
+let _scanControls = null;
+let _scanCb = null;       // function(code) called when a code is decoded
+let _scanCtx = '';        // which tab triggered the scan (for the result lookup)
+
+window.openScanner = function(ctx, cb, title) {
+  _scanCtx = ctx || '';
+  _scanCb  = cb || null;
+  document.getElementById('scanTitle').textContent = title || 'Scan barcode or QR code';
+  document.getElementById('scanResult').classList.remove('open');
+  document.getElementById('scanHint').style.display = '';
+  document.getElementById('scanOverlay').classList.add('open');
+  document.getElementById('scanManual').value = '';
+  setTimeout(() => document.getElementById('scanManual').focus(), 250);
+  _startScannerCamera();
+};
+
+window.closeScanner = function() {
+  _stopScannerCamera();
+  document.getElementById('scanOverlay').classList.remove('open');
+  _scanCb = null; _scanCtx = '';
+};
+
+async function _startScannerCamera() {
+  const video = document.getElementById('scanVideo');
+  const hint = document.getElementById('scanHint');
+  const errEl = (msg) => {
+    hint.innerHTML = `<div style="color:var(--amber);margin-bottom:4px"><b>📷 ${escapeHtml(msg)}</b></div>
+      <div style="color:#cbd2dc;font-size:13px">Use the manual entry box below to type the code.</div>
+      <div class="scan-manual">
+        <input id="scanManual" type="text" placeholder="Type or paste the code…" />
+        <button onclick="_scanManualSubmit()">Look up</button>
+      </div>`;
+    setTimeout(() => document.getElementById('scanManual').focus(), 50);
+  };
+  if (typeof ZXingBrowser === 'undefined') {
+    if (window._zxingLoadError) return errEl('Scanner library failed to load');
+    // Library still loading — wait briefly then retry
+    setTimeout(_startScannerCamera, 500);
+    return;
+  }
+  try {
+    if (!_scanReader) _scanReader = new ZXingBrowser.BrowserMultiFormatReader();
+    _scanControls = await _scanReader.decodeFromConstraints(
+      { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } },
+      video,
+      async (result, _err) => {
+        if (result) {
+          const code = result.getText();
+          _scanReader.reset && _scanReader.reset();
+          await _onScanDecoded(code);
+        }
+      }
+    );
+  } catch (e) {
+    const name = e?.name || '';
+    if (name === 'NotAllowedError') errEl('Camera permission denied — allow camera in your browser settings');
+    else if (name === 'NotFoundError') errEl('No camera detected on this device');
+    else if (name === 'NotReadableError') errEl('Camera is in use by another app — close it and try again');
+    else errEl((name ? name + ': ' : '') + (e?.message || String(e)));
+  }
+}
+function _stopScannerCamera() {
+  try { if (_scanControls && _scanControls.stop) _scanControls.stop(); } catch(_) {}
+  try { if (_scanReader && _scanReader.reset) _scanReader.reset(); } catch(_) {}
+  _scanControls = null;
+  const v = document.getElementById('scanVideo');
+  if (v && v.srcObject) {
+    try { v.srcObject.getTracks().forEach(t => t.stop()); } catch(_) {}
+    v.srcObject = null;
+  }
+}
+
+window._scanManualSubmit = async function() {
+  const code = (document.getElementById('scanManual').value || '').trim();
+  if (code) await _onScanDecoded(code);
+};
+
+async function _onScanDecoded(code) {
+  // If a caller-supplied callback exists, hand off the code and close
+  if (_scanCb) {
+    const cb = _scanCb;
+    closeScanner();
+    cb(code);
+    return;
+  }
+  // Default behaviour: look up the code against the workshop's data
+  _stopScannerCamera();
+  await loadAllData(false);
+  const part = D.inventory.find(p => (p.barcode || '').toUpperCase() === code.toUpperCase());
+  const booking = D.bookings.find(b => (b.plate || '').replace(/\s/g, '').toUpperCase() === code.replace(/\s/g, '').toUpperCase());
+  _renderScanResult(code, part, booking);
+}
+
+function _renderScanResult(code, part, booking) {
+  const box = document.getElementById('scanResult');
+  if (part) {
+    box.innerHTML = `
+      <div class="r-icon good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M20 6 9 17l-5-5"/></svg></div>
+      <h4>Part found · ${escapeHtml(part.name || '—')}</h4>
+      <div class="r-meta">${part.category ? escapeHtml(part.category) + ' · ' : ''}${part.qty || 0} in stock${part.sell_price ? ' · ₹' + part.sell_price : ''}</div>
+      <code class="r-code">${escapeHtml(code)}</code>
+      <div class="r-acts">
+        <button class="fbtn fbtn-cancel" onclick="closeScanner()">Close</button>
+        <button class="fbtn fbtn-save" onclick="closeScanner();switchTab('inventory')">Open in Inventory</button>
+      </div>`;
+  } else if (booking) {
+    box.innerHTML = `
+      <div class="r-icon good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M20 6 9 17l-5-5"/></svg></div>
+      <h4>Vehicle · ${escapeHtml(booking.plate || '—')}</h4>
+      <div class="r-meta">${escapeHtml(booking.cust_name || '—')} · ${escapeHtml(booking.service || '—')} · ${escapeHtml(booking.status || 'Scheduled')}</div>
+      <code class="r-code">${escapeHtml(code)}</code>
+      <div class="r-acts">
+        <button class="fbtn fbtn-cancel" onclick="closeScanner()">Close</button>
+        ${booking.status === 'Scheduled'
+          ? `<button class="fbtn fbtn-save" onclick="closeScanner();openCheckinForm('${escapeHtml(booking.id)}')">Check in</button>`
+          : `<button class="fbtn fbtn-save" onclick="closeScanner();openBookingForm('${escapeHtml(booking.id)}')">Open booking</button>`}
+      </div>`;
+  } else {
+    box.innerHTML = `
+      <div class="r-icon unknown"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+      <h4>Unknown code</h4>
+      <div class="r-meta">No matching part or vehicle found in this workshop.</div>
+      <code class="r-code">${escapeHtml(code)}</code>
+      <div class="r-acts">
+        <button class="fbtn fbtn-cancel" onclick="_resumeScanning()">Scan another</button>
+        <button class="fbtn fbtn-save" onclick="closeScanner()">Close</button>
+      </div>`;
+  }
+  box.classList.add('open');
+}
+
+window._resumeScanning = function() {
+  document.getElementById('scanResult').classList.remove('open');
+  _startScannerCamera();
+};
+
+// Esc key closes the scanner
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('scanOverlay').classList.contains('open')) {
+    closeScanner();
+  }
+});
+
+// Floating "Scan" button — visible only on tabs where it makes sense
+function _attachScanFab() {
+  if (document.getElementById('scanFab')) return;
+  const fab = document.createElement('button');
+  fab.id = 'scanFab';
+  fab.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:100;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;border:0;border-radius:50%;width:58px;height:58px;cursor:pointer;box-shadow:0 12px 32px -8px rgba(255,122,24,.6);display:grid;place-items:center;transition:transform .15s,box-shadow .2s';
+  fab.title = 'Scan barcode or QR code';
+  fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M21 15v3a3 3 0 0 1-3 3h-3M15 18h.01M15 12h6M12 3v6M12 12v3"/></svg>';
+  fab.onmouseenter = () => { fab.style.transform = 'scale(1.06)'; fab.style.boxShadow = '0 18px 40px -8px rgba(255,122,24,.75)'; };
+  fab.onmouseleave = () => { fab.style.transform = ''; fab.style.boxShadow = '0 12px 32px -8px rgba(255,122,24,.6)'; };
+  fab.onclick = () => openScanner();
+  document.body.appendChild(fab);
+}
+function _setScanFabVisible(show) {
+  const fab = document.getElementById('scanFab');
+  if (!fab) return;
+  fab.style.display = show ? 'grid' : 'none';
+}
+
+// Show the FAB only on tabs where scanning is useful
+const _SCAN_TABS = new Set(['dashboard','checkin','jobs','bookings','inventory']);
+const _switchTabForFab = window.switchTab;
+window.switchTab = function(tab) {
+  _switchTabForFab(tab);
+  _attachScanFab();
+  _setScanFabVisible(_SCAN_TABS.has(tab));
+};
+
+window.deleteWorker = async function(id) {
+  const w = D.mechanics.find(x => x.id === id);
+  if (!w) return;
+  if (currentWorker && w.id === currentWorker.id) {
+    return showToast("You can't delete yourself. Sign out first.", 'bad');
+  }
+  if (w.role === 'owner') {
+    const otherOwners = D.mechanics.filter(x => x.role === 'owner' && x.id !== id);
+    if (!otherOwners.length) return showToast("Can't delete the only owner.", 'bad');
+  }
+  // Warn if this worker has booked/in-progress jobs
+  const activeJobs = D.jobs.filter(j =>
+    (j.mechanic === w.name || (j.mechanics || []).includes(w.name))
+    && !['Delivered','Cancelled'].includes(j.status));
+  const msg = activeJobs.length
+    ? `Delete ${w.name}? They have ${activeJobs.length} active job${activeJobs.length === 1 ? '' : 's'} assigned. The jobs stay, but the worker is removed.`
+    : `Delete ${w.name}?`;
+  if (!confirm(msg)) return;
+  D.mechanics = D.mechanics.filter(x => x.id !== id);
+  await wsSave('mechanics', D.mechanics);
+  showToast('Worker deleted', 'good');
+  await renderWorkers(true);
+};
+</script>
+
+<!-- ZXing — barcode + QR decoder. Multi-CDN fallback so blocked unpkg falls
+     through to jsdelivr. Loaded with no `defer` so it's ready by the time
+     the user clicks Scan. -->
+<script>
+(function loadZXing(){
+  const sources = [
+    'https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js',
+    'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js',
+    'https://unpkg.com/@zxing/browser@0.1.5',
+    'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5'
+  ];
+  let i = 0;
+  function tryNext(){
+    if (i >= sources.length) {
+      console.error('[ZXing] all CDN sources failed.');
+      window._zxingLoadError = 'All CDN sources failed';
+      return;
+    }
+    const src = sources[i++];
+    const s = document.createElement('script');
+    s.src = src; s.async = false;
+    s.onload = () => {
+      if (typeof ZXingBrowser !== 'undefined') {
+        console.log('[ZXing] loaded from', src);
+        window._zxingLoaded = true;
+      } else {
+        console.warn('[ZXing] loaded from', src, 'but global missing — trying next');
+        tryNext();
+      }
+    };
+    s.onerror = () => { console.warn('[ZXing] failed:', src); tryNext(); };
+    document.head.appendChild(s);
+  }
+  tryNext();
+})();
 </script>
 </body>
 </html>
