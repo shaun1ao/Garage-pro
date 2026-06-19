@@ -278,9 +278,15 @@ header.app-header{
 .mini-btn{font-size:11.5px;font-weight:600;padding:6px 11px;border-radius:7px;border:1px solid var(--brd2);background:transparent;color:var(--dim);cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
 .mini-btn svg{width:11px;height:11px}
 .mini-btn:hover{color:var(--txt);border-color:rgba(255,255,255,.22);background:var(--surf2)}
-.mini-btn.good:hover{color:var(--teal);border-color:var(--teal)}
-.mini-btn.warn:hover{color:var(--acc2);border-color:var(--acc)}
-.mini-btn.danger:hover{color:var(--red);border-color:var(--red)}
+/* Status-tinted action buttons — color is visible at rest, not just on hover */
+.mini-btn.good   {color:var(--teal); border-color:rgba(32,227,178,.40);  background:rgba(32,227,178,.10)}
+.mini-btn.warn   {color:var(--acc2); border-color:rgba(255,179,71,.42);  background:rgba(255,179,71,.10)}
+.mini-btn.danger {color:var(--red);  border-color:rgba(255,107,107,.42); background:rgba(255,107,107,.10)}
+.mini-btn.info   {color:var(--blue); border-color:rgba(99,159,255,.42);  background:rgba(99,159,255,.10)}
+.mini-btn.good:hover  {background:rgba(32,227,178,.20);  border-color:var(--teal)}
+.mini-btn.warn:hover  {background:rgba(255,179,71,.22);  border-color:var(--acc2)}
+.mini-btn.danger:hover{background:rgba(255,107,107,.22); border-color:var(--red)}
+.mini-btn.info:hover  {background:rgba(99,159,255,.20);  border-color:var(--blue)}
 
 .refresh-btn{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--brd2);background:var(--surf);color:var(--dim);cursor:pointer;transition:all .15s}
 .refresh-btn:hover{color:var(--txt);border-color:rgba(255,255,255,.22)}
@@ -1707,7 +1713,17 @@ const STATUS_CLASS = {
   'Cancelled':           's-done',
   'Arrived':             's-arrived',
   'Scheduled':           's-scheduled',
-  'Complete':            's-done'
+  'Complete':            's-done',
+  // Parts request statuses (used in Parts Requests + Request Parts tabs)
+  'Pending':             's-scheduled',
+  'Approved':            's-progress',
+  'Declined':            's-warn',
+  'Ordered':             's-arrived',
+  'Received':            's-ready',
+  // Invoice statuses
+  'Draft':               's-scheduled',
+  'Issued':              's-progress',
+  'Paid':                's-ready'
 };
 function statusPill(status) {
   const cls = STATUS_CLASS[status] || 's-scheduled';
@@ -2295,17 +2311,22 @@ function _ciRenderTable(list, kind) {
 }
 
 // ── Check-in flow: pick a bay, mark Arrived, auto-create a job card ──
-window.openCheckinForm = function(bookingId) {
+window.openCheckinForm = async function(bookingId) {
+  await loadAllData(true);          // make sure D.bays is fresh — auto-sync runs in renderBays only
+  if ((D.settings?.bay_defs || []).length && !D.bays.length) _syncBaysFromDefs?.();
   const b = D.bookings.find(x => x.id === bookingId);
   if (!b) return showToast('Booking not found', 'bad');
-  // Available bays (filter by bay type if the booking specified one)
-  const matching = D.bays.filter(x => (x.status || '').toLowerCase() === 'available'
-    && (!b.bay_type || (x.type || x.bay_type) === b.bay_type));
-  const all = D.bays.filter(x => (x.status || '').toLowerCase() === 'available');
-  const bays = matching.length ? matching : all;
-  const bayOptions = bays.length
-    ? bays.map(x => `<option value="${escapeHtml(x.id)}">${escapeHtml(x.name || (x.type || '') + ' · ' + (x.num || ''))}</option>`).join('')
-    : '';
+  // Available bays = bay state 'available' (excludes occupied + maintenance), optionally filtered by requested type
+  const allAvail = D.bays.filter(x => _bayState(x) === 'available');
+  const matching = b.bay_type ? allAvail.filter(x => x.type === b.bay_type) : allAvail;
+  const bays = matching.length ? matching : allAvail;
+  const bayOptions = bays.map(x =>
+    `<option value="${escapeHtml(x.id)}">${escapeHtml((x.type || '') + ' · Bay ' + (x.num || '?'))}</option>`
+  ).join('');
+  const hasBaysConfigured = D.bays.length > 0;
+  const occupiedCount = D.bays.filter(x => _bayState(x) === 'occupied').length;
+  const maintCount    = D.bays.filter(x => _bayState(x) === 'maintenance').length;
+
   openModal({
     title: `Check in · ${b.plate}`,
     body: `
@@ -2319,11 +2340,18 @@ window.openCheckinForm = function(bookingId) {
       ${bays.length ? `
         <div class="f-grp">
           <label>Assign to bay <span class="req">*</span></label>
-          <select id="ci-bay">${bayOptions}</select>
-          <span class="hint">Showing ${matching.length ? 'matching' : 'all available'} bays</span>
-        </div>` : `
+          <select id="ci-bay">
+            ${bayOptions}
+            <option value="__queue__">— Send to queue instead —</option>
+          </select>
+          <span class="hint">${bays.length} ${matching.length ? 'matching ' + (b.bay_type || '') : 'available'} bay${bays.length === 1 ? '' : 's'} · ${occupiedCount} occupied${maintCount ? ` · ${maintCount} in maintenance` : ''}</span>
+        </div>` : !hasBaysConfigured ? `
+        <div style="background:rgba(255,179,71,.10);border:1px solid rgba(255,179,71,.32);border-radius:9px;padding:14px 16px;color:var(--acc2);font-size:13.5px;line-height:1.55;margin-bottom:10px">
+          <b>No bays configured yet.</b> Go to the <b>Bays</b> tab and click "Manage bay types" to set up your workshop's bays. For now this car will go to the queue.
+        </div>
+        <button class="refresh-btn" onclick="closeModal();switchTab('bays')">Open Bays tab →</button>` : `
         <div style="background:rgba(255,179,71,.10);border:1px solid rgba(255,179,71,.32);border-radius:9px;padding:14px 16px;color:var(--acc2);font-size:13.5px;line-height:1.55">
-          No bays available right now. You can still mark this car as arrived — it will go into the queue.
+          All ${D.bays.length} bay${D.bays.length === 1 ? '' : 's'} ${D.bays.length === 1 ? 'is' : 'are'} unavailable right now (${occupiedCount} occupied${maintCount ? ', ' + maintCount + ' in maintenance' : ''}). This car will go into the queue and get the next free bay.
         </div>`}
       <div class="f-grp" style="margin-top:14px">
         <label>Mechanic (optional)</label>
@@ -2332,7 +2360,7 @@ window.openCheckinForm = function(bookingId) {
       </div>
       <div class="f-err" id="ci-err"></div>
     `,
-    saveLabel: bays.length ? 'Check in to bay' : 'Add to queue',
+    saveLabel: bays.length ? 'Check in' : 'Add to queue',
     onSave: () => doCheckin(b.id)
   });
 };
@@ -2344,21 +2372,22 @@ async function doCheckin(bookingId) {
   const bayId = (document.getElementById('ci-bay') || {}).value || '';
   const mech  = (document.getElementById('ci-mech') || {}).value.trim();
   if (mech) b.mechanic = mech;
+  const toQueue = (!bayId || bayId === '__queue__');
 
-  if (bayId) {
+  if (!toQueue) {
     const bay = D.bays.find(x => x.id === bayId);
-    if (!bay) throw new Error('Bay not found');
-    if ((bay.status || '').toLowerCase() !== 'available') throw new Error('Bay was taken — refresh and try again');
+    if (!bay) throw new Error('Bay not found — refresh and try again');
+    if (_bayState(bay) !== 'available') throw new Error('Bay was just taken — refresh and try again');
     bay.status = 'occupied';
     bay.booking_id = b.id;
     bay.plate = b.plate;
     b.bay_id   = bay.id;
-    b.bay_name = bay.name || ((bay.type || '') + ' · ' + (bay.num || ''));
+    b.bay_name = (bay.type || '') + ' · Bay ' + (bay.num || '');
     b.bay_num  = bay.num || '';
     b.status = 'Arrived';
     await wsSave('bays', D.bays);
   } else {
-    // No bay available — add to queue (track requested bay type so promotion can match it)
+    // Going to queue (track requested bay type so promotion can match it)
     D.queue.push({
       id: uid('q'), booking_id: b.id, plate: b.plate, cust_name: b.cust_name,
       type: b.bay_type || '', notes: b.notes || '', added_at: nowStr()
@@ -2427,9 +2456,10 @@ async function doCheckout(bookingId) {
   await loadAllData(true);
   const b = D.bookings.find(x => x.id === bookingId);
   if (!b) throw new Error('Booking not found');
-  const cost = (document.getElementById('co-cost').value || '').trim();
-  const pay  = document.getElementById('co-pay').value;
-  const notes= document.getElementById('co-notes').value.trim();
+  const cost = (document.getElementById('co-cost')?.value || '').trim();
+  const pay  = document.getElementById('co-pay')?.value || 'Outstanding';
+  const notes= (document.getElementById('co-notes')?.value || '').trim();
+
   // Free the bay (remember its type so we can promote the right queue entry)
   let freedBayType = '';
   if (b.bay_id) {
@@ -2437,9 +2467,18 @@ async function doCheckout(bookingId) {
     if (bay) {
       freedBayType = bay.type || '';
       bay.status = 'available'; bay.booking_id = null; bay.plate = '';
+      await wsSave('bays', D.bays);
     }
-    await wsSave('bays', D.bays);
   }
+
+  // If this booking was sitting in the queue (no bay was assigned), remove it.
+  // Otherwise queued cars would stay forever blocking position numbers.
+  const wasQueued = D.queue.some(q => q.booking_id === b.id);
+  if (wasQueued) {
+    D.queue = D.queue.filter(q => q.booking_id !== b.id);
+    await wsSave('queue', D.queue);
+  }
+
   // Update job to Delivered
   const job = D.jobs.find(j => j.booking_id === b.id);
   if (job) {
@@ -2449,6 +2488,7 @@ async function doCheckout(bookingId) {
     if (notes) job.delivery_notes = notes;
     await wsSave('jobs', D.jobs);
   }
+
   b.status = 'Delivered';
   if (cost) b.actual_cost = Number(cost);
   b.payment_status = pay;
@@ -2457,17 +2497,23 @@ async function doCheckout(bookingId) {
   b.updated_at = nowStr();
   b.bay_id = null; b.bay_name = ''; b.bay_num = '';
   await wsSave('bookings', D.bookings);
+
   closeModal();
   showToast(`${b.plate} delivered`, 'good');
-  // Notify next-in-queue waiting for this bay type (matches main.py _promote_from_queue)
-  if (freedBayType) await promoteNextFromQueue(freedBayType);
-  // Offer to generate the invoice right after checkout
-  if (job) {
-    if (await customConfirm(`Generate an invoice for ${b.plate} now?`, { title: 'Print invoice?', okLabel: 'Generate invoice', cancelLabel: 'Later', danger: false })) {
-      await generateInvoice(job.id);
-    }
-  }
   await renderCheckin(true);
+
+  // Fire the follow-up actions in the background so doCheckout's promise resolves
+  // immediately. If they're awaited inside doCheckout, an error inside the invoice
+  // prompt re-enables the save button on a closed modal and can wedge UI state.
+  (async () => {
+    if (freedBayType) await promoteNextFromQueue(freedBayType);
+    if (job) {
+      const yes = await customConfirm(`Generate an invoice for ${b.plate} now?`, {
+        title: 'Print invoice?', okLabel: 'Generate invoice', cancelLabel: 'Later', danger: false
+      });
+      if (yes) await generateInvoice(job.id);
+    }
+  })().catch(err => console.warn('post-checkout flow:', err));
 }
 
 // ── Walk-in: same as new booking, pre-filled with today+now, status Arrived ──
@@ -3875,12 +3921,12 @@ async function renderParts(force = false) {
     <tbody>${list.map(r => {
       const s = r.status || 'Pending';
       const actions = s === 'Pending'
-        ? `<button class="mini-btn good" onclick="setPartStatus('${escapeHtml(r.id)}','Approved')">Approve</button>
-           <button class="mini-btn danger" onclick="setPartStatus('${escapeHtml(r.id)}','Declined')">Decline</button>`
+        ? `<button class="mini-btn good"   onclick="setPartStatus('${escapeHtml(r.id)}','Approved')">✓ Approve</button>
+           <button class="mini-btn danger" onclick="setPartStatus('${escapeHtml(r.id)}','Declined')">✕ Decline</button>`
         : s === 'Approved'
-          ? `<button class="mini-btn" onclick="setPartStatus('${escapeHtml(r.id)}','Ordered')">Mark ordered</button>`
+          ? `<button class="mini-btn warn" onclick="setPartStatus('${escapeHtml(r.id)}','Ordered')">📦 Mark ordered</button>`
         : s === 'Ordered'
-          ? `<button class="mini-btn good" onclick="setPartStatus('${escapeHtml(r.id)}','Received')">Mark received</button>`
+          ? `<button class="mini-btn good" onclick="setPartStatus('${escapeHtml(r.id)}','Received')">✓ Fulfilled</button>`
         : '';
       return `<tr>
         <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((r.requested_at||'').slice(0,16))}</td>
