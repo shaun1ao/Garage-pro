@@ -1574,7 +1574,7 @@ async function renderDashboard(force = false) {
   if (btn) btn.classList.remove('spinning');
 
   document.getElementById('dashTitle').textContent = `Dashboard — ${fmtToday()}`;
-  document.getElementById('dashCrumb').textContent = `${currentWorkshop ? currentWorkshop.name : 'No workshop'} · live data from Firestore`;
+  document.getElementById('dashCrumb').textContent = `${(userProfile && userProfile.workshop_name) || 'Workshop'} · live data from Firestore`;
 
   const today = todayStr();
 
@@ -1776,23 +1776,29 @@ window.customPrompt = function(message, { title = 'Input', placeholder = '', ini
 //  QR LIBRARY — ensure it's loaded before we try to draw a code
 //  Falls back through 3 CDNs so a single blocked host doesn't break QR.
 // ══════════════════════════════════════════
+// Uses davidshimjs/qrcodejs — battle-tested browser QR library. Multi-CDN
+// fallback so a single blocked host doesn't break QR rendering.
 let _qrLoadPromise = null;
 function ensureQR() {
-  if (typeof QRCode !== 'undefined') return Promise.resolve(true);
+  if (typeof QRCode !== 'undefined' && QRCode.CorrectLevel) return Promise.resolve(true);
   if (_qrLoadPromise) return _qrLoadPromise;
   const sources = [
-    'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
-    'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js'
+    'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+    'https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js',
+    'https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js'
   ];
   _qrLoadPromise = new Promise((resolve, reject) => {
     let idx = 0;
     const tryNext = () => {
-      if (typeof QRCode !== 'undefined') return resolve(true);
-      if (idx >= sources.length) return reject(new Error('Failed to load QR library from any CDN'));
+      if (typeof QRCode !== 'undefined' && QRCode.CorrectLevel) return resolve(true);
+      if (idx >= sources.length) {
+        _qrLoadPromise = null;   // let a later attempt try again
+        return reject(new Error('Failed to load QR library from any CDN'));
+      }
       const s = document.createElement('script');
       s.src = sources[idx++];
-      s.onload  = () => (typeof QRCode !== 'undefined') ? resolve(true) : tryNext();
+      s.async = true;
+      s.onload  = () => (typeof QRCode !== 'undefined' && QRCode.CorrectLevel) ? resolve(true) : tryNext();
       s.onerror = () => tryNext();
       document.head.appendChild(s);
     };
@@ -1880,6 +1886,14 @@ function _bookingFormHTML(b) {
       <div class="f-grp"><label>Phone</label>
         <input id="bf-phone" type="tel" value="${escapeHtml(b.cust_phone || '')}" placeholder="+91 ..." /></div>
     </div>
+    <!-- Vehicle picker: appears only when the customer has saved vehicles. Selecting one auto-fills plate + vehicle text. -->
+    <div class="f-row r1" id="bf-vehPickerWrap" style="display:none">
+      <div class="f-grp"><label>Pick a registered vehicle</label>
+        <select id="bf-vehPicker" onchange="_bookingPickVehicle()">
+          <option value="">— Choose from saved vehicles —</option>
+        </select>
+      </div>
+    </div>
     <div class="f-row r3">
       <div class="f-grp"><label>Plate <span class="req">*</span></label>
         <input id="bf-plate" type="text" value="${escapeHtml(b.plate || '')}" placeholder="MH12 AB 1234" style="text-transform:uppercase" /></div>
@@ -1925,14 +1939,50 @@ window.openBookingForm = function(id) {
     saveLabel: isNew ? 'Create booking' : 'Save changes',
     onSave: () => saveBooking(b.id || null)
   });
+  // If we're editing a booking whose customer already has saved vehicles, populate the picker right away.
+  setTimeout(() => _bookingFillCustomer(), 0);
 };
 
+// Called as the customer field is typed/picked. Auto-fills phone, and (re)builds the
+// vehicle picker dropdown so saved cars are one click away.
 window._bookingFillCustomer = function() {
-  const name = document.getElementById('bf-cust').value.trim();
-  const c = D.customers.find(x => x.name === name);
-  if (c && c.phone && !document.getElementById('bf-phone').value) {
-    document.getElementById('bf-phone').value = c.phone;
-  }
+  const name = (document.getElementById('bf-cust')?.value || '').trim();
+  const c = name ? D.customers.find(x => (x.name || '').toLowerCase() === name.toLowerCase()) : null;
+
+  // Phone auto-fill (only if empty so we don't clobber a typed-in number)
+  const phoneInp = document.getElementById('bf-phone');
+  if (c && c.phone && phoneInp && !phoneInp.value) phoneInp.value = c.phone;
+
+  // Vehicle picker — show only when we have a known customer with ≥1 registered vehicle
+  const wrap   = document.getElementById('bf-vehPickerWrap');
+  const picker = document.getElementById('bf-vehPicker');
+  if (!wrap || !picker) return;
+  const vehicles = (c && Array.isArray(c.vehicles)) ? c.vehicles : [];
+  if (!vehicles.length) { wrap.style.display = 'none'; picker.innerHTML = '<option value="">— Choose from saved vehicles —</option>'; return; }
+
+  // Try to pre-select whichever vehicle matches the current plate (so editing an old booking lands on the right car)
+  const currentPlate = (document.getElementById('bf-plate')?.value || '').trim().toUpperCase();
+  picker.innerHTML = `<option value="">— Choose from saved vehicles —</option>` +
+    vehicles.map(v => {
+      const label = `${(v.plate || '').toUpperCase()} — ${v.model || 'Vehicle'}${v.year ? ' (' + v.year + ')' : ''}${v.color ? ' · ' + v.color : ''}`;
+      return `<option value="${escapeHtml(v.id)}" ${(v.plate || '').toUpperCase() === currentPlate ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+    }).join('');
+  wrap.style.display = '';
+};
+
+// When the user picks a registered vehicle, auto-fill plate + vehicle text fields.
+window._bookingPickVehicle = function() {
+  const picker = document.getElementById('bf-vehPicker');
+  const vehId  = picker?.value;
+  if (!vehId) return;
+  const custName = (document.getElementById('bf-cust')?.value || '').trim();
+  const c = D.customers.find(x => (x.name || '').toLowerCase() === custName.toLowerCase());
+  const v = c && (c.vehicles || []).find(x => x.id === vehId);
+  if (!v) return;
+  document.getElementById('bf-plate').value = (v.plate || '').toUpperCase();
+  // Combine model + year for the vehicle text field
+  const vehText = [v.model, v.year].filter(Boolean).join(', ') + (v.color ? ' · ' + v.color : '');
+  document.getElementById('bf-veh').value = vehText.trim();
 };
 
 async function saveBooking(id) {
@@ -2563,7 +2613,7 @@ window._removeVehicleInline = async function(idx) {
 };
 
 // QR display — overlays the customer form via the sub-modal so the form stays open underneath.
-// Uses ensureQR() so the library loads on demand from any of 3 CDNs.
+// Uses ensureQR() with multi-CDN fallback; render is element-based (davidshimjs/qrcodejs).
 window._showVehicleQR = async function(idx) {
   const v = _editingVehicles[idx];
   if (!v) return;
@@ -2573,7 +2623,7 @@ window._showVehicleQR = async function(idx) {
     bodyHtml: `
       <div style="text-align:center;padding:6px 0">
         <div style="background:#fff;display:inline-block;padding:18px;border-radius:14px;box-shadow:0 8px 24px -6px rgba(0,0,0,.6)">
-          <canvas id="qrCanvas" style="display:block;margin:0 auto;min-width:220px;min-height:220px"></canvas>
+          <div id="qrTarget" style="display:inline-block;min-width:220px;min-height:220px"></div>
           <div style="margin-top:14px;font-family:'Courier New',monospace;font-size:13px;color:#1a1a1a;font-weight:700">${escapeHtml(v.plate)}</div>
           <div style="margin-top:2px;font-family:'Courier New',monospace;font-size:11px;color:#6b7888">${escapeHtml(qrText)}</div>
         </div>
@@ -2590,8 +2640,13 @@ window._showVehicleQR = async function(idx) {
   });
   try {
     await ensureQR();
-    await QRCode.toCanvas(document.getElementById('qrCanvas'), qrText, {
-      width: 220, margin: 2, color: { dark: '#0a0e14', light: '#ffffff' }
+    const target = document.getElementById('qrTarget');
+    target.innerHTML = '';
+    new QRCode(target, {
+      text: qrText,
+      width: 220, height: 220,
+      colorDark: '#0a0e14', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
     });
     document.getElementById('qrStatus').textContent = 'Ready — print or download.';
     document.getElementById('qrPrintBtn').disabled = false;
@@ -2599,23 +2654,34 @@ window._showVehicleQR = async function(idx) {
     document.getElementById('qrPrintBtn').onclick  = () => _printVehicleQR(v.plate, qrText);
     document.getElementById('qrDlBtn').onclick     = () => _downloadVehicleQR(v.plate);
   } catch (e) {
+    console.error('QR load failed:', e);
     document.getElementById('qrStatus').innerHTML = `<span style="color:var(--red)">Couldn't load QR library — check your internet connection and try again.</span>`;
   }
 };
 
+// Pull a PNG data URL out of the QR — works whether the lib used canvas or img.
+function _grabQRDataUrl() {
+  const target = document.getElementById('qrTarget');
+  if (!target) return null;
+  const canvas = target.querySelector('canvas');
+  if (canvas) return canvas.toDataURL('image/png');
+  const img = target.querySelector('img');
+  if (img && img.src) return img.src;
+  return null;
+}
+
 window._downloadVehicleQR = function(plate) {
-  const c = document.getElementById('qrCanvas');
-  if (!c) return;
+  const dataUrl = _grabQRDataUrl();
+  if (!dataUrl) return showToast('QR not ready yet', 'bad');
   const a = document.createElement('a');
-  a.href = c.toDataURL('image/png');
+  a.href = dataUrl;
   a.download = `garage-pro-qr-${plate.replace(/\s/g, '-')}.png`;
   document.body.appendChild(a); a.click(); a.remove();
 };
 
 window._printVehicleQR = function(plate, qrText) {
-  const canvas = document.getElementById('qrCanvas');
-  if (!canvas) return;
-  const dataUrl = canvas.toDataURL('image/png');
+  const dataUrl = _grabQRDataUrl();
+  if (!dataUrl) return showToast('QR not ready yet', 'bad');
   const w = window.open('', '_blank');
   w.document.write(`<!doctype html><html><head><title>QR — ${plate}</title>
     <style>body{font-family:system-ui,sans-serif;text-align:center;padding:30px}
