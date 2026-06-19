@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Garage Pro — App</title>
+<meta name="theme-color" content="#0a0e14" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+/* ── tokens ── (matches main site + tablet) */
+:root{
+  --bg:#0a0e14; --bg2:#0e131c; --surf:#141b26; --surf2:#1a2330;
+  --brd:rgba(255,255,255,.08); --brd2:rgba(255,255,255,.14);
+  --txt:#eef2f7; --dim:#9aa7b8; --faint:#6b7888;
+  --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2; --teal2:#16c79a;
+  --red:#ff6b6b; --amber:#ffb347; --blue:#9db0ff;
+  --r:12px; --rs:8px;
+  --shad:0 24px 60px -20px rgba(0,0,0,.7);
+  --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif;
+
+  /* layout */
+  --sidebar-w: 224px;
+  --header-h:  60px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--fb);background:var(--bg);color:var(--txt);overflow:hidden;-webkit-font-smoothing:antialiased;line-height:1.5}
+a{color:inherit;text-decoration:none}
+button{font-family:var(--fb);cursor:pointer}
+h1,h2,h3,h4{font-family:var(--fd);font-weight:800;letter-spacing:-.01em;line-height:1.2}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.12)}
+
+/* ── full-screen overlays (auth gate, onboarding) ── */
+.overlay{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px}
+.overlay::before{content:"";position:absolute;inset:0;background:radial-gradient(800px 500px at 75% -10%,rgba(255,122,24,.16),transparent 60%),radial-gradient(700px 500px at 5% 100%,rgba(32,227,178,.10),transparent 55%);pointer-events:none}
+.overlay > *{position:relative;z-index:1}
+.overlay .logo{width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;margin-bottom:22px;box-shadow:0 8px 24px -6px rgba(255,122,24,.6)}
+.overlay .logo svg{width:30px;height:30px}
+.overlay h1{font-size:24px;margin-bottom:8px}
+.overlay p{color:var(--dim);font-size:15px;text-align:center;max-width:380px;margin-bottom:24px}
+.overlay .spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,122,24,.15);border-top-color:var(--acc);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;font-weight:700;font-size:15px;padding:12px 22px;border-radius:10px;border:0;cursor:pointer;transition:transform .15s,box-shadow .2s;box-shadow:0 8px 22px -8px rgba(255,122,24,.55)}
+.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px -8px rgba(255,122,24,.7)}
+.btn-ghost{background:var(--surf);color:var(--txt);border:1px solid var(--brd2);box-shadow:none}
+.btn-ghost:hover{background:var(--surf2);border-color:var(--brd2)}
+.btn svg{width:16px;height:16px}
+
+/* ── app frame ── */
+.app-frame{display:none;height:100vh;flex-direction:column}
+.app-frame.ready{display:flex}
+
+header.app-header{
+  flex:none;height:var(--header-h);display:flex;align-items:center;gap:16px;
+  padding:0 20px;background:var(--bg2);border-bottom:1px solid var(--brd);
+}
+.app-header .brand{display:flex;align-items:center;gap:11px;font-family:var(--fd);font-weight:800;font-size:17px}
+.app-header .brand .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;flex:none}
+.app-header .brand .logo svg{width:18px;height:18px}
+.app-header .brand small{font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.04);border:1px solid var(--brd);padding:3px 8px;border-radius:100px;margin-left:4px}
+
+.ws-switcher{display:flex;align-items:center;gap:8px;background:var(--surf);border:1px solid var(--brd2);border-radius:9px;padding:7px 12px;font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;transition:border-color .2s;position:relative}
+.ws-switcher:hover{border-color:rgba(255,255,255,.22)}
+.ws-switcher svg{width:14px;height:14px;color:var(--dim)}
+.ws-switcher .ws-name{max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ws-switcher .ws-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(120,140,255,.14);color:var(--blue);letter-spacing:.06em;text-transform:uppercase;margin-left:4px}
+
+.header-spacer{flex:1}
+
+.user-menu{display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--surf);border:1px solid var(--brd2);border-radius:9px;cursor:pointer;transition:border-color .2s;position:relative}
+.user-menu:hover{border-color:rgba(255,255,255,.22)}
+.user-menu .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;color:#170f05;font-weight:800;font-size:13px}
+.user-menu .name{font-size:13.5px;font-weight:600;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-menu svg{width:13px;height:13px;color:var(--dim)}
+
+.dropdown{position:absolute;top:calc(100% + 6px);right:0;background:var(--surf);border:1px solid var(--brd2);border-radius:10px;min-width:200px;box-shadow:0 16px 36px -12px rgba(0,0,0,.7);overflow:hidden;display:none;z-index:50}
+.dropdown.open{display:block;animation:ddIn .2s cubic-bezier(.2,.7,.2,1)}
+@keyframes ddIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.dropdown a{display:flex;align-items:center;gap:10px;padding:11px 14px;font-size:14px;color:var(--txt);transition:background .15s;cursor:pointer}
+.dropdown a:hover{background:var(--surf2)}
+.dropdown a svg{width:14px;height:14px;color:var(--dim)}
+.dropdown .sep{height:1px;background:var(--brd);margin:4px 0}
+.dropdown .danger{color:var(--red)}
+.dropdown .danger svg{color:var(--red)}
+
+/* ── main body: sidebar + content ── */
+.app-body{flex:1;display:flex;min-height:0}
+
+.sidebar{
+  flex:none;width:var(--sidebar-w);background:var(--bg2);border-right:1px solid var(--brd);
+  padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;
+}
+.sidebar .section-label{font-size:11px;font-weight:700;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;padding:14px 12px 8px}
+.snav{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;border:0;background:transparent;color:var(--dim);font-family:var(--fb);font-weight:600;font-size:14px;cursor:pointer;text-align:left;width:100%;transition:all .15s;border:1px solid transparent}
+.snav svg{width:17px;height:17px;flex:none}
+.snav:hover{background:var(--surf);color:var(--txt)}
+.snav.active{background:rgba(255,122,24,.12);color:var(--acc2);border-color:rgba(255,122,24,.22)}
+
+.content{flex:1;overflow-y:auto;padding:28px 32px;min-width:0}
+
+/* ── DASHBOARD ── */
+.stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px}
+.stat-card{background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:6px;min-width:0;transition:border-color .2s,transform .2s}
+.stat-card:hover{border-color:var(--brd2);transform:translateY(-2px)}
+.stat-card .n{font-family:var(--fd);font-weight:800;font-size:34px;line-height:1;color:var(--txt)}
+.stat-card .n.t{color:var(--teal)} .stat-card .n.a{color:var(--acc2)} .stat-card .n.b{color:var(--blue)} .stat-card .n.r{color:var(--red)}
+.stat-card .l{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:4px}
+
+.section{background:var(--surf);border:1px solid var(--brd);border-radius:14px;margin-bottom:18px;overflow:hidden}
+.section-h{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 22px;border-bottom:1px solid var(--brd);background:rgba(255,255,255,.015)}
+.section-h h3{font-family:var(--fd);font-size:15px;font-weight:700;color:var(--txt)}
+.section-h .meta{font-size:12.5px;color:var(--faint)}
+.section-body{padding:0}
+
+.dtbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.dtbl th{text-align:left;padding:12px 22px;color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--brd);background:rgba(255,255,255,.015)}
+.dtbl td{padding:14px 22px;border-bottom:1px solid var(--brd);color:var(--dim);vertical-align:middle}
+.dtbl tr:last-child td{border-bottom:0}
+.dtbl tr:hover td{background:rgba(255,255,255,.018)}
+.dtbl td.k{color:var(--txt);font-weight:600}
+.dtbl .empty{text-align:center;color:var(--faint);padding:36px 22px;font-size:13.5px}
+
+.plate{display:inline-block;background:#f5c430;color:#1a1a1a;font-weight:700;font-size:11.5px;padding:3px 8px;border-radius:4px;font-family:'Courier New',monospace;letter-spacing:.5px}
+
+.status-pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:5px;letter-spacing:.04em}
+.status-pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.status-pill.s-progress{background:rgba(120,140,255,.14);color:var(--blue)}
+.status-pill.s-ready{background:rgba(32,227,178,.14);color:var(--teal)}
+.status-pill.s-arrived{background:rgba(255,179,71,.14);color:var(--acc2)}
+.status-pill.s-scheduled{background:rgba(157,176,255,.10);color:#cbd2dc}
+.status-pill.s-done{background:rgba(255,255,255,.06);color:var(--faint)}
+.status-pill.s-warn{background:rgba(255,107,107,.14);color:var(--red)}
+
+.row-act{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.mini-btn{font-size:11.5px;font-weight:600;padding:6px 11px;border-radius:7px;border:1px solid var(--brd2);background:transparent;color:var(--dim);cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
+.mini-btn svg{width:11px;height:11px}
+.mini-btn:hover{color:var(--txt);border-color:rgba(255,255,255,.22);background:var(--surf2)}
+.mini-btn.good:hover{color:var(--teal);border-color:var(--teal)}
+.mini-btn.warn:hover{color:var(--acc2);border-color:var(--acc)}
+.mini-btn.danger:hover{color:var(--red);border-color:var(--red)}
+
+.refresh-btn{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--brd2);background:var(--surf);color:var(--dim);cursor:pointer;transition:all .15s}
+.refresh-btn:hover{color:var(--txt);border-color:rgba(255,255,255,.22)}
+.refresh-btn svg{width:14px;height:14px}
+.refresh-btn.spinning svg{animation:spin 1s linear infinite}
+
+.dash-meta{font-size:12.5px;color:var(--faint);display:flex;align-items:center;gap:8px;margin-top:4px}
+.dash-meta .live-dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(32,227,178,.5);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(32,227,178,.55)}70%{box-shadow:0 0 0 8px rgba(32,227,178,0)}100%{box-shadow:0 0 0 0 rgba(32,227,178,0)}}
+
+@media(max-width:960px){.stat-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:520px){
+  .stat-row{grid-template-columns:repeat(2,1fr);gap:8px}
+  .stat-card{padding:14px 16px}
+  .stat-card .n{font-size:26px}
+  .dtbl th,.dtbl td{padding:11px 14px}
+  .section-h{padding:14px 16px}
+}
+
+/* ── FILTER BAR (reused by every list tab) ── */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.toolbar input[type="text"],.toolbar input[type="date"],.toolbar select{background:var(--surf);border:1px solid var(--brd2);border-radius:9px;padding:9px 13px;color:var(--txt);font-family:var(--fb);font-size:13.5px;outline:none;transition:border-color .15s}
+.toolbar input[type="text"]{flex:1;min-width:180px}
+.toolbar input:focus,.toolbar select:focus{border-color:var(--acc)}
+.toolbar .grow{flex:1}
+.toolbar .pill{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:var(--surf);border:1px solid var(--brd2);border-radius:100px;font-size:12.5px;color:var(--dim);font-weight:600}
+.toolbar .pill b{color:var(--txt)}
+
+.add-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;font-weight:700;font-size:13.5px;border:0;cursor:pointer;transition:transform .15s,box-shadow .2s;box-shadow:0 6px 18px -6px rgba(255,122,24,.5)}
+.add-btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px -6px rgba(255,122,24,.7)}
+.add-btn svg{width:15px;height:15px}
+
+/* ── MODAL ── */
+.gp-modal{position:fixed;inset:0;z-index:220;background:rgba(5,8,14,.78);backdrop-filter:blur(8px);display:none;align-items:flex-start;justify-content:center;padding:48px 20px;overflow-y:auto}
+.gp-modal.open{display:flex}
+.gp-modal-box{background:var(--surf);border:1px solid var(--brd2);border-radius:16px;width:100%;max-width:640px;box-shadow:0 32px 80px -20px rgba(0,0,0,.9);animation:modalIn .25s cubic-bezier(.2,.7,.2,1);overflow:hidden}
+@keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:none}}
+.gp-modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--brd)}
+.gp-modal-head h3{font-family:var(--fd);font-size:18px;font-weight:800}
+.gp-modal-close{background:var(--surf2);border:1px solid var(--brd);width:30px;height:30px;border-radius:7px;cursor:pointer;color:var(--dim);display:grid;place-items:center;transition:color .2s,border-color .2s}
+.gp-modal-close:hover{color:var(--txt);border-color:var(--brd2)}
+.gp-modal-close svg{width:14px;height:14px}
+.gp-modal-body{padding:22px 24px;max-height:70vh;overflow-y:auto}
+.gp-modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 24px;border-top:1px solid var(--brd);background:var(--bg2)}
+.fbtn{padding:10px 18px;border-radius:9px;font-family:var(--fb);font-weight:700;font-size:13.5px;cursor:pointer;border:1px solid;transition:all .15s}
+.fbtn-save{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;border-color:transparent}
+.fbtn-save:hover{transform:translateY(-1px);box-shadow:0 6px 16px -4px rgba(255,122,24,.55)}
+.fbtn-save:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
+.fbtn-cancel{background:transparent;color:var(--dim);border-color:var(--brd2)}
+.fbtn-cancel:hover{color:var(--txt)}
+.fbtn-danger{background:transparent;color:var(--red);border-color:rgba(255,107,107,.3)}
+.fbtn-danger:hover{background:rgba(255,107,107,.08);border-color:var(--red)}
+
+/* ── FORM FIELDS ── */
+.f-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.f-row.r3{grid-template-columns:1fr 1fr 1fr}
+.f-row.r1{grid-template-columns:1fr}
+.f-grp{display:flex;flex-direction:column;gap:6px;min-width:0}
+.f-grp label{font-size:12px;font-weight:600;color:var(--dim);letter-spacing:.02em}
+.f-grp label .req{color:var(--red);margin-left:2px}
+.f-grp input,.f-grp select,.f-grp textarea{background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;padding:11px 13px;color:var(--txt);font-family:var(--fb);font-size:14px;outline:none;transition:border-color .15s;width:100%}
+.f-grp input:focus,.f-grp select:focus,.f-grp textarea:focus{border-color:var(--acc)}
+.f-grp input:disabled,.f-grp select:disabled{opacity:.55;cursor:not-allowed}
+.f-grp textarea{resize:vertical;min-height:70px}
+.f-grp select option{background:var(--surf);color:var(--txt)}
+.f-grp .hint{font-size:11.5px;color:var(--faint);margin-top:2px}
+.f-err{font-size:13px;color:var(--red);min-height:18px;margin-top:6px}
+
+/* Datalist-backed autocomplete looks the same as a normal input */
+input[list]{background:var(--bg2)}
+
+/* tighter table when used inside a tab (lots of rows) */
+.list-tbl{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--surf);border:1px solid var(--brd);border-radius:14px;overflow:hidden}
+.list-tbl th{text-align:left;padding:12px 18px;color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--brd);background:rgba(255,255,255,.015);white-space:nowrap}
+.list-tbl td{padding:13px 18px;border-bottom:1px solid var(--brd);color:var(--dim);vertical-align:middle}
+.list-tbl tr:last-child td{border-bottom:0}
+.list-tbl tr:hover td{background:rgba(255,255,255,.018)}
+.list-tbl td.k{color:var(--txt);font-weight:600}
+.list-tbl .empty{text-align:center;color:var(--faint);padding:36px 22px}
+
+/* placeholder card */
+.placeholder{background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd);border-radius:16px;padding:40px;text-align:center;color:var(--dim)}
+.placeholder svg{width:42px;height:42px;color:var(--faint);margin:0 auto 14px;opacity:.5}
+.placeholder h3{color:var(--txt);font-size:18px;margin-bottom:6px;font-family:var(--fd)}
+.placeholder p{font-size:14px;max-width:420px;margin:0 auto}
+
+.tab-panel{display:none}
+.tab-panel.active{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:14px}
+.page-head h2{font-family:var(--fd);font-size:24px;font-weight:800}
+.page-head .crumb{font-size:13px;color:var(--faint);margin-top:2px}
+
+/* ── toast ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surf);border:1px solid var(--brd2);border-radius:11px;padding:12px 20px;font-size:14px;font-weight:600;color:var(--txt);z-index:300;opacity:0;transition:all .3s;pointer-events:none;box-shadow:0 14px 32px rgba(0,0,0,.6)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.good::before{content:"✓  ";color:var(--teal)}
+.toast.bad::before{content:"✕  ";color:var(--red)}
+
+/* ── responsive ── */
+@media(max-width:760px){
+  :root{--sidebar-w:100%}
+  .app-body{flex-direction:column}
+  .sidebar{width:100%;height:auto;flex-direction:row;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--brd);padding:8px 12px;gap:6px}
+  .sidebar .section-label{display:none}
+  .snav{padding:9px 12px;font-size:13px;white-space:nowrap;flex:none}
+  .content{padding:20px 18px}
+  .app-header{padding:0 14px;gap:10px}
+  .app-header .brand small{display:none}
+  .user-menu .name{display:none}
+  .ws-switcher .ws-name{max-width:120px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ AUTH GATE (loading) ═══════════════ -->
+<div class="overlay" id="overlayLoading">
+  <div class="spinner"></div>
+</div>
+
+<!-- ═══════════════ NOT SIGNED IN ═══════════════ -->
+<div class="overlay" id="overlaySignin" style="display:none">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
+  </div>
+  <h1>Sign in required</h1>
+  <p>This is the Garage Pro app. You need a customer account to use it — sign in or create one on the main site, then come back here.</p>
+  <a href="../" class="btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    Go to garagepro.me
+  </a>
+</div>
+
+<!-- ═══════════════ NO WORKSHOP YET (post-signin, pre-setup) ═══════════════ -->
+<div class="overlay" id="overlayNoWorkshop" style="display:none">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 9h6M9 13h6M9 17h6"/></svg>
+  </div>
+  <h1>Set up your workshop</h1>
+  <p>Looks like you don't have a workshop configured yet. The setup wizard will be the next thing we build — for now, click below to create a default one and start exploring the app shell.</p>
+  <button class="btn" id="btnCreateDefault">Create default workshop</button>
+  <p style="margin-top:16px;font-size:13px;color:var(--faint)">Signed in as <span id="signedInEmail" style="color:var(--dim)">—</span></p>
+</div>
+
+<!-- ═══════════════ MAIN APP ═══════════════ -->
+<div class="app-frame" id="appFrame">
+
+  <header class="app-header">
+    <a href="../" class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
+      </span>
+      Garage Pro <small>App</small>
+    </a>
+
+    <div class="ws-switcher" id="wsSwitcher" onclick="toggleDropdown('ddWs')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21V12h6v9"/></svg>
+      <span class="ws-name" id="wsName">Loading…</span>
+      <span class="ws-tag" id="wsTag" style="display:none">CHAIN</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="dropdown" id="ddWs">
+        <div id="wsList"></div>
+        <div class="sep"></div>
+        <a onclick="alert('Coming in Step 5 — onboarding wizard'); event.stopPropagation()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Add workshop
+        </a>
+      </div>
+    </div>
+
+    <div class="header-spacer"></div>
+
+    <div class="user-menu" onclick="toggleDropdown('ddUser')">
+      <div class="av" id="userAv">U</div>
+      <span class="name" id="userName">User</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="dropdown" id="ddUser">
+        <a href="../#pricing" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Manage subscription
+        </a>
+        <a href="../" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/></svg>
+          Main website
+        </a>
+        <div class="sep"></div>
+        <a class="danger" onclick="doSignOut()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          Sign out
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-body">
+
+    <nav class="sidebar" id="sidebar">
+      <div class="section-label">Workshop</div>
+      <button class="snav active" data-tab="dashboard" onclick="switchTab('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard
+      </button>
+      <button class="snav" data-tab="bookings" onclick="switchTab('bookings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        Bookings
+      </button>
+      <button class="snav" data-tab="checkin" onclick="switchTab('checkin')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Check-in
+      </button>
+      <button class="snav" data-tab="jobs" onclick="switchTab('jobs')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
+        Jobs
+      </button>
+      <button class="snav" data-tab="bays" onclick="switchTab('bays')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Bays
+      </button>
+      <button class="snav" data-tab="queue" onclick="switchTab('queue')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        Queue
+      </button>
+
+      <div class="section-label">Records</div>
+      <button class="snav" data-tab="customers" onclick="switchTab('customers')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Customers
+      </button>
+      <button class="snav" data-tab="workers" onclick="switchTab('workers')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7"/></svg>
+        Workers
+      </button>
+      <button class="snav" data-tab="inventory" onclick="switchTab('inventory')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
+        Inventory
+      </button>
+      <button class="snav" data-tab="timesheets" onclick="switchTab('timesheets')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Timesheets
+      </button>
+
+      <div class="section-label">Insights</div>
+      <button class="snav" data-tab="reports" onclick="switchTab('reports')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
+        Reports
+      </button>
+      <button class="snav" data-tab="audit" onclick="switchTab('audit')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Audit Log
+      </button>
+
+      <div class="section-label">Configure</div>
+      <button class="snav" data-tab="settings" onclick="switchTab('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        Settings
+      </button>
+    </nav>
+
+    <main class="content">
+
+      <div class="tab-panel active" id="tab-dashboard">
+        <div class="page-head">
+          <div>
+            <h2 id="dashTitle">Dashboard</h2>
+            <div class="dash-meta">
+              <span class="live-dot"></span>
+              <span id="dashCrumb">—</span>
+            </div>
+          </div>
+          <button class="refresh-btn" id="dashRefresh" onclick="renderDashboard(true)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+            Refresh
+          </button>
+        </div>
+
+        <div class="stat-row" id="dashStats">
+          <div class="stat-card"><div class="n b" id="statExpected">—</div><div class="l">Expected today</div></div>
+          <div class="stat-card"><div class="n a" id="statInShop">—</div><div class="l">Cars in workshop</div></div>
+          <div class="stat-card"><div class="n t" id="statBaysFree">—</div><div class="l">Available bays</div></div>
+          <div class="stat-card"><div class="n" id="statActiveJobs">—</div><div class="l">Active jobs</div></div>
+          <div class="stat-card"><div class="n r" id="statQueue">—</div><div class="l">In queue</div></div>
+        </div>
+
+        <div class="section">
+          <div class="section-h">
+            <h3>Expected today</h3>
+            <span class="meta" id="expectedMeta">—</span>
+          </div>
+          <div class="section-body"><table class="dtbl" id="tblExpected"></table></div>
+        </div>
+
+        <div class="section">
+          <div class="section-h">
+            <h3>Cars currently in workshop</h3>
+            <span class="meta" id="inShopMeta">—</span>
+          </div>
+          <div class="section-body"><table class="dtbl" id="tblInShop"></table></div>
+        </div>
+      </div>
+
+      <!-- All other tabs are placeholders for now — populated in later steps -->
+      <div class="tab-panel" id="tab-bookings">
+        <div class="page-head">
+          <div><h2>Bookings</h2><div class="dash-meta"><span class="live-dot"></span><span id="bkCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderBookings(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="add-btn" onclick="openBookingForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New booking</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="bkSearch" placeholder="Search plate, customer, ref…" oninput="renderBookings()" />
+          <select id="bkStatus" onchange="renderBookings()">
+            <option value="">All statuses</option>
+            <option value="Scheduled">Scheduled</option>
+            <option value="Arrived">Arrived</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <input type="date" id="bkDate" onchange="renderBookings()" />
+          <button class="refresh-btn" onclick="document.getElementById('bkSearch').value='';document.getElementById('bkStatus').value='';document.getElementById('bkDate').value='';renderBookings()">Clear</button>
+          <span class="pill"><b id="bkCount">0</b>&nbsp;results</span>
+        </div>
+        <div id="bkTableWrap"></div>
+      </div>
+      <div class="tab-panel" id="tab-checkin">
+        <div class="page-head">
+          <div><h2>Check-in</h2><div class="dash-meta"><span class="live-dot"></span><span id="ciCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderCheckin(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="add-btn" onclick="openWalkin()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Walk-in</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <input type="date" id="ciDate" onchange="renderCheckin()" />
+          <span class="pill">Awaiting arrival: <b id="ciAwaitCount">0</b></span>
+          <span class="pill">In workshop: <b id="ciInCount">0</b></span>
+        </div>
+        <div class="section">
+          <div class="section-h"><h3>Awaiting arrival</h3><span class="meta" id="ciAwaitMeta"></span></div>
+          <div class="section-body"><div id="ciAwaitWrap"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-h"><h3>Currently in workshop</h3><span class="meta" id="ciInMeta"></span></div>
+          <div class="section-body"><div id="ciInWrap"></div></div>
+        </div>
+      </div>
+      <div class="tab-panel" id="tab-jobs">
+        <div class="page-head">
+          <div><h2>Job Cards</h2><div class="dash-meta"><span class="live-dot"></span><span id="jbCrumb">—</span></div></div>
+          <button class="refresh-btn" onclick="renderJobs(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="jbSearch" placeholder="Search plate, customer, mechanic…" oninput="renderJobs()" />
+          <select id="jbStatus" onchange="renderJobs()">
+            <option value="">All statuses</option>
+            <option value="Awaiting Approval">Awaiting Approval</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Parts Ordered">Parts Ordered</option>
+            <option value="Parts Not Available">Parts Not Available</option>
+            <option value="Ready for Delivery">Ready for Delivery</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <select id="jbMech" onchange="renderJobs()"><option value="">All mechanics</option></select>
+          <button class="refresh-btn" onclick="document.getElementById('jbSearch').value='';document.getElementById('jbStatus').value='';document.getElementById('jbMech').value='';renderJobs()">Clear</button>
+          <span class="pill"><b id="jbCount">0</b>&nbsp;results</span>
+        </div>
+        <div id="jbTableWrap"></div>
+      </div>
+      <div class="tab-panel" id="tab-bays"><div class="page-head"><div><h2>Bays</h2><div class="crumb">Coming in step 7</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
+      <div class="tab-panel" id="tab-queue"><div class="page-head"><div><h2>Queue</h2><div class="crumb">Coming in step 8</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
+      <div class="tab-panel" id="tab-customers">
+        <div class="page-head">
+          <div><h2>Customers</h2><div class="dash-meta"><span class="live-dot"></span><span id="cuCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderCustomers(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="add-btn" onclick="openCustomerForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New customer</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="cuSearch" placeholder="Search name, phone, email, plate…" oninput="renderCustomers()" />
+          <span class="pill"><b id="cuCount">0</b>&nbsp;results</span>
+        </div>
+        <div id="cuTableWrap"></div>
+      </div>
+
+      <div class="tab-panel" id="tab-workers">
+        <div class="page-head">
+          <div><h2>Workers</h2><div class="dash-meta"><span class="live-dot"></span><span id="wkCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderWorkers(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="add-btn" onclick="openWorkerForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add worker</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="wkSearch" placeholder="Search name, username, role…" oninput="renderWorkers()" />
+          <select id="wkRole" onchange="renderWorkers()">
+            <option value="">All roles</option>
+            <option value="owner">Owner</option>
+            <option value="manager">Manager</option>
+            <option value="receptionist">Receptionist</option>
+            <option value="mechanic">Mechanic</option>
+          </select>
+          <select id="wkActive" onchange="renderWorkers()">
+            <option value="">All</option>
+            <option value="active">Active only</option>
+            <option value="inactive">Inactive only</option>
+          </select>
+          <span class="pill"><b id="wkCount">0</b>&nbsp;results</span>
+        </div>
+        <div id="wkTableWrap"></div>
+      </div>
+      <div class="tab-panel" id="tab-inventory"><div class="page-head"><div><h2>Inventory</h2><div class="crumb">Coming in step 11</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
+      <div class="tab-panel" id="tab-timesheets"><div class="page-head"><div><h2>Timesheets</h2><div class="crumb">Coming in step 12</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
+      <div class="tab-panel" id="tab-reports"><div class="page-head"><div><h2>Reports</h2><div class="crumb">Coming in step 13</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
+      <div class="tab-panel" id="tab-audit"><div class="page-head"><div><h2>Audit Log</h2><div class="crumb">Coming in step 14</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
+      <div class="tab-panel" id="tab-settings"><div class="page-head"><div><h2>Settings</h2><div class="crumb">Coming in step 15</div></div></div><div class="placeholder"><h3>Not built yet</h3><p>This tab will be added later.</p></div></div>
+
+    </main>
+  </div>
+</div>
+
+<!-- toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════════ SHARED MODAL ═══════════════ -->
+<div class="gp-modal" id="gpModal">
+  <div class="gp-modal-box">
+    <div class="gp-modal-head">
+      <h3 id="gpModalTitle">Form</h3>
+      <button class="gp-modal-close" onclick="closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="gp-modal-body" id="gpModalBody"></div>
+    <div class="gp-modal-foot" id="gpModalFoot"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  FIREBASE INIT (same project as the marketing site)
+// ══════════════════════════════════════════
+const FB_CONFIG = {
+  apiKey: "AIzaSyD4rRHyT3NOxTfwQDy3mjv9HVYUH3riGDA",
+  authDomain: "garage-pro-874c6.firebaseapp.com",
+  projectId: "garage-pro-874c6",
+  storageBucket: "garage-pro-874c6.firebasestorage.app",
+  messagingSenderId: "714982026183",
+  appId: "1:714982026183:web:95401fffb0a93151b407e2"
+};
+firebase.initializeApp(FB_CONFIG);
+const fbAuth = firebase.auth();
+const fbDb   = firebase.firestore();
+fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+
+// ══════════════════════════════════════════
+//  GLOBAL STATE
+// ══════════════════════════════════════════
+let currentUser     = null;   // Firebase Auth user
+let userProfile     = null;   // users/{uid} doc
+let workshops       = [];     // [{id, name, isPrimary, ...}]
+let currentWorkshop = null;   // selected workshop ({id, name, ...})
+let currentTab      = 'dashboard';
+
+// ══════════════════════════════════════════
+//  AUTH GATE
+// ══════════════════════════════════════════
+fbAuth.onAuthStateChanged(async (user) => {
+  if (!user) {
+    document.getElementById('overlayLoading').style.display = 'none';
+    document.getElementById('overlaySignin').style.display = 'flex';
+    return;
+  }
+  currentUser = user;
+  document.getElementById('signedInEmail').textContent = user.email || '—';
+
+  try {
+    await loadUserProfile();
+    await loadWorkshops();
+    if (!workshops.length) {
+      document.getElementById('overlayLoading').style.display = 'none';
+      document.getElementById('overlayNoWorkshop').style.display = 'flex';
+      return;
+    }
+    enterApp();
+  } catch (e) {
+    console.error('Boot failed:', e);
+    showToast('Could not load your workshop: ' + (e.message || e), 'bad');
+  }
+});
+
+async function loadUserProfile() {
+  const doc = await fbDb.collection('users').doc(currentUser.uid).get();
+  userProfile = doc.exists ? doc.data() : { email: currentUser.email, name: currentUser.displayName || '' };
+  // If they don't have a user doc yet, create a minimal one
+  if (!doc.exists) {
+    await fbDb.collection('users').doc(currentUser.uid).set({
+      uid:   currentUser.uid,
+      email: currentUser.email,
+      name:  currentUser.displayName || currentUser.email.split('@')[0],
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
+}
+
+async function loadWorkshops() {
+  const snap = await fbDb.collection('users').doc(currentUser.uid).collection('workshops').get();
+  workshops = [];
+  snap.forEach(d => workshops.push({ id: d.id, ...d.data() }));
+  workshops.sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0));   // primary first
+  if (workshops.length) {
+    const lastUsed = localStorage.getItem('gp_currentWorkshop:' + currentUser.uid);
+    currentWorkshop = workshops.find(w => w.id === lastUsed) || workshops[0];
+  }
+}
+
+document.getElementById('btnCreateDefault').addEventListener('click', async () => {
+  const btn = document.getElementById('btnCreateDefault');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  try {
+    const wsRef = fbDb.collection('users').doc(currentUser.uid).collection('workshops').doc('main');
+    await wsRef.set({
+      name:       userProfile.garageName || 'My Workshop',
+      isPrimary:  true,
+      createdAt:  firebase.firestore.FieldValue.serverTimestamp(),
+      // skeleton fields the desktop app expected — filled in by the Settings screen later
+      address: '', phone: '', gstin: '',
+      bankDetails: { holderName:'', accountNumber:'', ifsc:'', bankName:'' }
+    });
+    document.getElementById('overlayNoWorkshop').style.display = 'none';
+    document.getElementById('overlayLoading').style.display = 'flex';
+    await loadWorkshops();
+    enterApp();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Create default workshop';
+    showToast('Failed: ' + (e.message || e), 'bad');
+  }
+});
+
+// ══════════════════════════════════════════
+//  ENTER APP
+// ══════════════════════════════════════════
+function enterApp() {
+  document.getElementById('overlayLoading').style.display = 'none';
+  document.getElementById('overlaySignin').style.display = 'none';
+  document.getElementById('overlayNoWorkshop').style.display = 'none';
+  document.getElementById('appFrame').classList.add('ready');
+  renderHeader();
+  renderSidebarVisibility();
+  switchTab(currentTab);
+}
+
+function renderHeader() {
+  // workshop switcher
+  document.getElementById('wsName').textContent = currentWorkshop ? currentWorkshop.name : '—';
+  const isChain = workshops.length > 1 || (userProfile && userProfile.garageType === 'chain');
+  document.getElementById('wsTag').style.display = isChain ? '' : 'none';
+  // user menu
+  const name  = (userProfile && userProfile.name) || currentUser.email.split('@')[0];
+  const first = name.split(' ')[0] || name;
+  document.getElementById('userName').textContent = first;
+  document.getElementById('userAv').textContent = (first[0] || '?').toUpperCase();
+  // dashboard subtitle
+  const c = document.getElementById('dashCrumb');
+  if (c) c.textContent = `${currentWorkshop ? currentWorkshop.name : 'No workshop'} · signed in as ${currentUser.email}`;
+  // workshop dropdown list
+  const list = document.getElementById('wsList');
+  list.innerHTML = workshops.map(w => {
+    const active = currentWorkshop && w.id === currentWorkshop.id;
+    return `<a onclick="selectWorkshop('${w.id.replace(/'/g, "\\'")}'); event.stopPropagation()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${active ? '<path d="M20 6 9 17l-5-5"/>' : '<circle cx="12" cy="12" r="9"/>'}</svg>
+      ${escapeHtml(w.name)}${w.isPrimary ? ' <span style="color:var(--faint);font-size:11px;margin-left:4px">primary</span>' : ''}
+    </a>`;
+  }).join('');
+}
+
+function renderSidebarVisibility() {
+  // For now everything is visible. Later we'll gate by role (owner / manager / receptionist).
+}
+
+window.selectWorkshop = function(id) {
+  const ws = workshops.find(w => w.id === id);
+  if (!ws) return;
+  currentWorkshop = ws;
+  localStorage.setItem('gp_currentWorkshop:' + currentUser.uid, ws.id);
+  closeAllDropdowns();
+  renderHeader();
+  // Re-render current tab so it reads the new workshop's data
+  switchTab(currentTab);
+  showToast(`Switched to ${ws.name}`, 'good');
+};
+
+// ══════════════════════════════════════════
+//  NAV / TABS
+// ══════════════════════════════════════════
+window.switchTab = function(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.snav').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+  if (tab === 'dashboard') renderDashboard();
+  if (tab === 'bookings')  renderBookings();
+  if (tab === 'checkin')   renderCheckin();
+  if (tab === 'jobs')      renderJobs();
+  if (tab === 'customers') renderCustomers();
+  if (tab === 'workers')   renderWorkers();
+};
+
+// ══════════════════════════════════════════
+//  DROPDOWNS
+// ══════════════════════════════════════════
+window.toggleDropdown = function(id) {
+  const dd = document.getElementById(id);
+  const wasOpen = dd.classList.contains('open');
+  closeAllDropdowns();
+  if (!wasOpen) dd.classList.add('open');
+};
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.user-menu') && !e.target.closest('.ws-switcher')) closeAllDropdowns();
+});
+
+// ══════════════════════════════════════════
+//  SIGN OUT
+// ══════════════════════════════════════════
+window.doSignOut = async function() {
+  try {
+    await fbAuth.signOut();
+    location.href = '../';
+  } catch (e) {
+    showToast('Sign out failed', 'bad');
+  }
+};
+
+// ══════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════
+let _toastT;
+window.showToast = function(msg, type = 'good') {
+  const t = document.getElementById('toast');
+  clearTimeout(_toastT);
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  _toastT = setTimeout(() => t.classList.remove('show'), 3000);
+};
+
+// ══════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+// ══════════════════════════════════════════
+//  Path helpers — every collection lives under the current workshop
+// ══════════════════════════════════════════
+function wsRef() {
+  if (!currentUser || !currentWorkshop) throw new Error('No workshop context');
+  return fbDb.collection('users').doc(currentUser.uid)
+              .collection('workshops').doc(currentWorkshop.id);
+}
+// e.g. wsCol('bookings').doc('data') — used by every subsequent step
+function wsCol(name) { return wsRef().collection(name); }
+
+// Convenience for the one-doc-per-collection pattern the desktop app uses
+async function wsLoad(name)        { const d = await wsCol(name).doc('data').get(); return d.exists ? (d.data().items || []) : []; }
+async function wsSave(name, items) { return wsCol(name).doc('data').set({ items, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }); }
+window.wsRef = wsRef; window.wsCol = wsCol; window.wsLoad = wsLoad; window.wsSave = wsSave;
+
+// ══════════════════════════════════════════
+//  SHARED WORKSHOP DATA (used by every tab from here on)
+// ══════════════════════════════════════════
+const D = {
+  bookings: [], bays: [], jobs: [], queue: [],
+  customers: [], mechanics: [], inventory: [], timesheets: [],
+  settings: {}, loadedAt: 0
+};
+let _loadingPromise = null;
+
+async function loadAllData(force = false) {
+  // Coalesce concurrent calls — only one fetch in flight at a time
+  if (_loadingPromise && !force) return _loadingPromise;
+  if (!force && D.loadedAt && (Date.now() - D.loadedAt < 4000)) return; // 4s grace
+  _loadingPromise = (async () => {
+    try {
+      const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, settingsArr] =
+        await Promise.all([
+          wsLoad('bookings'), wsLoad('bays'),     wsLoad('jobs'),
+          wsLoad('queue'),    wsLoad('customers'),wsLoad('mechanics'),
+          wsLoad('inventory'),wsLoad('timesheets'),
+          wsLoad('settings')
+        ]);
+      D.bookings   = bookings   || [];
+      D.bays       = bays       || [];
+      D.jobs       = jobs       || [];
+      D.queue      = queue      || [];
+      D.customers  = customers  || [];
+      D.mechanics  = mechanics  || [];
+      D.inventory  = inventory  || [];
+      D.timesheets = timesheets || [];
+      D.settings   = (settingsArr && settingsArr[0]) || {};
+      D.loadedAt   = Date.now();
+    } finally {
+      _loadingPromise = null;
+    }
+  })();
+  return _loadingPromise;
+}
+window.D = D; window.loadAllData = loadAllData;
+
+// ══════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' +
+         String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+function fmtToday() {
+  return new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+const STATUS_CLASS = {
+  'In Progress':         's-progress',
+  'Awaiting Approval':   's-arrived',
+  'Parts Ordered':       's-warn',
+  'Parts Not Available': 's-warn',
+  'Ready for Delivery':  's-ready',
+  'Delivered':           's-done',
+  'Cancelled':           's-done',
+  'Arrived':             's-arrived',
+  'Scheduled':           's-scheduled',
+  'Complete':            's-done'
+};
+function statusPill(status) {
+  const cls = STATUS_CLASS[status] || 's-scheduled';
+  return `<span class="status-pill ${cls}"><span class="dot"></span>${escapeHtml(status || '—')}</span>`;
+}
+
+async function renderDashboard(force = false) {
+  const btn = document.getElementById('dashRefresh');
+  if (btn) btn.classList.add('spinning');
+  try {
+    await loadAllData(force);
+  } catch (e) {
+    showToast('Could not load data: ' + (e.message || e), 'bad');
+  }
+  if (btn) btn.classList.remove('spinning');
+
+  document.getElementById('dashTitle').textContent = `Dashboard — ${fmtToday()}`;
+  document.getElementById('dashCrumb').textContent = `${currentWorkshop ? currentWorkshop.name : 'No workshop'} · live data from Firestore`;
+
+  const today = todayStr();
+
+  // ── Stats ──────────────────────────────────────────────
+  const expected = D.bookings.filter(b => (b.date === today) && (b.status === 'Scheduled' || !b.status));
+  const inShop   = D.bookings.filter(b => b.status === 'Arrived');
+  const baysFree = D.bays.filter(b => (b.status || '').toLowerCase() === 'available');
+  const baysAll  = D.bays.length;
+  const activeJobs = D.jobs.filter(j => !['Delivered','Cancelled'].includes(j.status));
+  const inQueue  = D.queue.length;
+
+  document.getElementById('statExpected').textContent   = expected.length;
+  document.getElementById('statInShop').textContent     = inShop.length;
+  document.getElementById('statBaysFree').textContent   = baysAll ? `${baysFree.length} / ${baysAll}` : '0';
+  document.getElementById('statActiveJobs').textContent = activeJobs.length;
+  document.getElementById('statQueue').textContent      = inQueue;
+
+  // ── Expected today table ───────────────────────────────
+  document.getElementById('expectedMeta').textContent =
+    expected.length ? `${expected.length} booking${expected.length===1?'':'s'} scheduled` : '';
+  const tExp = document.getElementById('tblExpected');
+  if (!expected.length) {
+    tExp.innerHTML = `<tr><td class="empty">No bookings expected today.</td></tr>`;
+  } else {
+    // sort by time ascending
+    expected.sort((a,b) => (a.time||'').localeCompare(b.time||''));
+    tExp.innerHTML = `<thead><tr>
+      <th>Time</th><th>Plate</th><th>Customer</th><th>Service</th><th>Bay type</th><th>Mechanic</th>
+    </tr></thead><tbody>${expected.map(b => `<tr>
+      <td class="k">${escapeHtml(b.time || '—')}</td>
+      <td><span class="plate">${escapeHtml(b.plate || '—')}</span></td>
+      <td class="k">${escapeHtml(b.cust_name || '—')}</td>
+      <td>${escapeHtml(b.service || '—')}</td>
+      <td>${escapeHtml(b.bay_type || '—')}</td>
+      <td>${escapeHtml(b.mechanic || '—')}</td>
+    </tr>`).join('')}</tbody>`;
+  }
+
+  // ── Cars currently in workshop table ───────────────────
+  document.getElementById('inShopMeta').textContent =
+    inShop.length ? `${inShop.length} vehicle${inShop.length===1?'':'s'} on site` : '';
+  const tIn = document.getElementById('tblInShop');
+  if (!inShop.length) {
+    tIn.innerHTML = `<tr><td class="empty">No vehicles currently in the workshop.</td></tr>`;
+  } else {
+    // sort by bay name
+    inShop.sort((a,b) => (a.bay_name||'').localeCompare(b.bay_name||''));
+    tIn.innerHTML = `<thead><tr>
+      <th>Plate</th><th>Customer</th><th>Bay</th><th>Job status</th><th>Mechanic</th><th style="text-align:right">Actions</th>
+    </tr></thead><tbody>${inShop.map(b => {
+      const job = D.jobs.find(j => j.booking_id === b.id);
+      const jstatus = job ? (job.status || 'In Progress') : (b.status || '—');
+      return `<tr>
+        <td><span class="plate">${escapeHtml(b.plate || '—')}</span></td>
+        <td class="k">${escapeHtml(b.cust_name || '—')}</td>
+        <td>${escapeHtml(b.bay_name || (b.bay_type ? b.bay_type + ' · ' + (b.bay_num || '') : '—'))}</td>
+        <td>${statusPill(jstatus)}</td>
+        <td>${escapeHtml(b.mechanic || job?.mechanic || '—')}</td>
+        <td><div class="row-act">
+          <button class="mini-btn" onclick="_dashGoToBooking('${escapeHtml(b.id)}')" title="Open this booking">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 12h18M15 5l7 7-7 7"/></svg>Open
+          </button>
+          <button class="mini-btn good" onclick="_dashSoon('Create invoice')" title="Generate invoice">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Invoice
+          </button>
+          <button class="mini-btn danger" onclick="_dashSoon('Check out')" title="Check vehicle out">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Check out
+          </button>
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>`;
+  }
+}
+
+// Stubs the dashboard action buttons need — the real flows arrive in later steps
+window._dashGoToBooking = function(bookingId) {
+  // Will become switchTab('bookings') + openBooking(id) once the Bookings tab is built
+  showToast('Bookings tab arrives in step 3', 'good');
+};
+window._dashSoon = function(label) {
+  showToast(`${label} arrives in a later step`, 'good');
+};
+
+window.renderDashboard = renderDashboard;
+
+// ══════════════════════════════════════════
+//  SHARED MODAL HELPERS
+// ══════════════════════════════════════════
+let _modalSaveHandler = null;
+function openModal({ title, body, saveLabel = 'Save', danger = null, onSave }) {
+  document.getElementById('gpModalTitle').textContent = title;
+  document.getElementById('gpModalBody').innerHTML = body;
+  const foot = document.getElementById('gpModalFoot');
+  const dangerBtn = danger
+    ? `<button class="fbtn fbtn-danger" onclick="(${danger.handler.toString()})()">${escapeHtml(danger.label)}</button>`
+    : '';
+  foot.innerHTML = `${dangerBtn}<div style="flex:1"></div>
+    <button class="fbtn fbtn-cancel" onclick="closeModal()">Cancel</button>
+    <button class="fbtn fbtn-save" id="gpModalSaveBtn">${escapeHtml(saveLabel)}</button>`;
+  _modalSaveHandler = onSave;
+  document.getElementById('gpModalSaveBtn').onclick = async () => {
+    const btn = document.getElementById('gpModalSaveBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try { await _modalSaveHandler(); }
+    catch (e) {
+      const err = document.querySelector('#gpModalBody .f-err');
+      if (err) err.textContent = e.message || String(e);
+      else showToast('Save failed: ' + (e.message || e), 'bad');
+    } finally {
+      btn.disabled = false; btn.textContent = saveLabel;
+    }
+  };
+  document.getElementById('gpModal').classList.add('open');
+}
+window.closeModal = function() {
+  document.getElementById('gpModal').classList.remove('open');
+  _modalSaveHandler = null;
+};
+document.getElementById('gpModal').addEventListener('click', (e) => {
+  if (e.target.id === 'gpModal') closeModal();
+});
+
+// Small unique-ish ID for new records (matches desktop's _uid())
+function uid(prefix = '') { return (prefix ? prefix + '-' : '') + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function nowStr() { return new Date().toISOString().slice(0, 19).replace('T', ' '); }
+function toTime(d = new Date()) { return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
+
+// ══════════════════════════════════════════
+//  BOOKINGS
+// ══════════════════════════════════════════
+async function renderBookings(force = false) {
+  await loadAllData(force);
+  document.getElementById('bkCrumb').textContent =
+    `${D.bookings.length} booking${D.bookings.length === 1 ? '' : 's'} total`;
+  const q = (document.getElementById('bkSearch').value || '').toLowerCase().trim();
+  const st = document.getElementById('bkStatus').value;
+  const dt = document.getElementById('bkDate').value;
+  let list = D.bookings.slice();
+  if (q) list = list.filter(b =>
+    (b.plate||'').toLowerCase().includes(q) ||
+    (b.cust_name||'').toLowerCase().includes(q) ||
+    (b.id||'').toLowerCase().includes(q) ||
+    (b.service||'').toLowerCase().includes(q));
+  if (st) list = list.filter(b => (b.status || 'Scheduled') === st);
+  if (dt) list = list.filter(b => b.date === dt);
+  // newest first by date+time
+  list.sort((a,b) => ((b.date||'') + (b.time||'')).localeCompare((a.date||'') + (a.time||'')));
+  document.getElementById('bkCount').textContent = list.length;
+  const wrap = document.getElementById('bkTableWrap');
+  if (!list.length) {
+    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">No bookings match. ${D.bookings.length === 0 ? 'Create your first booking with the "New booking" button above.' : 'Adjust your filters.'}</td></tr></table>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="list-tbl">
+    <thead><tr>
+      <th>Date</th><th>Time</th><th>Plate</th><th>Customer</th>
+      <th>Service</th><th>Bay</th><th>Mechanic</th><th>Status</th><th style="text-align:right">Actions</th>
+    </tr></thead>
+    <tbody>${list.map(b => {
+      const status = b.status || 'Scheduled';
+      const isCancelled = status === 'Cancelled';
+      const isDelivered = status === 'Delivered';
+      const canCancel = !isCancelled && !isDelivered;
+      return `<tr>
+        <td class="k">${escapeHtml(b.date || '—')}</td>
+        <td>${escapeHtml(b.time || '—')}</td>
+        <td><span class="plate">${escapeHtml(b.plate || '—')}</span></td>
+        <td class="k">${escapeHtml(b.cust_name || '—')}</td>
+        <td>${escapeHtml(b.service || '—')}</td>
+        <td>${escapeHtml(b.bay_name || b.bay_type || '—')}</td>
+        <td>${escapeHtml(b.mechanic || '—')}</td>
+        <td>${statusPill(status)}</td>
+        <td><div class="row-act">
+          <button class="mini-btn" onclick="openBookingForm('${escapeHtml(b.id)}')" title="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit
+          </button>
+          ${canCancel ? `<button class="mini-btn danger" onclick="cancelBooking('${escapeHtml(b.id)}')" title="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Cancel</button>` : ''}
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+window.renderBookings = renderBookings;
+
+function _bookingFormHTML(b) {
+  const bayTypes = (D.settings.bay_types && D.settings.bay_types.length)
+    ? D.settings.bay_types.map(t => typeof t === 'string' ? t : (t.name || ''))
+    : ['Mechanical bay','Paint bay','2-post lift','Wash bay'];
+  const services = (D.settings.services && D.settings.services.length)
+    ? D.settings.services : ['Oil change','Brake job','Tyre change','Diagnosis','General service','Paint job','Other'];
+  const today = todayStr();
+  return `
+    <datalist id="dlCustomers">${D.customers.map(c => `<option value="${escapeHtml(c.name || '')}">`).join('')}</datalist>
+    <datalist id="dlMechanics">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
+    <div class="f-row">
+      <div class="f-grp"><label>Customer name <span class="req">*</span></label>
+        <input list="dlCustomers" id="bf-cust" type="text" value="${escapeHtml(b.cust_name || '')}" placeholder="Type or pick existing" oninput="_bookingFillCustomer()" /></div>
+      <div class="f-grp"><label>Phone</label>
+        <input id="bf-phone" type="tel" value="${escapeHtml(b.cust_phone || '')}" placeholder="+91 ..." /></div>
+    </div>
+    <div class="f-row r3">
+      <div class="f-grp"><label>Plate <span class="req">*</span></label>
+        <input id="bf-plate" type="text" value="${escapeHtml(b.plate || '')}" placeholder="MH12 AB 1234" style="text-transform:uppercase" /></div>
+      <div class="f-grp"><label>Vehicle</label>
+        <input id="bf-veh" type="text" value="${escapeHtml(b.vehicle || '')}" placeholder="Maruti Swift, 2019" /></div>
+      <div class="f-grp"><label>Mechanic</label>
+        <input list="dlMechanics" id="bf-mech" type="text" value="${escapeHtml(b.mechanic || '')}" placeholder="Unassigned" /></div>
+    </div>
+    <div class="f-row">
+      <div class="f-grp"><label>Service <span class="req">*</span></label>
+        <select id="bf-service">
+          ${services.map(s => `<option value="${escapeHtml(s)}" ${b.service === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
+        </select></div>
+      <div class="f-grp"><label>Bay type</label>
+        <select id="bf-baytype">
+          <option value="">Any</option>
+          ${bayTypes.map(t => `<option value="${escapeHtml(t)}" ${b.bay_type === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="f-row r3">
+      <div class="f-grp"><label>Date <span class="req">*</span></label>
+        <input id="bf-date" type="date" value="${escapeHtml(b.date || today)}" /></div>
+      <div class="f-grp"><label>Time <span class="req">*</span></label>
+        <input id="bf-time" type="time" value="${escapeHtml(b.time || toTime())}" /></div>
+      <div class="f-grp"><label>Cost estimate (₹)</label>
+        <input id="bf-cost" type="number" min="0" step="100" value="${escapeHtml(b.cost_estimate || '')}" placeholder="0" /></div>
+    </div>
+    <div class="f-row r1">
+      <div class="f-grp"><label>Notes</label>
+        <textarea id="bf-notes" placeholder="Any details — symptoms, customer preferences, urgent flags…">${escapeHtml(b.notes || '')}</textarea></div>
+    </div>
+    <div class="f-err" id="bf-err"></div>
+  `;
+}
+
+window.openBookingForm = function(id) {
+  const existing = id ? D.bookings.find(b => b.id === id) : null;
+  const b = existing || {};
+  const isNew = !existing;
+  openModal({
+    title: isNew ? 'New booking' : `Edit booking · ${b.plate || b.id}`,
+    body: _bookingFormHTML(b),
+    saveLabel: isNew ? 'Create booking' : 'Save changes',
+    onSave: () => saveBooking(b.id || null)
+  });
+};
+
+window._bookingFillCustomer = function() {
+  const name = document.getElementById('bf-cust').value.trim();
+  const c = D.customers.find(x => x.name === name);
+  if (c && c.phone && !document.getElementById('bf-phone').value) {
+    document.getElementById('bf-phone').value = c.phone;
+  }
+};
+
+async function saveBooking(id) {
+  const get = (k) => document.getElementById('bf-' + k).value.trim();
+  const cust = get('cust'), phone = get('phone'), plate = get('plate').toUpperCase(),
+        veh = get('veh'), mech = get('mech'), service = get('service'),
+        bayType = get('baytype'), date = get('date'), time = get('time'),
+        cost = get('cost'), notes = document.getElementById('bf-notes').value.trim();
+  const err = document.getElementById('bf-err'); err.textContent = '';
+  if (!cust)    throw new Error('Customer name is required');
+  if (!plate)   throw new Error('Plate is required');
+  if (!service) throw new Error('Service is required');
+  if (!date)    throw new Error('Date is required');
+  if (!time)    throw new Error('Time is required');
+
+  await loadAllData(true);   // grab fresh in case another device just edited
+  const idx = id ? D.bookings.findIndex(b => b.id === id) : -1;
+  const patch = {
+    id: id || uid('bk'),
+    cust_name: cust, cust_phone: phone, plate, vehicle: veh, mechanic: mech,
+    service, bay_type: bayType, date, time,
+    cost_estimate: cost ? Number(cost) : 0,
+    notes,
+    status: id && idx >= 0 ? (D.bookings[idx].status || 'Scheduled') : 'Scheduled',
+    updated_at: nowStr()
+  };
+  if (idx >= 0) D.bookings[idx] = { ...D.bookings[idx], ...patch };
+  else          D.bookings.push({ ...patch, created_at: nowStr() });
+
+  // Upsert customer record so the autocomplete grows over time
+  if (cust && !D.customers.find(c => c.name === cust)) {
+    D.customers.push({ id: uid('c'), name: cust, phone, created_at: nowStr() });
+    await wsSave('customers', D.customers);
+  }
+
+  await wsSave('bookings', D.bookings);
+  closeModal();
+  showToast(id ? 'Booking updated' : 'Booking created', 'good');
+  await renderBookings(true);
+}
+
+window.cancelBooking = async function(id) {
+  const b = D.bookings.find(x => x.id === id);
+  if (!b) return;
+  if (!confirm(`Cancel booking for ${b.plate}?`)) return;
+  b.status = 'Cancelled';
+  b.updated_at = nowStr();
+  // Free the bay if one was assigned
+  if (b.bay_id) {
+    const bay = D.bays.find(x => x.id === b.bay_id);
+    if (bay) { bay.status = 'Available'; bay.booking_id = null; bay.plate = ''; await wsSave('bays', D.bays); }
+  }
+  await wsSave('bookings', D.bookings);
+  showToast('Booking cancelled', 'good');
+  await renderBookings(true);
+};
+
+// ══════════════════════════════════════════
+//  CHECK-IN
+// ══════════════════════════════════════════
+async function renderCheckin(force = false) {
+  await loadAllData(force);
+  // Default date input to today on first render
+  const di = document.getElementById('ciDate');
+  if (di && !di.value) di.value = todayStr();
+  const date = di.value || todayStr();
+
+  // Awaiting arrival: today's Scheduled bookings (or walk-ins not yet checked in)
+  const awaiting = D.bookings
+    .filter(b => (b.status === 'Scheduled' || !b.status) && b.date === date)
+    .sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  // Currently in workshop: Arrived (any date — they stay until checkout)
+  const inWorkshop = D.bookings
+    .filter(b => b.status === 'Arrived')
+    .sort((a,b) => (a.bay_name||'').localeCompare(b.bay_name||''));
+
+  document.getElementById('ciCrumb').textContent =
+    `${awaiting.length} arriving · ${inWorkshop.length} on site`;
+  document.getElementById('ciAwaitCount').textContent = awaiting.length;
+  document.getElementById('ciInCount').textContent    = inWorkshop.length;
+  document.getElementById('ciAwaitMeta').textContent  = awaiting.length ? `${awaiting.length} scheduled` : '';
+  document.getElementById('ciInMeta').textContent     = inWorkshop.length ? `${inWorkshop.length} cars in workshop` : '';
+
+  // Render the two tables
+  document.getElementById('ciAwaitWrap').innerHTML = _ciRenderTable(awaiting, 'awaiting');
+  document.getElementById('ciInWrap').innerHTML    = _ciRenderTable(inWorkshop, 'inside');
+}
+window.renderCheckin = renderCheckin;
+
+function _ciRenderTable(list, kind) {
+  if (!list.length) {
+    const msg = kind === 'awaiting'
+      ? 'No bookings awaiting arrival on this date.'
+      : 'No cars currently in the workshop.';
+    return `<table class="dtbl"><tr><td class="empty">${msg}</td></tr></table>`;
+  }
+  return `<table class="dtbl">
+    <thead><tr>
+      ${kind === 'awaiting' ? '<th>Time</th>' : ''}
+      <th>Plate</th><th>Customer</th><th>Service</th>
+      ${kind === 'inside' ? '<th>Bay</th>' : '<th>Bay type</th>'}
+      <th>Mechanic</th><th style="text-align:right">Action</th>
+    </tr></thead>
+    <tbody>${list.map(b => `<tr>
+      ${kind === 'awaiting' ? `<td class="k">${escapeHtml(b.time || '—')}</td>` : ''}
+      <td><span class="plate">${escapeHtml(b.plate || '—')}</span></td>
+      <td class="k">${escapeHtml(b.cust_name || '—')}</td>
+      <td>${escapeHtml(b.service || '—')}</td>
+      <td>${escapeHtml(kind === 'inside' ? (b.bay_name || b.bay_type || '—') : (b.bay_type || 'Any'))}</td>
+      <td>${escapeHtml(b.mechanic || '—')}</td>
+      <td><div class="row-act">
+        ${kind === 'awaiting'
+          ? `<button class="mini-btn good" onclick="openCheckinForm('${escapeHtml(b.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Check in</button>`
+          : `<button class="mini-btn warn" onclick="openCheckoutForm('${escapeHtml(b.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M16 17l5-5-5-5M21 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg>Check out</button>`}
+        <button class="mini-btn" onclick="openBookingForm('${escapeHtml(b.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+// ── Check-in flow: pick a bay, mark Arrived, auto-create a job card ──
+window.openCheckinForm = function(bookingId) {
+  const b = D.bookings.find(x => x.id === bookingId);
+  if (!b) return showToast('Booking not found', 'bad');
+  // Available bays (filter by bay type if the booking specified one)
+  const matching = D.bays.filter(x => (x.status || '').toLowerCase() === 'available'
+    && (!b.bay_type || (x.type || x.bay_type) === b.bay_type));
+  const all = D.bays.filter(x => (x.status || '').toLowerCase() === 'available');
+  const bays = matching.length ? matching : all;
+  const bayOptions = bays.length
+    ? bays.map(x => `<option value="${escapeHtml(x.id)}">${escapeHtml(x.name || (x.type || '') + ' · ' + (x.num || ''))}</option>`).join('')
+    : '';
+  openModal({
+    title: `Check in · ${b.plate}`,
+    body: `
+      <div class="f-grp" style="margin-bottom:14px">
+        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);line-height:1.55">
+          <b style="color:var(--txt)">${escapeHtml(b.cust_name || '—')}</b> · ${escapeHtml(b.plate || '—')} · ${escapeHtml(b.service || '—')}<br>
+          Booking: ${escapeHtml(b.time || '—')} on ${escapeHtml(b.date || '—')}<br>
+          Bay type requested: ${escapeHtml(b.bay_type || 'Any')}
+        </div>
+      </div>
+      ${bays.length ? `
+        <div class="f-grp">
+          <label>Assign to bay <span class="req">*</span></label>
+          <select id="ci-bay">${bayOptions}</select>
+          <span class="hint">Showing ${matching.length ? 'matching' : 'all available'} bays</span>
+        </div>` : `
+        <div style="background:rgba(255,179,71,.10);border:1px solid rgba(255,179,71,.32);border-radius:9px;padding:14px 16px;color:var(--acc2);font-size:13.5px;line-height:1.55">
+          No bays available right now. You can still mark this car as arrived — it will go into the queue.
+        </div>`}
+      <div class="f-grp" style="margin-top:14px">
+        <label>Mechanic (optional)</label>
+        <input list="dlMechanics2" id="ci-mech" type="text" value="${escapeHtml(b.mechanic || '')}" placeholder="Pick or type" />
+        <datalist id="dlMechanics2">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
+      </div>
+      <div class="f-err" id="ci-err"></div>
+    `,
+    saveLabel: bays.length ? 'Check in to bay' : 'Add to queue',
+    onSave: () => doCheckin(b.id)
+  });
+};
+
+async function doCheckin(bookingId) {
+  await loadAllData(true);
+  const b = D.bookings.find(x => x.id === bookingId);
+  if (!b) throw new Error('Booking not found');
+  const bayId = (document.getElementById('ci-bay') || {}).value || '';
+  const mech  = (document.getElementById('ci-mech') || {}).value.trim();
+  if (mech) b.mechanic = mech;
+
+  if (bayId) {
+    const bay = D.bays.find(x => x.id === bayId);
+    if (!bay) throw new Error('Bay not found');
+    if ((bay.status || '').toLowerCase() !== 'available') throw new Error('Bay was taken — refresh and try again');
+    bay.status = 'occupied';
+    bay.booking_id = b.id;
+    bay.plate = b.plate;
+    b.bay_id   = bay.id;
+    b.bay_name = bay.name || ((bay.type || '') + ' · ' + (bay.num || ''));
+    b.bay_num  = bay.num || '';
+    b.status = 'Arrived';
+    await wsSave('bays', D.bays);
+  } else {
+    // No bay available — add to queue
+    D.queue.push({ id: uid('q'), booking_id: b.id, plate: b.plate, cust_name: b.cust_name, added_at: nowStr() });
+    b.status = 'Arrived';
+    await wsSave('queue', D.queue);
+  }
+  b.checked_in_at = nowStr();
+  b.updated_at = nowStr();
+
+  // Auto-create a job card if one doesn't already exist for this booking
+  if (!D.jobs.find(j => j.booking_id === b.id)) {
+    D.jobs.push({
+      id: uid('j'), booking_id: b.id, plate: b.plate, cust_name: b.cust_name,
+      type: b.service || '', mechanic: b.mechanic || '',
+      mechanics: b.mechanic ? [b.mechanic] : [],
+      status: 'Awaiting Approval', parts: [], labour_notes: '',
+      service_charges: [], photos: [],
+      created_at: nowStr(), completed_at: null
+    });
+    await wsSave('jobs', D.jobs);
+  }
+
+  await wsSave('bookings', D.bookings);
+  closeModal();
+  showToast(`${b.plate} checked in${bayId ? '' : ' (queued)'}`, 'good');
+  await renderCheckin(true);
+}
+
+// ── Check-out flow: free bay, mark Delivered, set job to Delivered ──
+window.openCheckoutForm = function(bookingId) {
+  const b = D.bookings.find(x => x.id === bookingId);
+  if (!b) return showToast('Booking not found', 'bad');
+  const job = D.jobs.find(j => j.booking_id === b.id);
+  openModal({
+    title: `Check out · ${b.plate}`,
+    body: `
+      <div class="f-grp" style="margin-bottom:14px">
+        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);line-height:1.55">
+          <b style="color:var(--txt)">${escapeHtml(b.cust_name || '—')}</b> · ${escapeHtml(b.plate || '—')}<br>
+          Bay: ${escapeHtml(b.bay_name || '—')}<br>
+          Job status: ${escapeHtml(job ? (job.status || 'In Progress') : 'No job')}
+        </div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Actual cost (₹)</label>
+          <input id="co-cost" type="number" min="0" step="100" value="${escapeHtml(b.actual_cost || b.cost_estimate || '')}" /></div>
+        <div class="f-grp"><label>Payment status</label>
+          <select id="co-pay">
+            <option value="Paid">Paid</option>
+            <option value="Outstanding">Outstanding</option>
+            <option value="Partial">Partial</option>
+            <option value="Waived">Waived</option>
+          </select></div>
+      </div>
+      <div class="f-grp" style="margin-top:6px"><label>Notes (optional)</label>
+        <textarea id="co-notes" placeholder="Anything to record about the handover…"></textarea></div>
+      <div class="f-err" id="co-err"></div>
+    `,
+    saveLabel: 'Check out',
+    onSave: () => doCheckout(b.id)
+  });
+};
+
+async function doCheckout(bookingId) {
+  await loadAllData(true);
+  const b = D.bookings.find(x => x.id === bookingId);
+  if (!b) throw new Error('Booking not found');
+  const cost = (document.getElementById('co-cost').value || '').trim();
+  const pay  = document.getElementById('co-pay').value;
+  const notes= document.getElementById('co-notes').value.trim();
+  // Free the bay
+  if (b.bay_id) {
+    const bay = D.bays.find(x => x.id === b.bay_id);
+    if (bay) { bay.status = 'Available'; bay.booking_id = null; bay.plate = ''; }
+    await wsSave('bays', D.bays);
+  }
+  // Update job to Delivered
+  const job = D.jobs.find(j => j.booking_id === b.id);
+  if (job) {
+    job.status = 'Delivered';
+    job.completed_at = nowStr();
+    if (cost) job.actual_cost = Number(cost);
+    if (notes) job.delivery_notes = notes;
+    await wsSave('jobs', D.jobs);
+  }
+  // Promote one queued booking if any are waiting and a bay just opened
+  if (D.queue.length) {
+    const next = D.queue.shift();
+    const nb = D.bookings.find(x => x.id === next.booking_id);
+    if (nb) { nb.bay_id = b.bay_id; }
+    await wsSave('queue', D.queue);
+  }
+  b.status = 'Delivered';
+  if (cost) b.actual_cost = Number(cost);
+  b.payment_status = pay;
+  if (notes) b.delivery_notes = notes;
+  b.delivered_at = nowStr();
+  b.updated_at = nowStr();
+  b.bay_id = null; b.bay_name = ''; b.bay_num = '';
+  await wsSave('bookings', D.bookings);
+  closeModal();
+  showToast(`${b.plate} delivered`, 'good');
+  await renderCheckin(true);
+}
+
+// ── Walk-in: same as new booking, pre-filled with today+now, status Arrived ──
+window.openWalkin = function() {
+  // Reuse the booking form, then on save also trigger check-in
+  const b = { date: todayStr(), time: toTime(), _walkin: true };
+  openModal({
+    title: 'Walk-in',
+    body: _bookingFormHTML(b),
+    saveLabel: 'Create + check in',
+    onSave: () => saveWalkin()
+  });
+};
+
+async function saveWalkin() {
+  // Save the booking first
+  await saveBooking(null);
+  // saveBooking already closed the modal — find the just-added booking and check it in
+  await loadAllData(true);
+  const last = D.bookings.slice().sort((a,b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
+  if (last && last.status === 'Scheduled') {
+    // Open the check-in modal immediately for bay assignment
+    setTimeout(() => openCheckinForm(last.id), 250);
+  }
+}
+
+// ══════════════════════════════════════════
+//  JOB CARDS
+// ══════════════════════════════════════════
+async function renderJobs(force = false) {
+  await loadAllData(force);
+  // Mechanic filter dropdown — populate from D.mechanics
+  const mechSel = document.getElementById('jbMech');
+  if (mechSel && mechSel.children.length <= 1) {
+    D.mechanics.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.name || ''; opt.textContent = m.name || '';
+      mechSel.appendChild(opt);
+    });
+  }
+  const q = (document.getElementById('jbSearch').value || '').toLowerCase().trim();
+  const st = document.getElementById('jbStatus').value;
+  const mech = document.getElementById('jbMech').value;
+  let list = D.jobs.slice();
+  if (q) list = list.filter(j =>
+    (j.plate||'').toLowerCase().includes(q) ||
+    (j.cust_name||'').toLowerCase().includes(q) ||
+    (j.mechanic||'').toLowerCase().includes(q) ||
+    (j.type||'').toLowerCase().includes(q));
+  if (st)   list = list.filter(j => (j.status || 'Awaiting Approval') === st);
+  if (mech) list = list.filter(j => j.mechanic === mech || (j.mechanics || []).includes(mech));
+  // Newest first
+  list.sort((a,b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  document.getElementById('jbCrumb').textContent =
+    `${D.jobs.length} job card${D.jobs.length === 1 ? '' : 's'} total · ${list.length} showing`;
+  document.getElementById('jbCount').textContent = list.length;
+  const wrap = document.getElementById('jbTableWrap');
+  if (!list.length) {
+    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">No jobs match. Job cards are created automatically when a booking is checked in.</td></tr></table>`;
+    return;
+  }
+  wrap.innerHTML = `<table class="list-tbl">
+    <thead><tr>
+      <th>Created</th><th>Plate</th><th>Customer</th><th>Service</th><th>Mechanic</th><th>Status</th>
+      <th style="text-align:right">Actions</th>
+    </tr></thead>
+    <tbody>${list.map(j => `<tr>
+      <td>${escapeHtml((j.created_at || '').slice(0,10) || '—')}</td>
+      <td><span class="plate">${escapeHtml(j.plate || '—')}</span></td>
+      <td class="k">${escapeHtml(j.cust_name || '—')}</td>
+      <td>${escapeHtml(j.type || '—')}</td>
+      <td>${escapeHtml(j.mechanic || '—')}</td>
+      <td>${statusPill(j.status || 'Awaiting Approval')}</td>
+      <td><div class="row-act">
+        <button class="mini-btn" onclick="openJobForm('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+        <button class="mini-btn danger" onclick="deleteJob('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+window.renderJobs = renderJobs;
+
+const JOB_STATUSES = ['Awaiting Approval','In Progress','Parts Ordered','Parts Not Available','Ready for Delivery','Delivered','Cancelled'];
+
+window.openJobForm = function(id) {
+  const j = D.jobs.find(x => x.id === id);
+  if (!j) return showToast('Job not found', 'bad');
+  openModal({
+    title: `Job card · ${j.plate || j.id}`,
+    body: `
+      <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);margin-bottom:14px;line-height:1.55">
+        <b style="color:var(--txt)">${escapeHtml(j.cust_name || '—')}</b> · ${escapeHtml(j.plate || '—')}<br>
+        Service: ${escapeHtml(j.type || '—')} · Created ${escapeHtml((j.created_at || '').slice(0,16) || '—')}
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Status <span class="req">*</span></label>
+          <select id="jf-status">${JOB_STATUSES.map(s => `<option value="${s}" ${(j.status || 'Awaiting Approval') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+        <div class="f-grp"><label>Primary mechanic</label>
+          <input list="dlMechJob" id="jf-mech" type="text" value="${escapeHtml(j.mechanic || '')}" placeholder="Pick or type" />
+          <datalist id="dlMechJob">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist></div>
+      </div>
+      <div class="f-row r1">
+        <div class="f-grp"><label>Labour notes</label>
+          <textarea id="jf-labour" placeholder="What's been done, what's pending, parts needed…">${escapeHtml(j.labour_notes || '')}</textarea></div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Parts used (one per line: name × qty)</label>
+          <textarea id="jf-parts" placeholder="Brake pad set × 1&#10;Oil filter × 1">${escapeHtml((j.parts || []).map(p => `${p.name} × ${p.qty || 1}`).join('\n'))}</textarea></div>
+        <div class="f-grp"><label>Service charges (one per line: name × ₹amount)</label>
+          <textarea id="jf-charges" placeholder="Labour × 2000&#10;Diagnostic fee × 500">${escapeHtml((j.service_charges || []).map(c => `${c.name} × ${c.amount || 0}`).join('\n'))}</textarea></div>
+      </div>
+      <div class="f-err" id="jf-err"></div>
+    `,
+    saveLabel: 'Save job',
+    onSave: () => saveJob(j.id)
+  });
+};
+
+async function saveJob(id) {
+  await loadAllData(true);
+  const j = D.jobs.find(x => x.id === id);
+  if (!j) throw new Error('Job not found');
+  const status = document.getElementById('jf-status').value;
+  const mech   = document.getElementById('jf-mech').value.trim();
+  const labour = document.getElementById('jf-labour').value;
+  // Parse simple "name × qty" / "name × amount" lines
+  const partsLines = document.getElementById('jf-parts').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const chargeLines = document.getElementById('jf-charges').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const parsePartLine = (line) => {
+    const m = line.match(/^(.+?)\s*[×x]\s*(\d+)\s*$/i);
+    return m ? { name: m[1].trim(), qty: Number(m[2]) } : { name: line, qty: 1 };
+  };
+  const parseChargeLine = (line) => {
+    const m = line.match(/^(.+?)\s*[×x]\s*([\d.]+)\s*$/i);
+    return m ? { name: m[1].trim(), amount: Number(m[2]) } : { name: line, amount: 0 };
+  };
+  j.status = status;
+  j.mechanic = mech;
+  if (mech && !(j.mechanics || []).includes(mech)) j.mechanics = [...(j.mechanics || []), mech];
+  j.labour_notes = labour;
+  j.parts = partsLines.map(parsePartLine);
+  j.service_charges = chargeLines.map(parseChargeLine);
+  j.updated_at = nowStr();
+  if (status === 'Delivered' && !j.completed_at) j.completed_at = nowStr();
+  await wsSave('jobs', D.jobs);
+  closeModal();
+  showToast('Job updated', 'good');
+  await renderJobs(true);
+}
+
+window.deleteJob = async function(id) {
+  const j = D.jobs.find(x => x.id === id);
+  if (!j) return;
+  if (!confirm(`Delete job card for ${j.plate}? The booking stays, only the job card is removed.`)) return;
+  D.jobs = D.jobs.filter(x => x.id !== id);
+  await wsSave('jobs', D.jobs);
+  showToast('Job deleted', 'good');
+  await renderJobs(true);
+};
+</script>
+</body>
+</html>
