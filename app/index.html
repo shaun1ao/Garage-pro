@@ -1078,6 +1078,14 @@ firebase.initializeApp(FB_CONFIG);
 const fbAuth = firebase.auth();
 const fbDb   = firebase.firestore();
 fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+// Enable IndexedDB-backed offline cache. After this, reads come from the local
+// cache (instant) and writes complete locally first then sync to the server in
+// the background. Multi-tab variant so two tabs on the same workshop don't fight.
+fbDb.enablePersistence({ synchronizeTabs: true }).catch(err => {
+  if (err.code === 'failed-precondition') console.warn('[fb] persistence already on in another tab');
+  else if (err.code === 'unimplemented') console.warn('[fb] persistence unsupported in this browser');
+  else console.warn('[fb] persistence error:', err);
+});
 
 // ══════════════════════════════════════════
 //  GLOBAL STATE
@@ -1663,7 +1671,7 @@ async function loadAllData(force = false) {
     try { await _loadingPromise; } catch (e) {}
     if (!force) return;  // someone else already refreshed; nothing more to do
   }
-  if (!force && D.loadedAt && (Date.now() - D.loadedAt < 4000)) return; // 4s grace
+  if (!force && D.loadedAt && (Date.now() - D.loadedAt < 60000)) return; // 60s grace — persistence keeps the local cache hot
   _loadingPromise = (async () => {
     const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, invoices, settingsArr] =
       await Promise.all([
@@ -2215,7 +2223,8 @@ async function saveBooking(id) {
   if (!date)    throw new Error('Date is required');
   if (!time)    throw new Error('Time is required');
 
-  await loadAllData(true);   // grab fresh in case another device just edited
+  // Local D is already current (Firestore persistence keeps it warm) — skip the
+  // pre-save read. If another device clobbered our changes we'll see it on next render.
   const idx = id ? D.bookings.findIndex(b => b.id === id) : -1;
   const existing = idx >= 0 ? D.bookings[idx] : null;
   // Allocate booking number + short reference for new bookings (keep on edit)
@@ -2235,16 +2244,16 @@ async function saveBooking(id) {
   if (idx >= 0) D.bookings[idx] = { ...D.bookings[idx], ...patch };
   else          D.bookings.push({ ...patch, created_at: nowStr() });
 
-  // Upsert customer record so the autocomplete grows over time
+  // Upsert customer + booking in parallel
+  const writes = [wsSave('bookings', D.bookings)];
   if (cust && !D.customers.find(c => c.name === cust)) {
     D.customers.push({ id: uid('c'), name: cust, phone, created_at: nowStr() });
-    await wsSave('customers', D.customers);
+    writes.push(wsSave('customers', D.customers));
   }
-
-  await wsSave('bookings', D.bookings);
   closeModal();
   showToast(id ? 'Booking updated' : 'Booking created', 'good');
-  await renderBookings(true);
+  renderBookings();      // optimistic — uses just-updated local D
+  await Promise.all(writes);   // server sync happens in background but errors still toast
 }
 
 window.cancelBooking = async function(id) {
@@ -2253,14 +2262,15 @@ window.cancelBooking = async function(id) {
   if (!(await customConfirm(`Cancel booking for ${b.plate}?`, { title: 'Cancel booking', okLabel: 'Cancel booking' }))) return;
   b.status = 'Cancelled';
   b.updated_at = nowStr();
-  // Free the bay if one was assigned
+  // Free the bay if one was assigned — parallelise the writes
+  const writes = [wsSave('bookings', D.bookings)];
   if (b.bay_id) {
     const bay = D.bays.find(x => x.id === b.bay_id);
-    if (bay) { bay.status = 'Available'; bay.booking_id = null; bay.plate = ''; await wsSave('bays', D.bays); }
+    if (bay) { bay.status = 'available'; bay.booking_id = null; bay.plate = ''; writes.push(wsSave('bays', D.bays)); }
   }
-  await wsSave('bookings', D.bookings);
   showToast('Booking cancelled', 'good');
-  await renderBookings(true);
+  renderBookings();
+  await Promise.all(writes);
 };
 
 // ══════════════════════════════════════════
@@ -2388,13 +2398,14 @@ window.openCheckinForm = async function(bookingId) {
 };
 
 async function doCheckin(bookingId) {
-  await loadAllData(true);
+  // No pre-load — D is already current; persistence keeps writes consistent.
   const b = D.bookings.find(x => x.id === bookingId);
   if (!b) throw new Error('Booking not found');
   const bayId = (document.getElementById('ci-bay') || {}).value || '';
   const mech  = (document.getElementById('ci-mech') || {}).value.trim();
   if (mech) b.mechanic = mech;
   const toQueue = (!bayId || bayId === '__queue__');
+  const writes = [];
 
   if (!toQueue) {
     const bay = D.bays.find(x => x.id === bayId);
@@ -2407,15 +2418,14 @@ async function doCheckin(bookingId) {
     b.bay_name = (bay.type || '') + ' · Bay ' + (bay.num || '');
     b.bay_num  = bay.num || '';
     b.status = 'Arrived';
-    await wsSave('bays', D.bays);
+    writes.push(wsSave('bays', D.bays));
   } else {
-    // Going to queue (track requested bay type so promotion can match it)
     D.queue.push({
       id: uid('q'), booking_id: b.id, plate: b.plate, cust_name: b.cust_name,
       type: b.bay_type || '', notes: b.notes || '', added_at: nowStr()
     });
     b.status = 'Arrived';
-    await wsSave('queue', D.queue);
+    writes.push(wsSave('queue', D.queue));
   }
   b.checked_in_at = nowStr();
   b.updated_at = nowStr();
@@ -2430,13 +2440,14 @@ async function doCheckin(bookingId) {
       service_charges: [], photos: [],
       created_at: nowStr(), completed_at: null
     });
-    await wsSave('jobs', D.jobs);
+    writes.push(wsSave('jobs', D.jobs));
   }
 
-  await wsSave('bookings', D.bookings);
+  writes.push(wsSave('bookings', D.bookings));
   closeModal();
-  showToast(`${b.plate} checked in${bayId ? '' : ' (queued)'}`, 'good');
-  await renderCheckin(true);
+  showToast(`${b.plate} checked in${bayId && bayId !== '__queue__' ? '' : ' (queued)'}`, 'good');
+  renderCheckin();        // optimistic; uses local D that we just mutated
+  await Promise.all(writes);
 }
 
 // ── Check-out flow: free bay, mark Delivered, set job to Delivered ──
@@ -2475,12 +2486,13 @@ window.openCheckoutForm = function(bookingId) {
 };
 
 async function doCheckout(bookingId) {
-  await loadAllData(true);
+  // No pre-load — local D is current.
   const b = D.bookings.find(x => x.id === bookingId);
   if (!b) throw new Error('Booking not found');
   const cost = (document.getElementById('co-cost')?.value || '').trim();
   const pay  = document.getElementById('co-pay')?.value || 'Outstanding';
   const notes= (document.getElementById('co-notes')?.value || '').trim();
+  const writes = [];
 
   // Free the bay (remember its type so we can promote the right queue entry)
   let freedBayType = '';
@@ -2489,16 +2501,14 @@ async function doCheckout(bookingId) {
     if (bay) {
       freedBayType = bay.type || '';
       bay.status = 'available'; bay.booking_id = null; bay.plate = '';
-      await wsSave('bays', D.bays);
+      writes.push(wsSave('bays', D.bays));
     }
   }
 
-  // If this booking was sitting in the queue (no bay was assigned), remove it.
-  // Otherwise queued cars would stay forever blocking position numbers.
-  const wasQueued = D.queue.some(q => q.booking_id === b.id);
-  if (wasQueued) {
+  // Remove from queue if the car was sitting there
+  if (D.queue.some(q => q.booking_id === b.id)) {
     D.queue = D.queue.filter(q => q.booking_id !== b.id);
-    await wsSave('queue', D.queue);
+    writes.push(wsSave('queue', D.queue));
   }
 
   // Update job to Delivered
@@ -2508,7 +2518,7 @@ async function doCheckout(bookingId) {
     job.completed_at = nowStr();
     if (cost) job.actual_cost = Number(cost);
     if (notes) job.delivery_notes = notes;
-    await wsSave('jobs', D.jobs);
+    writes.push(wsSave('jobs', D.jobs));
   }
 
   b.status = 'Delivered';
@@ -2518,11 +2528,12 @@ async function doCheckout(bookingId) {
   b.delivered_at = nowStr();
   b.updated_at = nowStr();
   b.bay_id = null; b.bay_name = ''; b.bay_num = '';
-  await wsSave('bookings', D.bookings);
+  writes.push(wsSave('bookings', D.bookings));
 
   closeModal();
   showToast(`${b.plate} delivered`, 'good');
-  await renderCheckin(true);
+  renderCheckin();
+  await Promise.all(writes);
 
   // Fire the follow-up actions in the background so doCheckout's promise resolves
   // immediately. If they're awaited inside doCheckout, an error inside the invoice
@@ -2602,19 +2613,26 @@ async function renderJobs(force = false) {
       <th>Created</th><th>Plate</th><th>Customer</th><th>Service</th><th>Mechanic</th><th>Status</th>
       <th style="text-align:right">Actions</th>
     </tr></thead>
-    <tbody>${list.map(j => `<tr>
+    <tbody>${list.map(j => {
+      const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
+      const mechCell = mechs.length
+        ? escapeHtml(mechs[0]) + (mechs.length > 1 ? ` <span style="color:var(--faint);font-size:11px">+${mechs.length - 1}</span>` : '')
+        : '—';
+      const insBadge = j.is_insurance ? ` <span title="Insurance job · ${escapeHtml(j.insurance_approval || 'Pending')}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:100px;background:rgba(255,179,71,.14);color:var(--acc2);font-size:10.5px;font-weight:700;margin-left:6px">🛡 ${escapeHtml((j.insurance_approval || 'Pending').toUpperCase())}</span>` : '';
+      return `<tr>
       <td>${escapeHtml((j.created_at || '').slice(0,10) || '—')}</td>
-      <td><span class="plate">${escapeHtml(j.plate || '—')}</span></td>
+      <td><span class="plate">${escapeHtml(j.plate || '—')}</span>${insBadge}</td>
       <td class="k">${escapeHtml(j.cust_name || '—')}</td>
       <td>${escapeHtml(j.type || '—')}</td>
-      <td>${escapeHtml(j.mechanic || '—')}</td>
+      <td>${mechCell}</td>
       <td>${statusPill(j.status || 'Awaiting Approval')}</td>
       <td><div class="row-act">
         <button class="mini-btn" onclick="openJobForm('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
         <button class="mini-btn good" onclick="generateInvoice('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Invoice</button>
         <button class="mini-btn danger" onclick="deleteJob('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
       </div></td>
-    </tr>`).join('')}</tbody>
+    </tr>`;
+    }).join('')}</tbody>
   </table>`;
 }
 window.renderJobs = renderJobs;
@@ -2624,12 +2642,27 @@ const JOB_STATUSES = ['Awaiting Approval','In Progress','Parts Ordered','Parts N
 // Live-editing buffer for the job form (lets the parts/charges rows persist across re-renders)
 let _editingJob = null;
 
+const INSURANCE_APPROVAL_OPTS = ['Pending','Submitted','Approved','Partially Approved','Rejected','Settled'];
+
 window.openJobForm = function(id) {
   const j = D.jobs.find(x => x.id === id);
   if (!j) return showToast('Job not found', 'bad');
+  // Mechanics: keep primary in sync with the array. If the primary isn't listed, add it.
+  const startMechs = Array.isArray(j.mechanics) && j.mechanics.length
+    ? j.mechanics.slice()
+    : (j.mechanic ? [j.mechanic] : []);
   _editingJob = {
-    parts:   (j.parts   || []).map(p => ({ name: p.name || '', qty: Number(p.qty || 1), unit_price: Number(p.unit_price || 0) })),
-    charges: (j.service_charges || []).map(c => ({ name: c.name || '', amount: Number(c.amount || 0) }))
+    parts:    (j.parts   || []).map(p => ({ name: p.name || '', qty: Number(p.qty || 1), unit_price: Number(p.unit_price || 0) })),
+    charges:  (j.service_charges || []).map(c => ({ name: c.name || '', amount: Number(c.amount || 0) })),
+    mechanics: startMechs,
+    is_insurance:        !!j.is_insurance,
+    insurer_name:        j.insurer_name || '',
+    claim_number:        j.claim_number || '',
+    policy_number:       j.policy_number || '',
+    insurance_approval:  j.insurance_approval || 'Pending',
+    approved_amount:     j.approved_amount || '',
+    surveyor_name:       j.surveyor_name || '',
+    insurance_notes:     j.insurance_notes || ''
   };
   openModal({
     title: `Job card · ${j.plate || j.id}`,
@@ -2638,13 +2671,22 @@ window.openJobForm = function(id) {
         <b style="color:var(--txt)">${escapeHtml(j.cust_name || '—')}</b> · ${escapeHtml(j.plate || '—')}<br>
         Service: ${escapeHtml(j.type || '—')} · Created ${escapeHtml((j.created_at || '').slice(0,16) || '—')}
       </div>
-      <div class="f-row">
+      <div class="f-row r1">
         <div class="f-grp"><label>Status <span class="req">*</span></label>
           <select id="jf-status">${JOB_STATUSES.map(s => `<option value="${s}" ${(j.status || 'Awaiting Approval') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-        <div class="f-grp"><label>Primary mechanic</label>
-          <input list="dlMechJob" id="jf-mech" type="text" value="${escapeHtml(j.mechanic || '')}" placeholder="Pick or type" />
-          <datalist id="dlMechJob">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist></div>
       </div>
+
+      <!-- Mechanics: multi-pick. Primary = first chip. Click chip × to remove. -->
+      <div class="f-grp">
+        <label>Mechanics assigned <span style="color:var(--faint);font-weight:500;font-size:11px;margin-left:6px">(first one is the primary mechanic on the invoice)</span></label>
+        <div id="jf-mech-chips" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;min-height:42px;align-items:center"></div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <input list="dlMechJob" id="jf-mech-add" type="text" placeholder="Type a name or pick from list…" style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:13.5px" />
+          <button type="button" class="mini-btn good" onclick="_jobAddMechanic()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+        </div>
+        <datalist id="dlMechJob">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
+      </div>
+
       <div class="f-row r1">
         <div class="f-grp"><label>Labour notes</label>
           <textarea id="jf-labour" placeholder="What's been done, what's pending, parts needed…">${escapeHtml(j.labour_notes || '')}</textarea></div>
@@ -2665,18 +2707,93 @@ window.openJobForm = function(id) {
         </div>
         <div id="jf-charges-rows"></div>
       </div>
+
+      <!-- Insurance section — collapsed unless toggled on. Matches main.py schema. -->
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="jf-ins-on" ${_editingJob.is_insurance ? 'checked' : ''} onchange="_toggleInsurance()" style="width:18px;height:18px;cursor:pointer" />
+          <span style="font-family:var(--fd);font-weight:700;font-size:14px;color:var(--acc2)">🛡  This is an insurance job</span>
+        </label>
+        <div id="jf-ins-fields" style="${_editingJob.is_insurance ? '' : 'display:none'};margin-top:12px;padding:14px;background:rgba(255,179,71,.08);border:1px solid rgba(255,179,71,.30);border-radius:10px">
+          <div class="f-row r3">
+            <div class="f-grp"><label>Insurer name</label><input id="jf-ins-name" type="text" value="${escapeHtml(_editingJob.insurer_name)}" placeholder="ICICI Lombard" /></div>
+            <div class="f-grp"><label>Claim number</label><input id="jf-ins-claim" type="text" value="${escapeHtml(_editingJob.claim_number)}" placeholder="CLM-2025-XXXX" /></div>
+            <div class="f-grp"><label>Policy number</label><input id="jf-ins-policy" type="text" value="${escapeHtml(_editingJob.policy_number)}" placeholder="POL-XXXXXX" /></div>
+          </div>
+          <div class="f-row r3">
+            <div class="f-grp"><label>Approval status</label>
+              <select id="jf-ins-approval">${INSURANCE_APPROVAL_OPTS.map(s => `<option value="${s}" ${_editingJob.insurance_approval === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+            </div>
+            <div class="f-grp"><label>Approved amount (₹)</label><input id="jf-ins-amount" type="number" min="0" step="0.01" value="${escapeHtml(String(_editingJob.approved_amount || ''))}" placeholder="0" /></div>
+            <div class="f-grp"><label>Surveyor name</label><input id="jf-ins-surveyor" type="text" value="${escapeHtml(_editingJob.surveyor_name)}" /></div>
+          </div>
+          <div class="f-row r1">
+            <div class="f-grp"><label>Notes / remarks</label><textarea id="jf-ins-notes" placeholder="Photos submitted, partial settlement reasons, follow-ups…">${escapeHtml(_editingJob.insurance_notes)}</textarea></div>
+          </div>
+        </div>
+      </div>
+
       <div class="f-err" id="jf-err"></div>
     `,
     saveLabel: 'Save job',
     onSave: () => saveJob(j.id)
   });
-  setTimeout(() => _drawJobRows(), 0);
+  setTimeout(() => { _drawJobRows(); _drawMechanicChips(); }, 0);
+};
+
+window._toggleInsurance = function() {
+  _editingJob.is_insurance = !!document.getElementById('jf-ins-on').checked;
+  const wrap = document.getElementById('jf-ins-fields');
+  if (wrap) wrap.style.display = _editingJob.is_insurance ? '' : 'none';
 };
 
 window._jobAddPart   = function() { _editingJob.parts.push({ name: '', qty: 1, unit_price: 0 }); _drawJobRows(); };
 window._jobAddCharge = function() { _editingJob.charges.push({ name: '', amount: 0 }); _drawJobRows(); };
 window._jobRemovePart   = function(idx) { _editingJob.parts.splice(idx, 1); _drawJobRows(); };
 window._jobRemoveCharge = function(idx) { _editingJob.charges.splice(idx, 1); _drawJobRows(); };
+
+// ─── Multi-worker assignment on a job card ───────────────────────────────
+window._jobAddMechanic = function() {
+  const inp = document.getElementById('jf-mech-add');
+  const name = (inp.value || '').trim();
+  if (!name) return;
+  if (_editingJob.mechanics.find(m => m.toLowerCase() === name.toLowerCase())) {
+    inp.value = '';
+    return showToast(`${name} is already assigned`, 'bad');
+  }
+  _editingJob.mechanics.push(name);
+  inp.value = '';
+  _drawMechanicChips();
+};
+window._jobRemoveMechanic = function(idx) {
+  _editingJob.mechanics.splice(idx, 1);
+  _drawMechanicChips();
+};
+window._jobMakePrimary = function(idx) {
+  if (idx <= 0) return;
+  const [m] = _editingJob.mechanics.splice(idx, 1);
+  _editingJob.mechanics.unshift(m);
+  _drawMechanicChips();
+};
+function _drawMechanicChips() {
+  const wrap = document.getElementById('jf-mech-chips');
+  if (!wrap) return;
+  if (!_editingJob.mechanics.length) {
+    wrap.innerHTML = `<span style="color:var(--faint);font-size:12.5px;padding:4px 6px">No mechanics assigned. Add one below.</span>`;
+    return;
+  }
+  wrap.innerHTML = _editingJob.mechanics.map((name, i) => {
+    const isPrimary = i === 0;
+    const bg = isPrimary ? 'rgba(255,209,102,.16)' : 'var(--surf2)';
+    const fg = isPrimary ? 'var(--acc)' : 'var(--txt)';
+    const bd = isPrimary ? 'rgba(255,209,102,.45)' : 'var(--brd2)';
+    return `<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:100px;background:${bg};border:1px solid ${bd};color:${fg};font-size:12.5px;font-weight:600">
+      ${isPrimary ? '★ ' : ''}${escapeHtml(name)}
+      ${!isPrimary ? `<button type="button" onclick="_jobMakePrimary(${i})" title="Make primary" style="background:transparent;border:0;color:var(--faint);cursor:pointer;font-size:10px;padding:0 4px;line-height:1">★</button>` : ''}
+      <button type="button" onclick="_jobRemoveMechanic(${i})" title="Remove" style="background:transparent;border:0;color:${fg};cursor:pointer;font-size:14px;padding:0 2px;line-height:1;opacity:.7">×</button>
+    </span>`;
+  }).join('');
+}
 
 function _drawJobRows() {
   const inv = D.inventory || [];
@@ -2730,28 +2847,42 @@ function _drawJobRows() {
 }
 
 async function saveJob(id) {
-  await loadAllData(true);
+  // Local D is current — skip the pre-save read.
   const j = D.jobs.find(x => x.id === id);
   if (!j) throw new Error('Job not found');
   const status = document.getElementById('jf-status').value;
-  const mech   = document.getElementById('jf-mech').value.trim();
   const labour = document.getElementById('jf-labour').value;
   j.status = status;
-  j.mechanic = mech;
-  if (mech && !(j.mechanics || []).includes(mech)) j.mechanics = [...(j.mechanics || []), mech];
+  // Mechanics array drives the assignment. Primary = first one. Keep `mechanic`
+  // in sync so existing renderers (job list, dashboard) keep showing the lead.
+  j.mechanics = (_editingJob?.mechanics || []).filter(Boolean);
+  j.mechanic  = j.mechanics[0] || '';
   j.labour_notes = labour;
-  // Pull the live row-edit state. Drop rows with no name so a blank "Add part" doesn't
-  // pollute the job card on save.
+  // Drop empty rows so an unfinished "Add part / Add charge" doesn't pollute the card
   j.parts           = (_editingJob?.parts   || []).filter(p => (p.name || '').trim())
                         .map(p => ({ name: p.name.trim(), qty: Math.max(1, Number(p.qty || 1)), unit_price: Number(p.unit_price || 0) }));
   j.service_charges = (_editingJob?.charges || []).filter(c => (c.name || '').trim())
                         .map(c => ({ name: c.name.trim(), amount: Number(c.amount || 0) }));
+  // Insurance fields — only persist values when the toggle is on; otherwise blank them.
+  j.is_insurance = !!_editingJob?.is_insurance;
+  if (j.is_insurance) {
+    j.insurer_name       = document.getElementById('jf-ins-name').value.trim();
+    j.claim_number       = document.getElementById('jf-ins-claim').value.trim();
+    j.policy_number      = document.getElementById('jf-ins-policy').value.trim();
+    j.insurance_approval = document.getElementById('jf-ins-approval').value;
+    j.approved_amount    = Number(document.getElementById('jf-ins-amount').value) || 0;
+    j.surveyor_name      = document.getElementById('jf-ins-surveyor').value.trim();
+    j.insurance_notes    = document.getElementById('jf-ins-notes').value.trim();
+  } else {
+    for (const k of ['insurer_name','claim_number','policy_number','insurance_approval',
+                     'approved_amount','surveyor_name','insurance_notes']) j[k] = '';
+  }
   j.updated_at = nowStr();
   if (status === 'Delivered' && !j.completed_at) j.completed_at = nowStr();
-  await wsSave('jobs', D.jobs);
   closeModal();
   showToast('Job updated', 'good');
-  await renderJobs(true);
+  renderJobs();
+  await wsSave('jobs', D.jobs);
 }
 
 window.deleteJob = async function(id) {
@@ -2759,9 +2890,9 @@ window.deleteJob = async function(id) {
   if (!j) return;
   if (!(await customConfirm(`Delete job card for ${j.plate}?\n\nThe booking stays — only the job card is removed.`, { title: 'Delete job card', okLabel: 'Delete' }))) return;
   D.jobs = D.jobs.filter(x => x.id !== id);
-  await wsSave('jobs', D.jobs);
   showToast('Job deleted', 'good');
-  await renderJobs(true);
+  renderJobs();
+  await wsSave('jobs', D.jobs);
 };
 
 // ══════════════════════════════════════════
@@ -5081,8 +5212,22 @@ function _seedInvoiceFromJob(jobId) {
   inv.customer = { name: b.cust_name || j.cust_name || '', email: c.email || '', phone: c.phone || b.cust_phone || '', address: c.address || '' };
   inv.vehicle  = { plate: b.plate || j.plate || '', model: b.vehicle || '' };
   inv.service  = b.service || j.type || '';
-  inv.mechanic = j.mechanic || b.mechanic || '';
+  // Prefer the first mechanic from the assignment list; fall back to the legacy single name
+  const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
+  inv.mechanic = mechs[0] || b.mechanic || '';
+  inv.mechanics = mechs;
   inv.payment_status = b.payment_status || 'Outstanding';
+  // Carry insurance snapshot onto the invoice so the printed copy can show it
+  if (j.is_insurance) {
+    inv.insurance = {
+      insurer_name:       j.insurer_name || '',
+      claim_number:       j.claim_number || '',
+      policy_number:      j.policy_number || '',
+      insurance_approval: j.insurance_approval || 'Pending',
+      approved_amount:    Number(j.approved_amount || 0),
+      surveyor_name:      j.surveyor_name || ''
+    };
+  }
   // Pull parts with inventory enrichment
   inv.lines = (j.parts || []).map(p => {
     const itm = D.inventory.find(it => (it.name || '').toLowerCase() === (p.name || '').toLowerCase());
@@ -5415,7 +5560,11 @@ function _invoiceHTMLFromRecord(inv) {
         <div>Issue Date:</div><div class="v">${escapeHtml(inv.issue_date)}</div>
         <div>Vehicle:</div><div class="v">${escapeHtml(inv.vehicle?.plate || '—')}</div>
         <div>Service:</div><div class="v">${escapeHtml((inv.service || '—').toUpperCase())}</div>
-        <div>Mechanic:</div><div class="v">${escapeHtml((inv.mechanic || '—').toUpperCase())}</div>
+        <div>Mechanic${(inv.mechanics && inv.mechanics.length > 1) ? 's' : ''}:</div><div class="v">${escapeHtml(((inv.mechanics && inv.mechanics.length) ? inv.mechanics.join(', ') : (inv.mechanic || '—')).toUpperCase())}</div>
+        ${inv.insurance ? `
+          <div>Insurer:</div><div class="v">${escapeHtml(inv.insurance.insurer_name || '—')}</div>
+          <div>Claim No:</div><div class="v">${escapeHtml(inv.insurance.claim_number || '—')}</div>
+          <div>Approval:</div><div class="v" style="color:${inv.insurance.insurance_approval === 'Approved' ? '#16a34a' : inv.insurance.insurance_approval === 'Rejected' ? '#dc2626' : '#d97706'}">${escapeHtml((inv.insurance.insurance_approval || 'Pending').toUpperCase())}${inv.insurance.approved_amount ? ` · ${cur} ${inv.insurance.approved_amount.toLocaleString('en-IN')}` : ''}</div>` : ''}
       </div>
     </div>
   </div>
