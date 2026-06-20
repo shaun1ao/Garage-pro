@@ -188,10 +188,6 @@ header.app-header{
 /* ── HEADER refinements (matches screenshot) ── */
 .app-header{justify-content:space-between}
 .app-header .tab-title{font-family:var(--fd);font-weight:700;font-size:16px;color:var(--txt);padding-left:6px}
-.tablet-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(157,176,255,.10);border:1px solid rgba(157,176,255,.28);border-radius:100px;padding:4px 14px;font-size:12.5px;color:var(--dim);font-weight:500}
-.tablet-pill b{color:var(--blue);font-weight:700;margin-right:2px}
-.tablet-pill a{color:var(--blue);text-decoration:none}
-.tablet-pill a:hover{text-decoration:underline}
 .sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--teal);font-weight:600}
 .sync-pill .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(32,227,178,.55);animation:pulse 2.2s infinite}
 .sync-pill.syncing{color:var(--acc2)}
@@ -616,11 +612,6 @@ input[list]{background:var(--bg2)}
     </button>
     <div class="tab-title" id="hdrTabTitle">Dashboard</div>
     <div class="header-spacer"></div>
-    <div class="tablet-pill" title="Open the floor tablet on any device on your network">
-      <b>Tablet</b>
-      <a href="../tablet/" target="_blank" rel="noopener" id="tabletLink">garagepro.me/tablet</a>
-    </div>
-    <div class="header-spacer"></div>
     <div class="sync-pill" id="syncPill" title="Workshop data sync status">
       <span class="sync-dot"></span>
       <span id="syncLabel">Synced</span>
@@ -721,6 +712,7 @@ input[list]{background:var(--bg2)}
 
       <!-- Sidebar footer: user pill + light mode + sign out -->
       <div class="sidebar-foot">
+        <a id="sbSubBadge" href="../#pricing" target="_blank" rel="noopener" style="display:none;text-decoration:none;padding:9px 11px;margin:0 0 6px;border-radius:9px;background:var(--bg2);border:1px solid var(--brd);font-size:11.5px;line-height:1.4"></a>
         <button class="snav user-row" onclick="switchWorker()" title="Switch worker">
           <span class="av" id="sbWorkerAv">—</span>
           <span id="sbWorkerName" style="flex:1;color:var(--txt)">—</span>
@@ -1117,6 +1109,47 @@ let currentUser    = null;   // Firebase Auth user (the WORKSHOP account)
 let userProfile    = null;   // users/{uid} doc — workshop-level info (name, settings)
 let currentWorker  = null;   // who is currently logged in via PIN (a worker record)
 let currentTab     = 'dashboard';
+
+// ══════════════════════════════════════════
+//  SUBSCRIPTION LIMITS — read from users/{uid}.subscription, written by the
+//  marketing site when a plan is purchased. Enforced at the create paths
+//  (bays, workers, bookings). If no subscription exists we fall back to the
+//  most-restrictive defaults so the app stays usable but won't grow unbounded.
+// ══════════════════════════════════════════
+const FREE_TIER_LIMITS = { maxBays: 1, maxWorkers: 2, maxBookings: 5, planName: 'Free / unverified' };
+function currentSub() {
+  const s = userProfile?.subscription;
+  if (!s) return { ...FREE_TIER_LIMITS, active: false, planName: 'Free / unverified', expiry: null };
+  // Expiry can be a Firestore Timestamp, ISO string, or millis
+  const exp = s.expiry?.toDate ? s.expiry.toDate() : (s.expiry ? new Date(s.expiry) : null);
+  const active = (s.status === 'active') && (!exp || exp.getTime() > Date.now());
+  return {
+    active,
+    planName:    s.planName || s.plan || 'Plan',
+    maxBays:     Number(s.maxBays || 0)     || FREE_TIER_LIMITS.maxBays,
+    maxWorkers:  Number(s.maxWorkers || 0)  || FREE_TIER_LIMITS.maxWorkers,
+    maxBookings: Number(s.maxBookings || 0) || FREE_TIER_LIMITS.maxBookings,
+    expiry:      exp,
+    licenseKey:  s.licenseKey || ''
+  };
+}
+// Block an action when adding `extra` more items would exceed the plan limit.
+// Returns true if action is allowed; false (and shows a modal) when blocked.
+async function checkLimit(kind, currentCount, extra = 1) {
+  const sub = currentSub();
+  const map = { bays: sub.maxBays, workers: sub.maxWorkers, bookings: sub.maxBookings };
+  const cap = map[kind];
+  if (cap == null || cap >= 999) return true;
+  if (currentCount + extra <= cap) return true;
+  const label = { bays: 'bays', workers: 'workers', bookings: 'concurrent bookings' }[kind];
+  await customAlert(
+    `Your "${sub.planName}" plan allows ${cap} ${label}. You're already at ${currentCount}.\n\nUpgrade your plan at garagepro.me to add more.`,
+    { title: 'Plan limit reached', okLabel: 'OK' }
+  );
+  return false;
+}
+window.currentSub = currentSub;
+window.checkLimit = checkLimit;
 
 // ══════════════════════════════════════════
 //  HELPERS
@@ -2247,6 +2280,12 @@ async function saveBooking(id) {
   if (!date)    throw new Error('Date is required');
   if (!time)    throw new Error('Time is required');
 
+  // Plan limit: count active bookings (Scheduled or Arrived) only when creating new
+  if (!id) {
+    const active = D.bookings.filter(b => b.status === 'Scheduled' || b.status === 'Arrived').length;
+    if (!(await checkLimit('bookings', active, 1))) throw new Error('Plan limit reached');
+  }
+
   // Local D is already current (Firestore persistence keeps it warm) — skip the
   // pre-save read. If another device clobbered our changes we'll see it on next render.
   const idx = id ? D.bookings.findIndex(b => b.id === id) : -1;
@@ -2874,10 +2913,10 @@ function _drawJobRows() {
       ? `<datalist id="dlInvParts">${inv.map(it => `<option value="${escapeHtml(it.name || '')}">`).join('')}</datalist>
          <div style="overflow:auto"><table class="list-tbl" style="min-width:820px">
           <thead><tr>
-            <th>Part name</th><th style="width:90px">HSN/SAC</th>
-            <th style="width:70px">Qty</th><th style="width:110px">Unit (₹)</th>
-            <th style="width:80px">Disc %</th>
-            <th style="width:100px;text-align:right">Taxable</th><th style="width:110px;text-align:right">Total</th>
+            <th>Part name</th><th style="width:100px">HSN/SAC</th>
+            <th style="width:90px">Qty</th><th style="width:120px">Unit (₹)</th>
+            <th style="width:90px">Disc %</th>
+            <th style="width:110px;text-align:right">Taxable</th><th style="width:120px;text-align:right">Total</th>
             <th style="width:36px"></th>
           </tr></thead>
           <tbody>${_editingJob.parts.map((p, i) => { const m = rowMath(p); return `<tr>
@@ -3450,7 +3489,7 @@ window.openWorkerForm = function(id) {
           <select id="wf-role">
             ${ROLE_OPTS.map(r => `<option value="${r}" ${(w.role || 'mechanic') === r ? 'selected' : ''}>${r.charAt(0).toUpperCase() + r.slice(1)}</option>`).join('')}
           </select></div>
-        <div class="f-grp"><label>Username (for the tablet)</label><input id="wf-user" type="text" value="${escapeHtml(w.username || '')}" placeholder="e.g. raj" autocomplete="off" /></div>
+        <div class="f-grp"><label>Username (for worker sign-in)</label><input id="wf-user" type="text" value="${escapeHtml(w.username || '')}" placeholder="e.g. raj" autocomplete="off" /></div>
       </div>
       <div class="f-row">
         <div class="f-grp"><label>${isNew ? 'PIN (4–6 digits) ' : 'New PIN (leave blank to keep current)'}${isNew ? '<span class="req">*</span>' : ''}</label>
@@ -3461,7 +3500,7 @@ window.openWorkerForm = function(id) {
         <div class="f-grp">
           <label style="display:flex;align-items:center;gap:9px;font-weight:500;cursor:pointer;color:var(--txt)">
             <input id="wf-active" type="checkbox" ${w.active !== false ? 'checked' : ''} />
-            <span>Active — can log in via PIN on the tablet</span>
+            <span>Active — can sign in with their PIN</span>
           </label>
         </div>
       </div>
@@ -3482,6 +3521,11 @@ async function saveWorker(id) {
   if (!name) throw new Error('Name is required');
   if (!id && !/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4–6 digits');
   if (pin && !/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4–6 digits');
+  // Plan limit: count only active workers (deactivated ones don't consume a seat)
+  if (!id) {
+    const activeCount = D.mechanics.filter(m => m.active !== false).length;
+    if (active && !(await checkLimit('workers', activeCount, 1))) throw new Error('Plan limit reached');
+  }
   await loadAllData(true);
 
   // Last-owner protection — can't demote the only owner
@@ -3545,14 +3589,39 @@ window.renderHeader = function() {
   if (dt) dt.innerHTML = `${escapeHtml(wsName)} <small>powered by Garage Pro</small>`;
   const dl = document.getElementById('dashDateLine');
   if (dl) dl.textContent = `DASHBOARD — ${new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' }).toUpperCase()}`;
-  // Tablet pill — point at the live tablet URL
-  const tl = document.getElementById('tabletLink');
-  if (tl) {
-    const host = location.host || 'garagepro.me';
-    tl.textContent = host + '/tablet';
-    tl.href = '../tablet/';
-  }
+  // Subscription badge — shows plan, expiry hint, current usage vs limits
+  _renderSubBadge();
 };
+
+function _renderSubBadge() {
+  const el = document.getElementById('sbSubBadge');
+  if (!el) return;
+  const sub = currentSub();
+  const used = {
+    bays:     (D.settings?.bay_defs || []).reduce((s, d) => s + Number(d.count || 0), 0),
+    workers:  (D.mechanics || []).filter(m => m.active !== false).length,
+    bookings: (D.bookings  || []).filter(b => b.status === 'Scheduled' || b.status === 'Arrived').length
+  };
+  const fmtCap = (n) => n >= 999 ? '∞' : String(n);
+  const expSoon = sub.expiry && (sub.expiry.getTime() - Date.now()) < 7 * 86400000;
+  const expired = sub.expiry && sub.expiry.getTime() <= Date.now();
+  const tint = !sub.active || expired
+    ? 'background:rgba(255,107,107,.10);border-color:rgba(255,107,107,.30);color:var(--red)'
+    : expSoon
+      ? 'background:rgba(255,179,71,.10);border-color:rgba(255,179,71,.30);color:var(--acc2)'
+      : 'background:rgba(32,227,178,.08);border-color:rgba(32,227,178,.25);color:var(--teal)';
+  el.style.cssText = `display:block;text-decoration:none;padding:9px 11px;margin:0 0 6px;border-radius:9px;border:1px solid;font-size:11.5px;line-height:1.4;${tint}`;
+  el.innerHTML = `
+    <div style="font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">
+      <span>${escapeHtml(sub.planName || 'Plan')}</span>
+      <span style="font-size:10.5px;opacity:.85">${expired ? 'EXPIRED' : sub.active ? 'ACTIVE' : 'INACTIVE'}</span>
+    </div>
+    <div style="font-size:10.5px;color:var(--faint);margin-top:4px;font-family:'Courier New',monospace">
+      Bays ${used.bays}/${fmtCap(sub.maxBays)} · Workers ${used.workers}/${fmtCap(sub.maxWorkers)} · Bookings ${used.bookings}/${fmtCap(sub.maxBookings)}
+    </div>${sub.expiry ? `<div style="font-size:10.5px;color:var(--faint);margin-top:2px">${expired ? 'Expired' : 'Renews'} ${sub.expiry.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}</div>` : ''}`;
+  el.title = sub.active ? 'Click to manage your subscription' : 'Click to subscribe / renew';
+}
+window._renderSubBadge = _renderSubBadge;
 
 // Override switchTab to update the header title too
 const _origSwitchTab = window.switchTab;
@@ -3570,6 +3639,8 @@ window.switchTab = function(tab) {
   if (tab === 'invoices')      renderInvoices();
   if (tab === 'reports')       renderReports();
   if (tab === 'audit')         renderAudit();
+  // Keep the subscription badge usage counts fresh after every nav
+  if (typeof _renderSubBadge === 'function') _renderSubBadge();
   // Auto-close the mobile drawer after picking a tab
   closeSidebar();
 };
@@ -3848,6 +3919,9 @@ window._addBayType = async function() {
     document.getElementById('bayDefsErr').textContent = 'A bay type with that name already exists — edit the row above instead.';
     return;
   }
+  // Plan limit: total bays across all types
+  const existingTotal = D.settings.bay_defs.reduce((s, d) => s + Number(d.count || 0), 0);
+  if (!(await checkLimit('bays', existingTotal, count))) return;
   D.settings.bay_defs.push({ name, count });
   _syncBaysFromDefs();
   await wsSaveSettings();
@@ -4472,7 +4546,7 @@ async function renderTimesheets(force = false) {
   document.getElementById('tsCrumb').textContent = `${list.length} shift${list.length === 1 ? '' : 's'} · ${(totalMin/60).toFixed(1)} hours`;
   const wrap = document.getElementById('tsTableWrap');
   if (!list.length) {
-    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">No shifts yet. ${isAdmin ? 'Workers clock in/out from this tab or the tablet.' : 'Click "Clock in" to start your shift.'}</td></tr></table>`;
+    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">No shifts yet. ${isAdmin ? 'Workers clock in/out from this tab.' : 'Click "Clock in" to start your shift.'}</td></tr></table>`;
     return;
   }
   wrap.innerHTML = `<table class="list-tbl">
@@ -4904,9 +4978,34 @@ async function _startScannerCamera() {
     return;
   }
   try {
-    if (!_scanReader) _scanReader = new ZXingBrowser.BrowserMultiFormatReader();
+    if (!_scanReader) {
+      // ZXing's default decoder skips some 1D barcode formats. Explicitly list every
+      // common format we care about (parts barcodes, EAN, Code 128, Code 39, etc.)
+      // and turn on TRY_HARDER so partial / rotated codes still decode. Falls back to
+      // the default reader if the enum classes aren't exposed in this UMD build.
+      let hints = null;
+      try {
+        const DHT = ZXingBrowser.DecodeHintType;
+        const BF  = ZXingBrowser.BarcodeFormat;
+        if (DHT && BF) {
+          hints = new Map();
+          hints.set(DHT.POSSIBLE_FORMATS, [
+            BF.QR_CODE, BF.DATA_MATRIX, BF.AZTEC, BF.PDF_417,
+            BF.CODE_128, BF.CODE_39, BF.CODE_93, BF.CODABAR, BF.ITF,
+            BF.EAN_13, BF.EAN_8, BF.UPC_A, BF.UPC_E,
+            BF.RSS_14, BF.RSS_EXPANDED
+          ]);
+          hints.set(DHT.TRY_HARDER, true);
+        }
+      } catch (_) {}
+      _scanReader = new ZXingBrowser.BrowserMultiFormatReader(hints);
+      // Faster polling so we don't miss the frame where the barcode is in focus.
+      _scanReader.timeBetweenScansMillis = 100;
+    }
     _scanControls = await _scanReader.decodeFromConstraints(
-      { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } },
+      // Higher resolution helps 1D barcodes especially — they need pixel density to
+      // resolve the bar widths. iOS Safari respects the 'ideal' hints.
+      { video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 }, focusMode: 'continuous' } },
       video,
       async (result, _err) => {
         if (result) {
@@ -5501,8 +5600,8 @@ function _drawInvoiceLineRows() {
     lines.innerHTML = _editingInvoice.lines.length
       ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:640px">
           <thead><tr>
-            <th>Part name</th><th>HSN/SAC</th><th style="width:60px">Qty</th>
-            <th style="width:110px">Unit price</th><th style="width:80px">Disc %</th><th></th>
+            <th>Part name</th><th style="width:100px">HSN/SAC</th><th style="width:90px">Qty</th>
+            <th style="width:130px">Unit price</th><th style="width:90px">Disc %</th><th></th>
           </tr></thead>
           <tbody>${_editingInvoice.lines.map((l, i) => `<tr>
             <td><input type="text" data-line="${i}" data-field="name" value="${escapeHtml(l.name)}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
