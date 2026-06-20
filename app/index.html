@@ -1801,13 +1801,13 @@ async function renderDashboard(force = false) {
         <td>${statusPill(jstatus)}</td>
         <td>${escapeHtml(b.mechanic || job?.mechanic || '—')}</td>
         <td><div class="row-act">
-          <button class="mini-btn" onclick="_dashGoToBooking('${escapeHtml(b.id)}')" title="Open this booking">
+          <button class="mini-btn" onclick="_dashGoToBooking('${escapeHtml(b.id)}')" title="Edit this booking">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 12h18M15 5l7 7-7 7"/></svg>Open
           </button>
-          <button class="mini-btn good" onclick="_dashSoon('Create invoice')" title="Generate invoice">
+          <button class="mini-btn good" onclick="_dashInvoice('${escapeHtml(b.id)}')" title="Generate / open invoice for this booking">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Invoice
           </button>
-          <button class="mini-btn danger" onclick="_dashSoon('Check out')" title="Check vehicle out">
+          <button class="mini-btn danger" onclick="_dashCheckout('${escapeHtml(b.id)}')" title="Check vehicle out">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Check out
           </button>
         </div></td>
@@ -1816,13 +1816,29 @@ async function renderDashboard(force = false) {
   }
 }
 
-// Stubs the dashboard action buttons need — the real flows arrive in later steps
+// Dashboard quick-action handlers — jump to the right place + open the right modal.
 window._dashGoToBooking = function(bookingId) {
-  // Will become switchTab('bookings') + openBooking(id) once the Bookings tab is built
-  showToast('Bookings tab arrives in step 3', 'good');
+  switchTab('bookings');
+  setTimeout(() => openBookingForm(bookingId), 200);
 };
-window._dashSoon = function(label) {
-  showToast(`${label} arrives in a later step`, 'good');
+window._dashCheckout = function(bookingId) {
+  const b = D.bookings.find(x => x.id === bookingId);
+  if (!b) return showToast('Booking not found', 'bad');
+  if (b.status !== 'Arrived') {
+    return showToast('Car must be checked in before it can be checked out', 'bad');
+  }
+  switchTab('checkin');
+  setTimeout(() => openCheckoutForm(bookingId), 200);
+};
+window._dashInvoice = async function(bookingId) {
+  await loadAllData(true);
+  const b = D.bookings.find(x => x.id === bookingId);
+  if (!b) return showToast('Booking not found', 'bad');
+  // Prefer the job linked to this booking. Generate-or-reuse the invoice.
+  const job = D.jobs.find(j => j.booking_id === bookingId);
+  if (job) return generateInvoice(job.id);
+  // No job yet — open a blank invoice form seeded with the booking's basics
+  openInvoiceForm(null);
 };
 
 window.renderDashboard = renderDashboard;
@@ -2313,7 +2329,13 @@ function _ciRenderTable(list, kind) {
 // ── Check-in flow: pick a bay, mark Arrived, auto-create a job card ──
 window.openCheckinForm = async function(bookingId) {
   await loadAllData(true);          // make sure D.bays is fresh — auto-sync runs in renderBays only
-  if ((D.settings?.bay_defs || []).length && !D.bays.length) _syncBaysFromDefs?.();
+  // If the user configured bay types but no bay records exist yet, sync them now
+  // AND persist immediately, so the IDs we show in the dropdown survive the
+  // loadAllData(true) call inside doCheckin (otherwise = "bay not found").
+  if ((D.settings?.bay_defs || []).length && !D.bays.length && typeof _syncBaysFromDefs === 'function') {
+    _syncBaysFromDefs();
+    await wsSave('bays', D.bays);
+  }
   const b = D.bookings.find(x => x.id === bookingId);
   if (!b) return showToast('Booking not found', 'bad');
   // Available bays = bay state 'available' (excludes occupied + maintenance), optionally filtered by requested type
@@ -2599,9 +2621,16 @@ window.renderJobs = renderJobs;
 
 const JOB_STATUSES = ['Awaiting Approval','In Progress','Parts Ordered','Parts Not Available','Ready for Delivery','Delivered','Cancelled'];
 
+// Live-editing buffer for the job form (lets the parts/charges rows persist across re-renders)
+let _editingJob = null;
+
 window.openJobForm = function(id) {
   const j = D.jobs.find(x => x.id === id);
   if (!j) return showToast('Job not found', 'bad');
+  _editingJob = {
+    parts:   (j.parts   || []).map(p => ({ name: p.name || '', qty: Number(p.qty || 1), unit_price: Number(p.unit_price || 0) })),
+    charges: (j.service_charges || []).map(c => ({ name: c.name || '', amount: Number(c.amount || 0) }))
+  };
   openModal({
     title: `Job card · ${j.plate || j.id}`,
     body: `
@@ -2620,18 +2649,85 @@ window.openJobForm = function(id) {
         <div class="f-grp"><label>Labour notes</label>
           <textarea id="jf-labour" placeholder="What's been done, what's pending, parts needed…">${escapeHtml(j.labour_notes || '')}</textarea></div>
       </div>
-      <div class="f-row">
-        <div class="f-grp"><label>Parts used (one per line: name × qty)</label>
-          <textarea id="jf-parts" placeholder="Brake pad set × 1&#10;Oil filter × 1">${escapeHtml((j.parts || []).map(p => `${p.name} × ${p.qty || 1}`).join('\n'))}</textarea></div>
-        <div class="f-grp"><label>Service charges (one per line: name × ₹amount)</label>
-          <textarea id="jf-charges" placeholder="Labour × 2000&#10;Diagnostic fee × 500">${escapeHtml((j.service_charges || []).map(c => `${c.name} × ${c.amount || 0}`).join('\n'))}</textarea></div>
+
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:14px">Parts used</div>
+          <button type="button" class="mini-btn" onclick="_jobAddPart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add part</button>
+        </div>
+        <div id="jf-parts-rows"></div>
+      </div>
+
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:14px">Service charges</div>
+          <button type="button" class="mini-btn" onclick="_jobAddCharge()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add charge</button>
+        </div>
+        <div id="jf-charges-rows"></div>
       </div>
       <div class="f-err" id="jf-err"></div>
     `,
     saveLabel: 'Save job',
     onSave: () => saveJob(j.id)
   });
+  setTimeout(() => _drawJobRows(), 0);
 };
+
+window._jobAddPart   = function() { _editingJob.parts.push({ name: '', qty: 1, unit_price: 0 }); _drawJobRows(); };
+window._jobAddCharge = function() { _editingJob.charges.push({ name: '', amount: 0 }); _drawJobRows(); };
+window._jobRemovePart   = function(idx) { _editingJob.parts.splice(idx, 1); _drawJobRows(); };
+window._jobRemoveCharge = function(idx) { _editingJob.charges.splice(idx, 1); _drawJobRows(); };
+
+function _drawJobRows() {
+  const inv = D.inventory || [];
+  const partsWrap = document.getElementById('jf-parts-rows');
+  if (partsWrap) {
+    partsWrap.innerHTML = _editingJob.parts.length
+      ? `<datalist id="dlInvParts">${inv.map(it => `<option value="${escapeHtml(it.name || '')}">`).join('')}</datalist>
+         <div style="overflow:auto"><table class="list-tbl" style="min-width:560px">
+          <thead><tr><th>Part name</th><th style="width:80px">Qty</th><th style="width:130px">Unit price (₹)</th><th style="width:36px"></th></tr></thead>
+          <tbody>${_editingJob.parts.map((p, i) => `<tr>
+            <td><input list="dlInvParts" type="text" data-jp="${i}" data-f="name" value="${escapeHtml(p.name)}" placeholder="Brake pad set" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="1" step="1" data-jp="${i}" data-f="qty" value="${escapeHtml(String(p.qty))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="0.01" data-jp="${i}" data-f="unit_price" value="${escapeHtml(String(p.unit_price))}" placeholder="0" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><button type="button" class="mini-btn danger" onclick="_jobRemovePart(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
+          </tr>`).join('')}</tbody></table></div>`
+      : '<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No parts added. Click "Add part" above.</div>';
+    partsWrap.querySelectorAll('input[data-jp]').forEach(inp => inp.addEventListener('input', (ev) => {
+      const i = Number(ev.target.dataset.jp);
+      const f = ev.target.dataset.f;
+      const v = ev.target.value;
+      _editingJob.parts[i][f] = (f === 'name') ? v : (Number(v) || 0);
+      // If the user picked a known inventory item, auto-fill unit price (only when empty so we don't clobber edits)
+      if (f === 'name') {
+        const item = (D.inventory || []).find(it => (it.name || '').toLowerCase() === v.toLowerCase());
+        if (item && !_editingJob.parts[i].unit_price) {
+          _editingJob.parts[i].unit_price = Number(item.sell_price || 0);
+          const priceInp = partsWrap.querySelector(`input[data-jp="${i}"][data-f="unit_price"]`);
+          if (priceInp) priceInp.value = _editingJob.parts[i].unit_price;
+        }
+      }
+    }));
+  }
+  const chgWrap = document.getElementById('jf-charges-rows');
+  if (chgWrap) {
+    chgWrap.innerHTML = _editingJob.charges.length
+      ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:420px">
+          <thead><tr><th>Charge name</th><th style="width:140px">Amount (₹)</th><th style="width:36px"></th></tr></thead>
+          <tbody>${_editingJob.charges.map((c, i) => `<tr>
+            <td><input type="text" data-jc="${i}" data-f="name" value="${escapeHtml(c.name)}" placeholder="Labour, diagnostic fee…" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="0.01" data-jc="${i}" data-f="amount" value="${escapeHtml(String(c.amount))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><button type="button" class="mini-btn danger" onclick="_jobRemoveCharge(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
+          </tr>`).join('')}</tbody></table></div>`
+      : '<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No service charges. Click "Add charge" above.</div>';
+    chgWrap.querySelectorAll('input[data-jc]').forEach(inp => inp.addEventListener('input', (ev) => {
+      const i = Number(ev.target.dataset.jc);
+      const f = ev.target.dataset.f;
+      const v = ev.target.value;
+      _editingJob.charges[i][f] = (f === 'name') ? v : (Number(v) || 0);
+    }));
+  }
+}
 
 async function saveJob(id) {
   await loadAllData(true);
@@ -2640,23 +2736,16 @@ async function saveJob(id) {
   const status = document.getElementById('jf-status').value;
   const mech   = document.getElementById('jf-mech').value.trim();
   const labour = document.getElementById('jf-labour').value;
-  // Parse simple "name × qty" / "name × amount" lines
-  const partsLines = document.getElementById('jf-parts').value.split('\n').map(s => s.trim()).filter(Boolean);
-  const chargeLines = document.getElementById('jf-charges').value.split('\n').map(s => s.trim()).filter(Boolean);
-  const parsePartLine = (line) => {
-    const m = line.match(/^(.+?)\s*[×x]\s*(\d+)\s*$/i);
-    return m ? { name: m[1].trim(), qty: Number(m[2]) } : { name: line, qty: 1 };
-  };
-  const parseChargeLine = (line) => {
-    const m = line.match(/^(.+?)\s*[×x]\s*([\d.]+)\s*$/i);
-    return m ? { name: m[1].trim(), amount: Number(m[2]) } : { name: line, amount: 0 };
-  };
   j.status = status;
   j.mechanic = mech;
   if (mech && !(j.mechanics || []).includes(mech)) j.mechanics = [...(j.mechanics || []), mech];
   j.labour_notes = labour;
-  j.parts = partsLines.map(parsePartLine);
-  j.service_charges = chargeLines.map(parseChargeLine);
+  // Pull the live row-edit state. Drop rows with no name so a blank "Add part" doesn't
+  // pollute the job card on save.
+  j.parts           = (_editingJob?.parts   || []).filter(p => (p.name || '').trim())
+                        .map(p => ({ name: p.name.trim(), qty: Math.max(1, Number(p.qty || 1)), unit_price: Number(p.unit_price || 0) }));
+  j.service_charges = (_editingJob?.charges || []).filter(c => (c.name || '').trim())
+                        .map(c => ({ name: c.name.trim(), amount: Number(c.amount || 0) }));
   j.updated_at = nowStr();
   if (status === 'Delivered' && !j.completed_at) j.completed_at = nowStr();
   await wsSave('jobs', D.jobs);
@@ -3247,7 +3336,12 @@ function renderSchedule() {
 
 async function renderBays(force = false) {
   await loadAllData(force);
-  _syncBaysFromDefs();  // make sure D.bays matches settings.bay_defs (handles count changes)
+  // Reconcile bays against settings.bay_defs and persist if anything actually changed,
+  // so other tabs (Check-in, Queue) see the same bay IDs we're about to render.
+  const sig = JSON.stringify(D.bays.map(b => b.id));
+  _syncBaysFromDefs();
+  const newSig = JSON.stringify(D.bays.map(b => b.id));
+  if (sig !== newSig) await wsSave('bays', D.bays);
 
   const types = [...new Set(D.bays.map(b => b.type).filter(Boolean))].sort();
   const ftSel = document.getElementById('bayFt');
@@ -4266,21 +4360,6 @@ async function renderSettings(force = false) {
           <div class="f-grp"><label>Currency symbol</label><input id="sf-cur" type="text" value="${escapeHtml(s.currency || '₹')}" /></div>
           <div class="f-grp"><label>Default tax %</label><input id="sf-tax" type="number" step="0.01" value="${escapeHtml(String(s.tax_pct ?? 18))}" /></div>
         </div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--brd)">
-          <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--txt);margin-bottom:8px">Bank transfer details (printed at the bottom of invoices)</div>
-          <div class="f-row">
-            <div class="f-grp"><label>Bank name</label><input id="sf-bank" type="text" value="${escapeHtml(s.bank_name || '')}" placeholder="ICICI" /></div>
-            <div class="f-grp"><label>Branch</label><input id="sf-branch" type="text" value="${escapeHtml(s.bank_branch || '')}" placeholder="MADHAPOOR" /></div>
-          </div>
-          <div class="f-row">
-            <div class="f-grp"><label>Account no.</label><input id="sf-acc" type="text" value="${escapeHtml(s.bank_account || '')}" placeholder="123456789" /></div>
-            <div class="f-grp"><label>IFSC code</label><input id="sf-ifsc" type="text" value="${escapeHtml(s.bank_ifsc || '')}" placeholder="ICIC0001234" /></div>
-          </div>
-          <div class="f-row">
-            <div class="f-grp"><label>SWIFT / sort code</label><input id="sf-swift" type="text" value="${escapeHtml(s.bank_swift || '')}" placeholder="64345678765" /></div>
-            <div class="f-grp"><label>Terms</label><input id="sf-terms" type="text" value="${escapeHtml(s.bank_terms || 'WIRE')}" placeholder="WIRE" /></div>
-          </div>
-        </div>
         <div style="margin-top:12px;text-align:right"><button class="add-btn" onclick="saveWorkshopInfo()">Save workshop info</button></div>
       </div>
 
@@ -4339,12 +4418,7 @@ window.saveWorkshopInfo = async function() {
   D.settings.gstin         = document.getElementById('sf-gst').value.trim();
   D.settings.currency      = document.getElementById('sf-cur').value.trim() || '₹';
   D.settings.tax_pct       = Number(document.getElementById('sf-tax').value) || 0;
-  D.settings.bank_name     = document.getElementById('sf-bank').value.trim();
-  D.settings.bank_branch   = document.getElementById('sf-branch').value.trim();
-  D.settings.bank_account  = document.getElementById('sf-acc').value.trim();
-  D.settings.bank_ifsc     = document.getElementById('sf-ifsc').value.trim();
-  D.settings.bank_swift    = document.getElementById('sf-swift').value.trim();
-  D.settings.bank_terms    = document.getElementById('sf-terms').value.trim();
+  // Bank transfer details are entered per-invoice now (not in Settings)
   await wsSaveSettings();
   showToast('Workshop info saved', 'good');
 };
@@ -4957,6 +5031,10 @@ window.openInvoiceForm = function(idOrSeed) {
 
 function _blankInvoice() {
   const num = 'INV-' + String(((D.invoices || []).length + 1)).padStart(4, '0');
+  // Default bank fields to the most-recently-used invoice's values so workshops
+  // don't have to re-type the same account every time, but still let the user
+  // override per-invoice (the user removed the Settings copy).
+  const last = (D.invoices || []).slice().sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0] || {};
   return {
     id: uid('inv'),
     number: num,
@@ -4968,7 +5046,13 @@ function _blankInvoice() {
     service: '', mechanic: '',
     lines: [], charges: [],
     tax_pct: Number(D.settings.tax_pct || 0),
-    payment_status: 'Outstanding', payment_method: '',
+    payment_status: 'Outstanding', payment_method: '', amount_paid: 0,
+    bank_name:    last.bank_name    || '',
+    bank_branch:  last.bank_branch  || '',
+    bank_account: last.bank_account || '',
+    bank_ifsc:    last.bank_ifsc    || '',
+    bank_swift:   last.bank_swift   || '',
+    bank_terms:   last.bank_terms   || 'WIRE',
     notes: '',
     workshop_snapshot: _workshopSnapshot(),
     created_at: '', updated_at: '', created_by: currentWorker?.name || ''
@@ -4980,9 +5064,7 @@ function _workshopSnapshot() {
   return {
     workshop_name: s.workshop_name || '', address: s.address || '', email: s.email || '',
     phone: s.phone || '', gstin: s.gstin || '', currency: s.currency || '₹',
-    tax_pct: Number(s.tax_pct || 0), logo: s.logo || '',
-    bank_name: s.bank_name || '', bank_branch: s.bank_branch || '', bank_account: s.bank_account || '',
-    bank_ifsc: s.bank_ifsc || '', bank_swift: s.bank_swift || '', bank_terms: s.bank_terms || 'WIRE'
+    tax_pct: Number(s.tax_pct || 0), logo: s.logo || ''
   };
 }
 
@@ -5058,21 +5140,49 @@ function _invoiceFormHTML() {
       <div id="if-charges"></div>
     </div>
 
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+      <div style="font-family:var(--fd);font-weight:700;font-size:14px;margin-bottom:10px">Bank transfer details <span style="font-weight:500;color:var(--faint);font-size:12px">(printed at the bottom of the invoice — leave blank to hide)</span></div>
+      <div class="f-row">
+        <div class="f-grp"><label>Bank name</label><input id="if-bank" type="text" value="${escapeHtml(inv.bank_name || '')}" placeholder="ICICI" /></div>
+        <div class="f-grp"><label>Branch</label><input id="if-bbranch" type="text" value="${escapeHtml(inv.bank_branch || '')}" placeholder="MADHAPOOR" /></div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Account no.</label><input id="if-bacc" type="text" value="${escapeHtml(inv.bank_account || '')}" placeholder="123456789" /></div>
+        <div class="f-grp"><label>IFSC code</label><input id="if-bifsc" type="text" value="${escapeHtml(inv.bank_ifsc || '')}" placeholder="ICIC0001234" /></div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>SWIFT / sort code</label><input id="if-bswift" type="text" value="${escapeHtml(inv.bank_swift || '')}" placeholder="64345678765" /></div>
+        <div class="f-grp"><label>Terms</label><input id="if-bterms" type="text" value="${escapeHtml(inv.bank_terms || 'WIRE')}" placeholder="WIRE" /></div>
+      </div>
+    </div>
+
     <div class="f-row r3" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
       <div class="f-grp"><label>Payment status</label>
-        <select id="if-pay-status">
+        <select id="if-pay-status" onchange="_togglePartialAmount()">
           <option ${inv.payment_status === 'Outstanding' ? 'selected' : ''}>Outstanding</option>
           <option ${inv.payment_status === 'Paid' ? 'selected' : ''}>Paid</option>
           <option ${inv.payment_status === 'Partial' ? 'selected' : ''}>Partial</option>
         </select>
       </div>
       <div class="f-grp"><label>Payment method</label><input id="if-pay-method" type="text" value="${escapeHtml(inv.payment_method || '')}" placeholder="Cash, UPI, bank transfer…" /></div>
-      <div class="f-grp" style="display:flex;flex-direction:column;justify-content:flex-end">
-        <div id="if-totals" style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:10px 12px;font-size:12.5px;color:var(--dim);line-height:1.7"></div>
+      <div class="f-grp" id="if-partial-wrap" style="${inv.payment_status === 'Partial' ? '' : 'display:none'}">
+        <label>Amount paid (₹)</label>
+        <input id="if-amount-paid" type="number" min="0" step="0.01" value="${escapeHtml(String(inv.amount_paid || 0))}" oninput="_updateInvoiceTotalsBox()" />
       </div>
+    </div>
+    <div style="margin-top:14px">
+      <div id="if-totals" style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:12px 14px;font-size:12.5px;color:var(--dim);line-height:1.85"></div>
     </div>
     <div class="f-err" id="if-err"></div>`;
 }
+
+window._togglePartialAmount = function() {
+  const sel = document.getElementById('if-pay-status');
+  const wrap = document.getElementById('if-partial-wrap');
+  if (!sel || !wrap) return;
+  wrap.style.display = (sel.value === 'Partial') ? '' : 'none';
+  _updateInvoiceTotalsBox();
+};
 
 window._addInvoiceLine = function() {
   _editingInvoice.lines.push({ name: '', hsn: '', qty: 1, unit_price: 0, disc_pct: 0 });
@@ -5157,14 +5267,25 @@ function _drawInvoiceLineRows() {
 function _updateInvoiceTotalsBox() {
   const box = document.getElementById('if-totals');
   if (!box) return;
+  // Pull the latest payment status + amount paid from the form before computing
+  const payStatus = document.getElementById('if-pay-status')?.value || _editingInvoice.payment_status || 'Outstanding';
+  const amtPaidInp = document.getElementById('if-amount-paid');
+  const amtPaid = payStatus === 'Paid'
+    ? _invoiceTotals(_editingInvoice).roundOff   // "Paid" implies fully paid
+    : payStatus === 'Partial'
+      ? Number(amtPaidInp?.value || 0)
+      : 0;
   const t = _invoiceTotals(_editingInvoice);
   const cur = D.settings.currency || '₹';
+  const balance = Math.max(0, t.roundOff - amtPaid);
   box.innerHTML = `
     <div style="display:flex;justify-content:space-between"><span>Parts taxable</span><b>${cur}${t.partsTaxable.toLocaleString('en-IN')}</b></div>
     <div style="display:flex;justify-content:space-between"><span>GST</span><b>${cur}${t.gst.toLocaleString('en-IN')}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Labour</span><b>${cur}${t.labour.toLocaleString('en-IN')}</b></div>
     <div style="display:flex;justify-content:space-between"><span>Discount</span><b>${cur}${t.disc.toLocaleString('en-IN')}</b></div>
-    <div style="display:flex;justify-content:space-between;border-top:1px solid var(--brd);padding-top:4px;margin-top:4px;color:var(--txt)"><span>Total (rounded)</span><b>${cur}${t.roundOff.toLocaleString('en-IN')}</b></div>`;
+    <div style="display:flex;justify-content:space-between;border-top:1px solid var(--brd);padding-top:6px;margin-top:6px;color:var(--txt);font-weight:600"><span>Total (rounded)</span><b>${cur}${t.roundOff.toLocaleString('en-IN')}</b></div>
+    ${payStatus !== 'Outstanding' ? `<div style="display:flex;justify-content:space-between;color:var(--teal)"><span>Paid</span><b>${cur}${amtPaid.toLocaleString('en-IN')}</b></div>` : ''}
+    <div style="display:flex;justify-content:space-between;color:${balance > 0 ? 'var(--red)' : 'var(--teal)'};font-weight:700"><span>Balance</span><b>${cur}${balance.toLocaleString('en-IN')}</b></div>`;
 }
 
 async function saveInvoice() {
@@ -5183,6 +5304,18 @@ async function saveInvoice() {
   inv.tax_pct         = Number(document.getElementById('if-tax').value) || 0;
   inv.payment_status  = document.getElementById('if-pay-status').value;
   inv.payment_method  = document.getElementById('if-pay-method').value.trim();
+  // Amount paid follows the payment status — Paid = full, Partial = whatever's in the field, Outstanding = 0
+  const total = _invoiceTotals(inv).roundOff;
+  if (inv.payment_status === 'Paid')      inv.amount_paid = total;
+  else if (inv.payment_status === 'Partial') inv.amount_paid = Math.min(total, Math.max(0, Number(document.getElementById('if-amount-paid')?.value || 0)));
+  else                                    inv.amount_paid = 0;
+  // Bank fields (per-invoice now)
+  inv.bank_name    = document.getElementById('if-bank').value.trim();
+  inv.bank_branch  = document.getElementById('if-bbranch').value.trim();
+  inv.bank_account = document.getElementById('if-bacc').value.trim();
+  inv.bank_ifsc    = document.getElementById('if-bifsc').value.trim();
+  inv.bank_swift   = document.getElementById('if-bswift').value.trim();
+  inv.bank_terms   = document.getElementById('if-bterms').value.trim();
   if (!inv.customer.name) throw new Error('Customer name is required');
   // Refresh workshop snapshot on every save so the latest logo/address is captured
   inv.workshop_snapshot = _workshopSnapshot();
@@ -5317,29 +5450,38 @@ function _invoiceHTMLFromRecord(inv) {
       </tr>`).join('')}
     </tbody>
   </table>
-  <div class="totals-wrap"><div class="totals">
+  ${(() => {
+    // Balance math: respects partial payments. "Paid" = fully paid; "Partial" = uses inv.amount_paid;
+    // "Outstanding" = nothing paid yet.
+    const amtPaid = inv.payment_status === 'Paid'    ? t.roundOff
+                  : inv.payment_status === 'Partial' ? Math.min(t.roundOff, Number(inv.amount_paid || 0))
+                  : 0;
+    const balance = Math.max(0, t.roundOff - amtPaid);
+    return `<div class="totals-wrap"><div class="totals">
     <div class="row"><span>Parts Total</span><span>${fmt(t.partsTaxable + t.gst)}</span></div>
     <div class="row"><span>Labour Total</span><span>${fmt(t.labour)}</span></div>
     <div class="row"><span>GST Total</span><span>${fmt(t.gst)}</span></div>
     <div class="row"><span>Discount Total</span><span>${fmt(t.disc)}</span></div>
     <div class="row grand"><span>Grand Total</span><span>${fmt(t.grand)}</span></div>
     <div class="row"><span>Round off</span><span>${fmt(t.roundOff)}</span></div>
-    <div class="row balance"><span>Balance</span><span>${fmt(t.roundOff)}</span></div>
-  </div></div>
+    ${inv.payment_status !== 'Outstanding' ? `<div class="row" style="color:#16a34a"><span>Amount Paid</span><span>${fmt(amtPaid)}</span></div>` : ''}
+    <div class="row balance" style="color:${balance > 0 ? '#dc2626' : '#16a34a'}"><span>Balance</span><span>${fmt(balance)}</span></div>
+  </div></div>`;
+  })()}
   <div class="words">Amount (in Words): ${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only</div>
-  ${ws.bank_account ? `
+  ${inv.bank_account ? `
     <div class="bank">
       <h3>PAY BY BANK TRANSFER</h3>
       <div class="bank-grid">
-        <div>Bank Name:</div><div class="v">${escapeHtml(ws.bank_name || '')}</div>
-        <div>Account No:</div><div class="v">${escapeHtml(ws.bank_account || '')}</div>
-        <div>IFSC Code:</div><div class="v">${escapeHtml(ws.bank_ifsc || '')}</div>
-        <div>Branch:</div><div class="v">${escapeHtml(ws.bank_branch || '')}</div>
-        <div>Sort/SWIFT:</div><div class="v">${escapeHtml(ws.bank_swift || '')}</div>
-        <div>Terms:</div><div class="v">${escapeHtml(ws.bank_terms || 'WIRE')}</div>
+        <div>Bank Name:</div><div class="v">${escapeHtml(inv.bank_name || '')}</div>
+        <div>Account No:</div><div class="v">${escapeHtml(inv.bank_account || '')}</div>
+        <div>IFSC Code:</div><div class="v">${escapeHtml(inv.bank_ifsc || '')}</div>
+        <div>Branch:</div><div class="v">${escapeHtml(inv.bank_branch || '')}</div>
+        <div>Sort/SWIFT:</div><div class="v">${escapeHtml(inv.bank_swift || '')}</div>
+        <div>Terms:</div><div class="v">${escapeHtml(inv.bank_terms || 'WIRE')}</div>
       </div>
     </div>` : ''}
-  <div class="pay-status">Payment Status: <b>${escapeHtml(inv.payment_status || 'Outstanding')}</b></div>
+  <div class="pay-status">Payment Status: <b>${escapeHtml(inv.payment_status || 'Outstanding')}${inv.payment_status === 'Partial' && inv.amount_paid ? ` (${fmt(inv.amount_paid)} of ${fmt(t.roundOff)})` : ''}</b></div>
   <hr><div class="foot">I certify that the work has been done to my satisfaction and that I have taken delivery of the vehicle in good condition, with all items / valuables and parts intact.</div>
   <hr><div class="foot">Thank you for choosing ${escapeHtml(ws.workshop_name || 'us')}. Please retain this invoice for your records.</div>
   <div class="no-print" style="margin-top:24px;text-align:center"><button onclick="window.print()" style="background:#1a1a1a;color:#fff;border:0;padding:10px 20px;border-radius:7px;cursor:pointer;font-size:13px">Print invoice</button></div>
