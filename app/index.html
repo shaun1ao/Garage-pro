@@ -545,25 +545,88 @@ input[list]{background:var(--bg2)}
 
 <!-- ═══════════════ FIRST-RUN SETUP (Google sign-in landed without a workshop yet) ═══════════════ -->
 <div class="overlay" id="overlayNoWorkshop" style="display:none">
-  <div class="auth-card">
+  <div class="auth-card" style="max-width:520px">
     <div class="a-logo">
       <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 9h6M9 13h6M9 17h6"/></svg>
     </div>
-    <h2>Set up your workshop</h2>
-    <div class="a-sub">Just three things and you're in.</div>
-    <form class="auth-form active" onsubmit="doFirstSetup(event)">
-      <div><label>Workshop name</label><input id="fs-garage" type="text" placeholder="Speed Auto Care" required /></div>
-      <div><label>Your name</label><input id="fs-name" type="text" placeholder="Rajesh Kumar" required /></div>
-      <div>
-        <label>Owner PIN (4 digits)</label>
-        <input id="fs-pin" type="text" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" placeholder="e.g. 1234" required />
+
+    <!-- Wizard step dots -->
+    <div id="setupSteps" style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:16px;font-size:11px;font-weight:700;color:var(--faint);letter-spacing:.08em;text-transform:uppercase">
+      <span data-step="1" class="active" style="display:inline-flex;align-items:center;gap:6px"><span class="step-num">1</span> Workshop</span>
+      <span style="opacity:.4">›</span>
+      <span data-step="2" style="display:inline-flex;align-items:center;gap:6px"><span class="step-num">2</span> Bays</span>
+      <span style="opacity:.4">›</span>
+      <span data-step="3" style="display:inline-flex;align-items:center;gap:6px"><span class="step-num">3</span> Workers</span>
+    </div>
+
+    <!-- STEP 1: Workshop -->
+    <div class="setup-pane" data-pane="1">
+      <h2>Set up your workshop</h2>
+      <div class="a-sub">Just three things and you're in.</div>
+      <form class="auth-form active" autocomplete="off" onsubmit="doFirstSetup(event)">
+        <div><label>Workshop name</label><input id="fs-garage" name="fs-garage-x" type="text" placeholder="Speed Auto Care" required autocomplete="off" /></div>
+        <div><label>Your name</label><input id="fs-name" name="fs-name-x" type="text" placeholder="Rajesh Kumar" required autocomplete="off" /></div>
+        <div>
+          <label>Owner PIN (4 digits)</label>
+          <input id="fs-pin" name="fs-pin-x" type="text" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" placeholder="e.g. 1234" required autocomplete="off" />
+        </div>
+        <div class="a-err" id="fs-err"></div>
+        <button type="submit" class="btn full-btn">Continue → Bays</button>
+      </form>
+      <div class="auth-hint">Signed in as <span id="signedInEmail" style="color:var(--dim)">—</span> · <button type="button" class="forgot" onclick="doSignOut()" style="display:inline">Sign out</button></div>
+    </div>
+
+    <!-- STEP 2: Bays -->
+    <div class="setup-pane" data-pane="2" style="display:none">
+      <h2>Set up your bays</h2>
+      <div class="a-sub">Add the service points in your workshop. You can change these any time from Settings.</div>
+      <div style="display:flex;gap:8px;margin:14px 0 10px">
+        <input id="setupBayName" type="text" placeholder="Mechanical bay" autocomplete="off" style="flex:1;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" />
+        <input id="setupBayCount" type="number" min="1" step="1" value="2" autocomplete="off" style="width:80px;padding:11px 12px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" />
+        <button type="button" class="refresh-btn" onclick="_wizAddBay()" style="background:var(--acc);color:#170f05;border-color:var(--acc);font-weight:700">+ Add</button>
       </div>
-      <div class="a-err" id="fs-err"></div>
-      <button type="submit" class="btn full-btn">Create workshop</button>
-    </form>
-    <div class="auth-hint">Signed in as <span id="signedInEmail" style="color:var(--dim)">—</span> · <button type="button" class="forgot" onclick="doSignOut()" style="display:inline">Sign out</button></div>
+      <div id="setupBayList" style="margin-bottom:14px;min-height:60px"></div>
+      <div class="a-err" id="setup-bays-err"></div>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button type="button" class="btn full-btn" style="flex:1;background:transparent;color:var(--dim);border:1px solid var(--brd2)" onclick="_wizGoStep(3)">Skip for now</button>
+        <button type="button" class="btn full-btn" style="flex:1" onclick="_wizSaveBays()">Continue → Workers</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Workers -->
+    <div class="setup-pane" data-pane="3" style="display:none">
+      <h2>Add your team</h2>
+      <div class="a-sub">Each worker signs in on the floor with a 4-digit PIN. You can add more later from the Workers tab.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 90px auto;gap:8px;margin:14px 0 8px;align-items:end">
+        <div><label style="display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase">Name</label>
+          <input id="setupWkName" type="text" placeholder="Aslam" autocomplete="off" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" /></div>
+        <div><label style="display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase">Role</label>
+          <select id="setupWkRole" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
+            <option value="mechanic">Mechanic</option>
+            <option value="receptionist">Receptionist</option>
+            <option value="manager">Manager</option>
+          </select></div>
+        <div><label style="display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase">PIN</label>
+          <input id="setupWkPin" type="text" inputmode="numeric" maxlength="6" placeholder="0000" autocomplete="off" style="width:100%;padding:11px 12px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" /></div>
+        <button type="button" class="refresh-btn" onclick="_wizAddWorker()" style="background:var(--acc);color:#170f05;border-color:var(--acc);font-weight:700;height:42px">+ Add</button>
+      </div>
+      <div id="setupWkList" style="margin-bottom:14px;min-height:60px"></div>
+      <div class="a-err" id="setup-wk-err"></div>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button type="button" class="btn full-btn" style="flex:1;background:transparent;color:var(--dim);border:1px solid var(--brd2)" onclick="_wizFinish()">Finish setup</button>
+        <button type="button" class="btn full-btn" style="flex:1" onclick="_wizSaveWorkersAndFinish()">Save &amp; finish</button>
+      </div>
+    </div>
   </div>
 </div>
+<style>
+  /* Active vs inactive wizard step pip */
+  #setupSteps .step-num{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--surf2);color:var(--faint);border:1px solid var(--brd2);font-size:11px;font-weight:800}
+  #setupSteps span[data-step].active .step-num{background:var(--acc);color:#170f05;border-color:var(--acc)}
+  #setupSteps span[data-step].done .step-num{background:rgba(32,227,178,.18);color:var(--teal);border-color:rgba(32,227,178,.4)}
+  #setupSteps span[data-step].active{color:var(--txt)}
+  #setupSteps span[data-step].done{color:var(--teal)}
+</style>
 
 <!-- ═══════════════ PIN PAD (worker selection) ═══════════════ -->
 <div class="overlay" id="overlayPinpad" style="display:none">
@@ -1089,6 +1152,50 @@ const FB_CONFIG = {
   messagingSenderId: "714982026183",
   appId: "1:714982026183:web:95401fffb0a93151b407e2"
 };
+// ── Browser-autofill suppressor ───────────────────────────────────────────
+// We want Chrome/Safari/Firefox to STOP suggesting saved names/emails/phones
+// inside the app's forms (it's noisy and frequently wrong for a workshop tool).
+// But we DO want our own in-app suggestions — those come from <datalist> elements
+// (e.g. dlCustomers, dlInvParts) and are NOT controlled by `autocomplete`.
+// So this stamps autocomplete="off" on every <input>, <textarea>, <select>, and
+// <form> that doesn't already have one set. Datalists keep working.
+(function suppressBrowserAutofill() {
+  const stamp = (el) => {
+    if (!el || !el.tagName) return;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'form') {
+      if (!el.hasAttribute('autocomplete')) el.setAttribute('autocomplete', 'off');
+      return;
+    }
+    if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') return;
+    if (el.type === 'checkbox' || el.type === 'radio' || el.type === 'submit' || el.type === 'button' || el.type === 'hidden') return;
+    if (!el.hasAttribute('autocomplete')) el.setAttribute('autocomplete', 'off');
+    // Chrome respects "new-password" most reliably to fully kill suggestions
+    if (el.type === 'password' && el.getAttribute('autocomplete') === 'off') el.setAttribute('autocomplete', 'new-password');
+  };
+  const stampAll = (root) => {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('form, input, textarea, select').forEach(stamp);
+  };
+  // First pass on whatever's already there
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => stampAll(document));
+  } else {
+    stampAll(document);
+  }
+  // Catch every input that appears later (modal bodies, dynamic rows, etc.)
+  const obs = new MutationObserver(muts => {
+    for (const m of muts) {
+      m.addedNodes.forEach(n => {
+        if (n.nodeType !== 1) return;
+        stamp(n);
+        stampAll(n);
+      });
+    }
+  });
+  obs.observe(document.body || document.documentElement, { childList: true, subtree: true });
+})();
+
 firebase.initializeApp(FB_CONFIG);
 const fbAuth = firebase.auth();
 const fbDb   = firebase.firestore();
@@ -1306,6 +1413,23 @@ window.doSendReset = async function(e) {
   }
 };
 
+// ── Setup wizard state — collected across steps before commit ──
+let _wizBays    = [];   // [{ name, count }]
+let _wizWorkers = [];   // [{ name, role, pin }]
+
+function _wizGoStep(n) {
+  // Show only the chosen pane + update the step dots
+  document.querySelectorAll('#overlayNoWorkshop .setup-pane').forEach(p => {
+    p.style.display = (p.dataset.pane === String(n)) ? '' : 'none';
+  });
+  document.querySelectorAll('#setupSteps span[data-step]').forEach(s => {
+    const d = Number(s.dataset.step);
+    s.classList.toggle('active', d === n);
+    s.classList.toggle('done',   d < n);
+  });
+}
+window._wizGoStep = _wizGoStep;
+
 window.doFirstSetup = async function(e) {
   e.preventDefault();
   const garage = document.getElementById('fs-garage').value.trim();
@@ -1319,12 +1443,121 @@ window.doFirstSetup = async function(e) {
     await provisionNewWorkshop(currentUser.uid, garage, name, pin, currentUser.email);
     await loadUserProfile();
     await loadAllData(true);
-    showPinpad();
+    // Reset wizard buffers + advance to bays. Pre-seed bays with one sensible default
+    // (1 mechanical bay) so first-timers see what a row looks like.
+    _wizBays    = [{ name: 'Mechanical bay', count: 1 }];
+    _wizWorkers = [];
+    _wizDrawBays();
+    _wizDrawWorkers();
+    _wizGoStep(2);
   } catch (e2) {
     err.textContent = e2.message || String(e2);
   } finally {
-    btn.disabled = false; btn.textContent = 'Create workshop';
+    btn.disabled = false; btn.textContent = 'Continue → Bays';
   }
+};
+
+// ── Step 2: Bays ──────────────────────────────────────────────
+window._wizAddBay = function() {
+  const name  = (document.getElementById('setupBayName').value || '').trim();
+  const count = Math.max(1, Math.floor(Number(document.getElementById('setupBayCount').value) || 1));
+  const err   = document.getElementById('setup-bays-err'); err.textContent = '';
+  if (!name) { err.textContent = 'Give the bay type a name first.'; return; }
+  if (_wizBays.find(b => b.name.toLowerCase() === name.toLowerCase())) {
+    err.textContent = 'You already added that bay type.';
+    return;
+  }
+  _wizBays.push({ name, count });
+  document.getElementById('setupBayName').value = '';
+  document.getElementById('setupBayCount').value = '2';
+  _wizDrawBays();
+};
+window._wizRemoveBay = function(i) { _wizBays.splice(i, 1); _wizDrawBays(); };
+function _wizDrawBays() {
+  const wrap = document.getElementById('setupBayList');
+  if (!wrap) return;
+  if (!_wizBays.length) {
+    wrap.innerHTML = `<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No bays yet — add a few or skip this step.</div>`;
+    return;
+  }
+  wrap.innerHTML = _wizBays.map((b, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:6px">
+      <div><b style="color:var(--txt)">${escapeHtml(b.name)}</b> <span style="color:var(--faint);font-size:12.5px;margin-left:6px">× ${b.count}</span></div>
+      <button type="button" class="mini-btn danger" onclick="_wizRemoveBay(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+    </div>`).join('');
+}
+
+window._wizSaveBays = async function() {
+  // Plan limit: total bays vs subscription cap
+  const total = _wizBays.reduce((s, b) => s + Number(b.count || 0), 0);
+  if (total && !(await checkLimit('bays', 0, total))) return;
+  // Persist bay_defs onto the settings doc + generate the bay records
+  D.settings = D.settings || {};
+  D.settings.bay_defs = _wizBays.slice();
+  if (typeof _syncBaysFromDefs === 'function') _syncBaysFromDefs();
+  await Promise.all([
+    wsSave('settings', [D.settings]),
+    wsSave('bays', D.bays || [])
+  ]);
+  _wizGoStep(3);
+};
+
+// ── Step 3: Workers ──────────────────────────────────────────
+window._wizAddWorker = function() {
+  const name = (document.getElementById('setupWkName').value || '').trim();
+  const role = document.getElementById('setupWkRole').value;
+  const pin  = (document.getElementById('setupWkPin').value || '').trim();
+  const err  = document.getElementById('setup-wk-err'); err.textContent = '';
+  if (!name) { err.textContent = 'Name is required.'; return; }
+  if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
+  if (_wizWorkers.find(w => w.name.toLowerCase() === name.toLowerCase())) {
+    err.textContent = 'A worker with that name already exists in this list.'; return;
+  }
+  _wizWorkers.push({ name, role, pin });
+  document.getElementById('setupWkName').value = '';
+  document.getElementById('setupWkPin').value  = '';
+  _wizDrawWorkers();
+};
+window._wizRemoveWorker = function(i) { _wizWorkers.splice(i, 1); _wizDrawWorkers(); };
+function _wizDrawWorkers() {
+  const wrap = document.getElementById('setupWkList');
+  if (!wrap) return;
+  if (!_wizWorkers.length) {
+    wrap.innerHTML = `<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">You already have the owner account. Add other mechanics here or skip and add them later.</div>`;
+    return;
+  }
+  wrap.innerHTML = _wizWorkers.map((w, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:6px">
+      <div><b style="color:var(--txt)">${escapeHtml(w.name)}</b> <span style="color:var(--faint);font-size:12px;margin-left:6px;text-transform:capitalize">${escapeHtml(w.role)}</span> <span style="color:var(--faint);font-size:11.5px;margin-left:8px;font-family:'Courier New',monospace">PIN ${'•'.repeat(w.pin.length)}</span></div>
+      <button type="button" class="mini-btn danger" onclick="_wizRemoveWorker(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+    </div>`).join('');
+}
+
+window._wizSaveWorkersAndFinish = async function() {
+  if (!_wizWorkers.length) return _wizFinish();
+  // Plan-limit check: existing active workers + the new ones
+  const activeCount = (D.mechanics || []).filter(m => m.active !== false).length;
+  if (!(await checkLimit('workers', activeCount, _wizWorkers.length))) return;
+  // Hash each PIN then append to D.mechanics + save
+  const hashed = await Promise.all(_wizWorkers.map(async w => ({
+    id: uid('mech'), name: w.name, role: w.role, active: true,
+    pin_hash: await sha256(w.pin), pin_len: w.pin.length,
+    created_at: nowStr()
+  })));
+  D.mechanics = (D.mechanics || []).concat(hashed);
+  await wsSave('mechanics', D.mechanics);
+  _wizFinish();
+};
+
+window._wizFinish = function() {
+  // Mark setup complete on the user profile so we don't re-run the wizard
+  if (currentUser?.uid) {
+    fbDb.collection('users').doc(currentUser.uid)
+      .set({ setup_done_at: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+      .catch(() => {});
+  }
+  showToast('All set! Tap your name to sign in.', 'good');
+  showPinpad();
 };
 
 async function provisionNewWorkshop(uid, garage, ownerName, pin, email) {
