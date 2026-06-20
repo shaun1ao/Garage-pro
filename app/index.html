@@ -886,16 +886,33 @@ input[list]{background:var(--bg2)}
           <input type="text" id="jbSearch" placeholder="Search plate, customer, mechanic…" oninput="renderJobs()" />
           <select id="jbStatus" onchange="renderJobs()">
             <option value="">All statuses</option>
-            <option value="Awaiting Approval">Awaiting Approval</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Parts Ordered">Parts Ordered</option>
-            <option value="Parts Not Available">Parts Not Available</option>
-            <option value="Ready for Delivery">Ready for Delivery</option>
-            <option value="Delivered">Delivered</option>
-            <option value="Cancelled">Cancelled</option>
+            <optgroup label="Stage 1 — Car inward">
+              <option value="Awaiting Assignment">Awaiting Assignment</option>
+              <option value="Awaiting Approval">Awaiting Approval (legacy)</option>
+            </optgroup>
+            <optgroup label="Stage 2 — Diagnosis &amp; estimate">
+              <option value="Technician Assigned">Technician Assigned</option>
+              <option value="Inspected">Inspected</option>
+              <option value="Estimate Sent">Estimate Sent</option>
+              <option value="Estimate Approved">Estimate Approved</option>
+            </optgroup>
+            <optgroup label="Stage 3 — Execution">
+              <option value="In Progress">In Progress</option>
+              <option value="Parts Ordered">Parts Ordered</option>
+              <option value="Parts Not Available">Parts Not Available</option>
+              <option value="Ready for Delivery">Ready for Delivery</option>
+              <option value="Delivered">Delivered</option>
+              <option value="Cancelled">Cancelled</option>
+            </optgroup>
+          </select>
+          <select id="jbDept" onchange="renderJobs()">
+            <option value="">All departments</option>
+            <option value="Mechanical">Mechanical</option>
+            <option value="Bodyshop">Bodyshop</option>
+            <option value="Both">Both</option>
           </select>
           <select id="jbMech" onchange="renderJobs()"><option value="">All mechanics</option></select>
-          <button class="refresh-btn" onclick="document.getElementById('jbSearch').value='';document.getElementById('jbStatus').value='';document.getElementById('jbMech').value='';renderJobs()">Clear</button>
+          <button class="refresh-btn" onclick="document.getElementById('jbSearch').value='';document.getElementById('jbStatus').value='';document.getElementById('jbDept').value='';document.getElementById('jbMech').value='';renderJobs()">Clear</button>
           <span class="pill"><b id="jbCount">0</b>&nbsp;results</span>
         </div>
         <div id="jbTableWrap"></div>
@@ -1750,10 +1767,12 @@ function renderHeader() {
 // Defaults if the workshop hasn't customised role permissions yet.
 // Owner always sees everything regardless of what's stored.
 const DEFAULT_ROLE_PERMS = {
-  owner:        ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','audit','settings'],
-  manager:      ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','audit'],
-  receptionist: ['dashboard','bookings','checkin','queue','customers','invoices','timesheets'],
-  mechanic:     ['dashboard','checkin','jobs','queue','bays','inventory','request_parts','timesheets']
+  owner:         ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','audit','settings'],
+  manager:       ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','audit'],
+  // Floor manager — owns Stage-2 assignments. Sees jobs, queue, bays, parts approvals; can't change workshop settings.
+  floor_manager: ['dashboard','checkin','jobs','queue','customers','bays','inventory','parts','request_parts','timesheets'],
+  receptionist:  ['dashboard','bookings','checkin','queue','customers','invoices','timesheets'],
+  mechanic:      ['dashboard','checkin','jobs','queue','bays','inventory','request_parts','timesheets']
 };
 const ADMIN_ROLES = ['owner','manager'];
 
@@ -1948,6 +1967,7 @@ const D = {
   bookings: [], bays: [], jobs: [], queue: [],
   customers: [], mechanics: [], inventory: [], timesheets: [],
   parts_requests: [], invoices: [], audit: [],
+  vehicleDB: null,   // workshop's override of the make/model DB; null = use VEHICLE_DB_SEED
   settings: {}, loadedAt: 0
 };
 let _loadingPromise = null;
@@ -1962,13 +1982,16 @@ async function loadAllData(force = false) {
   }
   if (!force && D.loadedAt && (Date.now() - D.loadedAt < 60000)) return; // 60s grace — persistence keeps the local cache hot
   _loadingPromise = (async () => {
-    const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, invoices, audit, settingsArr] =
+    const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, invoices, audit, vehicleDBArr, settingsArr] =
       await Promise.all([
         wsLoad('bookings'), wsLoad('bays'),     wsLoad('jobs'),
         wsLoad('queue'),    wsLoad('customers'),wsLoad('mechanics'),
         wsLoad('inventory'),wsLoad('timesheets'),wsLoad('parts_requests'),
-        wsLoad('invoices'), wsLoad('audit'),    wsLoad('settings')
+        wsLoad('invoices'), wsLoad('audit'),    wsLoad('vehicleDB'),
+        wsLoad('settings')
       ]);
+    // vehicleDB is a single object wrapped as { db: {...} } inside the items array
+    D.vehicleDB      = (vehicleDBArr && vehicleDBArr[0] && vehicleDBArr[0].db) || null;
     D.bookings       = bookings       || [];
     D.bays           = bays           || [];
     D.jobs           = jobs           || [];
@@ -2002,6 +2025,14 @@ function fmtToday() {
 }
 
 const STATUS_CLASS = {
+  // Stage 1
+  'Awaiting Assignment': 's-arrived',
+  // Stage 2
+  'Technician Assigned': 's-progress',
+  'Inspected':           's-progress',
+  'Estimate Sent':       's-arrived',
+  'Estimate Approved':   's-ready',
+  // Stage 3
   'In Progress':         's-progress',
   'Awaiting Approval':   's-arrived',
   'Parts Ordered':       's-warn',
@@ -2145,9 +2176,11 @@ window.renderDashboard = renderDashboard;
 //  SHARED MODAL HELPERS
 // ══════════════════════════════════════════
 let _modalSaveHandler = null;
-function openModal({ title, body, saveLabel = 'Save', danger = null, onSave }) {
+function openModal({ title, body, saveLabel = 'Save', danger = null, onSave, wide = false }) {
   document.getElementById('gpModalTitle').textContent = title;
   document.getElementById('gpModalBody').innerHTML = body;
+  // Wider modal for big multi-section forms (booking, etc.)
+  document.querySelector('#gpModal .gp-modal-box').style.maxWidth = wide ? '960px' : '';
   const foot = document.getElementById('gpModalFoot');
   const dangerBtn = danger
     ? `<button class="fbtn fbtn-danger" onclick="(${danger.handler.toString()})()">${escapeHtml(danger.label)}</button>`
@@ -2294,6 +2327,195 @@ function uid(prefix = '') { return (prefix ? prefix + '-' : '') + Date.now().toS
 function nowStr() { return new Date().toISOString().slice(0, 19).replace('T', ' '); }
 function toTime(d = new Date()) { return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
 
+// ══════════════════════════════════════════════════════════════════════════
+//  INDIAN RTO STATE CODES — for the licence-plate prefix dropdown
+//  and the GSTIN state-code cross-check (first 2 digits of every GSTIN).
+// ══════════════════════════════════════════════════════════════════════════
+// Format: { plate: 2-letter RTO code, gst: 2-digit GST code, name: state }
+const INDIAN_STATES = [
+  { plate:'AN', gst:'35', name:'Andaman & Nicobar' }, { plate:'AP', gst:'37', name:'Andhra Pradesh' },
+  { plate:'AR', gst:'12', name:'Arunachal Pradesh' }, { plate:'AS', gst:'18', name:'Assam' },
+  { plate:'BR', gst:'10', name:'Bihar' },             { plate:'CG', gst:'22', name:'Chhattisgarh' },
+  { plate:'CH', gst:'04', name:'Chandigarh' },         { plate:'DD', gst:'26', name:'Daman & Diu / DNH' },
+  { plate:'DL', gst:'07', name:'Delhi' },             { plate:'GA', gst:'30', name:'Goa' },
+  { plate:'GJ', gst:'24', name:'Gujarat' },            { plate:'HP', gst:'02', name:'Himachal Pradesh' },
+  { plate:'HR', gst:'06', name:'Haryana' },            { plate:'JH', gst:'20', name:'Jharkhand' },
+  { plate:'JK', gst:'01', name:'Jammu & Kashmir' },    { plate:'KA', gst:'29', name:'Karnataka' },
+  { plate:'KL', gst:'32', name:'Kerala' },             { plate:'LA', gst:'38', name:'Ladakh' },
+  { plate:'LD', gst:'31', name:'Lakshadweep' },        { plate:'MH', gst:'27', name:'Maharashtra' },
+  { plate:'ML', gst:'17', name:'Meghalaya' },          { plate:'MN', gst:'14', name:'Manipur' },
+  { plate:'MP', gst:'23', name:'Madhya Pradesh' },     { plate:'MZ', gst:'15', name:'Mizoram' },
+  { plate:'NL', gst:'13', name:'Nagaland' },           { plate:'OD', gst:'21', name:'Odisha' },
+  { plate:'PB', gst:'03', name:'Punjab' },             { plate:'PY', gst:'34', name:'Puducherry' },
+  { plate:'RJ', gst:'08', name:'Rajasthan' },          { plate:'SK', gst:'11', name:'Sikkim' },
+  { plate:'TN', gst:'33', name:'Tamil Nadu' },         { plate:'TR', gst:'16', name:'Tripura' },
+  { plate:'TS', gst:'36', name:'Telangana' },          { plate:'UK', gst:'05', name:'Uttarakhand' },
+  { plate:'UP', gst:'09', name:'Uttar Pradesh' },      { plate:'WB', gst:'19', name:'West Bengal' }
+];
+window.INDIAN_STATES = INDIAN_STATES;
+
+// GSTIN format: 15 chars · NN(state) + 10-char PAN + 1(entity) + Z + 1(checksum)
+// Cross-check: first 2 digits must match the GST code of the selected state.
+function validateGSTIN(gstin, stateName) {
+  if (!gstin) return { ok: false, reason: 'GSTIN is required' };
+  gstin = gstin.toUpperCase().trim();
+  const re = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+  if (gstin.length !== 15) return { ok: false, reason: 'GSTIN must be 15 characters' };
+  if (!re.test(gstin))     return { ok: false, reason: 'GSTIN format looks wrong (NN-AAAAA-NNNN-A-N-Z-N)' };
+  if (stateName) {
+    const st = INDIAN_STATES.find(s => s.name.toLowerCase() === stateName.toLowerCase());
+    if (st && gstin.slice(0, 2) !== st.gst) {
+      return { ok: false, reason: `GSTIN starts with ${gstin.slice(0,2)} but ${st.name} state code is ${st.gst}` };
+    }
+  }
+  return { ok: true };
+}
+window.validateGSTIN = validateGSTIN;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  VEHICLE DATABASE — make → models → { years, variants }
+//  Curated starter for the most-common cars on Indian roads. Stored in
+//  D.vehicleDB (Firestore-backed at users/{uid}/vehicleDB/data) so workshops
+//  can extend it themselves via _vehicleDBAdd().
+// ══════════════════════════════════════════════════════════════════════════
+const VEHICLE_DB_SEED = {
+  'Maruti Suzuki': {
+    'Swift':       { from: 2005, variants: ['LXi','VXi','ZXi','ZXi+','LDi','VDi','ZDi'] },
+    'Baleno':      { from: 2015, variants: ['Sigma','Delta','Zeta','Alpha'] },
+    'Dzire':       { from: 2008, variants: ['LXi','VXi','ZXi','ZXi+'] },
+    'Wagon R':     { from: 1999, variants: ['LXi','VXi','ZXi'] },
+    'Alto':        { from: 2000, variants: ['Std','LXi','VXi','VXi+'] },
+    'Brezza':      { from: 2016, variants: ['LXi','VXi','ZXi','ZXi+'] },
+    'Ertiga':      { from: 2012, variants: ['LXi','VXi','ZXi','ZXi+'] },
+    'Ciaz':        { from: 2014, variants: ['Sigma','Delta','Zeta','Alpha'] },
+    'Celerio':     { from: 2014, variants: ['LXi','VXi','ZXi','ZXi+'] },
+    'Eeco':        { from: 2010, variants: ['5-Str','7-Str','Cargo','Ambulance'] },
+    'XL6':         { from: 2019, variants: ['Zeta','Alpha','Alpha+'] },
+    'Grand Vitara':{ from: 2022, variants: ['Sigma','Delta','Zeta','Alpha'] },
+    'Jimny':       { from: 2023, variants: ['Zeta','Alpha'] }
+  },
+  'Hyundai': {
+    'i10':         { from: 2007, variants: ['Era','Magna','Sportz','Asta'] },
+    'i20':         { from: 2008, variants: ['Magna','Sportz','Asta','Asta(O)','N Line'] },
+    'Grand i10 Nios':{ from: 2019, variants: ['Magna','Sportz','Asta'] },
+    'Verna':       { from: 2006, variants: ['E','S','SX','SX(O)'] },
+    'Creta':       { from: 2015, variants: ['E','EX','S','SX','SX(O)','N Line'] },
+    'Venue':       { from: 2019, variants: ['E','S','SX','SX(O)','N Line'] },
+    'Aura':        { from: 2020, variants: ['E','S','SX','SX(O)'] },
+    'Alcazar':     { from: 2021, variants: ['Prestige','Platinum','Signature'] },
+    'Tucson':      { from: 2005, variants: ['GL','GLS','Signature'] },
+    'Exter':       { from: 2023, variants: ['EX','S','SX'] }
+  },
+  'Tata': {
+    'Nexon':       { from: 2017, variants: ['Smart','Pure','Creative','Fearless'] },
+    'Punch':       { from: 2021, variants: ['Pure','Adventure','Accomplished','Creative'] },
+    'Tiago':       { from: 2016, variants: ['XE','XM','XT','XZ','XZ+'] },
+    'Tigor':       { from: 2017, variants: ['XE','XM','XT','XZ','XZ+'] },
+    'Altroz':      { from: 2020, variants: ['XE','XM','XT','XZ','XZ+'] },
+    'Harrier':     { from: 2019, variants: ['Smart','Pure','Adventure','Fearless'] },
+    'Safari':      { from: 2021, variants: ['Smart','Pure','Adventure','Accomplished'] },
+    'Curvv':       { from: 2024, variants: ['Smart','Pure','Creative','Accomplished'] }
+  },
+  'Mahindra': {
+    'Scorpio':     { from: 2002, variants: ['S','S3','S5','S7','S11','Z2','Z4','Z6','Z8'] },
+    'Scorpio-N':   { from: 2022, variants: ['Z2','Z4','Z6','Z8','Z8L'] },
+    'XUV300':      { from: 2019, variants: ['W2','W4','W6','W8','W8(O)'] },
+    'XUV700':      { from: 2021, variants: ['MX','AX3','AX5','AX7','AX7L'] },
+    'XUV400':      { from: 2023, variants: ['EC Pro','EL Pro'] },
+    'Thar':        { from: 2010, variants: ['AX','AX(O)','LX'] },
+    'Bolero':      { from: 2000, variants: ['B2','B4','B6','B6(O)'] },
+    'Marazzo':     { from: 2018, variants: ['M2','M4','M6','M8'] }
+  },
+  'Toyota': {
+    'Innova Crysta':{ from: 2016, variants: ['GX','VX','ZX'] },
+    'Innova Hycross':{ from: 2022, variants: ['GX','VX','ZX'] },
+    'Fortuner':    { from: 2009, variants: ['4x2','4x4','Legender','GR-S'] },
+    'Glanza':      { from: 2019, variants: ['E','S','G','V'] },
+    'Urban Cruiser Hyryder':{ from: 2022, variants: ['E','S','G','V'] },
+    'Camry':       { from: 2002, variants: ['Hybrid'] },
+    'Vellfire':    { from: 2020, variants: ['Executive Lounge'] }
+  },
+  'Honda': {
+    'City':        { from: 1998, variants: ['SV','V','VX','ZX'] },
+    'Amaze':       { from: 2013, variants: ['E','S','V','VX'] },
+    'Elevate':     { from: 2023, variants: ['SV','V','VX','ZX'] },
+    'WR-V':        { from: 2017, variants: ['SV','VX'] }
+  },
+  'Kia': {
+    'Seltos':      { from: 2019, variants: ['HTE','HTK','HTK+','HTX','HTX+','GTX','GTX+'] },
+    'Sonet':       { from: 2020, variants: ['HTE','HTK','HTK+','HTX','HTX+','GTX','GTX+'] },
+    'Carens':      { from: 2022, variants: ['Premium','Prestige','Luxury','Luxury+'] },
+    'EV6':         { from: 2022, variants: ['GT Line'] }
+  },
+  'Renault': { 'Kwid':{from:2015,variants:['STD','RXE','RXL','RXT','Climber']}, 'Kiger':{from:2021,variants:['RXE','RXL','RXT','RXZ']}, 'Triber':{from:2019,variants:['RXE','RXL','RXT','RXZ']} },
+  'Skoda':   { 'Slavia':{from:2022,variants:['Active','Ambition','Style','Monte Carlo']}, 'Kushaq':{from:2021,variants:['Active','Ambition','Style','Monte Carlo']}, 'Kodiaq':{from:2017,variants:['Style','Sportline','L&K']}, 'Octavia':{from:2001,variants:['L&K']} },
+  'Volkswagen': { 'Polo':{from:2010,variants:['Trendline','Comfortline','Highline','GT TSI']}, 'Virtus':{from:2022,variants:['Comfortline','Highline','Topline','GT']}, 'Taigun':{from:2021,variants:['Comfortline','Highline','Topline','GT']} },
+  'MG':      { 'Hector':{from:2019,variants:['Style','Super','Smart','Sharp']}, 'Astor':{from:2021,variants:['Style','Super','Smart','Sharp','Savvy']}, 'ZS EV':{from:2020,variants:['Excite','Exclusive']}, 'Gloster':{from:2020,variants:['Super','Smart','Sharp','Savvy']} },
+  'Nissan':  { 'Magnite':{from:2020,variants:['XE','XL','XV','XV Premium']} },
+  'Ford':    { 'EcoSport':{from:2013,variants:['Ambiente','Trend','Titanium','Titanium+']}, 'Endeavour':{from:2003,variants:['Titanium','Titanium+']}, 'Figo':{from:2010,variants:['Ambiente','Trend','Titanium']} },
+  'BMW':     { '3 Series':{from:1990,variants:['320d','330i','M340i']}, '5 Series':{from:1972,variants:['520d','530i','530d','M5']}, 'X1':{from:2010,variants:['sDrive20i','sDrive20d','xDrive20d']}, 'X5':{from:1999,variants:['xDrive30d','xDrive40i','M50d']} },
+  'Mercedes-Benz':{ 'C-Class':{from:1993,variants:['C200','C220d','C300','C43 AMG']}, 'E-Class':{from:1953,variants:['E200','E220d','E350d','E63 AMG']}, 'GLC':{from:2015,variants:['GLC200','GLC220d','GLC300','GLC43']} },
+  'Audi':    { 'A4':{from:1994,variants:['Premium','Premium Plus','Technology']}, 'Q3':{from:2011,variants:['Premium','Premium Plus','Technology']}, 'Q5':{from:2008,variants:['Premium Plus','Technology']} }
+};
+window.VEHICLE_DB_SEED = VEHICLE_DB_SEED;
+
+// Returns the active vehicle DB — workshop's saved one, or the seed if not yet customized.
+function vehicleDB() { return (D.vehicleDB && Object.keys(D.vehicleDB).length) ? D.vehicleDB : VEHICLE_DB_SEED; }
+function vehicleDBMakes()         { return Object.keys(vehicleDB()).sort(); }
+function vehicleDBModels(make)    { return Object.keys(vehicleDB()[make] || {}).sort(); }
+function vehicleDBVariants(make, model) { return ((vehicleDB()[make] || {})[model] || {}).variants || []; }
+function vehicleDBYears(make, model) {
+  const m = (vehicleDB()[make] || {})[model];
+  if (!m) return [];
+  const from = m.from || 2000;
+  const now = new Date().getFullYear();
+  const out = [];
+  for (let y = now + 1; y >= from; y--) out.push(String(y));
+  return out;
+}
+window.vehicleDB = vehicleDB;
+
+// Fuzzy match (Levenshtein distance, normalised) for the spell-check suggestion.
+// Returns the closest existing entry from `candidates` if within a tolerance.
+function fuzzyClosest(input, candidates, threshold = 0.4) {
+  input = (input || '').toLowerCase().trim();
+  if (!input || !candidates.length) return null;
+  let best = null, bestDist = Infinity;
+  for (const c of candidates) {
+    const d = _levenshtein(input, c.toLowerCase());
+    const norm = d / Math.max(input.length, c.length);
+    if (norm < threshold && norm < bestDist) { best = c; bestDist = norm; }
+  }
+  return best;
+}
+function _levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const dp = Array.from({ length: m + 1 }, (_, i) => [i].concat(Array(n).fill(0)));
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
+    dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j-1], dp[i-1][j], dp[i][j-1]);
+  }
+  return dp[m][n];
+}
+window.fuzzyClosest = fuzzyClosest;
+
+// Persist a new make / model / variant addition to the workshop's vehicleDB doc.
+async function vehicleDBAdd(make, model, opts = {}) {
+  if (!make) return;
+  D.vehicleDB = D.vehicleDB && Object.keys(D.vehicleDB).length ? D.vehicleDB : JSON.parse(JSON.stringify(VEHICLE_DB_SEED));
+  if (!D.vehicleDB[make]) D.vehicleDB[make] = {};
+  if (model) {
+    if (!D.vehicleDB[make][model]) D.vehicleDB[make][model] = { from: opts.from || 2000, variants: [] };
+    const m = D.vehicleDB[make][model];
+    if (opts.variant && !m.variants.includes(opts.variant)) m.variants.push(opts.variant);
+    if (opts.from && (!m.from || opts.from < m.from)) m.from = opts.from;
+  }
+  // wsSave persists as items array — wrap the DB object so it round-trips
+  await wsSave('vehicleDB', [{ db: D.vehicleDB }]);
+}
+window.vehicleDBAdd = vehicleDBAdd;
+
 // ══════════════════════════════════════════
 //  BOOKINGS
 // ══════════════════════════════════════════
@@ -2354,55 +2576,238 @@ async function renderBookings(force = false) {
 }
 window.renderBookings = renderBookings;
 
+// Booking form scratchpad — lives between modal open & save so dropdowns
+// (make/model/year/variant) can drive each other and complaints can be added
+// without losing focus.
+let _editingBooking = null;
+
 function _bookingFormHTML(b) {
-  // Bay types come from settings.bay_defs (set up in the Bays tab). No hard-coded defaults —
-  // an empty list shows "(none configured)" so the workshop knows to add their own.
   const bayTypes = (D.settings.bay_defs || [])
     .map(t => typeof t === 'string' ? t : (t.name || ''))
     .filter(Boolean);
   const services = (D.settings.services && D.settings.services.length)
-    ? D.settings.services : ['Oil change','Brake job','Tyre change','Diagnosis','General service','Paint job','Other'];
+    ? D.settings.services : ['Oil change','Brake job','Tyre change','Diagnosis','General service','Paint job','Other','Body & Paint','Insurance Claim','Inspection'];
   const today = todayStr();
-  return `
-    <datalist id="dlCustomers">${D.customers.map(c => `<option value="${escapeHtml(c.name || '')}">`).join('')}</datalist>
-    <datalist id="dlMechanics">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
+  // Try to split an existing plate "TS09 AB 1234" → state code "TS" + rest "09 AB 1234"
+  const platePrefix = b.plate_state || (b.plate || '').slice(0, 2).toUpperCase();
+  const plateSuffix = b.plate_suffix || (b.plate || '').slice(2).trim();
+  // Defaults for the customer-type toggle (individual unless this is a saved corporate record)
+  const custType = b.customer_type || 'individual';
+  // Make/model/year/variant — pull from saved booking or its vehicle field
+  const vMake    = b.veh_make    || '';
+  const vModel   = b.veh_model   || '';
+  const vYear    = b.veh_year    || '';
+  const vVariant = b.veh_variant || '';
+
+  // ── Section helpers ──
+  const card = (title, accent, contents) => `
+    <div style="background:var(--surf);border:1px solid var(--brd);border-radius:12px;margin-bottom:14px;overflow:hidden">
+      <div style="padding:11px 16px;background:var(--bg2);border-bottom:1px solid var(--brd);font-family:var(--fd);font-weight:800;font-size:12px;color:${accent};letter-spacing:.08em">${title}</div>
+      <div style="padding:18px 16px">${contents}</div>
+    </div>`;
+
+  // ── VEHICLE DETAILS ──
+  const vehiclePane = card('VEHICLE DETAILS', 'var(--blue)', `
+    <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);margin-bottom:10px">Primary details</div>
+    <div class="f-row r3">
+      <div class="f-grp"><label>Registration No <span class="req">*</span></label>
+        <div style="display:flex;gap:6px">
+          <select id="bf-plate-state" style="width:80px;padding:11px 8px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
+            ${INDIAN_STATES.map(s => `<option value="${s.plate}" ${s.plate === platePrefix ? 'selected' : ''}>${s.plate}</option>`).join('')}
+          </select>
+          <input id="bf-plate-suffix" type="text" value="${escapeHtml(plateSuffix)}" placeholder="09 AB 1234" style="flex:1;text-transform:uppercase" />
+        </div>
+      </div>
+      <div class="f-grp"><label>Odometer In</label><input id="bf-odo" type="number" min="0" value="${escapeHtml(b.odometer_in || '')}" placeholder="KMs at intake" /></div>
+      <div class="f-grp"><label>Avg KMS / Day</label><input id="bf-avgkm" type="number" min="0" value="${escapeHtml(String(b.avg_kms || 25))}" /></div>
+    </div>
     <div class="f-row">
-      <div class="f-grp"><label>Customer name <span class="req">*</span></label>
-        <input list="dlCustomers" id="bf-cust" type="text" value="${escapeHtml(b.cust_name || '')}" placeholder="Type or pick existing" oninput="_bookingFillCustomer()" /></div>
-      <div class="f-grp"><label>Phone</label>
-        <input id="bf-phone" type="tel" value="${escapeHtml(b.cust_phone || '')}" placeholder="+91 ..." /></div>
+      <div class="f-grp"><label>VIN / Chassis No</label><input id="bf-vin" type="text" value="${escapeHtml(b.vin || '')}" placeholder="17-char VIN" maxlength="17" style="text-transform:uppercase" /></div>
+      <div class="f-grp"><label>Engine No</label><input id="bf-engine" type="text" value="${escapeHtml(b.engine_no || '')}" /></div>
+    </div>
+
+    <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);margin:18px 0 10px;display:flex;justify-content:space-between;align-items:center">
+      <span>Model details</span>
+      <button type="button" class="mini-btn" onclick="_bookingOpenMakeModelEditor()" title="Add a new make / model to the database"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add make/model</button>
+    </div>
+    <datalist id="dlMakes">${vehicleDBMakes().map(m => `<option value="${escapeHtml(m)}">`).join('')}</datalist>
+    <datalist id="dlModels"></datalist>
+    <datalist id="dlYears"></datalist>
+    <datalist id="dlVariants"></datalist>
+    <div class="f-row r3">
+      <div class="f-grp"><label>Make <span class="req">*</span></label>
+        <input list="dlMakes" id="bf-make" type="text" value="${escapeHtml(vMake)}" placeholder="e.g. Maruti Suzuki" oninput="_bookingModelChain('make')" /></div>
+      <div class="f-grp"><label>Model <span class="req">*</span></label>
+        <input list="dlModels" id="bf-model" type="text" value="${escapeHtml(vModel)}" placeholder="e.g. Swift" oninput="_bookingModelChain('model')" /></div>
+      <div class="f-grp"><label>Year <span class="req">*</span></label>
+        <input list="dlYears" id="bf-year" type="text" inputmode="numeric" value="${escapeHtml(vYear)}" placeholder="2019" /></div>
+    </div>
+    <div class="f-row">
+      <div class="f-grp"><label>Variant</label>
+        <input list="dlVariants" id="bf-variant" type="text" value="${escapeHtml(vVariant)}" placeholder="e.g. VXi" /></div>
+      <div class="f-grp"><label>Vehicle colour</label>
+        <input id="bf-colour" type="text" value="${escapeHtml(b.colour || '')}" placeholder="White" /></div>
+    </div>
+
+    <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);margin:18px 0 10px">Service / fuel / delivery</div>
+    <div style="margin-bottom:10px">
+      <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="bf-inhouse" ${b.in_house ? 'checked' : ''} />
+        <span style="font-size:13.5px;color:var(--dim)">In-house vehicle (workshop's own)</span>
+      </label>
     </div>
     <div class="f-row r3">
-      <div class="f-grp"><label>Plate <span class="req">*</span></label>
-        <input id="bf-plate" type="text" value="${escapeHtml(b.plate || '')}" placeholder="MH12 AB 1234" style="text-transform:uppercase" /></div>
-      <div class="f-grp"><label>Vehicle</label>
-        <input id="bf-veh" type="text" value="${escapeHtml(b.vehicle || '')}" placeholder="Maruti Swift, 2019" /></div>
-      <div class="f-grp"><label>Mechanic</label>
-        <input list="dlMechanics" id="bf-mech" type="text" value="${escapeHtml(b.mechanic || '')}" placeholder="Unassigned" /></div>
-    </div>
-    <div class="f-row">
-      <div class="f-grp"><label>Service <span class="req">*</span></label>
+      <div class="f-grp"><label>Department <span class="req">*</span></label>
+        <select id="bf-dept">
+          ${['Mechanical','Bodyshop','Both'].map(d => `<option value="${d}" ${(b.department || 'Mechanical') === d ? 'selected' : ''}>${d}</option>`).join('')}
+        </select>
+        <span class="hint" style="display:block;font-size:11px;color:var(--faint);margin-top:4px">Used to route the job to the right floor manager</span>
+      </div>
+      <div class="f-grp"><label>Service type <span class="req">*</span></label>
         <select id="bf-service">
           ${services.map(s => `<option value="${escapeHtml(s)}" ${b.service === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
         </select></div>
+      <div class="f-grp"><label>Fuel type</label>
+        <select id="bf-fuel">
+          ${['Petrol','Diesel','CNG','LPG','Electric','Hybrid','Other'].map(f => `<option value="${f}" ${(b.fuel_type || 'Petrol') === f ? 'selected' : ''}>${f}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="f-row r3">
+      <div class="f-grp"><label>Service advisor</label>
+        <input list="dlMechanics" id="bf-advisor" type="text" value="${escapeHtml(b.service_advisor || '')}" placeholder="Worker name" /></div>
+      <div class="f-grp"></div><div class="f-grp"></div>
+    </div>
+    <div class="f-row r3">
       <div class="f-grp"><label>Bay type</label>
         <select id="bf-baytype">
           <option value="">Any</option>
           ${bayTypes.map(t => `<option value="${escapeHtml(t)}" ${b.bay_type === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
         </select></div>
+      <div class="f-grp"><label>Mechanic</label>
+        <input list="dlMechanics" id="bf-mech" type="text" value="${escapeHtml(b.mechanic || '')}" placeholder="Unassigned" /></div>
+      <div class="f-grp"><label>Estimated delivery <span class="req">*</span></label>
+        <input id="bf-delivery" type="date" value="${escapeHtml(b.estimated_delivery || '')}" /></div>
     </div>
+  `);
+
+  // ── CUSTOMER DETAILS ──
+  const stateOptions = INDIAN_STATES.map(s => `<option value="${s.name}" ${b.cust_state === s.name ? 'selected' : ''}>${s.name}</option>`).join('');
+  const indivPane = `
+    <div id="bf-cust-indiv" style="display:${custType === 'individual' ? '' : 'none'}">
+      <div class="f-row r3">
+        <div class="f-grp"><label>Customer name <span class="req">*</span></label>
+          <input list="dlCustomers" id="bf-cust" type="text" value="${escapeHtml(b.cust_name || '')}" placeholder="Type or pick existing" oninput="_bookingFillCustomer()" /></div>
+        <div class="f-grp"><label>Mobile No <span class="req">*</span></label>
+          <input id="bf-phone" type="tel" value="${escapeHtml(b.cust_phone || '')}" placeholder="+91 …" /></div>
+        <div class="f-grp"><label>Alternative contact</label>
+          <input id="bf-phone2" type="tel" value="${escapeHtml(b.cust_phone2 || '')}" /></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Email</label><input id="bf-email" type="email" value="${escapeHtml(b.cust_email || '')}" /></div>
+        <div class="f-grp"><label>Contact / Driver name</label><input id="bf-driver" type="text" value="${escapeHtml(b.driver_name || '')}" /></div>
+        <div class="f-grp"><label>Flat / House / Floor / Building</label><input id="bf-addr1" type="text" value="${escapeHtml(b.cust_addr1 || '')}" /></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Colony / Street / Location</label><input id="bf-addr2" type="text" value="${escapeHtml(b.cust_addr2 || '')}" /></div>
+        <div class="f-grp"><label>Town / City</label><input id="bf-city" type="text" value="${escapeHtml(b.cust_city || '')}" /></div>
+        <div class="f-grp"><label>State</label>
+          <select id="bf-state"><option value="">—</option>${stateOptions}</select></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Pincode</label><input id="bf-pin" type="text" inputmode="numeric" maxlength="6" value="${escapeHtml(b.cust_pin || '')}" /></div>
+        <div class="f-grp"><label>Birth date</label><input id="bf-dob" type="date" value="${escapeHtml(b.cust_dob || '')}" /></div>
+        <div class="f-grp"></div>
+      </div>
+    </div>`;
+
+  const corpPane = `
+    <div id="bf-cust-corp" style="display:${custType !== 'individual' ? '' : 'none'}">
+      <div class="f-row r3">
+        <div class="f-grp"><label>Company name <span class="req">*</span></label>
+          <input id="bf-company" type="text" value="${escapeHtml(b.company_name || '')}" /></div>
+        <div class="f-grp"><label>GSTIN <span class="req">*</span></label>
+          <input id="bf-gstin" type="text" maxlength="15" style="text-transform:uppercase" value="${escapeHtml(b.gstin || '')}" oninput="_bookingValidateGstin()" />
+          <div id="bf-gstin-msg" style="font-size:11.5px;margin-top:4px;min-height:14px"></div></div>
+        <div class="f-grp"><label>Ref No</label><input id="bf-refno" type="text" value="${escapeHtml(b.ref_no || '')}" /></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Contact name <span class="req">*</span></label>
+          <input id="bf-cp-name" type="text" value="${escapeHtml(b.cust_name || '')}" /></div>
+        <div class="f-grp"><label>Mobile No <span class="req">*</span></label>
+          <input id="bf-cp-phone" type="tel" value="${escapeHtml(b.cust_phone || '')}" placeholder="+91 …" /></div>
+        <div class="f-grp"><label>Contact email</label>
+          <input id="bf-cp-email" type="email" value="${escapeHtml(b.cust_email || '')}" /></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Contact / Driver name</label><input id="bf-cp-driver" type="text" value="${escapeHtml(b.driver_name || '')}" /></div>
+        <div class="f-grp"><label>Flat / House / Floor / Building</label><input id="bf-cp-addr1" type="text" value="${escapeHtml(b.cust_addr1 || '')}" /></div>
+        <div class="f-grp"><label>Colony / Street / Location</label><input id="bf-cp-addr2" type="text" value="${escapeHtml(b.cust_addr2 || '')}" /></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Town / City</label><input id="bf-cp-city" type="text" value="${escapeHtml(b.cust_city || '')}" /></div>
+        <div class="f-grp"><label>State <span class="req">*</span></label>
+          <select id="bf-cp-state" onchange="_bookingSyncStateCode();_bookingValidateGstin()">
+            <option value="">—</option>${INDIAN_STATES.map(s => `<option value="${s.name}" ${b.cust_state === s.name ? 'selected' : ''}>${s.name}</option>`).join('')}
+          </select></div>
+        <div class="f-grp"><label>State code</label>
+          <input id="bf-cp-statecode" type="text" readonly style="background:var(--bg2);opacity:.8" /></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Pincode</label><input id="bf-cp-pin" type="text" inputmode="numeric" maxlength="6" value="${escapeHtml(b.cust_pin || '')}" /></div>
+        <div class="f-grp"></div><div class="f-grp"></div>
+      </div>
+    </div>`;
+
+  const customerPane = card('CUSTOMER DETAILS', 'var(--acc)', `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim)">Primary details</div>
+      <div style="display:inline-flex;gap:4px;padding:3px;background:var(--bg2);border:1px solid var(--brd);border-radius:100px;font-size:12px;font-weight:600">
+        ${['individual','corporate','sez'].map(t => `
+          <button type="button" data-ctype="${t}" onclick="_bookingSetCustType('${t}')"
+            style="padding:7px 14px;border-radius:100px;border:0;cursor:pointer;font-family:var(--fb);font-size:12px;font-weight:600;background:${custType === t ? 'var(--acc)' : 'transparent'};color:${custType === t ? '#170f05' : 'var(--dim)'}">
+            ${t === 'individual' ? 'Individual' : t === 'corporate' ? 'Corporate / Fleet' : 'SEZ'}
+          </button>`).join('')}
+      </div>
+    </div>
+    ${indivPane}
+    ${corpPane}
+  `);
+
+  // ── CUSTOMER CONCERNS ──
+  const initialComplaints = Array.isArray(b.complaints) ? b.complaints : [];
+  _editingBooking = _editingBooking || {};
+  _editingBooking.complaints = initialComplaints.map(c => ({ id: c.id || uid('cmp'), text: c.text || '' }));
+  const concernsPane = card('CUSTOMER CONCERNS', 'var(--teal)', `
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input id="bf-cmp-input" type="text" placeholder="Describe complaint…" style="flex:1;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" onkeydown="if(event.key==='Enter'){event.preventDefault();_bookingAddComplaint();}" />
+      <button type="button" class="add-btn" onclick="_bookingAddComplaint()" style="white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+    </div>
+    <div id="bf-cmp-list"></div>
+  `);
+
+  // ── Scheduling (date/time/cost) — kept compact at the bottom ──
+  const schedulePane = card('SCHEDULE', 'var(--purple, #cbd2dc)', `
     <div class="f-row r3">
       <div class="f-grp"><label>Date <span class="req">*</span></label>
         <input id="bf-date" type="date" value="${escapeHtml(b.date || today)}" /></div>
       <div class="f-grp"><label>Time <span class="req">*</span></label>
         <input id="bf-time" type="time" value="${escapeHtml(b.time || toTime())}" /></div>
       <div class="f-grp"><label>Cost estimate (₹)</label>
-        <input id="bf-cost" type="number" min="0" step="100" value="${escapeHtml(b.cost_estimate || '')}" placeholder="0" /></div>
+        <input id="bf-cost" type="number" min="0" step="100" value="${escapeHtml(b.cost_estimate || '')}" /></div>
     </div>
     <div class="f-row r1">
       <div class="f-grp"><label>Notes</label>
         <textarea id="bf-notes" placeholder="Any details — symptoms, customer preferences, urgent flags…">${escapeHtml(b.notes || '')}</textarea></div>
     </div>
+  `);
+
+  return `
+    <datalist id="dlCustomers">${D.customers.map(c => `<option value="${escapeHtml(c.name || '')}">`).join('')}</datalist>
+    <datalist id="dlMechanics">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
+    ${vehiclePane}
+    ${customerPane}
+    ${concernsPane}
+    ${schedulePane}
     <div class="f-err" id="bf-err"></div>
   `;
 }
@@ -2414,8 +2819,8 @@ window.openBookingForm = function(id) {
   const existing = id ? D.bookings.find(b => b.id === id) : null;
   const b = existing || {};
   const isNew = !existing;
-  // Reset so editing an existing booking doesn't fire the picker for its already-set customer.
   _lastBookingCustomerId = null;
+  _editingBooking = { complaints: Array.isArray(b.complaints) ? b.complaints.slice() : [] };
   if (existing && existing.cust_name) {
     const c = D.customers.find(x => (x.name || '').toLowerCase() === existing.cust_name.toLowerCase());
     if (c) _lastBookingCustomerId = c.id;
@@ -2424,8 +2829,18 @@ window.openBookingForm = function(id) {
     title: isNew ? 'New booking' : `Edit booking · ${b.plate || b.id}`,
     body: _bookingFormHTML(b),
     saveLabel: isNew ? 'Create booking' : 'Save changes',
-    onSave: () => saveBooking(b.id || null)
+    onSave: () => saveBooking(b.id || null),
+    wide: true
   });
+  // Post-render init: chain dropdowns, draw complaints, wire plate-lookup, sync state code
+  setTimeout(() => {
+    _bookingModelChain('init');
+    _bookingDrawComplaints();
+    _bookingSyncStateCode();
+    // Plate suffix listener — triggers lookup of an existing customer when the plate matches
+    const ps = document.getElementById('bf-plate-suffix');
+    if (ps) ps.addEventListener('input', _bookingFillFromPlate);
+  }, 0);
 };
 
 // Called as the customer field is typed/picked.
@@ -2433,23 +2848,245 @@ window.openBookingForm = function(id) {
 //   • If the matched customer has exactly 1 saved vehicle → fill it in silently
 //   • If they have 2+ vehicles → open a custom picker modal so they can choose
 //   • Only fires when the matched customer actually changes (not every keystroke)
+// Triggered when the customer NAME field changes. Looks up the customer by name
+// and fills every individual / corporate field that's still blank, plus the
+// vehicle picker. Companion `_bookingFillFromPlate` does the same for plate input.
 window._bookingFillCustomer = function() {
-  const name = (document.getElementById('bf-cust')?.value || '').trim();
+  const name = (document.getElementById('bf-cust')?.value || document.getElementById('bf-cp-name')?.value || '').trim();
   const c    = name ? D.customers.find(x => (x.name || '').toLowerCase() === name.toLowerCase()) : null;
   const newId = c ? c.id : null;
-  if (newId === _lastBookingCustomerId) return;   // matched customer unchanged
+  if (newId === _lastBookingCustomerId) return;
   _lastBookingCustomerId = newId;
   if (!c) return;
-
-  // Phone auto-fill (only if empty so we don't clobber a typed-in number)
-  const phoneInp = document.getElementById('bf-phone');
-  if (c.phone && phoneInp && !phoneInp.value) phoneInp.value = c.phone;
-
+  _bookingApplyCustomerToForm(c);
+  // Vehicle picker — only if user hasn't already typed a plate
+  const plateSuffix = (document.getElementById('bf-plate-suffix')?.value || '').trim();
   const vehicles = Array.isArray(c.vehicles) ? c.vehicles : [];
-  if (vehicles.length === 0) return;
-  if (vehicles.length === 1) { _applyVehicleToBookingForm(vehicles[0]); return; }
-  // 2+ vehicles → ask which one
-  _openBookingVehiclePicker(c, vehicles);
+  if (!plateSuffix && vehicles.length === 1) _applyVehicleToBookingForm(vehicles[0]);
+  else if (!plateSuffix && vehicles.length > 1) _openBookingVehiclePicker(c, vehicles);
+};
+
+// Plate-suffix matched against any saved vehicle → apply its vehicle data AND
+// auto-fill the customer who owns it. This is the "second-time visit" shortcut
+// the user wanted: typing the plate alone surfaces the whole record.
+window._bookingFillFromPlate = function() {
+  const stateCode = (document.getElementById('bf-plate-state')?.value || '').toUpperCase();
+  const suffix    = (document.getElementById('bf-plate-suffix')?.value || '').trim().toUpperCase();
+  if (!suffix || suffix.length < 3) return;
+  const fullPlate = (stateCode + suffix).replace(/\s+/g, '');
+  // Find a customer whose vehicle plate (with spaces stripped) matches
+  let foundCust = null, foundVeh = null;
+  for (const c of D.customers) {
+    for (const v of (c.vehicles || [])) {
+      if ((v.plate || '').replace(/\s+/g,'').toUpperCase() === fullPlate) {
+        foundCust = c; foundVeh = v; break;
+      }
+    }
+    if (foundCust) break;
+  }
+  if (!foundCust) return;
+  if (_lastBookingCustomerId === foundCust.id) return;
+  _lastBookingCustomerId = foundCust.id;
+  _bookingApplyCustomerToForm(foundCust);
+  if (foundVeh) _applyVehicleToBookingForm(foundVeh);
+};
+
+// Fills both panes (individual + corporate) so switching toggles after the
+// fill still shows the right values. Only writes into empty fields.
+function _bookingApplyCustomerToForm(c) {
+  const setIfEmpty = (id, val) => { const el = document.getElementById(id); if (el && !el.value && val) el.value = val; };
+  // Individual fields
+  setIfEmpty('bf-cust',    c.name);
+  setIfEmpty('bf-phone',   c.phone);
+  setIfEmpty('bf-phone2',  c.phone2);
+  setIfEmpty('bf-email',   c.email);
+  setIfEmpty('bf-driver',  c.driver_name);
+  setIfEmpty('bf-addr1',   c.addr1);
+  setIfEmpty('bf-addr2',   c.addr2 || c.address);
+  setIfEmpty('bf-city',    c.city);
+  setIfEmpty('bf-pin',     c.pincode);
+  setIfEmpty('bf-dob',     c.dob);
+  const st = document.getElementById('bf-state'); if (st && !st.value && c.state) st.value = c.state;
+  // Corporate fields (mirror)
+  setIfEmpty('bf-company', c.company_name);
+  setIfEmpty('bf-gstin',   c.gstin);
+  setIfEmpty('bf-refno',   c.ref_no);
+  setIfEmpty('bf-cp-name', c.name);
+  setIfEmpty('bf-cp-phone',c.phone);
+  setIfEmpty('bf-cp-email',c.email);
+  setIfEmpty('bf-cp-driver', c.driver_name);
+  setIfEmpty('bf-cp-addr1',c.addr1);
+  setIfEmpty('bf-cp-addr2',c.addr2 || c.address);
+  setIfEmpty('bf-cp-city', c.city);
+  setIfEmpty('bf-cp-pin',  c.pincode);
+  const cps = document.getElementById('bf-cp-state'); if (cps && !cps.value && c.state) { cps.value = c.state; _bookingSyncStateCode(); _bookingValidateGstin(); }
+  // Auto-flip to corporate pane if the customer has a GSTIN on file
+  if (c.gstin && !document.getElementById('bf-cust-corp')?.style?.display) {
+    _bookingSetCustType(c.customer_type || 'corporate');
+  }
+}
+
+// ── Customer-type toggle (Individual / Corporate / SEZ) ──
+window._bookingSetCustType = function(t) {
+  if (!_editingBooking) _editingBooking = {};
+  _editingBooking.customer_type = t;
+  document.getElementById('bf-cust-indiv').style.display = (t === 'individual') ? '' : 'none';
+  document.getElementById('bf-cust-corp' ).style.display = (t === 'individual') ? 'none' : '';
+  document.querySelectorAll('[data-ctype]').forEach(btn => {
+    const on = btn.dataset.ctype === t;
+    btn.style.background = on ? 'var(--acc)' : 'transparent';
+    btn.style.color = on ? '#170f05' : 'var(--dim)';
+  });
+  if (t !== 'individual') _bookingValidateGstin();
+};
+
+// ── GSTIN validation — runs on every keystroke; cross-checks against state ──
+window._bookingValidateGstin = function() {
+  const inp = document.getElementById('bf-gstin');
+  const msg = document.getElementById('bf-gstin-msg');
+  if (!inp || !msg) return;
+  const stateName = (document.getElementById('bf-cp-state')?.value || '').trim();
+  const v = (inp.value || '').toUpperCase();
+  if (v.length === 0) { msg.textContent = ''; inp.style.borderColor = ''; return; }
+  if (v.length < 15)  { msg.style.color = 'var(--faint)'; msg.textContent = `${v.length}/15 characters`; inp.style.borderColor = ''; return; }
+  const r = validateGSTIN(v, stateName);
+  if (r.ok) { msg.style.color = 'var(--teal)'; msg.textContent = '✓ Valid GSTIN'; inp.style.borderColor = 'var(--teal)'; }
+  else      { msg.style.color = 'var(--red)';  msg.textContent = '✕ ' + r.reason; inp.style.borderColor = 'var(--red)';  }
+};
+
+// State change → fill the read-only state-code box from the INDIAN_STATES map
+window._bookingSyncStateCode = function() {
+  const sel = document.getElementById('bf-cp-state');
+  const code = document.getElementById('bf-cp-statecode');
+  if (!sel || !code) return;
+  const st = INDIAN_STATES.find(s => s.name === sel.value);
+  code.value = st ? st.gst : '';
+};
+
+// ── Make / Model / Year / Variant cascading dropdowns ──
+// Called when make or model changes (or 'init' to rebuild lists for the current values).
+// Builds the datalists for the dependent fields. Fuzzy-match suggestion fires
+// when the user types something not in the DB.
+window._bookingModelChain = function(which) {
+  const makeInp    = document.getElementById('bf-make');
+  const modelInp   = document.getElementById('bf-model');
+  const yearInp    = document.getElementById('bf-year');
+  const variantInp = document.getElementById('bf-variant');
+  if (!makeInp) return;
+  const dlModels   = document.getElementById('dlModels');
+  const dlYears    = document.getElementById('dlYears');
+  const dlVariants = document.getElementById('dlVariants');
+
+  const make  = (makeInp.value || '').trim();
+  const model = (modelInp.value || '').trim();
+
+  // Fuzzy-match suggestion: if the user typed a make that doesn't exist, suggest the closest
+  if (which === 'make' && make && !vehicleDB()[make]) {
+    const guess = fuzzyClosest(make, vehicleDBMakes());
+    if (guess) makeInp.title = `Did you mean ${guess}?`;
+    else       makeInp.title = '';
+  }
+  if (which === 'model' && model && make && vehicleDB()[make] && !vehicleDB()[make][model]) {
+    const guess = fuzzyClosest(model, vehicleDBModels(make));
+    if (guess) modelInp.title = `Did you mean ${guess}?`;
+    else       modelInp.title = '';
+  }
+
+  // Rebuild model list for the current make
+  if (dlModels) dlModels.innerHTML = vehicleDBModels(make).map(m => `<option value="${escapeHtml(m)}">`).join('');
+  // Rebuild year list for the current make+model
+  if (dlYears) dlYears.innerHTML = vehicleDBYears(make, model).map(y => `<option value="${escapeHtml(y)}">`).join('');
+  // Rebuild variant list
+  if (dlVariants) dlVariants.innerHTML = vehicleDBVariants(make, model).map(v => `<option value="${escapeHtml(v)}">`).join('');
+
+  // Clear dependent fields if the make changed and they're now invalid
+  if (which === 'make') {
+    if (modelInp.value && !vehicleDBModels(make).includes(modelInp.value)) modelInp.value = '';
+    if (yearInp.value && !vehicleDBYears(make, modelInp.value).includes(yearInp.value)) yearInp.value = '';
+    if (variantInp.value && !vehicleDBVariants(make, modelInp.value).includes(variantInp.value)) variantInp.value = '';
+  }
+  if (which === 'model') {
+    if (yearInp.value && !vehicleDBYears(make, model).includes(yearInp.value)) yearInp.value = '';
+    if (variantInp.value && !vehicleDBVariants(make, model).includes(variantInp.value)) variantInp.value = '';
+  }
+};
+
+// ── Customer concerns: add / remove rows tied to _editingBooking.complaints ──
+window._bookingAddComplaint = function() {
+  const inp = document.getElementById('bf-cmp-input');
+  if (!inp) return;
+  const text = (inp.value || '').trim();
+  if (!text) return;
+  if (!_editingBooking) _editingBooking = {};
+  if (!Array.isArray(_editingBooking.complaints)) _editingBooking.complaints = [];
+  _editingBooking.complaints.push({ id: uid('cmp'), text });
+  inp.value = '';
+  _bookingDrawComplaints();
+  inp.focus();
+};
+window._bookingRemoveComplaint = function(id) {
+  if (!_editingBooking?.complaints) return;
+  _editingBooking.complaints = _editingBooking.complaints.filter(c => c.id !== id);
+  _bookingDrawComplaints();
+};
+function _bookingDrawComplaints() {
+  const wrap = document.getElementById('bf-cmp-list');
+  if (!wrap) return;
+  const list = _editingBooking?.complaints || [];
+  if (!list.length) {
+    wrap.innerHTML = `<div style="padding:18px;text-align:center;color:var(--faint);font-size:12.5px">No complaints yet.</div>`;
+    return;
+  }
+  wrap.innerHTML = list.map((c, i) => `
+    <div style="display:flex;gap:10px;align-items:center;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:9px 12px;margin-bottom:6px">
+      <span style="font-family:var(--fd);font-weight:800;color:var(--teal);font-size:12px;min-width:22px">${i + 1}.</span>
+      <span style="flex:1;color:var(--txt);font-size:13.5px">${escapeHtml(c.text)}</span>
+      <button type="button" class="mini-btn danger" onclick="_bookingRemoveComplaint('${escapeHtml(c.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+    </div>`).join('');
+}
+
+// ── Add a new make / model / variant to the database (via sub-modal) ──
+window._bookingOpenMakeModelEditor = function() {
+  _openSubModal({
+    title: 'Add a make / model / variant',
+    bodyHtml: `
+      <div style="color:var(--dim);font-size:13px;margin-bottom:14px">Fill what you want to add. Existing entries won't be duplicated. Fuzzy spell-check will suggest a close match if one already exists.</div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Make</label><input id="mme-make" list="dlMakes" type="text" placeholder="e.g. Maruti Suzuki" oninput="_mmeFuzzy('mme-make','make')" /></div>
+        <div class="f-grp"><label>Model</label><input id="mme-model" type="text" placeholder="e.g. Swift" /></div>
+        <div class="f-grp"><label>From year</label><input id="mme-from" type="number" min="1980" max="2099" placeholder="2010" /></div>
+      </div>
+      <div class="f-row r1">
+        <div class="f-grp"><label>Variant (optional)</label><input id="mme-variant" type="text" placeholder="e.g. VXi, ZXi+" /></div>
+      </div>
+      <div id="mme-hint" style="font-size:12px;color:var(--faint);min-height:16px;margin-top:6px"></div>`,
+    footHtml: `<div style="flex:1"></div>
+      <button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>
+      <button class="fbtn fbtn-save" id="mmeSave">Save</button>`
+  });
+  document.getElementById('mmeSave').onclick = async () => {
+    const make    = document.getElementById('mme-make').value.trim();
+    const model   = document.getElementById('mme-model').value.trim();
+    const variant = document.getElementById('mme-variant').value.trim();
+    const from    = Number(document.getElementById('mme-from').value) || 0;
+    if (!make) { document.getElementById('mme-hint').innerHTML = '<span style="color:var(--red)">Make is required.</span>'; return; }
+    await vehicleDBAdd(make, model || '', { variant, from });
+    closeSubModal();
+    showToast(`Added "${[make, model, variant].filter(Boolean).join(' · ')}" to the vehicle database`, 'good');
+    _bookingModelChain('init');
+  };
+};
+window._mmeFuzzy = function(inputId, kind) {
+  const v = (document.getElementById(inputId)?.value || '').trim();
+  const hint = document.getElementById('mme-hint');
+  if (!v || !hint) return;
+  const list = kind === 'make' ? vehicleDBMakes() : [];
+  const guess = fuzzyClosest(v, list);
+  if (guess && guess.toLowerCase() !== v.toLowerCase()) {
+    hint.innerHTML = `Did you mean <b style="color:var(--acc)">${escapeHtml(guess)}</b>? <a href="#" onclick="document.getElementById('${inputId}').value='${escapeHtml(guess)}';this.parentElement.innerHTML='';return false" style="color:var(--blue);text-decoration:underline;margin-left:6px">Use this</a>`;
+  } else {
+    hint.textContent = '';
+  }
 };
 
 // Custom picker modal — overlays the booking form via the sub-modal so the form stays open underneath.
@@ -2489,29 +3126,101 @@ function _openBookingVehiclePicker(customer, vehicles) {
   document.getElementById('_vpSkip').onclick = () => closeSubModal();
 }
 
-// Fills the booking form's plate + vehicle text fields from a saved vehicle record.
+// Fills the booking form's vehicle section from a saved vehicle record.
+// Splits the stored plate into state-code + suffix, fills make/model/year/variant,
+// triggers the cascade so dependent datalists rebuild.
 function _applyVehicleToBookingForm(v) {
-  const plateInp = document.getElementById('bf-plate');
-  const vehInp   = document.getElementById('bf-veh');
-  if (plateInp) plateInp.value = (v.plate || '').toUpperCase();
-  if (vehInp) {
-    const parts = [v.model, v.year].filter(Boolean).join(', ');
-    vehInp.value = (parts + (v.color ? ' · ' + v.color : '')).trim();
-  }
+  if (!v) return;
+  const setIf = (id, val) => { const el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
+  // Plate: prefer the split fields if we have them, otherwise parse the full plate
+  const plate = (v.plate || '').toUpperCase();
+  const stateCode = v.plate_state || plate.slice(0, 2);
+  const suffix    = v.plate_suffix || plate.slice(2).trim();
+  setIf('bf-plate-state', stateCode);
+  setIf('bf-plate-suffix', suffix);
+  // Model details
+  setIf('bf-make',    v.make);
+  setIf('bf-model',   v.model);
+  setIf('bf-year',    v.year);
+  setIf('bf-variant', v.variant);
+  setIf('bf-colour',  v.color);
+  setIf('bf-vin',     v.vin);
+  setIf('bf-engine',  v.engine_no);
+  if (v.fuel_type) { const f = document.getElementById('bf-fuel'); if (f) f.value = v.fuel_type; }
+  if (v.odometer_in) setIf('bf-odo', v.odometer_in);
+  if (v.avg_kms)     setIf('bf-avgkm', v.avg_kms);
+  // Rebuild dependent datalists now that make/model are set
+  _bookingModelChain('init');
 }
 
 async function saveBooking(id) {
-  const get = (k) => document.getElementById('bf-' + k).value.trim();
-  const cust = get('cust'), phone = get('phone'), plate = get('plate').toUpperCase(),
-        veh = get('veh'), mech = get('mech'), service = get('service'),
-        bayType = get('baytype'), date = get('date'), time = get('time'),
-        cost = get('cost'), notes = document.getElementById('bf-notes').value.trim();
+  const v = (sel) => (document.getElementById(sel)?.value || '').trim();
   const err = document.getElementById('bf-err'); err.textContent = '';
-  if (!cust)    throw new Error('Customer name is required');
-  if (!plate)   throw new Error('Plate is required');
-  if (!service) throw new Error('Service is required');
-  if (!date)    throw new Error('Date is required');
-  if (!time)    throw new Error('Time is required');
+  const custType = (_editingBooking?.customer_type) || 'individual';
+  const isCorp   = custType !== 'individual';
+
+  // Pull customer fields from whichever pane is active
+  const custName   = isCorp ? v('bf-cp-name')  : v('bf-cust');
+  const custPhone  = isCorp ? v('bf-cp-phone') : v('bf-phone');
+  const custEmail  = isCorp ? v('bf-cp-email') : v('bf-email');
+  const custAddr1  = isCorp ? v('bf-cp-addr1') : v('bf-addr1');
+  const custAddr2  = isCorp ? v('bf-cp-addr2') : v('bf-addr2');
+  const custCity   = isCorp ? v('bf-cp-city')  : v('bf-city');
+  const custState  = isCorp ? v('bf-cp-state') : v('bf-state');
+  const custPin    = isCorp ? v('bf-cp-pin')   : v('bf-pin');
+  const driverName = isCorp ? v('bf-cp-driver'): v('bf-driver');
+  const phone2     = v('bf-phone2');
+  const dob        = v('bf-dob');
+  const companyName = v('bf-company');
+  const gstin       = v('bf-gstin').toUpperCase();
+  const refNo       = v('bf-refno');
+
+  // Vehicle fields
+  const plateState = v('bf-plate-state').toUpperCase();
+  const plateSuf   = v('bf-plate-suffix').toUpperCase();
+  const plate      = (plateState + ' ' + plateSuf).trim();
+  const make       = v('bf-make');
+  const model      = v('bf-model');
+  const year       = v('bf-year');
+  const variant    = v('bf-variant');
+  const colour     = v('bf-colour');
+  const odo        = v('bf-odo');
+  const avgKms     = v('bf-avgkm');
+  const vin        = v('bf-vin').toUpperCase();
+  const engineNo   = v('bf-engine');
+  const fuelType   = v('bf-fuel');
+  const advisor    = v('bf-advisor');
+  const inHouse    = !!document.getElementById('bf-inhouse')?.checked;
+  const department = v('bf-dept') || 'Mechanical';
+
+  // Service + scheduling
+  const service     = v('bf-service');
+  const bayType     = v('bf-baytype');
+  const mech        = v('bf-mech');
+  const date        = v('bf-date');
+  const time        = v('bf-time');
+  const cost        = v('bf-cost');
+  const delivery    = v('bf-delivery');
+  const notes       = (document.getElementById('bf-notes')?.value || '').trim();
+
+  // Validation
+  if (!custName) throw new Error(isCorp ? 'Contact name is required' : 'Customer name is required');
+  if (!custPhone) throw new Error('Mobile number is required');
+  if (!plateSuf)  throw new Error('Plate is required');
+  if (!service)   throw new Error('Service is required');
+  if (!date)      throw new Error('Date is required');
+  if (!time)      throw new Error('Time is required');
+  if (!delivery)  throw new Error('Estimated delivery date is required');
+  if (!make)      throw new Error('Vehicle make is required');
+  if (!model)     throw new Error('Vehicle model is required');
+  if (!year)      throw new Error('Vehicle year is required');
+  if (isCorp) {
+    if (!companyName) throw new Error('Company name is required for corporate / fleet');
+    if (!gstin)       throw new Error('GSTIN is required for corporate / fleet');
+    if (!custState)   throw new Error('State is required so we can verify the GSTIN');
+    const r = validateGSTIN(gstin, custState);
+    if (!r.ok) throw new Error('GSTIN check failed: ' + r.reason);
+  }
 
   // Plan limit: count active bookings (Scheduled or Arrived) only when creating new
   if (!id) {
@@ -2519,37 +3228,95 @@ async function saveBooking(id) {
     if (!(await checkLimit('bookings', active, 1))) throw new Error('Plan limit reached');
   }
 
-  // Local D is already current (Firestore persistence keeps it warm) — skip the
-  // pre-save read. If another device clobbered our changes we'll see it on next render.
+  // Spell-check learning: if user typed a make/model/variant not in DB, add it
+  if (make && !vehicleDB()[make]) await vehicleDBAdd(make);
+  if (make && model && !vehicleDB()[make][model]) await vehicleDBAdd(make, model, { from: Number(year) || 0 });
+  if (make && model && variant && !vehicleDBVariants(make, model).includes(variant)) await vehicleDBAdd(make, model, { variant });
+
   const idx = id ? D.bookings.findIndex(b => b.id === id) : -1;
   const existing = idx >= 0 ? D.bookings[idx] : null;
-  // Allocate booking number + short reference for new bookings (keep on edit)
   const bookingNo  = existing?.booking_no  || _nextBookingNo();
   const bookingRef = existing?.booking_ref || _shortRef(4);
+
+  const vehicleText = [make, model, year].filter(Boolean).join(' ');
   const patch = {
     id: id || uid('bk'),
     booking_no: bookingNo,
     booking_ref: bookingRef,
-    cust_name: cust, cust_phone: phone, plate, vehicle: veh, mechanic: mech,
-    service, bay_type: bayType, date, time,
+    // Customer (legacy fields kept for backward compatibility)
+    cust_name: custName, cust_phone: custPhone, cust_phone2: phone2, cust_email: custEmail,
+    cust_addr1: custAddr1, cust_addr2: custAddr2, cust_city: custCity, cust_state: custState, cust_pin: custPin,
+    cust_dob: dob, driver_name: driverName,
+    customer_type: custType,
+    company_name: companyName, gstin, ref_no: refNo,
+    // Vehicle
+    plate, plate_state: plateState, plate_suffix: plateSuf,
+    vehicle: vehicleText,
+    veh_make: make, veh_model: model, veh_year: year, veh_variant: variant,
+    odometer_in: odo ? Number(odo) : 0, avg_kms: avgKms ? Number(avgKms) : 0,
+    vin, engine_no: engineNo, colour, fuel_type: fuelType, in_house: inHouse,
+    service_advisor: advisor, department,
+    // Service + scheduling
+    service, bay_type: bayType, mechanic: mech, date, time,
     cost_estimate: cost ? Number(cost) : 0,
+    estimated_delivery: delivery,
     notes,
+    complaints: (_editingBooking?.complaints || []).slice(),
     status: existing ? (existing.status || 'Scheduled') : 'Scheduled',
     updated_at: nowStr()
   };
   if (idx >= 0) D.bookings[idx] = { ...D.bookings[idx], ...patch };
   else          D.bookings.push({ ...patch, created_at: nowStr() });
 
-  // Upsert customer + booking in parallel
+  // ── Auto-upsert the customer (with the vehicle attached) so a 2nd-visit lookup works ──
   const writes = [wsSave('bookings', D.bookings)];
-  if (cust && !D.customers.find(c => c.name === cust)) {
-    D.customers.push({ id: uid('c'), name: cust, phone, created_at: nowStr() });
-    writes.push(wsSave('customers', D.customers));
+  let custIdx = D.customers.findIndex(c => (c.name || '').toLowerCase() === custName.toLowerCase());
+  const newVehicle = {
+    id: uid('veh'),
+    plate, plate_state: plateState, plate_suffix: plateSuf,
+    make, model, year, variant, color: colour, vin, engine_no: engineNo,
+    fuel_type: fuelType, odometer_in: odo ? Number(odo) : 0, avg_kms: avgKms ? Number(avgKms) : 0,
+    in_house: inHouse, gstin: isCorp ? gstin : '',
+    added_at: nowStr()
+  };
+  const custBody = {
+    name: custName, phone: custPhone, phone2, email: custEmail,
+    addr1: custAddr1, addr2: custAddr2, city: custCity, state: custState, pincode: custPin,
+    driver_name: driverName, dob,
+    customer_type: custType,
+    company_name: companyName, gstin: isCorp ? gstin : '', ref_no: refNo,
+    updated_at: nowStr()
+  };
+  if (custIdx < 0) {
+    // Brand-new customer — create with this vehicle
+    D.customers.push({ id: uid('c'), ...custBody, vehicles: [newVehicle], created_at: nowStr() });
+  } else {
+    // Existing customer — merge contact info (only fill blanks so manual edits stick),
+    // and attach the vehicle if it isn't already on file.
+    const c = D.customers[custIdx];
+    for (const k of Object.keys(custBody)) {
+      if (custBody[k] && !c[k]) c[k] = custBody[k];
+    }
+    c.vehicles = Array.isArray(c.vehicles) ? c.vehicles : [];
+    const plateKey = plate.replace(/\s+/g,'').toUpperCase();
+    const matchVeh = c.vehicles.find(v => (v.plate || '').replace(/\s+/g,'').toUpperCase() === plateKey);
+    if (!matchVeh) c.vehicles.push(newVehicle);
+    else {
+      // Update fields that were previously blank
+      for (const k of ['make','model','year','variant','color','vin','engine_no','fuel_type','gstin']) {
+        if (newVehicle[k] && !matchVeh[k]) matchVeh[k] = newVehicle[k];
+      }
+      if (newVehicle.odometer_in) matchVeh.odometer_in = newVehicle.odometer_in;
+    }
+    c.updated_at = nowStr();
   }
+  writes.push(wsSave('customers', D.customers));
+
   closeModal();
-  showToast(id ? 'Booking updated' : 'Booking created', 'good');
-  renderBookings();      // optimistic — uses just-updated local D
-  await Promise.all(writes);   // server sync happens in background but errors still toast
+  showToast(id ? 'Booking updated' : `Booking ${bookingNo} created`, 'good');
+  audit(id ? 'booking-update' : 'booking-create', `${plate} · ${custName}${isCorp ? ' (' + companyName + ')' : ''}`, { booking_id: patch.id });
+  renderBookings();
+  await Promise.all(writes);
 }
 
 window.cancelBooking = async function(id) {
@@ -2727,17 +3494,23 @@ async function doCheckin(bookingId) {
   b.checked_in_at = nowStr();
   b.updated_at = nowStr();
 
-  // Auto-create a job card if one doesn't already exist for this booking
+  // Auto-create a job card if one doesn't already exist for this booking.
+  // Stage 1 lands the job in "Awaiting Assignment" so the floor manager knows
+  // to assign a technician; carries the booking's department for routing.
   if (!D.jobs.find(j => j.booking_id === b.id)) {
+    const initialStatus = b.mechanic ? 'Technician Assigned' : 'Awaiting Assignment';
     D.jobs.push({
       id: uid('j'), booking_id: b.id, plate: b.plate, cust_name: b.cust_name,
       type: b.service || '', mechanic: b.mechanic || '',
       mechanics: b.mechanic ? [b.mechanic] : [],
-      status: 'Awaiting Approval', parts: [], labour_notes: '',
+      department: b.department || 'Mechanical',
+      status: initialStatus, parts: [], labour_notes: '',
       service_charges: [], photos: [],
       created_at: nowStr(), completed_at: null
     });
     writes.push(wsSave('jobs', D.jobs));
+    // Audit entry so floor managers see it in the log
+    audit('floor-manager-notify', `${b.plate} arrived for ${b.department || 'Mechanical'} — needs technician assignment`, { booking_id: b.id });
   }
 
   writes.push(wsSave('bookings', D.bookings));
@@ -2888,6 +3661,7 @@ async function renderJobs(force = false) {
   }
   const q = (document.getElementById('jbSearch').value || '').toLowerCase().trim();
   const st = document.getElementById('jbStatus').value;
+  const dept = document.getElementById('jbDept')?.value || '';
   const mech = document.getElementById('jbMech').value;
   let list = D.jobs.slice();
   if (q) list = list.filter(j =>
@@ -2895,7 +3669,8 @@ async function renderJobs(force = false) {
     (j.cust_name||'').toLowerCase().includes(q) ||
     (j.mechanic||'').toLowerCase().includes(q) ||
     (j.type||'').toLowerCase().includes(q));
-  if (st)   list = list.filter(j => (j.status || 'Awaiting Approval') === st);
+  if (st)   list = list.filter(j => (j.status || 'Awaiting Assignment') === st);
+  if (dept) list = list.filter(j => (j.department || _jobDeptFromBooking(j) || 'Mechanical') === dept);
   if (mech) list = list.filter(j => j.mechanic === mech || (j.mechanics || []).includes(mech));
   // Newest first
   list.sort((a,b) => (b.created_at || '').localeCompare(a.created_at || ''));
@@ -2909,23 +3684,40 @@ async function renderJobs(force = false) {
   }
   wrap.innerHTML = `<table class="list-tbl">
     <thead><tr>
-      <th>Created</th><th>Plate</th><th>Customer</th><th>Service</th><th>Mechanic</th><th>Status</th>
+      <th>Created</th><th>Plate</th><th>Customer</th><th>Dept</th><th>Service</th><th>Mechanic</th><th>Status</th>
       <th style="text-align:right">Actions</th>
     </tr></thead>
     <tbody>${list.map(j => {
       const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
       const mechCell = mechs.length
         ? escapeHtml(mechs[0]) + (mechs.length > 1 ? ` <span style="color:var(--faint);font-size:11px">+${mechs.length - 1}</span>` : '')
-        : '—';
+        : `<button class="mini-btn warn" onclick="openJobForm('${escapeHtml(j.id)}')" style="font-size:10.5px">Assign</button>`;
       const insBadge = j.is_insurance ? ` <span title="Insurance job · ${escapeHtml(j.insurance_approval || 'Pending')}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:100px;background:rgba(255,179,71,.14);color:var(--acc2);font-size:10.5px;font-weight:700;margin-left:6px">🛡 ${escapeHtml((j.insurance_approval || 'Pending').toUpperCase())}</span>` : '';
+      const dept = j.department || _jobDeptFromBooking(j) || 'Mechanical';
+      const deptTint = dept === 'Bodyshop' ? 'rgba(255,107,107,.14);color:var(--red)' : dept === 'Both' ? 'rgba(255,179,71,.14);color:var(--acc2)' : 'rgba(99,159,255,.14);color:var(--blue)';
+      const status = j.status || 'Awaiting Assignment';
+      // Stage-2 quick actions visible inline so floor managers / techs can advance the job in one click
+      const stageBtns = `${status === 'Awaiting Assignment' || status === 'Awaiting Approval'
+          ? '' /* assignment happens via Mechanic "Assign" cell or Edit modal */
+          : status === 'Technician Assigned'
+            ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Inspected')" title="Vehicle inspected, spares listed">Mark inspected</button>`
+            : status === 'Inspected'
+              ? `<button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(j.id)}')" title="Generate estimate & send to client">Send estimate</button>`
+              : status === 'Estimate Sent'
+                ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Estimate Approved')" title="Client approved the estimate">Mark approved</button>`
+                : status === 'Estimate Approved'
+                  ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','In Progress')" title="Start the work">Start work</button>`
+                  : ''}`;
       return `<tr>
       <td>${escapeHtml((j.created_at || '').slice(0,10) || '—')}</td>
       <td><span class="plate">${escapeHtml(j.plate || '—')}</span>${insBadge}</td>
       <td class="k">${escapeHtml(j.cust_name || '—')}</td>
+      <td><span style="display:inline-block;padding:3px 9px;border-radius:100px;font-size:10.5px;font-weight:700;background:${deptTint}">${escapeHtml(dept.toUpperCase())}</span></td>
       <td>${escapeHtml(j.type || '—')}</td>
       <td>${mechCell}</td>
-      <td>${statusPill(j.status || 'Awaiting Approval')}</td>
+      <td>${statusPill(status)}</td>
       <td><div class="row-act">
+        ${stageBtns}
         <button class="mini-btn" onclick="openJobForm('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
         <button class="mini-btn good" onclick="generateInvoice('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Invoice</button>
         <button class="mini-btn danger" onclick="deleteJob('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
@@ -2936,7 +3728,77 @@ async function renderJobs(force = false) {
 }
 window.renderJobs = renderJobs;
 
-const JOB_STATUSES = ['Awaiting Approval','In Progress','Parts Ordered','Parts Not Available','Ready for Delivery','Delivered','Cancelled'];
+// Fallback when older job records don't have a department — look up the linked booking
+function _jobDeptFromBooking(j) {
+  if (!j.booking_id) return '';
+  const b = D.bookings.find(x => x.id === j.booking_id);
+  return b?.department || '';
+}
+
+// One-click status advance from the Jobs table (Mark Inspected, Mark Approved, Start work).
+window.markJobStatus = async function(jobId, newStatus) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
+  if (newStatus === 'Inspected' && !(j.parts || []).length) {
+    if (!(await customConfirm('No spares are listed on this job yet. Mark as Inspected anyway?', { title: 'No spares listed', okLabel: 'Mark inspected', danger: false }))) return;
+  }
+  j.status = newStatus;
+  j.updated_at = nowStr();
+  showToast(`${j.plate} → ${newStatus}`, 'good');
+  audit('job-status', `${j.plate}: ${newStatus}`, { job_id: jobId, status: newStatus });
+  renderJobs();
+  await wsSave('jobs', D.jobs);
+};
+
+// "Send estimate to client" — Stage 2 final step. Creates a Draft invoice
+// from the job's current parts + service charges and opens the print preview
+// for sharing with the customer for approval. Job status flips to "Estimate Sent".
+window.sendJobEstimate = async function(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
+  if (!(j.parts || []).length && !(j.service_charges || []).length) {
+    return customAlert('Add parts or service charges to the job card first so the estimate has something to show.', { title: 'Nothing to estimate' });
+  }
+  // Reuse the invoice flow but force the invoice into Draft so the customer
+  // sees it's an estimate and we don't accidentally treat it as billed revenue.
+  let inv = (D.invoices || []).find(x => x.job_id === jobId);
+  if (!inv) {
+    inv = _seedInvoiceFromJob(jobId);
+    inv.created_at = nowStr();
+    inv.created_by = currentWorker?.name || '';
+    D.invoices.push(inv);
+  } else {
+    _resyncInvoiceFromJob(inv, j);
+  }
+  inv.status = 'Draft';
+  inv.payment_status = 'Outstanding';
+  inv.updated_at = nowStr();
+  j.status = 'Estimate Sent';
+  j.estimate_sent_at = nowStr();
+  j.updated_at = nowStr();
+  await Promise.all([
+    wsSave('invoices', D.invoices),
+    wsSave('jobs', D.jobs)
+  ]);
+  showToast(`Estimate ${inv.number} drafted for ${j.plate}`, 'good');
+  audit('estimate-sent', `${inv.number} · ${j.plate} · ${j.cust_name || '—'}`, { invoice_id: inv.id, job_id: jobId });
+  const html = _invoiceHTMLFromRecord(inv);
+  const w = window.open('', '_blank');
+  if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+  renderJobs();
+};
+
+// Status progression maps to the two-stage workshop flow.
+//   STAGE 1 (Car inward): Awaiting Assignment (job card finalised, floor manager needs to assign a tech)
+//   STAGE 2 (Diagnosis & estimate): Technician Assigned → Inspected → Estimate Sent → Estimate Approved
+//   STAGE 3 (Execution): In Progress → Parts Ordered / Not Available → Ready for Delivery → Delivered
+// "Awaiting Approval" is kept for backwards compatibility with old job records.
+const JOB_STATUSES = [
+  'Awaiting Assignment','Technician Assigned','Inspected','Estimate Sent','Estimate Approved',
+  'In Progress','Parts Ordered','Parts Not Available','Ready for Delivery',
+  'Delivered','Cancelled',
+  'Awaiting Approval'   // legacy alias for the old default
+];
 
 // Live-editing buffer for the job form (lets the parts/charges rows persist across re-renders)
 let _editingJob = null;
@@ -2970,9 +3832,11 @@ window.openJobForm = function(id) {
         <b style="color:var(--txt)">${escapeHtml(j.cust_name || '—')}</b> · ${escapeHtml(j.plate || '—')}<br>
         Service: ${escapeHtml(j.type || '—')} · Created ${escapeHtml((j.created_at || '').slice(0,16) || '—')}
       </div>
-      <div class="f-row r1">
+      <div class="f-row">
         <div class="f-grp"><label>Status <span class="req">*</span></label>
-          <select id="jf-status">${JOB_STATUSES.map(s => `<option value="${s}" ${(j.status || 'Awaiting Approval') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+          <select id="jf-status">${JOB_STATUSES.map(s => `<option value="${s}" ${(j.status || 'Awaiting Assignment') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+        <div class="f-grp"><label>Department <span class="req">*</span></label>
+          <select id="jf-dept">${['Mechanical','Bodyshop','Both'].map(d => `<option value="${d}" ${(j.department || _jobDeptFromBooking(j) || 'Mechanical') === d ? 'selected' : ''}>${d}</option>`).join('')}</select></div>
       </div>
 
       <!-- Mechanics: multi-pick. Primary = first chip. Click chip × to remove. -->
@@ -3221,11 +4085,19 @@ async function saveJob(id) {
   if (!j) throw new Error('Job not found');
   const status = document.getElementById('jf-status').value;
   const labour = document.getElementById('jf-labour').value;
+  const dept   = document.getElementById('jf-dept')?.value || j.department || 'Mechanical';
   j.status = status;
+  j.department = dept;
   // Mechanics array drives the assignment. Primary = first one. Keep `mechanic`
   // in sync so existing renderers (job list, dashboard) keep showing the lead.
+  const prevMech = j.mechanic || '';
   j.mechanics = (_editingJob?.mechanics || []).filter(Boolean);
   j.mechanic  = j.mechanics[0] || '';
+  // If a tech was just assigned for the first time, auto-advance the status from
+  // "Awaiting Assignment" → "Technician Assigned" so the floor manager flow continues.
+  if (!prevMech && j.mechanic && (status === 'Awaiting Assignment' || status === 'Awaiting Approval')) {
+    j.status = 'Technician Assigned';
+  }
   j.labour_notes = labour;
   // Drop empty rows so an unfinished "Add part / Add charge" doesn't pollute the card
   j.parts           = (_editingJob?.parts   || []).filter(p => (p.name || '').trim())
@@ -3705,7 +4577,7 @@ async function renderWorkers(force = false) {
 }
 window.renderWorkers = renderWorkers;
 
-const ROLE_OPTS = ['owner','manager','receptionist','mechanic'];
+const ROLE_OPTS = ['owner','manager','floor_manager','receptionist','mechanic'];
 
 window.openWorkerForm = function(id) {
   const w = id ? (D.mechanics.find(x => x.id === id) || {}) : {};
@@ -4884,7 +5756,7 @@ async function renderSettings(force = false) {
   const s = D.settings || {};
   const perms = s.role_perms || {};
   const customRoles = Object.keys(perms).filter(r => !DEFAULT_ROLE_PERMS[r]);
-  const allRoles = ['owner','manager','receptionist','mechanic', ...customRoles];
+  const allRoles = ['owner','manager','floor_manager','receptionist','mechanic', ...customRoles];
   document.getElementById('settingsBody').innerHTML = `
     <div style="display:grid;gap:18px">
 
