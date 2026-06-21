@@ -761,6 +761,10 @@ input[list]{background:var(--bg2)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           Timesheets
         </button>
+        <button class="snav" data-tab="notifications" onclick="switchTab('notifications')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+          Notifications
+        </button>
         <button class="snav" data-tab="audit" onclick="switchTab('audit')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg>
           Audit Log
@@ -1079,6 +1083,23 @@ input[list]{background:var(--bg2)}
           </div>
         </div>
         <div id="rptBody"></div>
+      </div>
+      <div class="tab-panel" id="tab-notifications">
+        <div class="page-head">
+          <div><h2>Notifications</h2><div class="dash-meta"><span class="live-dot"></span><span id="ntCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderNotifications(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="refresh-btn" onclick="markMyNotifsRead().then(()=>renderNotifications(true))">Mark all read</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <select id="ntFilter" onchange="renderNotifications()">
+            <option value="unread">Unread (for me)</option>
+            <option value="me">All for me</option>
+            <option value="all">Everyone's</option>
+          </select>
+        </div>
+        <div id="ntList"></div>
       </div>
       <div class="tab-panel" id="tab-audit">
         <div class="page-head">
@@ -1767,12 +1788,11 @@ function renderHeader() {
 // Defaults if the workshop hasn't customised role permissions yet.
 // Owner always sees everything regardless of what's stored.
 const DEFAULT_ROLE_PERMS = {
-  owner:         ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','audit','settings'],
-  manager:       ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','audit'],
-  // Floor manager — owns Stage-2 assignments. Sees jobs, queue, bays, parts approvals; can't change workshop settings.
-  floor_manager: ['dashboard','checkin','jobs','queue','customers','bays','inventory','parts','request_parts','timesheets'],
-  receptionist:  ['dashboard','bookings','checkin','queue','customers','invoices','timesheets'],
-  mechanic:      ['dashboard','checkin','jobs','queue','bays','inventory','request_parts','timesheets']
+  owner:         ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','notifications','audit','settings'],
+  manager:       ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','notifications','audit'],
+  floor_manager: ['dashboard','checkin','jobs','queue','customers','bays','inventory','parts','request_parts','notifications','timesheets'],
+  receptionist:  ['dashboard','bookings','checkin','queue','customers','invoices','notifications','timesheets'],
+  mechanic:      ['dashboard','checkin','jobs','queue','bays','inventory','request_parts','notifications','timesheets']
 };
 const ADMIN_ROLES = ['owner','manager'];
 
@@ -1968,6 +1988,7 @@ const D = {
   customers: [], mechanics: [], inventory: [], timesheets: [],
   parts_requests: [], invoices: [], audit: [],
   vehicleDB: null,   // workshop's override of the make/model DB; null = use VEHICLE_DB_SEED
+  notifications: [], // workshop-wide notification feed (each entry tracks who's read it)
   settings: {}, loadedAt: 0
 };
 let _loadingPromise = null;
@@ -1982,16 +2003,18 @@ async function loadAllData(force = false) {
   }
   if (!force && D.loadedAt && (Date.now() - D.loadedAt < 60000)) return; // 60s grace — persistence keeps the local cache hot
   _loadingPromise = (async () => {
-    const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, invoices, audit, vehicleDBArr, settingsArr] =
+    const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, invoices, audit, vehicleDBArr, notifications, settingsArr] =
       await Promise.all([
         wsLoad('bookings'), wsLoad('bays'),     wsLoad('jobs'),
         wsLoad('queue'),    wsLoad('customers'),wsLoad('mechanics'),
         wsLoad('inventory'),wsLoad('timesheets'),wsLoad('parts_requests'),
         wsLoad('invoices'), wsLoad('audit'),    wsLoad('vehicleDB'),
+        wsLoad('notifications'),
         wsLoad('settings')
       ]);
     // vehicleDB is a single object wrapped as { db: {...} } inside the items array
     D.vehicleDB      = (vehicleDBArr && vehicleDBArr[0] && vehicleDBArr[0].db) || null;
+    D.notifications  = notifications  || [];
     D.bookings       = bookings       || [];
     D.bays           = bays           || [];
     D.jobs           = jobs           || [];
@@ -2031,7 +2054,17 @@ const STATUS_CLASS = {
   'Technician Assigned': 's-progress',
   'Inspected':           's-progress',
   'Estimate Sent':       's-arrived',
-  'Estimate Approved':   's-ready',
+  // Stage 3 — Client decision
+  'Estimate Approved':           's-ready',
+  'Estimate Approved (Partial)': 's-ready',
+  'Rejected — Reassembly':       's-warn',
+  'Returned to Advisor':         's-warn',
+  // Stage 4 — QC & Handover
+  'Awaiting QC':         's-arrived',
+  'QC Passed':           's-progress',
+  'Client Informed':     's-progress',
+  'Washing':             's-progress',
+  'Ready for Pickup':    's-ready',
   // Stage 3
   'In Progress':         's-progress',
   'Awaiting Approval':   's-arrived',
@@ -3509,8 +3542,15 @@ async function doCheckin(bookingId) {
       created_at: nowStr(), completed_at: null
     });
     writes.push(wsSave('jobs', D.jobs));
-    // Audit entry so floor managers see it in the log
+    const newJobId = D.jobs[D.jobs.length - 1].id;
+    // Trigger 1 — Job card created → notify floor manager (dept-routed)
     audit('floor-manager-notify', `${b.plate} arrived for ${b.department || 'Mechanical'} — needs technician assignment`, { booking_id: b.id });
+    notify({
+      kind: 'job-created',
+      message: `${b.plate} arrived for ${b.department || 'Mechanical'} — assign a technician`,
+      target: { role: 'floor_manager' },
+      job_id: newJobId
+    });
   }
 
   writes.push(wsSave('bookings', D.bookings));
@@ -3698,16 +3738,28 @@ async function renderJobs(force = false) {
       const status = j.status || 'Awaiting Assignment';
       // Stage-2 quick actions visible inline so floor managers / techs can advance the job in one click
       const stageBtns = `${status === 'Awaiting Assignment' || status === 'Awaiting Approval'
-          ? '' /* assignment happens via Mechanic "Assign" cell or Edit modal */
+          ? ''
           : status === 'Technician Assigned'
             ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Inspected')" title="Vehicle inspected, spares listed">Mark inspected</button>`
             : status === 'Inspected'
               ? `<button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(j.id)}')" title="Generate estimate & send to client">Send estimate</button>`
               : status === 'Estimate Sent'
-                ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Estimate Approved')" title="Client approved the estimate">Mark approved</button>`
-                : status === 'Estimate Approved'
-                  ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','In Progress')" title="Start the work">Start work</button>`
-                  : ''}`;
+                ? `<button class="mini-btn warn" onclick="openClientDecision('${escapeHtml(j.id)}')" title="Capture client's per-line decision (approve / reject)">Client decision</button>`
+                : (status === 'Estimate Approved' || status === 'Estimate Approved (Partial)')
+                  ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','In Progress')" title="Parts readied, technician notified">Start repair</button>`
+                  : status === 'Rejected — Reassembly'
+                    ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Returned to Advisor')" title="Car reassembled, no repair done — handed back to advisor">Mark reassembled</button>`
+                    : status === 'In Progress'
+                      ? `<button class="mini-btn good" onclick="markRepairDone('${escapeHtml(j.id)}')" title="Technician finished — hand over for QC">Repair done</button>`
+                      : status === 'Awaiting QC'
+                        ? `<button class="mini-btn good" onclick="passQC('${escapeHtml(j.id)}')" title="Test drive + final inspection passed">Pass QC</button>`
+                        : status === 'QC Passed'
+                          ? `<button class="mini-btn good" onclick="openInformClient('${escapeHtml(j.id)}')" title="Confirm pickup time + notify wash team">Inform client</button>`
+                          : status === 'Client Informed' || status === 'Washing'
+                            ? `<button class="mini-btn good" onclick="markWashReady('${escapeHtml(j.id)}')" title="Washing done — car ready for pickup">Ready for pickup</button>`
+                            : status === 'Ready for Pickup'
+                              ? `<button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>`
+                              : ''}`;
       return `<tr>
       <td>${escapeHtml((j.created_at || '').slice(0,10) || '—')}</td>
       <td><span class="plate">${escapeHtml(j.plate || '—')}</span>${insBadge}</td>
@@ -3746,6 +3798,181 @@ window.markJobStatus = async function(jobId, newStatus) {
   j.updated_at = nowStr();
   showToast(`${j.plate} → ${newStatus}`, 'good');
   audit('job-status', `${j.plate}: ${newStatus}`, { job_id: jobId, status: newStatus });
+
+  // ── Notification triggers tied to stage transitions ──
+  // Trigger 3 — Spares list submitted (Inspected) → notify parts department
+  if (newStatus === 'Inspected') {
+    notify({
+      kind: 'spares-listed',
+      message: `${j.plate} inspected — ${(j.parts || []).length} spare(s) listed by ${j.mechanic || 'technician'}, price & availability needed`,
+      target: { role: 'parts_dept' },
+      job_id: jobId
+    });
+  }
+  // Trigger — Start repair (Estimate Approved → In Progress) — repair carried out
+  if (newStatus === 'In Progress') {
+    notify({
+      kind: 'parts-ready',
+      message: `${j.plate} cleared to start repair — collect approved parts and begin work`,
+      target: { worker_name: j.mechanic },
+      job_id: jobId
+    });
+  }
+  // Trigger — Mark reassembled / Returned to Advisor
+  if (newStatus === 'Returned to Advisor') {
+    notify({
+      kind: 'returned-to-advisor',
+      message: `${j.plate} reassembled (no repair done) — back with the service advisor`,
+      target: { role: 'service_advisor' },
+      job_id: jobId
+    });
+  }
+  renderJobs();
+  await wsSave('jobs', D.jobs);
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+//  STAGE 4 — Quality check and handover (approved-jobs only)
+//  Repair done → Awaiting QC → QC Passed → Client Informed (pickup time set,
+//  wash team notified) → Washing → Ready for Pickup → Delivered (existing
+//  checkout flow generates the invoice scoped to APPROVED items only — the
+//  rejected lines stay on the invoice but are struck through and not billed).
+// ══════════════════════════════════════════════════════════════════════════
+
+// Technician marks the repair complete. Job moves to Awaiting QC; floor manager pinged.
+window.markRepairDone = async function(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.status = 'Awaiting QC';
+  j.repair_done_at = nowStr();
+  j.updated_at = nowStr();
+  showToast(`${j.plate} ready for QC`, 'good');
+  audit('repair-done', `${j.plate} — ${j.mechanic || 'tech'} finished, awaiting QC`, { job_id: jobId });
+  // Trigger 8 — Job done → notify floor manager
+  notify({
+    kind: 'job-done',
+    message: `${j.plate} — repair finished by ${j.mechanic || 'technician'}. Car ready for test drive & final inspection.`,
+    target: { role: 'floor_manager' },
+    job_id: jobId
+  });
+  renderJobs();
+  await wsSave('jobs', D.jobs);
+};
+
+// Floor manager signs off after QC (test drive + final inspection). Status → QC Passed.
+window.passQC = async function(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const note = await customPrompt('Any QC notes? (optional — leave blank to just sign off)', {
+    title: `Pass QC · ${j.plate}`, placeholder: 'Test drive 4 km, no warning lights, brake feel OK…',
+    initial: j.qc_notes || '', okLabel: 'Sign off & pass'
+  });
+  if (note === null) return;   // cancelled
+  j.status = 'QC Passed';
+  j.qc_passed_at = nowStr();
+  j.qc_passed_by = currentWorker?.name || '';
+  j.qc_notes = (note || '').trim();
+  j.updated_at = nowStr();
+  showToast(`${j.plate} passed QC`, 'good');
+  audit('qc-passed', `${j.plate} — signed off by ${currentWorker?.name || '—'}`, { job_id: jobId });
+  // Trigger 9 — Floor manager sign-off → notify service advisor
+  notify({
+    kind: 'qc-passed',
+    message: `${j.plate} passed QC — ready to inform the client and set a pickup time.`,
+    target: { role: 'service_advisor' },
+    job_id: jobId
+  });
+  renderJobs();
+  await wsSave('jobs', D.jobs);
+};
+
+// Service advisor confirms pickup time + assigns the wash worker. One modal does both.
+window.openInformClient = async function(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
+  // Sensible default pickup: tomorrow morning at 10:00 (workshops can override)
+  const defaultDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const workerOpts = (D.mechanics || []).filter(m => m.active !== false)
+    .map(m => `<option value="${escapeHtml(m.name)}" ${m.name === j.washing_assigned_to ? 'selected' : ''}>${escapeHtml(m.name)} · ${escapeHtml(m.role || '—')}</option>`)
+    .join('');
+  openModal({
+    title: `Inform client · ${j.plate}`,
+    body: `
+      <div style="color:var(--dim);font-size:13.5px;margin-bottom:14px;line-height:1.55">
+        Confirm the pickup time with the client and assign someone to wash & detail the car before handover.
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Pickup date <span class="req">*</span></label>
+          <input id="ic-date" type="date" value="${escapeHtml(j.pickup_date || defaultDate)}" /></div>
+        <div class="f-grp"><label>Pickup time <span class="req">*</span></label>
+          <input id="ic-time" type="time" value="${escapeHtml(j.pickup_time || '10:00')}" /></div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Assign washing / detailing to <span class="req">*</span></label>
+          <select id="ic-wash"><option value="">— Pick a worker —</option>${workerOpts}</select>
+          <span class="hint" style="display:block;font-size:11.5px;color:var(--faint);margin-top:4px">Any worker can be assigned — no separate role needed.</span></div>
+        <div class="f-grp"><label>Client phone</label>
+          <input id="ic-phone" type="tel" value="${escapeHtml(j.cust_phone || '')}" readonly style="background:var(--bg2);opacity:.85" /></div>
+      </div>
+      <div class="f-row r1">
+        <div class="f-grp"><label>Note to wash team (optional)</label>
+          <textarea id="ic-note" placeholder="Interior detail too, no wax, etc.">${escapeHtml(j.wash_note || '')}</textarea></div>
+      </div>
+      <div class="f-err" id="ic-err"></div>`,
+    saveLabel: 'Confirm & notify wash team',
+    onSave: () => _saveInformClient(jobId)
+  });
+};
+
+async function _saveInformClient(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) throw new Error('Job not found');
+  const date = document.getElementById('ic-date').value;
+  const time = document.getElementById('ic-time').value;
+  const wash = document.getElementById('ic-wash').value;
+  const note = document.getElementById('ic-note').value.trim();
+  if (!date || !time) throw new Error('Pickup date and time are required');
+  if (!wash)          throw new Error('Pick a worker to wash and detail the car');
+  j.status = 'Client Informed';
+  j.pickup_date = date;
+  j.pickup_time = time;
+  j.washing_assigned_to = wash;
+  j.wash_note = note;
+  j.client_informed_at = nowStr();
+  j.client_informed_by = currentWorker?.name || '';
+  j.updated_at = nowStr();
+  closeModal();
+  showToast(`${j.plate} — pickup confirmed for ${date} ${time}`, 'good');
+  audit('client-informed', `${j.plate} — pickup ${date} ${time}, wash by ${wash}`, { job_id: jobId });
+  // Trigger 10 — Pickup time confirmed → notify washing/detailing team (specific worker)
+  notify({
+    kind: 'wash-assigned',
+    message: `${j.plate} (${j.cust_name || '—'}) — wash & detail before ${date} ${time} pickup.${note ? ' Note: ' + note : ''}`,
+    target: { worker_name: wash },
+    job_id: jobId
+  });
+  // Auto-advance to Washing so the wash team's next action is the natural one
+  j.status = 'Washing';
+  renderJobs();
+  await wsSave('jobs', D.jobs);
+}
+
+// Wash team marks the car ready → Ready for Pickup. From here the existing checkout flow
+// runs and generates the final invoice scoped to whatever was actually approved/repaired.
+window.markWashReady = async function(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.status = 'Ready for Pickup';
+  j.wash_done_at = nowStr();
+  j.updated_at = nowStr();
+  showToast(`${j.plate} ready for pickup`, 'good');
+  audit('wash-done', `${j.plate} — washed/detailed, ready for handover`, { job_id: jobId });
+  notify({
+    kind: 'ready-for-pickup',
+    message: `${j.plate} (${j.cust_name || '—'}) — washed & ready. Pickup scheduled ${j.pickup_date || ''} ${j.pickup_time || ''}.`,
+    target: { role: 'service_advisor' },
+    job_id: jobId
+  });
   renderJobs();
   await wsSave('jobs', D.jobs);
 };
@@ -3782,11 +4009,184 @@ window.sendJobEstimate = async function(jobId) {
   ]);
   showToast(`Estimate ${inv.number} drafted for ${j.plate}`, 'good');
   audit('estimate-sent', `${inv.number} · ${j.plate} · ${j.cust_name || '—'}`, { invoice_id: inv.id, job_id: jobId });
+  // Trigger 4 — Pricing & availability done → notify service advisor
+  notify({
+    kind: 'estimate-ready',
+    message: `Estimate ${inv.number} ready for ${j.plate} (${j.cust_name || '—'}) — send to client for decision`,
+    target: { role: 'service_advisor' },
+    job_id: jobId
+  });
   const html = _invoiceHTMLFromRecord(inv);
   const w = window.open('', '_blank');
   if (w) { w.document.open(); w.document.write(html); w.document.close(); }
   renderJobs();
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+//  STAGE 3 — Client decision (per-line approval on the estimate)
+//  Each line item (part) + each service charge gets an approve/reject decision.
+//  Approve branch: status → Estimate Approved (Partial) or Estimate Approved.
+//  Reject branch:  status → Rejected — Reassembly → Returned to Advisor.
+// ══════════════════════════════════════════════════════════════════════════
+window.openClientDecision = async function(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
+  // Find the estimate (invoice) that was sent. If none, generate one first.
+  let inv = (D.invoices || []).find(x => x.job_id === jobId);
+  if (!inv) {
+    await sendJobEstimate(jobId);
+    inv = (D.invoices || []).find(x => x.job_id === jobId);
+    if (!inv) return showToast('Could not find an estimate to decide on', 'bad');
+  }
+  // Initialise the approval field on each line/charge if missing
+  (inv.lines || []).forEach(l => { if (!l.approval) l.approval = 'pending'; });
+  (inv.charges || []).forEach(c => { if (!c.approval) c.approval = 'pending'; });
+  _renderClientDecision(inv);
+};
+
+function _renderClientDecision(inv) {
+  const cur = D.settings?.currency || '₹';
+  const fmt = (n) => `${cur}${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const lineRow = (kind, idx, name, hint, amount) => {
+    const it = (kind === 'line' ? inv.lines : inv.charges)[idx];
+    const ap = it.approval || 'pending';
+    const stateColor = ap === 'approved' ? 'rgba(32,227,178,.10);border-color:rgba(32,227,178,.40)' :
+                       ap === 'rejected' ? 'rgba(255,107,107,.10);border-color:rgba(255,107,107,.40)' :
+                                           'var(--bg2);border-color:var(--brd)';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid;border-radius:10px;margin-bottom:7px;background:${stateColor}">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13.5px;color:var(--txt)">${escapeHtml(name)}</div>
+        ${hint ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(hint)}</div>` : ''}
+      </div>
+      <div style="font-family:'Courier New',monospace;font-weight:700;color:var(--txt);min-width:90px;text-align:right">${fmt(amount)}</div>
+      <div style="display:flex;gap:6px">
+        <button type="button" class="mini-btn ${ap === 'approved' ? 'good' : ''}" onclick="_cdSetApproval('${kind}',${idx},'approved')">✓ Approve</button>
+        <button type="button" class="mini-btn ${ap === 'rejected' ? 'danger' : ''}" onclick="_cdSetApproval('${kind}',${idx},'rejected')">✕ Reject</button>
+      </div>
+    </div>`;
+  };
+  const lines = (inv.lines || []).map((l, i) => {
+    const taxable = Math.max(0, (l.unit_price * l.qty) * (1 - (l.disc_pct || 0) / 100));
+    const total   = taxable * (1 + (Number(inv.tax_pct || 0)) / 100);
+    return lineRow('line', i, `${l.name} × ${l.qty}`, l.hsn ? `HSN ${l.hsn}` : '', total);
+  }).join('');
+  const charges = (inv.charges || []).map((c, i) => lineRow('charge', i, c.name, 'Service charge', c.amount)).join('');
+
+  // Tally so the user sees the impact live
+  const counts = _cdTally(inv);
+  const allDecided = counts.pending === 0;
+  const allRejected = counts.approved === 0 && counts.rejected > 0;
+  const someApproved = counts.approved > 0;
+
+  openModal({
+    title: `Client decision · ${inv.customer?.name || '—'} · ${inv.vehicle?.plate || '—'}`,
+    body: `
+      <div style="color:var(--dim);font-size:13px;margin-bottom:14px;line-height:1.55">
+        Mark each item the client has decided on. Approval is per-line — the client can approve some concerns and reject others. The branch (repair / reassemble) follows from the mix.
+      </div>
+      ${(inv.lines || []).length === 0 && (inv.charges || []).length === 0
+        ? `<div style="padding:20px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:10px;text-align:center;color:var(--faint)">No estimate items yet. Add parts &amp; charges on the job card, then resend the estimate.</div>`
+        : `${lines}${charges}`}
+      <div id="cdSummary" style="margin-top:14px;padding:12px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span><b style="color:var(--teal)">${counts.approved}</b> approved · <b style="color:var(--red)">${counts.rejected}</b> rejected · <b style="color:var(--faint)">${counts.pending}</b> pending</span>
+        <span style="color:var(--faint)">Approved value: <b style="color:var(--teal)">${fmt(counts.approvedValue)}</b></span>
+      </div>
+      <div style="margin-top:6px;font-size:11.5px;color:${allDecided ? (allRejected ? 'var(--red)' : 'var(--teal)') : 'var(--faint)'};text-align:center">
+        ${!allDecided ? 'Decide on every line before submitting.' :
+          allRejected ? 'All rejected → car will be reassembled and returned to the advisor.' :
+                        (counts.rejected ? 'Partial approval — only approved concerns will be repaired.' :
+                                            'Full approval — all concerns will be repaired.')}
+      </div>`,
+    saveLabel: allDecided ? (allRejected ? 'Submit · Reassemble & return' : 'Submit · Send to repair') : 'Decide on every line first',
+    onSave: () => _cdSubmit(inv.id)
+  });
+  // Stamp the invoice id on the modal so per-line clicks can find it back
+  const modal = document.getElementById('gpModal');
+  if (modal) modal.dataset.cdInv = inv.id;
+}
+
+function _cdTally(inv) {
+  let approved = 0, rejected = 0, pending = 0, approvedValue = 0;
+  const taxPct = Number(inv.tax_pct || 0);
+  for (const l of (inv.lines || [])) {
+    const ap = l.approval || 'pending';
+    if (ap === 'approved') {
+      approved++;
+      const taxable = Math.max(0, (l.unit_price * l.qty) * (1 - (l.disc_pct || 0) / 100));
+      approvedValue += taxable * (1 + taxPct / 100);
+    } else if (ap === 'rejected') rejected++;
+    else pending++;
+  }
+  for (const c of (inv.charges || [])) {
+    const ap = c.approval || 'pending';
+    if (ap === 'approved') { approved++; approvedValue += Number(c.amount || 0); }
+    else if (ap === 'rejected') rejected++;
+    else pending++;
+  }
+  return { approved, rejected, pending, approvedValue: Math.round(approvedValue) };
+}
+
+window._cdSetApproval = function(kind, idx, decision) {
+  const invId = document.getElementById('gpModal')?.dataset?.cdInv;
+  const inv = invId ? D.invoices.find(x => x.id === invId) : null;
+  if (!inv) return;
+  const target = (kind === 'line' ? inv.lines : inv.charges)[idx];
+  if (!target) return;
+  // Click the same decision again to toggle back to pending
+  target.approval = target.approval === decision ? 'pending' : decision;
+  _renderClientDecision(inv);
+};
+
+async function _cdSubmit(invId) {
+  const inv = D.invoices.find(x => x.id === invId);
+  if (!inv) return;
+  const counts = _cdTally(inv);
+  if (counts.pending > 0) throw new Error('Decide on every line before submitting');
+  const j = D.jobs.find(x => x.id === inv.job_id);
+  if (!j) return;
+  inv.client_decision_at = nowStr();
+  inv.client_decision_by = currentWorker?.name || '';
+  const writes = [];
+  if (counts.approved === 0) {
+    // Reject branch
+    j.status = 'Rejected — Reassembly';
+    j.updated_at = nowStr();
+    inv.status = 'Cancelled';
+    showToast(`${j.plate} → reject branch · reassembling`, 'good');
+    audit('client-decision-reject', `${inv.number} · ${j.plate} — all items rejected`, { invoice_id: inv.id, job_id: j.id });
+    // Trigger 7 — Client rejects estimate → notify floor manager
+    notify({
+      kind: 'client-rejected',
+      message: `${j.plate} (${j.cust_name || '—'}) — client rejected the entire estimate. Reassemble car and release without repair.`,
+      target: { role: 'floor_manager' },
+      job_id: j.id
+    });
+  } else {
+    // Approve branch (full or partial)
+    j.status = counts.rejected > 0 ? 'Estimate Approved (Partial)' : 'Estimate Approved';
+    j.estimate_approved_at = nowStr();
+    j.updated_at = nowStr();
+    inv.status = 'Issued';
+    inv.payment_status = inv.payment_status || 'Outstanding';
+    showToast(`${j.plate} → approved · ${counts.approved} concern${counts.approved === 1 ? '' : 's'} scoped${counts.rejected ? ', ' + counts.rejected + ' rejected' : ''}`, 'good');
+    audit('client-decision-approve', `${inv.number} · ${j.plate} — ${counts.approved} approved · ${counts.rejected} rejected`, { invoice_id: inv.id, job_id: j.id });
+    // Trigger 5 — Client approves (full/partial) → notify parts department to forward approved line items
+    notify({
+      kind: 'client-approved',
+      message: `${j.plate} — client approved ${counts.approved} item(s)${counts.rejected ? ', rejected ' + counts.rejected : ''}. Forward approved parts so the technician can collect them.`,
+      target: { role: 'parts_dept' },
+      job_id: j.id
+    });
+  }
+  writes.push(wsSave('invoices', D.invoices));
+  writes.push(wsSave('jobs', D.jobs));
+  closeModal();
+  renderJobs();
+  await Promise.all(writes);
+}
+window._cdSubmit = _cdSubmit;
+window.openClientDecision = window.openClientDecision;   // re-export
+window._cdTally = _cdTally;
 
 // Status progression maps to the two-stage workshop flow.
 //   STAGE 1 (Car inward): Awaiting Assignment (job card finalised, floor manager needs to assign a tech)
@@ -3794,10 +4194,21 @@ window.sendJobEstimate = async function(jobId) {
 //   STAGE 3 (Execution): In Progress → Parts Ordered / Not Available → Ready for Delivery → Delivered
 // "Awaiting Approval" is kept for backwards compatibility with old job records.
 const JOB_STATUSES = [
-  'Awaiting Assignment','Technician Assigned','Inspected','Estimate Sent','Estimate Approved',
-  'In Progress','Parts Ordered','Parts Not Available','Ready for Delivery',
+  // Stage 1
+  'Awaiting Assignment',
+  // Stage 2
+  'Technician Assigned','Inspected','Estimate Sent',
+  // Stage 3 — Client decision
+  'Estimate Approved','Estimate Approved (Partial)',
+  'Rejected — Reassembly','Returned to Advisor',
+  // Stage 4a — Execution
+  'In Progress','Parts Ordered','Parts Not Available',
+  // Stage 4b — QC & Handover (only runs for approved jobs)
+  'Awaiting QC','QC Passed','Client Informed','Washing','Ready for Pickup',
+  // Final
   'Delivered','Cancelled',
-  'Awaiting Approval'   // legacy alias for the old default
+  // Legacy
+  'Awaiting Approval','Ready for Delivery'
 ];
 
 // Live-editing buffer for the job form (lets the parts/charges rows persist across re-renders)
@@ -3915,7 +4326,74 @@ window._toggleInsurance = function() {
   if (wrap) wrap.style.display = _editingJob.is_insurance ? '' : 'none';
 };
 
-window._jobAddPart   = function() { _editingJob.parts.push({ name: '', hsn: '', qty: 1, unit_price: 0, disc_pct: 0 }); _drawJobRows(); };
+// Add a part to the job — opens a picker so the user can only choose items that
+// are actually in inventory. Stops untracked junk from sneaking onto job cards.
+window._jobAddPart = function() {
+  if (!(D.inventory || []).length) {
+    return customAlert('Inventory is empty. Add items via the Inventory tab or fulfil a parts request first.', { title: 'No inventory items yet' });
+  }
+  _openSubModal({
+    title: 'Pick a part from inventory',
+    bodyHtml: `
+      <input id="_pickQ" type="text" placeholder="Search by name, category, supplier, HSN…" autofocus
+        style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px;margin-bottom:10px" />
+      <div id="_pickList" style="max-height:46vh;overflow:auto"></div>
+      <div style="font-size:11.5px;color:var(--faint);margin-top:8px">Only inventory items are pickable. Need a part that's not stocked? Send a parts request — it'll appear here once it's marked fulfilled.</div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>`
+  });
+  const render = (q) => {
+    q = (q || '').toLowerCase().trim();
+    const onJob = new Set((_editingJob?.parts || []).map(p => (p.name || '').toLowerCase()));
+    let list = D.inventory.slice();
+    if (q) list = list.filter(i =>
+      (i.name || '').toLowerCase().includes(q) ||
+      (i.category || '').toLowerCase().includes(q) ||
+      (i.supplier || '').toLowerCase().includes(q) ||
+      (i.hsn || '').toLowerCase().includes(q) ||
+      (i.barcode || '').toLowerCase().includes(q));
+    list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const wrap = document.getElementById('_pickList');
+    if (!list.length) { wrap.innerHTML = `<div style="padding:24px;color:var(--faint);text-align:center;font-size:13px">No inventory items match.</div>`; return; }
+    wrap.innerHTML = list.map(i => {
+      const onHand = Number(i.qty || 0);
+      const low    = onHand <= Number(i.low_stock_threshold || 0);
+      const out    = onHand === 0;
+      const already= onJob.has((i.name || '').toLowerCase());
+      const cur    = D.settings?.currency || '₹';
+      return `
+        <button type="button" data-itemid="${escapeHtml(i.id || i.name)}" ${out || already ? 'disabled' : ''}
+          style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid var(--brd2);background:${out ? 'var(--bg2)' : 'var(--surf)'};cursor:${out || already ? 'not-allowed' : 'pointer'};color:${out ? 'var(--faint)' : 'var(--txt)'};opacity:${already ? '.55' : '1'};font-family:var(--fb)">
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13.5px">${escapeHtml(i.name)}${already ? ' <span style="color:var(--faint);font-size:11px;font-weight:500">· already on this job</span>' : ''}</div>
+              <div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(i.category || '—')}${i.hsn ? ' · HSN ' + escapeHtml(i.hsn) : ''}${i.supplier ? ' · ' + escapeHtml(i.supplier) : ''}</div>
+            </div>
+            <div style="text-align:right;min-width:90px">
+              <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:${out ? 'var(--red)' : low ? 'var(--acc2)' : 'var(--teal)'}">${onHand} ${escapeHtml(i.unit || '')}</div>
+              <div style="font-size:11px;color:var(--faint)">${cur}${Number(i.sell_price || 0).toLocaleString('en-IN')}</div>
+            </div>
+        </button>`;
+    }).join('');
+    wrap.querySelectorAll('[data-itemid]').forEach(btn => {
+      btn.onclick = () => {
+        if (btn.disabled) return;
+        const item = D.inventory.find(x => (x.id || x.name) === btn.dataset.itemid);
+        if (!item) return;
+        _editingJob.parts.push({
+          name: item.name, hsn: item.hsn || '', qty: 1,
+          unit_price: Number(item.sell_price || 0), disc_pct: 0,
+          inventory_id: item.id || ''
+        });
+        closeSubModal();
+        _drawJobRows();
+      };
+    });
+  };
+  setTimeout(() => {
+    const inp = document.getElementById('_pickQ');
+    if (inp) inp.addEventListener('input', () => render(inp.value));
+    render('');
+  }, 0);
+};
 
 // Apply the bulk discount % to every parts row in one go.
 window._jobApplyBulkDiscount = function() {
@@ -4098,7 +4576,18 @@ async function saveJob(id) {
   if (!prevMech && j.mechanic && (status === 'Awaiting Assignment' || status === 'Awaiting Approval')) {
     j.status = 'Technician Assigned';
   }
+  // Trigger 2 — Technician assigned → notify the technician
+  if (j.mechanic && j.mechanic !== prevMech) {
+    notify({
+      kind: 'tech-assigned',
+      message: `New job: ${j.plate} (${j.cust_name || '—'}) — ${j.type || 'service'}${(j.complaints || []).length ? ' · ' + (j.complaints || []).length + ' concern(s)' : ''}`,
+      target: { worker_name: j.mechanic },
+      job_id: j.id
+    });
+  }
   j.labour_notes = labour;
+  // Capture the previous parts so we can diff against the new list and adjust inventory
+  const prevParts = (j.parts || []).map(p => ({ name: (p.name || '').toLowerCase(), qty: Number(p.qty || 0) }));
   // Drop empty rows so an unfinished "Add part / Add charge" doesn't pollute the card
   j.parts           = (_editingJob?.parts   || []).filter(p => (p.name || '').trim())
                         .map(p => ({
@@ -4106,10 +4595,41 @@ async function saveJob(id) {
                           hsn: (p.hsn || '').trim(),
                           qty: Math.max(1, Number(p.qty || 1)),
                           unit_price: Number(p.unit_price || 0),
-                          disc_pct: Number(p.disc_pct || 0)
+                          disc_pct: Number(p.disc_pct || 0),
+                          inventory_id: p.inventory_id || ''
                         }));
   j.service_charges = (_editingJob?.charges || []).filter(c => (c.name || '').trim())
                         .map(c => ({ name: c.name.trim(), amount: Number(c.amount || 0) }));
+
+  // ── Inventory diff: deduct net usage (or refund removed parts) ──
+  // Every job part must already exist in inventory (the picker enforces this on
+  // add). For each part on the new list, deduct (new_qty − old_qty). If a part
+  // was removed entirely, refund its old qty. Negative on-hand isn't allowed —
+  // we'll cap at zero and warn the user if the request would oversell.
+  let inventoryChanged = false;
+  const inventoryWarnings = [];
+  const newByName = new Map(j.parts.map(p => [p.name.toLowerCase(), p.qty]));
+  const oldByName = new Map(prevParts.map(p => [p.name, p.qty]));
+  const allNames = new Set([...newByName.keys(), ...oldByName.keys()]);
+  for (const name of allNames) {
+    const delta = (newByName.get(name) || 0) - (oldByName.get(name) || 0);
+    if (!delta) continue;
+    const item = D.inventory.find(x => (x.name || '').toLowerCase() === name);
+    if (!item) {
+      // Picker should prevent this, but a stray legacy part might land here
+      inventoryWarnings.push(`"${name}" isn't in inventory — skipped stock adjustment`);
+      continue;
+    }
+    const onHand = Number(item.qty || 0);
+    if (delta > 0 && onHand < delta) {
+      inventoryWarnings.push(`Only ${onHand} of "${name}" in stock — using all of it (short by ${delta - onHand})`);
+      item.qty = 0;
+    } else {
+      item.qty = Math.max(0, onHand - delta);
+    }
+    item.updated_at = nowStr();
+    inventoryChanged = true;
+  }
   // Insurance fields — only persist values when the toggle is on; otherwise blank them.
   j.is_insurance = !!_editingJob?.is_insurance;
   if (j.is_insurance) {
@@ -4135,8 +4655,12 @@ async function saveJob(id) {
     _resyncInvoiceFromJob(linkedInv, j);
     writes.push(wsSave('invoices', D.invoices));
   }
+  if (inventoryChanged) writes.push(wsSave('inventory', D.inventory));
   closeModal();
-  showToast(`Job updated${linkedInv ? ' · invoice ' + linkedInv.number + ' refreshed' : ''}`, 'good');
+  showToast(`Job updated${linkedInv ? ' · invoice ' + linkedInv.number + ' refreshed' : ''}${inventoryChanged ? ' · inventory adjusted' : ''}`, 'good');
+  if (inventoryWarnings.length) {
+    setTimeout(() => customAlert(inventoryWarnings.join('\n\n'), { title: 'Stock notice' }), 200);
+  }
   renderJobs();
   await Promise.all(writes);
 }
@@ -4167,12 +4691,20 @@ function _resyncInvoiceFromJob(inv, j) {
 window.deleteJob = async function(id) {
   const j = D.jobs.find(x => x.id === id);
   if (!j) return;
-  if (!(await customConfirm(`Delete job card for ${j.plate}?\n\nThe booking stays — only the job card is removed.`, { title: 'Delete job card', okLabel: 'Delete' }))) return;
+  if (!(await customConfirm(`Delete job card for ${j.plate}?\n\nThe booking stays — only the job card is removed. Parts that were deducted will be refunded to inventory.`, { title: 'Delete job card', okLabel: 'Delete' }))) return;
+  // Refund the parts back to inventory so we don't lose stock when discarding a job
+  let invChanged = false;
+  for (const p of (j.parts || [])) {
+    const item = D.inventory.find(x => (x.name || '').toLowerCase() === (p.name || '').toLowerCase());
+    if (item) { item.qty = Number(item.qty || 0) + Number(p.qty || 0); item.updated_at = nowStr(); invChanged = true; }
+  }
   D.jobs = D.jobs.filter(x => x.id !== id);
-  showToast('Job deleted', 'good');
+  showToast('Job deleted' + (invChanged ? ' · parts refunded' : ''), 'good');
   audit('job-delete', `${j.plate || j.id} (${j.cust_name || '—'})`, { job_id: id });
   renderJobs();
-  await wsSave('jobs', D.jobs);
+  const writes = [wsSave('jobs', D.jobs)];
+  if (invChanged) writes.push(wsSave('inventory', D.inventory));
+  await Promise.all(writes);
 };
 
 // ══════════════════════════════════════════
@@ -4669,7 +5201,7 @@ const TAB_TITLES = {
   dashboard:'Dashboard', bookings:'Bookings', checkin:'Check-in', jobs:'Job Cards',
   bays:'Bays', queue:'Queue', customers:'Customers',
   workers:'Workers', inventory:'Inventory', parts:'Parts Requests', request_parts:'Request Parts',
-  invoices:'Invoices', reports:'Reports', timesheets:'Timesheets', audit:'Audit Log', settings:'Settings'
+  invoices:'Invoices', reports:'Reports', timesheets:'Timesheets', notifications:'Notifications', audit:'Audit Log', settings:'Settings'
 };
 
 // Override renderHeader for the new layout (workshop name in sidebar, worker pill in sidebar foot)
@@ -4696,6 +5228,8 @@ window.renderHeader = function() {
   if (dl) dl.textContent = `DASHBOARD — ${new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' }).toUpperCase()}`;
   // Subscription badge — shows plan, expiry hint, current usage vs limits
   _renderSubBadge();
+  // Notification pip on the sidebar
+  if (typeof _renderNotifBadge === 'function') _renderNotifBadge();
 };
 
 function _renderSubBadge() {
@@ -4744,8 +5278,10 @@ window.switchTab = function(tab) {
   if (tab === 'invoices')      renderInvoices();
   if (tab === 'reports')       renderReports();
   if (tab === 'audit')         renderAudit();
+  if (tab === 'notifications') renderNotifications();
   // Keep the subscription badge usage counts fresh after every nav
   if (typeof _renderSubBadge === 'function') _renderSubBadge();
+  if (typeof _renderNotifBadge === 'function') _renderNotifBadge();
   // Auto-close the mobile drawer after picking a tab
   closeSidebar();
 };
@@ -5467,7 +6003,7 @@ async function renderParts(force = false) {
       return `<tr>
         <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((r.requested_at||'').slice(0,16))}</td>
         <td class="k">${escapeHtml(r.requested_by || '—')}</td>
-        <td class="k">${escapeHtml(r.part_name || '—')}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
+        <td class="k">${_prItemsCell(r)}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
         <td>${escapeHtml(String(r.qty || 1))}</td>
         <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>` : '—'}</td>
         <td>${escapeHtml(r.urgency || 'Normal')}</td>
@@ -5507,7 +6043,7 @@ async function renderRequestParts(force = false) {
       const s = r.status || 'Pending';
       return `<tr>
         <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((r.requested_at||'').slice(0,16))}</td>
-        <td class="k">${escapeHtml(r.part_name || '—')}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
+        <td class="k">${_prItemsCell(r)}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
         <td>${escapeHtml(String(r.qty || 1))}</td>
         <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>` : '—'}</td>
         <td>${escapeHtml(r.urgency || 'Normal')}</td>
@@ -5523,16 +6059,24 @@ window.renderRequestParts = renderRequestParts;
 // Reuse the existing request form
 window.openRequestPartForm = function(prefill) { return openPartRequestForm(prefill); };
 
+// Scratchpad for the multi-item request form so the line rows survive re-renders
+let _editingPartReq = null;
+
 window.openPartRequestForm = function(prefill) {
   prefill = prefill || {};
   const activeJobs = D.jobs.filter(j => !['Delivered','Cancelled'].includes(j.status));
+  // Seed with one row (or carry over from prefill / existing request)
+  _editingPartReq = {
+    items: Array.isArray(prefill.items) && prefill.items.length
+      ? prefill.items.map(it => ({ name: it.name || '', qty: Math.max(1, Number(it.qty || 1)) }))
+      : prefill.part_name
+        ? [{ name: prefill.part_name, qty: prefill.qty || 1 }]   // legacy single-item prefill
+        : [{ name: '', qty: 1 }]
+  };
   openModal({
-    title: 'Request a part',
+    title: 'Request parts',
     body: `
-      <div class="f-row">
-        <div class="f-grp"><label>Part name <span class="req">*</span></label><input id="pf-name" type="text" value="${escapeHtml(prefill.part_name || '')}" placeholder="Brake pad set, oil filter…" required /></div>
-        <div class="f-grp"><label>Quantity</label><input id="pf-qty" type="number" min="1" step="1" value="${prefill.qty || 1}" /></div>
-      </div>
+      <datalist id="dlInvRequest">${(D.inventory || []).map(i => `<option value="${escapeHtml(i.name || '')}">`).join('')}</datalist>
       <div class="f-row">
         <div class="f-grp"><label>For job (optional)</label>
           <select id="pf-job"><option value="">— None / general stock —</option>
@@ -5541,26 +6085,65 @@ window.openPartRequestForm = function(prefill) {
         <div class="f-grp"><label>Urgency</label>
           <select id="pf-urg"><option>Low</option><option selected>Normal</option><option>High</option><option>Critical</option></select></div>
       </div>
-      <div class="f-row r1">
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--brd)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:14px">Items to request</div>
+          <button type="button" class="mini-btn" onclick="_prAddItem()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add item</button>
+        </div>
+        <div id="pf-items"></div>
+        <div style="font-size:11.5px;color:var(--faint);margin-top:6px">Tip: parts you've stocked before will autocomplete. New parts will be added to your inventory when the request is marked fulfilled.</div>
+      </div>
+      <div class="f-row r1" style="margin-top:14px">
         <div class="f-grp"><label>Notes</label><textarea id="pf-notes" placeholder="Specific brand, size, supplier preference…">${escapeHtml(prefill.notes || '')}</textarea></div>
       </div>
       <div class="f-err" id="pf-err"></div>`,
     saveLabel: 'Send request',
     onSave: () => savePartRequest()
   });
+  setTimeout(() => _prDrawItems(), 0);
 };
+
+window._prAddItem    = function()   { _editingPartReq.items.push({ name: '', qty: 1 }); _prDrawItems(); };
+window._prRemoveItem = function(i)  { _editingPartReq.items.splice(i, 1); _prDrawItems(); };
+function _prDrawItems() {
+  const wrap = document.getElementById('pf-items');
+  if (!wrap) return;
+  if (!_editingPartReq.items.length) {
+    wrap.innerHTML = `<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No items yet. Click "Add item" above.</div>`;
+    return;
+  }
+  wrap.innerHTML = `<div style="overflow:auto"><table class="list-tbl" style="min-width:480px">
+    <thead><tr><th>Part name</th><th style="width:100px">Qty</th><th style="width:40px"></th></tr></thead>
+    <tbody>${_editingPartReq.items.map((it, i) => `<tr>
+      <td><input list="dlInvRequest" type="text" data-pri="${i}" data-f="name" value="${escapeHtml(it.name)}" placeholder="Brake pad set, oil filter…" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13.5px" /></td>
+      <td><input type="number" min="1" step="1" data-pri="${i}" data-f="qty" value="${escapeHtml(String(it.qty))}" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13.5px" /></td>
+      <td><button type="button" class="mini-btn danger" onclick="_prRemoveItem(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
+    </tr>`).join('')}</tbody></table></div>`;
+  wrap.querySelectorAll('input[data-pri]').forEach(inp => inp.addEventListener('input', (ev) => {
+    const i = Number(ev.target.dataset.pri), f = ev.target.dataset.f;
+    _editingPartReq.items[i][f] = f === 'name' ? ev.target.value : (Number(ev.target.value) || 0);
+  }));
+}
 
 async function savePartRequest() {
   if (!currentWorker) throw new Error('You must be signed in as a worker');
-  const partName = document.getElementById('pf-name').value.trim();
-  if (!partName) throw new Error('Part name is required');
-  await loadAllData(true);
+  const items = (_editingPartReq?.items || [])
+    .filter(it => (it.name || '').trim() && Number(it.qty) > 0)
+    .map(it => ({ name: it.name.trim(), qty: Math.max(1, Number(it.qty)) }));
+  if (!items.length) throw new Error('Add at least one item with a name and quantity');
   const jobId = document.getElementById('pf-job').value || '';
   const job = jobId ? D.jobs.find(j => j.id === jobId) : null;
+  // Summary text used by list views + audit log
+  const summary = items.length === 1
+    ? `${items[0].name} × ${items[0].qty}`
+    : `${items[0].name} × ${items[0].qty} +${items.length - 1} more`;
   const req = {
     id: uid('preq'),
-    part_name: partName,
-    qty: Number(document.getElementById('pf-qty').value) || 1,
+    items,                                    // canonical multi-item store
+    part_name: items[0].name,                 // legacy single-name field for list views
+    qty: items.reduce((s, it) => s + it.qty, 0),
+    item_count: items.length,
+    summary,
     urgency: document.getElementById('pf-urg').value,
     notes: document.getElementById('pf-notes').value.trim(),
     job_id: jobId,
@@ -5571,25 +6154,80 @@ async function savePartRequest() {
     requested_at: nowStr()
   };
   D.parts_requests.unshift(req);
-  await wsSave('parts_requests', D.parts_requests);
   closeModal();
-  showToast('Part requested', 'good');
+  showToast(`Request sent · ${items.length} item${items.length === 1 ? '' : 's'}`, 'good');
+  audit('part-request', summary + (job ? ' for ' + job.plate : ''), { request_id: req.id });
   await _refreshActivePartsView();
+  await wsSave('parts_requests', D.parts_requests);
 }
 
 window.setPartStatus = async function(id, status) {
   if (!isAdminRole()) return showToast('Only managers can change request status', 'bad');
-  await loadAllData(true);
   const r = D.parts_requests.find(x => x.id === id);
   if (!r) return;
+  // ── On fulfilment, push each item into inventory ──
+  // Match by name (case-insensitive). Existing item → increment qty. New item →
+  // create a stub record so it shows up in the Inventory tab immediately and can
+  // be picked on a job card. Only runs once per request (we set r.stocked = true).
+  let stockSummary = '';
+  if (status === 'Received' && !r.stocked) {
+    const items = _prRequestItems(r);   // handles legacy single-item shape too
+    const adds = [];
+    for (const it of items) {
+      const name = (it.name || '').trim();
+      if (!name) continue;
+      const qty = Math.max(1, Number(it.qty || 1));
+      const existing = D.inventory.find(x => (x.name || '').toLowerCase() === name.toLowerCase());
+      if (existing) {
+        existing.qty = Math.max(0, Number(existing.qty || 0)) + qty;
+        existing.updated_at = nowStr();
+        adds.push(`${name} +${qty}`);
+      } else {
+        D.inventory.push({
+          id: uid('inv'), name, qty, unit: 'pcs', category: '',
+          sell_price: 0, cost_price: 0, hsn: '',
+          low_stock_threshold: 0, location: '', supplier: '', barcode: '',
+          created_at: nowStr(), added_via: 'parts-request', source_request_id: r.id
+        });
+        adds.push(`${name} (new)`);
+      }
+    }
+    r.stocked = true;
+    stockSummary = adds.length ? ` · stocked ${adds.length} item${adds.length === 1 ? '' : 's'}` : '';
+  }
   r.status = status;
   r.updated_at = nowStr();
   r.updated_by = currentWorker?.name || '';
-  await wsSave('parts_requests', D.parts_requests);
-  showToast(`Marked ${status}`, 'good');
-  audit('part-' + status.toLowerCase(), `"${r.part_name}" × ${r.qty || 1}${r.requested_by ? ' for ' + r.requested_by : ''}`, { request_id: id });
+  const writes = [wsSave('parts_requests', D.parts_requests)];
+  if (status === 'Received') writes.push(wsSave('inventory', D.inventory));
+  showToast(`Marked ${status}${stockSummary}`, 'good');
+  audit('part-' + status.toLowerCase(), (r.summary || r.part_name || '—') + (r.requested_by ? ' for ' + r.requested_by : '') + stockSummary, { request_id: id });
   await _refreshActivePartsView();
+  await Promise.all(writes);
 };
+
+// Normalises the legacy single-item parts request shape into the new items[] form.
+function _prRequestItems(r) {
+  if (Array.isArray(r.items) && r.items.length) return r.items;
+  if (r.part_name) return [{ name: r.part_name, qty: Number(r.qty || 1) }];
+  return [];
+}
+window._prRequestItems = _prRequestItems;
+
+// Renders the "Part" column cell for a request — first item + a "+N more" pill
+// that hover-titles the full list. Falls back to plain name for legacy rows.
+function _prItemsCell(r) {
+  const items = _prRequestItems(r);
+  if (!items.length) return '—';
+  const first = items[0];
+  const more = items.length - 1;
+  const tooltip = items.map(it => `${it.name} × ${it.qty}`).join(' · ');
+  return `${escapeHtml(first.name)} <span style="color:var(--faint);font-size:11.5px">× ${first.qty}</span>` +
+    (more > 0
+      ? ` <span title="${escapeHtml(tooltip)}" style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:100px;background:rgba(255,179,71,.16);color:var(--acc2);font-size:10.5px;font-weight:700">+${more} more</span>`
+      : '');
+}
+window._prItemsCell = _prItemsCell;
 
 window.deletePartRequest = async function(id) {
   const r = D.parts_requests.find(x => x.id === id);
@@ -5743,6 +6381,7 @@ const ALL_TABS = [
   { id:'invoices',      label:'Invoices' },
   { id:'reports',     label:'Reports' },
   { id:'timesheets',  label:'Timesheets' },
+  { id:'notifications', label:'Notifications' },
   { id:'audit',       label:'Audit Log' },
   { id:'settings',    label:'Settings' }
 ];
@@ -6965,18 +7604,32 @@ function _invoiceHTMLFromRecord(inv) {
         const da = +(gross * dp / 100).toFixed(2);
         const taxable = +(gross - da).toFixed(2);
         const tx = +(taxable * (inv.tax_pct || 0) / 100).toFixed(2);
-        return `<tr>
-          <td>${i + 1}</td><td>${escapeHtml(l.name)}</td><td>${escapeHtml(l.hsn || '')}</td>
+        // Stage-3 approval state — strike through rejected lines + add a tag so
+        // the printed copy reflects exactly what the client decided.
+        const ap = l.approval || 'pending';
+        const decoration = ap === 'rejected' ? 'text-decoration:line-through;color:#888' : '';
+        const tag = ap === 'approved' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#16a34a;background:#e6f7ef;border-radius:3px">APPROVED</span>'
+                  : ap === 'rejected' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#dc2626;background:#fee2e2;border-radius:3px">REJECTED</span>'
+                  : '';
+        return `<tr style="${decoration}">
+          <td>${i + 1}</td><td>${escapeHtml(l.name)}${tag}</td><td>${escapeHtml(l.hsn || '')}</td>
           <td class="right">${qty}</td><td class="right">${fmt(unit)}</td>
           <td class="right">${dp ? dp + '%' : '—'}</td>
           <td class="right">${fmt(taxable)}</td><td class="right">${fmt(taxable + tx)}</td>
         </tr>`;
       }).join('')}
-      ${(inv.charges || []).map(ch => `<tr>
-        <td></td><td>${escapeHtml(ch.name)}</td><td></td>
-        <td class="right">—</td><td class="right">—</td><td class="right">—</td><td class="right">—</td>
-        <td class="right">${fmt(ch.amount)}</td>
-      </tr>`).join('')}
+      ${(inv.charges || []).map(ch => {
+        const ap = ch.approval || 'pending';
+        const decoration = ap === 'rejected' ? 'text-decoration:line-through;color:#888' : '';
+        const tag = ap === 'approved' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#16a34a;background:#e6f7ef;border-radius:3px">APPROVED</span>'
+                  : ap === 'rejected' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#dc2626;background:#fee2e2;border-radius:3px">REJECTED</span>'
+                  : '';
+        return `<tr style="${decoration}">
+          <td></td><td>${escapeHtml(ch.name)}${tag}</td><td></td>
+          <td class="right">—</td><td class="right">—</td><td class="right">—</td><td class="right">—</td>
+          <td class="right">${fmt(ch.amount)}</td>
+        </tr>`;
+      }).join('')}
     </tbody>
   </table>
   ${(() => {
@@ -7076,6 +7729,103 @@ window.audit = function(kind, detail, meta) {
   return entry;
 };
 
+// ══════════════════════════════════════════════════════════════════════════
+//  NOTIFICATIONS — workshop-wide feed with per-worker read tracking
+//  Trigger: notify({ kind, message, target, job_id?, meta? })
+//  Target shapes:
+//    { role: 'floor_manager' }        — broadcast to that role (+ manager + owner)
+//    { role: 'parts_dept' }           — broadcast to manager + owner
+//    { role: 'service_advisor' }      — broadcast to receptionist + manager + owner
+//    { worker_id: 'mech-xxx' }        — specific worker (use for technician / washing)
+//    { worker_name: 'Aslam' }         — by display name (when ID isn't known)
+//    { broadcast: true }              — everyone sees it
+// ══════════════════════════════════════════════════════════════════════════
+window.notify = function({ kind, message, target, job_id, meta }) {
+  if (!Array.isArray(D.notifications)) D.notifications = [];
+  const note = {
+    id: uid('notif'),
+    at: nowStr(),
+    kind: kind || 'event',
+    message: message || '',
+    target: target || { broadcast: true },
+    job_id: job_id || '',
+    meta: meta || null,
+    by: currentWorker?.name || 'system',
+    by_role: currentWorker?.role || '',
+    read_by: []
+  };
+  D.notifications.unshift(note);
+  if (D.notifications.length > 500) D.notifications.length = 500;
+  wsSave('notifications', D.notifications).catch(err => console.warn('[notify] save failed:', err));
+  _renderNotifBadge();
+  return note;
+};
+
+// Does this notification apply to worker `w`?
+function notifFor(note, w) {
+  if (!w) return false;
+  const t = note.target || {};
+  if (t.broadcast) return true;
+  if (t.worker_id && t.worker_id === w.id) return true;
+  if (t.worker_name && (t.worker_name || '').toLowerCase() === (w.name || '').toLowerCase()) return true;
+  if (t.role) {
+    const r = (w.role || '').toLowerCase();
+    if (t.role === r) return true;
+    // Role widening — admins see role-targeted notifs too
+    if (r === 'owner' || r === 'manager') return true;
+    if (t.role === 'service_advisor' && r === 'receptionist') return true;
+    if (t.role === 'floor_manager' && r === 'floor_manager') return true;
+  }
+  return false;
+}
+function notifReadByMe(note, w) {
+  return !!w && (note.read_by || []).includes(w.id);
+}
+function unreadNotifCount() {
+  if (!currentWorker || !Array.isArray(D.notifications)) return 0;
+  return D.notifications.reduce((s, n) => s + (notifFor(n, currentWorker) && !notifReadByMe(n, currentWorker) ? 1 : 0), 0);
+}
+window.unreadNotifCount = unreadNotifCount;
+window.notifFor = notifFor;
+window.notifReadByMe = notifReadByMe;
+
+// Small badge on the Notifications sidebar entry — refreshed on every render
+function _renderNotifBadge() {
+  const btn = document.querySelector('.sidebar .snav[data-tab="notifications"]');
+  if (!btn) return;
+  let badge = btn.querySelector('.notif-pip');
+  const n = unreadNotifCount();
+  if (n > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'notif-pip';
+      badge.style.cssText = 'margin-left:auto;padding:1px 7px;border-radius:100px;background:var(--red);color:#fff;font-size:10.5px;font-weight:800;line-height:1.6';
+      btn.appendChild(badge);
+    }
+    badge.textContent = n > 99 ? '99+' : String(n);
+  } else if (badge) {
+    badge.remove();
+  }
+}
+window._renderNotifBadge = _renderNotifBadge;
+
+// Mark every "for me" notif as read when the user opens the tab
+async function markMyNotifsRead() {
+  if (!currentWorker) return;
+  let changed = false;
+  for (const n of (D.notifications || [])) {
+    if (notifFor(n, currentWorker) && !notifReadByMe(n, currentWorker)) {
+      n.read_by = (n.read_by || []).concat(currentWorker.id);
+      changed = true;
+    }
+  }
+  if (changed) {
+    await wsSave('notifications', D.notifications);
+    _renderNotifBadge();
+  }
+}
+window.markMyNotifsRead = markMyNotifsRead;
+
 async function renderAudit(force = false) {
   await loadAllData(force);
   const list = (D.audit || []).slice();
@@ -7120,6 +7870,57 @@ function _auditKindClass(kind) {
   if (k.includes('checkin') || k.includes('create')) return 's-progress';
   return 's-scheduled';
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  NOTIFICATIONS RENDER — list view scoped to the current worker
+// ══════════════════════════════════════════════════════════════════════════
+async function renderNotifications(force = false) {
+  await loadAllData(force);
+  const filter = document.getElementById('ntFilter')?.value || 'unread';
+  const all = (D.notifications || []).slice();
+  let shown = all;
+  if (filter === 'unread') shown = shown.filter(n => notifFor(n, currentWorker) && !notifReadByMe(n, currentWorker));
+  else if (filter === 'me') shown = shown.filter(n => notifFor(n, currentWorker));
+  document.getElementById('ntCrumb').textContent =
+    `${shown.length} of ${all.length} notification${all.length === 1 ? '' : 's'}` +
+    (filter !== 'all' ? ` · viewing as ${currentWorker?.name || '—'} (${currentWorker?.role || '—'})` : '');
+  const wrap = document.getElementById('ntList');
+  if (!shown.length) {
+    wrap.innerHTML = `<div class="placeholder"><h3>${filter === 'unread' ? "You're all caught up" : 'No notifications yet'}</h3><p>${filter === 'unread' ? 'Nothing unread for you right now.' : 'Notifications fire automatically as the workshop flow advances (job created, technician assigned, estimate sent, etc.)'}</p></div>`;
+    return;
+  }
+  // Render as a card stack — newest first
+  wrap.innerHTML = shown.map(n => {
+    const unread = notifFor(n, currentWorker) && !notifReadByMe(n, currentWorker);
+    const target = n.target || {};
+    const targetLabel = target.worker_name ? `→ ${target.worker_name}`
+                      : target.worker_id   ? `→ worker ${target.worker_id.slice(0,8)}…`
+                      : target.role        ? `→ ${target.role.replace('_',' ')}`
+                      : '→ everyone';
+    return `<div style="display:flex;gap:12px;align-items:flex-start;padding:13px 16px;background:${unread ? 'rgba(99,159,255,.06)' : 'var(--surf)'};border:1px solid ${unread ? 'rgba(99,159,255,.30)' : 'var(--brd)'};border-radius:11px;margin-bottom:8px;border-left:4px solid ${unread ? 'var(--blue)' : 'var(--brd2)'}">
+      <div style="flex:none;width:32px;height:32px;border-radius:8px;background:var(--bg2);display:grid;place-items:center;color:${unread ? 'var(--blue)' : 'var(--faint)'}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" width="16" height="16"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--txt)">${escapeHtml(n.kind.replace(/-/g,' '))}</div>
+          <div style="font-size:11px;color:var(--faint);white-space:nowrap;font-family:'Courier New',monospace">${escapeHtml((n.at || '').slice(0,16))}</div>
+        </div>
+        <div style="font-size:13.5px;color:var(--dim);margin-top:3px;line-height:1.45">${escapeHtml(n.message)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px;flex-wrap:wrap">
+          <div style="font-size:11.5px;color:var(--faint)">
+            ${unread ? '<span style="color:var(--blue);font-weight:700">● NEW · </span>' : ''}
+            from <b style="color:var(--dim)">${escapeHtml(n.by || 'system')}</b>${n.by_role ? ` (${escapeHtml(n.by_role)})` : ''} ${escapeHtml(targetLabel)}
+          </div>
+          ${n.job_id ? `<button class="mini-btn" onclick="openJobForm('${escapeHtml(n.job_id)}')">Open job</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  // Mark "for me" notifs as read whenever we open the tab so the badge clears
+  markMyNotifsRead().catch(() => {});
+}
+window.renderNotifications = renderNotifications;
 
 // ══════════════════════════════════════════════════════════════════════════
 //  REPORTS — revenue, jobs by status, top mechanics, outstanding invoices,
