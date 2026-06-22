@@ -11,6 +11,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <style>
 /* ── tokens ── (matches main site + tablet) */
 :root{
@@ -1237,6 +1238,10 @@ const FB_CONFIG = {
 firebase.initializeApp(FB_CONFIG);
 const fbAuth = firebase.auth();
 const fbDb   = firebase.firestore();
+// Firebase Storage — used for job-card photo uploads (one file per photo,
+// kept under users/{uid}/job-photos/{photo_id}). Storage rules must allow
+// the signed-in user to read+write their own folder.
+const fbStorage = (typeof firebase.storage === 'function') ? firebase.storage() : null;
 fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
 // Enable IndexedDB-backed offline cache. After this, reads come from the local
 // cache (instant) and writes complete locally first then sync to the server in
@@ -1791,6 +1796,8 @@ const DEFAULT_ROLE_PERMS = {
   owner:         ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','notifications','audit','settings'],
   manager:       ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','request_parts','invoices','reports','timesheets','notifications','audit'],
   floor_manager: ['dashboard','checkin','jobs','queue','customers','bays','inventory','parts','request_parts','notifications','timesheets'],
+  // Parts department — owns the parts-request workflow (approve / order / fulfil → stocks the item) and inventory.
+  parts_dept:    ['dashboard','inventory','parts','request_parts','notifications','timesheets'],
   receptionist:  ['dashboard','bookings','checkin','queue','customers','invoices','notifications','timesheets'],
   mechanic:      ['dashboard','checkin','jobs','queue','bays','inventory','request_parts','notifications','timesheets']
 };
@@ -1979,6 +1986,86 @@ async function wsSave(name, items) {
   }
 }
 window.wsRef = wsRef; window.wsCol = wsCol; window.wsLoad = wsLoad; window.wsSave = wsSave;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  JOB-CARD PHOTOS — per-photo Firestore documents
+//  Stored at users/{uid}/job_photos/{photoId}. Each doc holds ONE photo's
+//  data URL so we never blow the 1MB-per-doc Firestore limit. The job's
+//  photos[] array only stores light metadata (id + label).
+//
+//  Why per-photo docs instead of Firebase Storage: Storage isn't enabled on
+//  this project yet and requires extra setup. This works out of the box and
+//  is fine for workshops with realistic photo volumes (resized to ~150KB each).
+// ══════════════════════════════════════════════════════════════════════════
+const PHOTO_LABELS = ['Before','After','Damage','Parts replaced','Insurance','Reference','Other'];
+
+// Resize an uploaded image to fit within `maxDim` px on the longest side and
+// re-encode as JPEG (or PNG if it has transparency). Returns a data URL.
+function _resizePhoto(file, maxDim = 1280) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = reject;
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        // JPEG is much smaller than PNG for photos; quality 0.78 is the sweet
+        // spot for sub-150KB at 1280px on most cameras.
+        const isPhoto = !/png|webp/i.test(file.type);
+        if (isPhoto) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL(isPhoto ? 'image/jpeg' : 'image/png', 0.78));
+      };
+      img.onerror = reject;
+      img.src = r.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+
+// Upload a single photo for a job. Stores the data URL + metadata at
+// users/{uid}/job_photos/{photoId}. Returns the new photo's metadata (id,
+// label, uploaded_at, uploaded_by) — the data URL stays in Firestore.
+async function uploadJobPhoto(jobId, file, label) {
+  if (!file)  throw new Error('No file selected');
+  if (file.size > 8 * 1024 * 1024) throw new Error('Photo too large (max 8 MB before resize)');
+  const data = await _resizePhoto(file, 1280);
+  const meta = {
+    id: uid('photo'),
+    job_id: jobId,
+    label: (label || 'Other').trim() || 'Other',
+    uploaded_at: nowStr(),
+    uploaded_by: currentWorker?.name || ''
+  };
+  await wsCol('job_photos').doc(meta.id).set({ ...meta, data });
+  return meta;
+}
+window.uploadJobPhoto = uploadJobPhoto;
+
+// Fetch every photo doc for a given job. Returns an array of full photo records
+// (including the data URL ready to use in <img src>).
+async function loadJobPhotos(jobId) {
+  if (!jobId) return [];
+  try {
+    const snap = await wsCol('job_photos').where('job_id', '==', jobId).get();
+    return snap.docs.map(d => d.data()).sort((a, b) => (a.uploaded_at || '').localeCompare(b.uploaded_at || ''));
+  } catch (e) {
+    console.warn('[loadJobPhotos]', e);
+    return [];
+  }
+}
+window.loadJobPhotos = loadJobPhotos;
+
+async function removeJobPhoto(photoId) {
+  if (!photoId) return;
+  try { await wsCol('job_photos').doc(photoId).delete(); }
+  catch (e) { console.warn('[removeJobPhoto]', e); throw e; }
+}
+window.removeJobPhoto = removeJobPhoto;
 
 // ══════════════════════════════════════════
 //  SHARED WORKSHOP DATA (used by every tab from here on)
@@ -2411,84 +2498,431 @@ window.validateGSTIN = validateGSTIN;
 //  D.vehicleDB (Firestore-backed at users/{uid}/vehicleDB/data) so workshops
 //  can extend it themselves via _vehicleDBAdd().
 // ══════════════════════════════════════════════════════════════════════════
+// Comprehensive Indian-market vehicle catalogue. Includes current models,
+// discontinued models still on roads, and luxury / exotic brands a workshop
+// may service. Workshops can extend or override via D.vehicleDB.
 const VEHICLE_DB_SEED = {
+  // ───── MARUTI SUZUKI (largest market share) ─────
   'Maruti Suzuki': {
-    'Swift':       { from: 2005, variants: ['LXi','VXi','ZXi','ZXi+','LDi','VDi','ZDi'] },
-    'Baleno':      { from: 2015, variants: ['Sigma','Delta','Zeta','Alpha'] },
-    'Dzire':       { from: 2008, variants: ['LXi','VXi','ZXi','ZXi+'] },
-    'Wagon R':     { from: 1999, variants: ['LXi','VXi','ZXi'] },
-    'Alto':        { from: 2000, variants: ['Std','LXi','VXi','VXi+'] },
-    'Brezza':      { from: 2016, variants: ['LXi','VXi','ZXi','ZXi+'] },
-    'Ertiga':      { from: 2012, variants: ['LXi','VXi','ZXi','ZXi+'] },
-    'Ciaz':        { from: 2014, variants: ['Sigma','Delta','Zeta','Alpha'] },
-    'Celerio':     { from: 2014, variants: ['LXi','VXi','ZXi','ZXi+'] },
-    'Eeco':        { from: 2010, variants: ['5-Str','7-Str','Cargo','Ambulance'] },
-    'XL6':         { from: 2019, variants: ['Zeta','Alpha','Alpha+'] },
-    'Grand Vitara':{ from: 2022, variants: ['Sigma','Delta','Zeta','Alpha'] },
-    'Jimny':       { from: 2023, variants: ['Zeta','Alpha'] }
+    'Alto 800':           { from: 2012, variants: ['Std','LX','LXi','VXi'] },
+    'Alto K10':           { from: 2014, variants: ['Std','LXi','VXi','VXi+'] },
+    'S-Presso':           { from: 2019, variants: ['Std','LXi','VXi','VXi+','VXi(O)'] },
+    'Wagon R':            { from: 1999, variants: ['LXi','VXi','ZXi','ZXi+','LXi CNG','VXi CNG'] },
+    'Celerio':            { from: 2014, variants: ['LXi','VXi','ZXi','ZXi+'] },
+    'Ignis':              { from: 2017, variants: ['Sigma','Delta','Zeta','Alpha'] },
+    'Swift':              { from: 2005, variants: ['LXi','VXi','ZXi','ZXi+','LDi','VDi','ZDi'] },
+    'Dzire':              { from: 2008, variants: ['LXi','VXi','ZXi','ZXi+','LDi','VDi','ZDi'] },
+    'Baleno':             { from: 2015, variants: ['Sigma','Delta','Zeta','Alpha','RS'] },
+    'Brezza':             { from: 2016, variants: ['LXi','VXi','ZXi','ZXi+'] },
+    'Fronx':              { from: 2023, variants: ['Sigma','Delta','Delta+','Zeta','Alpha'] },
+    'Grand Vitara':       { from: 2022, variants: ['Sigma','Delta','Zeta','Alpha','Alpha+'] },
+    'Ertiga':             { from: 2012, variants: ['LXi','VXi','ZXi','ZXi+','LXi CNG','VXi CNG'] },
+    'XL6':                { from: 2019, variants: ['Zeta','Alpha','Alpha+'] },
+    'Invicto':            { from: 2023, variants: ['Zeta+','Alpha+'] },
+    'Ciaz':               { from: 2014, variants: ['Sigma','Delta','Zeta','Alpha'] },
+    'Eeco':               { from: 2010, variants: ['5-Seater','7-Seater','Cargo','Ambulance','CNG'] },
+    'Jimny':              { from: 2023, variants: ['Zeta','Alpha'] },
+    // discontinued but still on roads
+    '800':                { from: 1983, variants: ['Std','AC','DX'] },
+    'Esteem':             { from: 1994, variants: ['LX','VX','VXi'] },
+    'Zen':                { from: 1993, variants: ['Std','LX','VX','D'] },
+    'Zen Estilo':         { from: 2006, variants: ['LX','LXi','VXi'] },
+    'Versa':              { from: 2001, variants: ['Std','DX'] },
+    'A-Star':             { from: 2008, variants: ['Lx','VXi','ZXi'] },
+    'Ritz':               { from: 2009, variants: ['Lxi','VXi','ZXi','Ldi','VDi'] },
+    'SX4':                { from: 2007, variants: ['Vxi','Zxi'] },
+    'Kizashi':            { from: 2011, variants: ['CVT','MT'] },
+    'Gypsy':              { from: 1985, variants: ['Soft Top','Hard Top','MG410','MG413'] },
+    'Omni':               { from: 1984, variants: ['Std','Cargo','Ambulance'] }
   },
+
+  // ───── HYUNDAI ─────
   'Hyundai': {
-    'i10':         { from: 2007, variants: ['Era','Magna','Sportz','Asta'] },
-    'i20':         { from: 2008, variants: ['Magna','Sportz','Asta','Asta(O)','N Line'] },
-    'Grand i10 Nios':{ from: 2019, variants: ['Magna','Sportz','Asta'] },
-    'Verna':       { from: 2006, variants: ['E','S','SX','SX(O)'] },
-    'Creta':       { from: 2015, variants: ['E','EX','S','SX','SX(O)','N Line'] },
-    'Venue':       { from: 2019, variants: ['E','S','SX','SX(O)','N Line'] },
-    'Aura':        { from: 2020, variants: ['E','S','SX','SX(O)'] },
-    'Alcazar':     { from: 2021, variants: ['Prestige','Platinum','Signature'] },
-    'Tucson':      { from: 2005, variants: ['GL','GLS','Signature'] },
-    'Exter':       { from: 2023, variants: ['EX','S','SX'] }
+    'Santro':             { from: 1998, variants: ['Era','Magna','Sportz','Asta'] },
+    'Eon':                { from: 2011, variants: ['Era','Magna','Sportz','Era+'] },
+    'i10':                { from: 2007, variants: ['Era','Magna','Sportz','Asta'] },
+    'Grand i10':          { from: 2013, variants: ['Era','Magna','Sportz','Asta'] },
+    'Grand i10 Nios':     { from: 2019, variants: ['Era','Magna','Sportz','Asta'] },
+    'i20':                { from: 2008, variants: ['Magna','Sportz','Asta','Asta(O)'] },
+    'i20 N Line':         { from: 2021, variants: ['N6','N8'] },
+    'Aura':               { from: 2020, variants: ['E','S','SX','SX(O)'] },
+    'Xcent':              { from: 2014, variants: ['Base','S','SX','SX(O)'] },
+    'Verna':              { from: 2006, variants: ['E','EX','S','SX','SX(O)'] },
+    'Elantra':            { from: 2004, variants: ['SX','SX(O)'] },
+    'Sonata':             { from: 2001, variants: ['Embera','Transform'] },
+    'Venue':              { from: 2019, variants: ['E','S','SX','SX(O)','S(O)'] },
+    'Venue N Line':       { from: 2022, variants: ['N6','N8'] },
+    'Exter':              { from: 2023, variants: ['EX','S','SX','SX(O)'] },
+    'Creta':              { from: 2015, variants: ['E','EX','S','SX','SX(O)'] },
+    'Creta N Line':       { from: 2023, variants: ['N8','N10'] },
+    'Alcazar':            { from: 2021, variants: ['Prestige','Platinum','Signature'] },
+    'Tucson':             { from: 2005, variants: ['GL','GLS','Signature'] },
+    'Kona Electric':      { from: 2019, variants: ['Premium','Premium Dual Tone'] },
+    'Ioniq 5':            { from: 2023, variants: ['72.6 kWh'] },
+    'Getz':               { from: 2004, variants: ['GLE','GLS','GLX','Prime'] },
+    'Accent':             { from: 1999, variants: ['CRDi','GLE','GLS','GVS','VIVA'] }
   },
+
+  // ───── TATA ─────
   'Tata': {
-    'Nexon':       { from: 2017, variants: ['Smart','Pure','Creative','Fearless'] },
-    'Punch':       { from: 2021, variants: ['Pure','Adventure','Accomplished','Creative'] },
-    'Tiago':       { from: 2016, variants: ['XE','XM','XT','XZ','XZ+'] },
-    'Tigor':       { from: 2017, variants: ['XE','XM','XT','XZ','XZ+'] },
-    'Altroz':      { from: 2020, variants: ['XE','XM','XT','XZ','XZ+'] },
-    'Harrier':     { from: 2019, variants: ['Smart','Pure','Adventure','Fearless'] },
-    'Safari':      { from: 2021, variants: ['Smart','Pure','Adventure','Accomplished'] },
-    'Curvv':       { from: 2024, variants: ['Smart','Pure','Creative','Accomplished'] }
+    'Tiago':              { from: 2016, variants: ['XE','XM','XT','XZ','XZ+','XZA'] },
+    'Tiago EV':           { from: 2022, variants: ['XE','XT','XZ+','XZ+ LR'] },
+    'Tigor':              { from: 2017, variants: ['XE','XM','XT','XZ','XZ+'] },
+    'Tigor EV':           { from: 2021, variants: ['XE','XM','XZ+'] },
+    'Altroz':             { from: 2020, variants: ['XE','XM','XT','XZ','XZ+','XZ+ LUX'] },
+    'Nexon':              { from: 2017, variants: ['Smart','Pure','Creative','Fearless','Smart+'] },
+    'Nexon EV':           { from: 2020, variants: ['Prime','Max','Empowered'] },
+    'Punch':              { from: 2021, variants: ['Pure','Adventure','Accomplished','Creative','Camo'] },
+    'Punch EV':           { from: 2024, variants: ['Smart','Adventure','Empowered'] },
+    'Curvv':              { from: 2024, variants: ['Smart','Pure','Creative','Accomplished'] },
+    'Curvv EV':           { from: 2024, variants: ['Creative','Accomplished','Empowered'] },
+    'Harrier':            { from: 2019, variants: ['Smart','Pure','Adventure','Fearless','Fearless+'] },
+    'Harrier EV':         { from: 2025, variants: ['Adventure','Fearless'] },
+    'Safari':             { from: 2021, variants: ['Smart','Pure','Adventure','Accomplished'] },
+    'Indica':             { from: 1998, variants: ['eV2','Vista','LE','LS','LX'] },
+    'Indigo':             { from: 2002, variants: ['LX','LS','LE','GLX','GLS'] },
+    'Manza':              { from: 2009, variants: ['Aqua','Aura','Aura+','Elan'] },
+    'Bolt':               { from: 2014, variants: ['XE','XM','XT','XMS'] },
+    'Zest':               { from: 2014, variants: ['XE','XM','XMS','XT'] },
+    'Hexa':               { from: 2017, variants: ['XE','XM','XT','XTA'] },
+    'Aria':               { from: 2010, variants: ['Pleasure','Pride','Prestige','Pure'] },
+    'Sumo':               { from: 1994, variants: ['Gold','Grande','Spacio','Victa'] },
+    'Sumo Gold':          { from: 2011, variants: ['EX','LX','GX','CX'] }
   },
+
+  // ───── MAHINDRA ─────
   'Mahindra': {
-    'Scorpio':     { from: 2002, variants: ['S','S3','S5','S7','S11','Z2','Z4','Z6','Z8'] },
-    'Scorpio-N':   { from: 2022, variants: ['Z2','Z4','Z6','Z8','Z8L'] },
-    'XUV300':      { from: 2019, variants: ['W2','W4','W6','W8','W8(O)'] },
-    'XUV700':      { from: 2021, variants: ['MX','AX3','AX5','AX7','AX7L'] },
-    'XUV400':      { from: 2023, variants: ['EC Pro','EL Pro'] },
-    'Thar':        { from: 2010, variants: ['AX','AX(O)','LX'] },
-    'Bolero':      { from: 2000, variants: ['B2','B4','B6','B6(O)'] },
-    'Marazzo':     { from: 2018, variants: ['M2','M4','M6','M8'] }
+    'KUV100 NXT':         { from: 2017, variants: ['K2','K4','K6','K8'] },
+    'XUV300':             { from: 2019, variants: ['W2','W4','W6','W8','W8(O)'] },
+    'XUV3XO':             { from: 2024, variants: ['MX1','MX2','MX3','AX5','AX7','AX7L'] },
+    'XUV400 EV':          { from: 2023, variants: ['EC Pro','EL Pro'] },
+    'XUV700':             { from: 2021, variants: ['MX','AX3','AX5','AX7','AX7L'] },
+    'Bolero':             { from: 2000, variants: ['B2','B4','B6','B6(O)','SLX'] },
+    'Bolero Neo':         { from: 2021, variants: ['N4','N8','N10','N10(O)'] },
+    'Bolero Pickup':      { from: 2003, variants: ['City','Maxi Truck','Plus'] },
+    'Scorpio Classic':    { from: 2022, variants: ['S','S3','S5','S7','S11'] },
+    'Scorpio-N':          { from: 2022, variants: ['Z2','Z4','Z6','Z8','Z8L'] },
+    'Thar':               { from: 2010, variants: ['AX','AX(O)','LX'] },
+    'Thar Roxx':          { from: 2024, variants: ['MX1','MX3','AX3L','AX5L','AX7L'] },
+    'Marazzo':            { from: 2018, variants: ['M2','M4','M6','M8'] },
+    'BE 6':               { from: 2025, variants: ['Pack One','Pack Two','Pack Three'] },
+    'XEV 9e':             { from: 2025, variants: ['Pack One','Pack Two','Pack Three'] },
+    // discontinued but still on roads
+    'Verito':             { from: 2011, variants: ['D2','D4','D6'] },
+    'Verito Vibe':        { from: 2013, variants: ['D2','D4','D6'] },
+    'Quanto':             { from: 2012, variants: ['C2','C4','C6','C8'] },
+    'NuvoSport':          { from: 2016, variants: ['N4','N6','N8'] },
+    'TUV300':             { from: 2015, variants: ['T4','T6','T8','T10'] },
+    'XUV500':             { from: 2011, variants: ['W4','W6','W8','W10','W11'] },
+    'Logan':              { from: 2007, variants: ['DLE','DLS','DLX','GLX'] }
   },
+
+  // ───── TOYOTA ─────
   'Toyota': {
-    'Innova Crysta':{ from: 2016, variants: ['GX','VX','ZX'] },
-    'Innova Hycross':{ from: 2022, variants: ['GX','VX','ZX'] },
-    'Fortuner':    { from: 2009, variants: ['4x2','4x4','Legender','GR-S'] },
-    'Glanza':      { from: 2019, variants: ['E','S','G','V'] },
-    'Urban Cruiser Hyryder':{ from: 2022, variants: ['E','S','G','V'] },
-    'Camry':       { from: 2002, variants: ['Hybrid'] },
-    'Vellfire':    { from: 2020, variants: ['Executive Lounge'] }
+    'Glanza':             { from: 2019, variants: ['E','S','G','V'] },
+    'Urban Cruiser Hyryder': { from: 2022, variants: ['E','S','G','V'] },
+    'Urban Cruiser Taisor': { from: 2024, variants: ['E','S','G','V'] },
+    'Rumion':             { from: 2023, variants: ['S','G','V'] },
+    'Innova Crysta':      { from: 2016, variants: ['GX','VX','ZX'] },
+    'Innova Hycross':     { from: 2022, variants: ['GX','VX','ZX'] },
+    'Fortuner':           { from: 2009, variants: ['4x2','4x4','Legender','GR-S'] },
+    'Hilux':              { from: 2022, variants: ['Standard','High'] },
+    'Land Cruiser':       { from: 1980, variants: ['LC300','LC200','LC Prado','LC76'] },
+    'Camry':              { from: 2002, variants: ['Hybrid'] },
+    'Vellfire':           { from: 2020, variants: ['Executive Lounge'] },
+    // older models still around
+    'Etios':              { from: 2010, variants: ['J','G','GD','V','VD'] },
+    'Etios Liva':         { from: 2011, variants: ['J','G','GD','V','VD'] },
+    'Yaris':              { from: 2018, variants: ['J','G','V','VX'] },
+    'Corolla Altis':      { from: 2003, variants: ['G','GL','J','J(S)','VL'] },
+    'Innova':             { from: 2005, variants: ['2.5 E','2.5 G','2.5 V','2.5 Z'] }
   },
+
+  // ───── HONDA ─────
   'Honda': {
-    'City':        { from: 1998, variants: ['SV','V','VX','ZX'] },
-    'Amaze':       { from: 2013, variants: ['E','S','V','VX'] },
-    'Elevate':     { from: 2023, variants: ['SV','V','VX','ZX'] },
-    'WR-V':        { from: 2017, variants: ['SV','VX'] }
+    'Amaze':              { from: 2013, variants: ['E','S','V','VX'] },
+    'City':               { from: 1998, variants: ['SV','V','VX','ZX'] },
+    'City Hybrid':        { from: 2022, variants: ['ZX'] },
+    'Elevate':            { from: 2023, variants: ['SV','V','VX','ZX'] },
+    'WR-V':               { from: 2017, variants: ['SV','VX','Edge'] },
+    // older / discontinued
+    'Civic':              { from: 2006, variants: ['1.8 S','1.8 V','VTi','VTi-L','ZX'] },
+    'Jazz':               { from: 2009, variants: ['E','S','V','VX'] },
+    'BR-V':               { from: 2016, variants: ['E','S','V','VX'] },
+    'CR-V':               { from: 2003, variants: ['2.0 MT','2.4 AT','Diesel'] },
+    'Mobilio':            { from: 2014, variants: ['E','S','V','VX'] },
+    'Accord':             { from: 2001, variants: ['2.4 VTi','2.4 VTi-L','3.5 V6','Hybrid'] },
+    'Brio':               { from: 2011, variants: ['E','S','V','VX'] }
   },
+
+  // ───── KIA ─────
   'Kia': {
-    'Seltos':      { from: 2019, variants: ['HTE','HTK','HTK+','HTX','HTX+','GTX','GTX+'] },
-    'Sonet':       { from: 2020, variants: ['HTE','HTK','HTK+','HTX','HTX+','GTX','GTX+'] },
-    'Carens':      { from: 2022, variants: ['Premium','Prestige','Luxury','Luxury+'] },
-    'EV6':         { from: 2022, variants: ['GT Line'] }
+    'Sonet':              { from: 2020, variants: ['HTE','HTK','HTK+','HTX','HTX+','GTX+','X-Line'] },
+    'Seltos':             { from: 2019, variants: ['HTE','HTK','HTK+','HTX','HTX+','GTX','GTX+','X-Line'] },
+    'Carens':             { from: 2022, variants: ['Premium','Prestige','Prestige+','Luxury','Luxury+'] },
+    'EV6':                { from: 2022, variants: ['GT Line','GT Line AWD'] },
+    'EV9':                { from: 2024, variants: ['GT Line'] },
+    'Carnival':           { from: 2020, variants: ['Premium','Prestige','Limousine'] }
   },
-  'Renault': { 'Kwid':{from:2015,variants:['STD','RXE','RXL','RXT','Climber']}, 'Kiger':{from:2021,variants:['RXE','RXL','RXT','RXZ']}, 'Triber':{from:2019,variants:['RXE','RXL','RXT','RXZ']} },
-  'Skoda':   { 'Slavia':{from:2022,variants:['Active','Ambition','Style','Monte Carlo']}, 'Kushaq':{from:2021,variants:['Active','Ambition','Style','Monte Carlo']}, 'Kodiaq':{from:2017,variants:['Style','Sportline','L&K']}, 'Octavia':{from:2001,variants:['L&K']} },
-  'Volkswagen': { 'Polo':{from:2010,variants:['Trendline','Comfortline','Highline','GT TSI']}, 'Virtus':{from:2022,variants:['Comfortline','Highline','Topline','GT']}, 'Taigun':{from:2021,variants:['Comfortline','Highline','Topline','GT']} },
-  'MG':      { 'Hector':{from:2019,variants:['Style','Super','Smart','Sharp']}, 'Astor':{from:2021,variants:['Style','Super','Smart','Sharp','Savvy']}, 'ZS EV':{from:2020,variants:['Excite','Exclusive']}, 'Gloster':{from:2020,variants:['Super','Smart','Sharp','Savvy']} },
-  'Nissan':  { 'Magnite':{from:2020,variants:['XE','XL','XV','XV Premium']} },
-  'Ford':    { 'EcoSport':{from:2013,variants:['Ambiente','Trend','Titanium','Titanium+']}, 'Endeavour':{from:2003,variants:['Titanium','Titanium+']}, 'Figo':{from:2010,variants:['Ambiente','Trend','Titanium']} },
-  'BMW':     { '3 Series':{from:1990,variants:['320d','330i','M340i']}, '5 Series':{from:1972,variants:['520d','530i','530d','M5']}, 'X1':{from:2010,variants:['sDrive20i','sDrive20d','xDrive20d']}, 'X5':{from:1999,variants:['xDrive30d','xDrive40i','M50d']} },
-  'Mercedes-Benz':{ 'C-Class':{from:1993,variants:['C200','C220d','C300','C43 AMG']}, 'E-Class':{from:1953,variants:['E200','E220d','E350d','E63 AMG']}, 'GLC':{from:2015,variants:['GLC200','GLC220d','GLC300','GLC43']} },
-  'Audi':    { 'A4':{from:1994,variants:['Premium','Premium Plus','Technology']}, 'Q3':{from:2011,variants:['Premium','Premium Plus','Technology']}, 'Q5':{from:2008,variants:['Premium Plus','Technology']} }
+
+  // ───── RENAULT ─────
+  'Renault': {
+    'Kwid':               { from: 2015, variants: ['STD','RXE','RXL','RXT','Climber','EASY-R'] },
+    'Triber':             { from: 2019, variants: ['RXE','RXL','RXT','RXZ'] },
+    'Kiger':              { from: 2021, variants: ['RXE','RXL','RXT','RXZ'] },
+    'Duster':             { from: 2012, variants: ['RxE','RxL','RxZ','Adventure','Petrol RxL'] },
+    'Captur':             { from: 2017, variants: ['RXE','RXT','Platine'] },
+    'Lodgy':              { from: 2015, variants: ['RxE','RxL','RxZ','Stepway'] },
+    'Scala':              { from: 2012, variants: ['RxE','RxL','RxZ'] },
+    'Fluence':            { from: 2011, variants: ['E2','E4','Diesel'] }
+  },
+
+  // ───── SKODA ─────
+  'Skoda': {
+    'Kushaq':             { from: 2021, variants: ['Active','Ambition','Style','Monte Carlo'] },
+    'Slavia':             { from: 2022, variants: ['Active','Ambition','Style','Monte Carlo'] },
+    'Kodiaq':             { from: 2017, variants: ['Style','Sportline','L&K'] },
+    'Octavia':            { from: 2001, variants: ['Style','L&K','RS','vRS'] },
+    'Superb':             { from: 2009, variants: ['L&K','Sportline','Laurin & Klement'] },
+    // older
+    'Fabia':              { from: 2008, variants: ['Classic','Ambiente','Elegance'] },
+    'Yeti':               { from: 2010, variants: ['Ambition','Elegance'] },
+    'Rapid':              { from: 2011, variants: ['Active','Ambition','Style','Onyx','Monte Carlo'] },
+    'Laura':              { from: 2005, variants: ['L&K','Elegance','Ambiente'] }
+  },
+
+  // ───── VOLKSWAGEN ─────
+  'Volkswagen': {
+    'Polo':               { from: 2010, variants: ['Trendline','Comfortline','Highline','GT TSI','GT TDI'] },
+    'Vento':              { from: 2010, variants: ['Trendline','Comfortline','Highline','Highline+'] },
+    'Virtus':             { from: 2022, variants: ['Comfortline','Highline','Topline','GT'] },
+    'Taigun':             { from: 2021, variants: ['Comfortline','Highline','Topline','GT','GT Plus'] },
+    'Tiguan':             { from: 2017, variants: ['Comfortline','Highline','Elegance'] },
+    'T-Roc':              { from: 2020, variants: ['Standard','Elegance'] },
+    // older
+    'Ameo':               { from: 2016, variants: ['Trendline','Comfortline','Highline'] },
+    'Jetta':              { from: 2008, variants: ['Trendline','Comfortline','Highline'] },
+    'Beetle':             { from: 2009, variants: ['Standard'] },
+    'Passat':             { from: 2007, variants: ['Trendline','Comfortline','Highline'] }
+  },
+
+  // ───── MG MOTOR ─────
+  'MG': {
+    'Hector':             { from: 2019, variants: ['Style','Super','Smart','Sharp','Savvy Pro'] },
+    'Hector Plus':        { from: 2020, variants: ['Style','Super','Smart','Sharp','Savvy'] },
+    'Astor':              { from: 2021, variants: ['Style','Super','Smart','Sharp','Savvy'] },
+    'ZS EV':              { from: 2020, variants: ['Excite','Exclusive','Essence Pro'] },
+    'Gloster':            { from: 2020, variants: ['Super','Smart','Sharp','Savvy'] },
+    'Comet EV':           { from: 2023, variants: ['Pace','Play','Plush'] },
+    'Windsor EV':         { from: 2024, variants: ['Excite','Exclusive','Essence'] }
+  },
+
+  // ───── NISSAN ─────
+  'Nissan': {
+    'Magnite':            { from: 2020, variants: ['XE','XL','XV','XV Premium','XV Premium(O)'] },
+    'Kicks':              { from: 2019, variants: ['XL','XV','XV Pre','XV Premium'] },
+    'Terrano':            { from: 2013, variants: ['XE','XL','XV','XV Premium'] },
+    'Sunny':              { from: 2011, variants: ['XE','XL','XV','XV Premium'] },
+    'Micra':              { from: 2010, variants: ['XE','XL','XV','XV Premium'] },
+    'GT-R':               { from: 2016, variants: ['Premium'] }
+  },
+
+  // ───── FORD (discontinued in India but still serviced) ─────
+  'Ford': {
+    'Figo':               { from: 2010, variants: ['Ambiente','Trend','Titanium','Titanium+','Sports'] },
+    'Aspire':             { from: 2015, variants: ['Ambiente','Trend','Titanium','Titanium+'] },
+    'EcoSport':           { from: 2013, variants: ['Ambiente','Trend','Titanium','Titanium+','S','Sports'] },
+    'Endeavour':          { from: 2003, variants: ['Titanium','Titanium+','Sport','Thunder'] },
+    'Freestyle':          { from: 2018, variants: ['Ambiente','Trend','Titanium','Titanium+'] },
+    'Mustang':            { from: 2016, variants: ['GT 5.0L V8'] },
+    'Fiesta':             { from: 2005, variants: ['Style','EXi','SXi','ZXi','S','Titanium','Titanium+'] },
+    'Classic':            { from: 2011, variants: ['LXi','CLXi','Titanium','Titanium+'] },
+    'Ikon':               { from: 1999, variants: ['1.3 Flair','1.6 Z','1.8 Diesel'] }
+  },
+
+  // ───── CITROEN ─────
+  'Citroen': {
+    'C3':                 { from: 2022, variants: ['Live','Feel','Shine'] },
+    'eC3':                { from: 2023, variants: ['Live','Feel','Shine'] },
+    'C3 Aircross':        { from: 2023, variants: ['Live','Feel','Plus','Max'] },
+    'Basalt':             { from: 2024, variants: ['You','Plus','Max'] },
+    'C5 Aircross':        { from: 2021, variants: ['Feel','Shine'] }
+  },
+
+  // ───── JEEP ─────
+  'Jeep': {
+    'Compass':            { from: 2017, variants: ['Sport','Longitude','Limited','Trailhawk','Model S'] },
+    'Meridian':           { from: 2022, variants: ['Limited','Limited(O)'] },
+    'Wrangler':           { from: 2003, variants: ['Unlimited','Rubicon'] },
+    'Grand Cherokee':     { from: 2014, variants: ['Limited','Summit'] }
+  },
+
+  // ───── BYD (Chinese EV) ─────
+  'BYD': {
+    'Atto 3':             { from: 2022, variants: ['Standard','Premium'] },
+    'e6':                 { from: 2021, variants: ['GL'] },
+    'Seal':               { from: 2024, variants: ['Dynamic','Premium','Performance'] }
+  },
+
+  // ───── BMW ─────
+  'BMW': {
+    '2 Series Gran Coupe':{ from: 2020, variants: ['220i','220d','M235i'] },
+    '3 Series':           { from: 1990, variants: ['320d','320Ld','330i','330Li','M340i'] },
+    '3 Series Gran Limousine': { from: 2021, variants: ['320Ld Iconic Edition'] },
+    '5 Series':           { from: 1972, variants: ['520d','530i','530d','M5 Competition'] },
+    '6 Series GT':        { from: 2018, variants: ['630i','630d'] },
+    '7 Series':           { from: 1990, variants: ['730Ld','740Li','M760Li'] },
+    'X1':                 { from: 2010, variants: ['sDrive20i','sDrive20d','xDrive20d'] },
+    'X3':                 { from: 2007, variants: ['xDrive20d','xDrive30i','M40i'] },
+    'X4':                 { from: 2014, variants: ['xDrive30d','M40i'] },
+    'X5':                 { from: 1999, variants: ['xDrive30d','xDrive40i','M50d','M Competition'] },
+    'X6':                 { from: 2008, variants: ['xDrive40i','M Competition'] },
+    'X7':                 { from: 2019, variants: ['xDrive40d','xDrive40i','M50d'] },
+    'Z4':                 { from: 2003, variants: ['sDrive20i','sDrive30i'] },
+    'M2':                 { from: 2016, variants: ['Competition'] },
+    'M3':                 { from: 2014, variants: ['Competition','CS'] },
+    'M4':                 { from: 2014, variants: ['Competition','CSL'] },
+    'M5':                 { from: 1985, variants: ['Competition','CS'] },
+    'iX':                 { from: 2022, variants: ['xDrive40','xDrive50'] },
+    'i4':                 { from: 2023, variants: ['eDrive40 M Sport'] },
+    'i7':                 { from: 2023, variants: ['xDrive60'] }
+  },
+
+  // ───── MERCEDES-BENZ ─────
+  'Mercedes-Benz': {
+    'A-Class Limousine':  { from: 2021, variants: ['A 200','A 200d'] },
+    'C-Class':            { from: 1993, variants: ['C 200','C 220d','C 300','C 43 AMG','C 63 AMG'] },
+    'E-Class':            { from: 1953, variants: ['E 200','E 220d','E 350d','E 450 AMG','E 63 AMG'] },
+    'S-Class':            { from: 1972, variants: ['S 350d','S 400','S 450','S 580','Maybach S 580','Maybach S 680'] },
+    'EQS':                { from: 2022, variants: ['EQS 580 4MATIC','Maybach EQS 680'] },
+    'EQE':                { from: 2023, variants: ['EQE 500 4MATIC'] },
+    'GLA':                { from: 2014, variants: ['GLA 200','GLA 220d','GLA 35 AMG'] },
+    'GLB':                { from: 2021, variants: ['GLB 200','GLB 220d','GLB 35 AMG'] },
+    'GLC':                { from: 2015, variants: ['GLC 200','GLC 220d','GLC 300','GLC 43 AMG','GLC 63 AMG'] },
+    'GLE':                { from: 2015, variants: ['GLE 300d','GLE 450','GLE 53 AMG','GLE 63 S AMG'] },
+    'GLS':                { from: 2007, variants: ['GLS 400d','GLS 450','GLS 600 Maybach','GLS 63 AMG'] },
+    'AMG GT':             { from: 2015, variants: ['GT','GT S','GT R','GT 63 4-Door'] },
+    'SL':                 { from: 2002, variants: ['SL 55 AMG','SL 63 AMG'] },
+    'G-Class':            { from: 1979, variants: ['G 400d','G 63 AMG','G 4×4²'] },
+    'V-Class':            { from: 2019, variants: ['Elite','Marco Polo','Maybach'] }
+  },
+
+  // ───── AUDI ─────
+  'Audi': {
+    'A3':                 { from: 2014, variants: ['Premium','Premium Plus','Technology'] },
+    'A4':                 { from: 1994, variants: ['Premium','Premium Plus','Technology','S4'] },
+    'A6':                 { from: 2001, variants: ['Premium','Premium Plus','Technology','S6','RS6 Avant'] },
+    'A8':                 { from: 2003, variants: ['L 55 TFSI','L 60 TFSI','S8'] },
+    'Q2':                 { from: 2020, variants: ['Premium','Premium Plus','Technology'] },
+    'Q3':                 { from: 2011, variants: ['Premium','Premium Plus','Technology','Sportback'] },
+    'Q5':                 { from: 2008, variants: ['Premium Plus','Technology','SQ5'] },
+    'Q7':                 { from: 2006, variants: ['Premium Plus','Technology','SQ7'] },
+    'Q8':                 { from: 2020, variants: ['Premium Plus','Celebration','RSQ8'] },
+    'e-tron':             { from: 2021, variants: ['55 Sportback','55 SUV'] },
+    'e-tron GT':          { from: 2022, variants: ['e-tron GT','RS e-tron GT'] },
+    'RS5':                { from: 2018, variants: ['Sportback'] },
+    'RS7':                { from: 2014, variants: ['Sportback Performance'] },
+    'R8':                 { from: 2009, variants: ['V10 Coupe','V10 Spyder','V10 Performance'] }
+  },
+
+  // ───── VOLVO ─────
+  'Volvo': {
+    'XC40':               { from: 2018, variants: ['Inscription','R-Design','Recharge'] },
+    'XC60':               { from: 2009, variants: ['Inscription','R-Design','Recharge'] },
+    'XC90':               { from: 2003, variants: ['Inscription','R-Design','Recharge'] },
+    'S60':                { from: 2001, variants: ['Inscription','R-Design'] },
+    'S90':                { from: 2017, variants: ['Inscription','R-Design'] },
+    'C40 Recharge':       { from: 2023, variants: ['Single Motor','Twin Motor'] }
+  },
+
+  // ───── JAGUAR / LAND ROVER ─────
+  'Jaguar': {
+    'XE':                 { from: 2016, variants: ['Pure','Prestige','Portfolio','SV','R-Sport'] },
+    'XF':                 { from: 2008, variants: ['Prestige','Portfolio','R-Sport','S'] },
+    'XJ':                 { from: 1968, variants: ['L Premium Luxury','L Portfolio','XJR'] },
+    'F-Pace':             { from: 2016, variants: ['Pure','Prestige','Portfolio','First Edition','SVR'] },
+    'E-Pace':             { from: 2018, variants: ['SE','S','HSE','R-Dynamic'] },
+    'I-Pace':             { from: 2021, variants: ['S','SE','HSE'] },
+    'F-Type':             { from: 2013, variants: ['Coupe','Convertible','R','SVR'] }
+  },
+  'Land Rover': {
+    'Range Rover':        { from: 1970, variants: ['SE','HSE','Autobiography','SV','SVAutobiography'] },
+    'Range Rover Sport':  { from: 2005, variants: ['SE','HSE','Autobiography','SVR'] },
+    'Range Rover Velar':  { from: 2017, variants: ['S','SE','HSE','R-Dynamic'] },
+    'Range Rover Evoque': { from: 2011, variants: ['S','SE','HSE','R-Dynamic'] },
+    'Discovery':          { from: 1989, variants: ['SE','HSE','HSE Luxury'] },
+    'Discovery Sport':    { from: 2015, variants: ['S','SE','HSE','R-Dynamic'] },
+    'Defender':           { from: 2020, variants: ['90','110','130','V8'] }
+  },
+
+  // ───── LEXUS ─────
+  'Lexus': {
+    'ES':                 { from: 2018, variants: ['300h Luxury','300h F-Sport','300h Exquisite'] },
+    'NX':                 { from: 2021, variants: ['350h Luxury','350h F-Sport','450h+'] },
+    'RX':                 { from: 2017, variants: ['450h+','500h F-Sport'] },
+    'LX':                 { from: 2017, variants: ['LX 570','LX 500d','LX 600'] },
+    'LS':                 { from: 2017, variants: ['500h Distinguished'] },
+    'LM':                 { from: 2023, variants: ['350h Ultra Luxury'] }
+  },
+
+  // ───── PORSCHE ─────
+  'Porsche': {
+    '911':                { from: 1963, variants: ['Carrera','Carrera S','Turbo','Turbo S','GT3','GT3 RS'] },
+    'Cayenne':            { from: 2002, variants: ['Base','Coupe','S','GTS','Turbo','Turbo GT'] },
+    'Macan':              { from: 2014, variants: ['Base','S','GTS','Turbo'] },
+    'Panamera':           { from: 2009, variants: ['Base','4','4S','GTS','Turbo','Turbo S'] },
+    'Taycan':             { from: 2021, variants: ['Base','4S','GTS','Turbo','Turbo S'] }
+  },
+
+  // ───── MINI ─────
+  'Mini': {
+    'Cooper':             { from: 2001, variants: ['Cooper','Cooper S','Cooper SE','JCW'] },
+    'Countryman':         { from: 2010, variants: ['Cooper','Cooper S','Cooper SE','JCW'] },
+    'Convertible':        { from: 2004, variants: ['Cooper','Cooper S','JCW'] }
+  },
+
+  // ───── TESLA / RIVIAN ─────
+  'Tesla': {
+    'Model 3':            { from: 2024, variants: ['Standard Range','Long Range','Performance'] },
+    'Model Y':            { from: 2024, variants: ['Long Range','Performance'] },
+    'Model S':            { from: 2012, variants: ['Long Range','Plaid'] },
+    'Model X':            { from: 2015, variants: ['Long Range','Plaid'] }
+  },
+
+  // ───── EXOTICS ─────
+  'Lamborghini': {
+    'Huracan':            { from: 2014, variants: ['Evo','Evo Spyder','STO','Tecnica','Sterrato'] },
+    'Urus':               { from: 2018, variants: ['Base','S','Performante'] },
+    'Revuelto':           { from: 2024, variants: ['Standard'] }
+  },
+  'Ferrari': {
+    '296 GTB':            { from: 2022, variants: ['Coupe','Spider'] },
+    'Roma':               { from: 2021, variants: ['Coupe','Spider'] },
+    'SF90 Stradale':      { from: 2020, variants: ['Stradale','Spider','XX Stradale'] },
+    'Purosangue':         { from: 2023, variants: ['Standard'] },
+    '812':                { from: 2017, variants: ['Superfast','GTS','Competizione'] }
+  },
+  'Bentley': {
+    'Continental GT':     { from: 2003, variants: ['V8','V8 S','GT Speed','Mulliner'] },
+    'Bentayga':           { from: 2016, variants: ['V8','EWB','Mulliner'] },
+    'Flying Spur':        { from: 2005, variants: ['V8','W12','Mulliner','Speed'] }
+  },
+  'Rolls-Royce': {
+    'Ghost':              { from: 2009, variants: ['Standard','Extended','Black Badge'] },
+    'Phantom':            { from: 2003, variants: ['Standard','Extended Wheelbase'] },
+    'Cullinan':           { from: 2018, variants: ['Standard','Black Badge'] },
+    'Spectre':            { from: 2024, variants: ['Standard'] }
+  },
+  'Aston Martin': {
+    'DB12':               { from: 2024, variants: ['Coupe','Volante'] },
+    'Vantage':            { from: 2018, variants: ['Coupe','Roadster','F1 Edition'] },
+    'DBX':                { from: 2020, variants: ['DBX','DBX707'] }
+  },
+  'McLaren': {
+    'Artura':             { from: 2023, variants: ['Coupe','Spider'] },
+    '750S':               { from: 2024, variants: ['Coupe','Spider'] },
+    'GT':                 { from: 2020, variants: ['GT'] }
+  }
 };
 window.VEHICLE_DB_SEED = VEHICLE_DB_SEED;
 
@@ -4016,7 +4450,8 @@ window.sendJobEstimate = async function(jobId) {
     target: { role: 'service_advisor' },
     job_id: jobId
   });
-  const html = _invoiceHTMLFromRecord(inv);
+  const photos = await loadJobPhotos(jobId);
+  const html = _invoiceHTMLFromRecord(inv, { photos });
   const w = window.open('', '_blank');
   if (w) { w.document.open(); w.document.write(html); w.document.close(); }
   renderJobs();
@@ -4148,8 +4583,18 @@ async function _cdSubmit(invId) {
   inv.client_decision_by = currentWorker?.name || '';
   const writes = [];
   if (counts.approved === 0) {
-    // Reject branch
+    // Reject branch — record a visit summary on the job so the diagnosis +
+    // estimate amount survive for conversion tracking, even though no repair
+    // record will be created. Future visits can read this back.
     j.status = 'Rejected — Reassembly';
+    j.visit_outcome = 'rejected';
+    j.visit_summary = {
+      diagnosed_concerns: (j.parts || []).length,
+      estimate_total: _invoiceTotals(inv).roundOff,
+      complaints: (j.complaints || []).map(c => c.text),
+      decided_at: nowStr(),
+      decided_by: currentWorker?.name || ''
+    };
     j.updated_at = nowStr();
     inv.status = 'Cancelled';
     showToast(`${j.plate} → reject branch · reassembling`, 'good');
@@ -4162,9 +4607,18 @@ async function _cdSubmit(invId) {
       job_id: j.id
     });
   } else {
-    // Approve branch (full or partial)
+    // Approve branch (full or partial) — stamp visit outcome for conversion stats
     j.status = counts.rejected > 0 ? 'Estimate Approved (Partial)' : 'Estimate Approved';
+    j.visit_outcome = counts.rejected > 0 ? 'approved_partial' : 'approved_full';
     j.estimate_approved_at = nowStr();
+    j.visit_summary = {
+      diagnosed_concerns: (j.parts || []).length,
+      estimate_total: _invoiceTotals(inv).roundOff,
+      approved_count: counts.approved,
+      rejected_count: counts.rejected,
+      decided_at: nowStr(),
+      decided_by: currentWorker?.name || ''
+    };
     j.updated_at = nowStr();
     inv.status = 'Issued';
     inv.payment_status = inv.payment_status || 'Outstanding';
@@ -4224,9 +4678,11 @@ window.openJobForm = function(id) {
     ? j.mechanics.slice()
     : (j.mechanic ? [j.mechanic] : []);
   _editingJob = {
+    id:       j.id,    // <-- stamp the id so photo upload knows which job to attach to
     parts:    (j.parts   || []).map(p => ({ name: p.name || '', hsn: p.hsn || '', qty: Number(p.qty || 1), unit_price: Number(p.unit_price || 0), disc_pct: Number(p.disc_pct || 0) })),
     charges:  (j.service_charges || []).map(c => ({ name: c.name || '', amount: Number(c.amount || 0) })),
     mechanics: startMechs,
+    photos:   [],      // populated async after the form renders (see _jobLoadPhotos)
     is_insurance:        !!j.is_insurance,
     insurer_name:        j.insurer_name || '',
     claim_number:        j.claim_number || '',
@@ -4287,6 +4743,24 @@ window.openJobForm = function(id) {
         <div id="jf-charges-rows"></div>
       </div>
 
+      <!-- Photos — before/after damage, parts replaced, insurance evidence -->
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;flex-wrap:wrap">
+          <div style="font-family:var(--fd);font-weight:700;font-size:14px">Photos <span style="font-weight:500;color:var(--faint);font-size:12px;margin-left:6px">(before/after, damage, parts replaced, insurance evidence)</span></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="jf-photo-label" style="padding:8px 10px;border-radius:7px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:12.5px">
+              ${PHOTO_LABELS.map(l => `<option value="${l}">${l}</option>`).join('')}
+            </select>
+            <label class="mini-btn" style="cursor:pointer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>Upload
+              <input id="jf-photo-input" type="file" accept="image/*" multiple style="display:none" onchange="_jobUploadPhotos(event)" />
+            </label>
+          </div>
+        </div>
+        <div id="jf-photos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;min-height:50px"></div>
+        <div style="font-size:11px;color:var(--faint);margin-top:6px">Images are resized to ~1280px before upload. JPEG quality 78%.</div>
+      </div>
+
       <!-- Insurance section — collapsed unless toggled on. Matches main.py schema. -->
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
@@ -4317,7 +4791,7 @@ window.openJobForm = function(id) {
     saveLabel: 'Save job',
     onSave: () => saveJob(j.id)
   });
-  setTimeout(() => { _drawJobRows(); _drawMechanicChips(); }, 0);
+  setTimeout(() => { _drawJobRows(); _drawMechanicChips(); _jobLoadPhotos(j.id); }, 0);
 };
 
 window._toggleInsurance = function() {
@@ -4427,6 +4901,92 @@ window._jobRemovePart   = function(idx) { _editingJob.parts.splice(idx, 1); _dra
 window._jobRemoveCharge = function(idx) { _editingJob.charges.splice(idx, 1); _drawJobRows(); };
 
 // ─── Multi-worker assignment on a job card ───────────────────────────────
+// ── Job-card photos: load existing, render grid, upload, delete, zoom ──
+
+async function _jobLoadPhotos(jobId) {
+  const wrap = document.getElementById('jf-photos');
+  if (wrap) wrap.innerHTML = `<div style="grid-column:1/-1;padding:18px;color:var(--faint);font-size:12.5px;text-align:center">Loading photos…</div>`;
+  _editingJob.photos = await loadJobPhotos(jobId);
+  _drawJobPhotos();
+}
+
+function _drawJobPhotos() {
+  const wrap = document.getElementById('jf-photos');
+  if (!wrap) return;
+  const photos = _editingJob.photos || [];
+  if (!photos.length) {
+    wrap.innerHTML = `<div style="grid-column:1/-1;padding:24px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No photos yet. Pick a label and click "Upload" — multi-select is supported.</div>`;
+    return;
+  }
+  // Group by label so before/after/etc photos sit together
+  const labelTint = (l) => l === 'After' ? 'rgba(32,227,178,.18);color:var(--teal)'
+                      : l === 'Damage' ? 'rgba(255,107,107,.18);color:var(--red)'
+                      : l === 'Insurance' ? 'rgba(255,179,71,.18);color:var(--acc2)'
+                      : 'rgba(99,159,255,.18);color:var(--blue)';
+  wrap.innerHTML = photos.map(p => `
+    <div style="position:relative;border-radius:9px;overflow:hidden;border:1px solid var(--brd);background:var(--bg2);aspect-ratio:1;cursor:zoom-in" onclick="_jobZoomPhoto('${escapeHtml(p.id)}')">
+      <img src="${escapeHtml(p.data)}" alt="${escapeHtml(p.label)}" loading="lazy" style="width:100%;height:100%;object-fit:cover" />
+      <div style="position:absolute;top:6px;left:6px;padding:2px 7px;border-radius:100px;font-size:10px;font-weight:800;letter-spacing:.04em;background:${labelTint(p.label)}">${escapeHtml((p.label || 'Other').toUpperCase())}</div>
+      <button type="button" onclick="event.stopPropagation();_jobRemovePhoto('${escapeHtml(p.id)}')"
+        title="Delete photo"
+        style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;font-size:13px;line-height:1;display:grid;place-items:center">×</button>
+      <div style="position:absolute;bottom:0;left:0;right:0;padding:6px 8px;background:linear-gradient(to top,rgba(0,0,0,.7),transparent);color:#fff;font-size:10.5px;line-height:1.2">
+        ${escapeHtml((p.uploaded_at || '').slice(5, 16))}${p.uploaded_by ? ' · ' + escapeHtml(p.uploaded_by) : ''}
+      </div>
+    </div>`).join('');
+}
+
+window._jobUploadPhotos = async function(ev) {
+  const files = Array.from(ev.target.files || []);
+  if (!files.length) return;
+  const label = document.getElementById('jf-photo-label').value || 'Other';
+  const jobId = _editingJob?.id;
+  if (!jobId) return customAlert('Please save the job first before uploading photos.', { title: 'Save the job first' });
+  showToast(`Uploading ${files.length} photo${files.length === 1 ? '' : 's'}…`, 'good');
+  let ok = 0, fail = 0;
+  for (const f of files) {
+    try {
+      await uploadJobPhoto(jobId, f, label);
+      ok++;
+    } catch (e) {
+      console.warn('upload failed', e);
+      fail++;
+    }
+  }
+  // Single refresh after all uploads is much faster than fetching after every file
+  _editingJob.photos = await loadJobPhotos(jobId);
+  ev.target.value = '';
+  _drawJobPhotos();
+  showToast(`${ok} uploaded${fail ? ' · ' + fail + ' failed' : ''}`, fail ? 'bad' : 'good');
+  if (ok) audit('photo-upload', `${ok} photo(s) added to job ${jobId.slice(-6)}`, { job_id: jobId });
+};
+
+window._jobRemovePhoto = async function(photoId) {
+  if (!(await customConfirm('Delete this photo? This cannot be undone.', { title: 'Delete photo', okLabel: 'Delete' }))) return;
+  try {
+    await removeJobPhoto(photoId);
+    _editingJob.photos = (_editingJob.photos || []).filter(p => p.id !== photoId);
+    _drawJobPhotos();
+    showToast('Photo deleted', 'good');
+  } catch (e) {
+    showToast('Could not delete: ' + (e.message || e), 'bad');
+  }
+};
+
+// Zoom modal — full-bleed view of one photo
+window._jobZoomPhoto = function(photoId) {
+  const p = (_editingJob.photos || []).find(x => x.id === photoId);
+  if (!p) return;
+  _openSubModal({
+    title: `${p.label || 'Photo'} · ${escapeHtml((p.uploaded_at || '').slice(0, 16))}`,
+    bodyHtml: `<div style="text-align:center"><img src="${escapeHtml(p.data)}" alt="${escapeHtml(p.label)}" style="max-width:100%;max-height:70vh;border-radius:8px" /></div>
+      ${p.uploaded_by ? `<div style="font-size:12.5px;color:var(--faint);text-align:center;margin-top:10px">Uploaded by ${escapeHtml(p.uploaded_by)}</div>` : ''}`,
+    footHtml: `<div style="flex:1"></div>
+      <a download="${escapeHtml(p.label.replace(/\s+/g,'_'))}-${escapeHtml(p.id.slice(-6))}.jpg" href="${escapeHtml(p.data)}" class="fbtn fbtn-cancel" style="text-decoration:none">Download</a>
+      <button class="fbtn fbtn-save" onclick="closeSubModal()">Close</button>`
+  });
+};
+
 window._jobAddMechanic = function() {
   const inp = document.getElementById('jf-mech-add');
   const name = (inp.value || '').trim();
@@ -4666,15 +5226,28 @@ async function saveJob(id) {
 }
 
 // Pull the parts/charges/mechanics/insurance from `j` into the existing invoice `inv`.
-// Preserves the invoice's own metadata (number, status, payment info, bank).
+// Preserves the invoice's own metadata (number, status, payment info, bank) AND
+// the per-line approval state — so a client's decision on a previously-sent
+// estimate doesn't get wiped when the job card is edited later.
 function _resyncInvoiceFromJob(inv, j) {
+  // Build lookup of existing approval flags by part name (case-insensitive)
+  const prevApprov = new Map();
+  for (const l of (inv.lines || [])) prevApprov.set((l.name || '').toLowerCase(), l.approval || 'pending');
   inv.lines = (j.parts || []).map(p => ({
     name: p.name || '', hsn: p.hsn || '',
     qty: Math.max(1, Number(p.qty || 1)),
     unit_price: Number(p.unit_price || 0),
-    disc_pct: Number(p.disc_pct || 0)
+    disc_pct: Number(p.disc_pct || 0),
+    approval: prevApprov.get((p.name || '').toLowerCase()) || 'pending'
   }));
-  inv.charges = (j.service_charges || []).map(c => ({ name: c.name || '', amount: Number(c.amount || 0) }));
+  // Same for service charges
+  const prevChgApprov = new Map();
+  for (const c of (inv.charges || [])) prevChgApprov.set((c.name || '').toLowerCase(), c.approval || 'pending');
+  inv.charges = (j.service_charges || []).map(c => ({
+    name: c.name || '',
+    amount: Number(c.amount || 0),
+    approval: prevChgApprov.get((c.name || '').toLowerCase()) || 'pending'
+  }));
   const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
   inv.mechanics = mechs;
   inv.mechanic  = mechs[0] || '';
@@ -4704,6 +5277,13 @@ window.deleteJob = async function(id) {
   renderJobs();
   const writes = [wsSave('jobs', D.jobs)];
   if (invChanged) writes.push(wsSave('inventory', D.inventory));
+  // Clean up any photo docs that were attached to this job
+  (async () => {
+    try {
+      const snap = await wsCol('job_photos').where('job_id', '==', id).get();
+      await Promise.all(snap.docs.map(d => d.ref.delete()));
+    } catch (e) { console.warn('photo cleanup', e); }
+  })();
   await Promise.all(writes);
 };
 
@@ -5015,42 +5595,149 @@ window.deleteCustomer = async function(id) {
   await renderCustomers(true);
 };
 
-window.openServiceHistory = function(id) {
+// Customer service-history view. Shows every saved vehicle as a tab at the top
+// and below it a chronological timeline of visits for the SELECTED vehicle.
+// (The customer's overall stats sit above so you can see lifetime value at a glance.)
+//
+// Optional 2nd arg `vehicleId` jumps straight to that vehicle's timeline — used
+// by the QR-scan flow which already knows the specific vehicle being looked up.
+window.openServiceHistory = function(id, vehicleId) {
   const c = D.customers.find(x => x.id === id);
   if (!c) return showToast('Customer not found', 'bad');
-  const bookings = D.bookings.filter(b => b.cust_name === c.name)
-    .sort((a,b) => ((b.date||'') + (b.time||'')).localeCompare((a.date||'') + (a.time||'')));
-  const plates = [...new Set(bookings.map(b => b.plate).filter(Boolean))];
-  const totalSpend = bookings.reduce((s,b) => s + (Number(b.actual_cost) || Number(b.cost_estimate) || 0), 0);
-  const rows = bookings.length ? bookings.map(b => {
-    const job = D.jobs.find(j => j.booking_id === b.id);
-    return `<tr>
-      <td class="k">${escapeHtml(b.date || '—')}</td>
-      <td><span class="plate">${escapeHtml(b.plate || '—')}</span></td>
-      <td>${escapeHtml(b.service || '—')}</td>
-      <td>${statusPill(b.status || 'Scheduled')}</td>
-      <td>${escapeHtml(job?.mechanic || b.mechanic || '—')}</td>
-      <td>${(b.actual_cost || b.cost_estimate) ? '₹' + Number(b.actual_cost || b.cost_estimate).toLocaleString('en-IN') : '—'}</td>
-    </tr>`;
-  }).join('') : `<tr><td class="empty" colspan="6">No service history yet.</td></tr>`;
+  const allBookings = D.bookings.filter(b => (b.cust_name || '').toLowerCase() === (c.name || '').toLowerCase());
+  // Vehicles: union of saved customer.vehicles + any plate that appears in their bookings
+  const vehMap = new Map();
+  for (const v of (c.vehicles || [])) {
+    const key = (v.plate || '').replace(/\s+/g,'').toUpperCase();
+    if (key) vehMap.set(key, { plate: v.plate, model: [v.make, v.model, v.year].filter(Boolean).join(' '), id: v.id, color: v.color, year: v.year, source: 'saved' });
+  }
+  for (const b of allBookings) {
+    const key = (b.plate || '').replace(/\s+/g,'').toUpperCase();
+    if (key && !vehMap.has(key)) vehMap.set(key, { plate: b.plate, model: b.vehicle || '', id: '', source: 'booking-only' });
+  }
+  const vehicles = [...vehMap.values()];
+  // Pick which one to show first
+  let selectedKey = vehicleId
+    ? (vehicles.find(v => v.id === vehicleId)?.plate || vehicles[0]?.plate || '')
+    : (vehicles[0]?.plate || '');
+  selectedKey = (selectedKey || '').replace(/\s+/g,'').toUpperCase();
+  // Lifetime stats
+  const totalSpend = allBookings.reduce((s,b) => s + (Number(b.actual_cost) || Number(b.cost_estimate) || 0), 0);
+  const visits    = allBookings.length;
+
+  const draw = () => {
+    const tabs = vehicles.length ? vehicles.map(v => {
+      const key = (v.plate || '').replace(/\s+/g,'').toUpperCase();
+      const on = key === selectedKey;
+      const visitCount = allBookings.filter(b => (b.plate || '').replace(/\s+/g,'').toUpperCase() === key).length;
+      return `<button type="button" onclick="_vhSelect('${escapeHtml(key)}')"
+        style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;background:${on ? 'rgba(255,209,102,.16)' : 'var(--bg2)'};border:1px solid ${on ? 'var(--acc)' : 'var(--brd)'};color:var(--txt);cursor:pointer;font-family:var(--fb);font-size:13px">
+        <span class="plate">${escapeHtml(v.plate || '—')}</span>
+        <span style="color:var(--dim);font-size:12.5px">${escapeHtml(v.model || '')}</span>
+        <span style="color:var(--faint);font-size:11px;background:var(--surf2);padding:2px 7px;border-radius:100px">${visitCount} visit${visitCount === 1 ? '' : 's'}</span>
+      </button>`;
+    }).join('') : `<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No vehicles on file yet.</div>`;
+
+    // Timeline for the selected vehicle
+    const sel = allBookings.filter(b => (b.plate || '').replace(/\s+/g,'').toUpperCase() === selectedKey)
+      .sort((a,b) => ((b.date||'') + (b.time||'')).localeCompare((a.date||'') + (a.time||'')));
+    const timeline = sel.length ? sel.map(b => _vhTimelineEntry(b)).join('') : `<div style="padding:24px;text-align:center;color:var(--faint);font-size:13px">No visits yet for this vehicle.</div>`;
+
+    document.getElementById('vhBody').innerHTML = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">${tabs}</div>
+      <div style="display:flex;flex-direction:column;gap:10px">${timeline}</div>`;
+  };
+
   openModal({
     title: `${c.name} · service history`,
     body: `
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
-        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px"><div style="font-size:11px;color:var(--faint);text-transform:uppercase;font-weight:700">Visits</div><div style="font-family:var(--fd);font-size:22px;font-weight:800;margin-top:4px">${bookings.length}</div></div>
-        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px"><div style="font-size:11px;color:var(--faint);text-transform:uppercase;font-weight:700">Vehicles</div><div style="font-family:var(--fd);font-size:22px;font-weight:800;margin-top:4px">${plates.length}</div></div>
+        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px"><div style="font-size:11px;color:var(--faint);text-transform:uppercase;font-weight:700">Lifetime visits</div><div style="font-family:var(--fd);font-size:22px;font-weight:800;margin-top:4px">${visits}</div></div>
+        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px"><div style="font-size:11px;color:var(--faint);text-transform:uppercase;font-weight:700">Vehicles on file</div><div style="font-family:var(--fd);font-size:22px;font-weight:800;margin-top:4px">${vehicles.length}</div></div>
         <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px"><div style="font-size:11px;color:var(--faint);text-transform:uppercase;font-weight:700">Total spend</div><div style="font-family:var(--fd);font-size:22px;font-weight:800;margin-top:4px;color:var(--teal)">₹${totalSpend.toLocaleString('en-IN')}</div></div>
       </div>
-      ${plates.length ? `<div style="margin-bottom:12px;font-size:13px;color:var(--dim)"><b style="color:var(--txt)">Vehicles:</b> ${plates.map(p => `<span class="plate" style="margin-right:5px">${escapeHtml(p)}</span>`).join('')}</div>` : ''}
-      <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;overflow:hidden">
-        <table class="dtbl">
-          <thead><tr><th>Date</th><th>Plate</th><th>Service</th><th>Status</th><th>Mechanic</th><th>Cost</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`,
+      <div id="vhBody"></div>`,
     saveLabel: 'Close',
-    onSave: () => closeModal()
+    onSave: () => closeModal(),
+    wide: true
   });
+  // Stash the draw fn + key on a global so the tab buttons can re-render
+  window._vhDraw = draw;
+  window._vhSelect = function(key) { selectedKey = key; draw(); };
+  draw();
+};
+
+// One row in the per-vehicle timeline. Pulls the matching job (if any) so we
+// can show parts count, mechanic, total cost, and photo-thumb shortcuts.
+function _vhTimelineEntry(b) {
+  const job = D.jobs.find(j => j.booking_id === b.id);
+  const inv = (D.invoices || []).find(i => i.job_id === job?.id || i.booking_id === b.id);
+  const cost = b.actual_cost || (inv ? _invoiceTotals(inv).roundOff : 0) || b.cost_estimate || 0;
+  const parts = (job?.parts || []);
+  const labour = (job?.service_charges || []).reduce((s, c) => s + Number(c.amount || 0), 0);
+  const mileage = b.odometer_in || job?.odometer_in || '';
+  const statusColor = b.status === 'Delivered' ? 'var(--teal)'
+                    : b.status === 'Cancelled' ? 'var(--red)'
+                    : b.status === 'Arrived'   ? 'var(--acc2)'
+                    : 'var(--blue)';
+  const ref = b.booking_ref ? `<span style="font-family:'Courier New',monospace;font-size:10.5px;color:var(--faint);margin-left:8px">${escapeHtml(b.booking_no || ('BK-' + b.booking_ref))}</span>` : '';
+  return `<div style="display:grid;grid-template-columns:90px 1fr auto;gap:16px;padding:14px 16px;background:var(--surf);border:1px solid var(--brd);border-left:3px solid ${statusColor};border-radius:10px">
+    <!-- date column -->
+    <div style="border-right:1px solid var(--brd);padding-right:14px">
+      <div style="font-family:var(--fd);font-weight:800;font-size:14px;color:var(--txt)">${escapeHtml((b.date || '').slice(8,10) || '—')}/${escapeHtml((b.date || '').slice(5,7) || '—')}</div>
+      <div style="font-size:11px;color:var(--faint);margin-top:2px">${escapeHtml((b.date || '').slice(0,4))}</div>
+      <div style="font-size:11px;color:var(--faint);margin-top:2px">${escapeHtml(b.time || '')}</div>
+    </div>
+    <!-- body -->
+    <div style="min-width:0">
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+        <div style="font-family:var(--fd);font-weight:700;font-size:14px;color:var(--txt)">${escapeHtml(b.service || 'Service')}</div>
+        ${ref}
+        <span style="margin-left:auto">${statusPill(b.status || 'Scheduled')}</span>
+      </div>
+      <div style="font-size:12.5px;color:var(--dim);margin-top:5px;line-height:1.45">
+        ${mileage ? `<b>${Number(mileage).toLocaleString('en-IN')} km</b> · ` : ''}
+        ${parts.length ? `<b>${parts.length}</b> part${parts.length === 1 ? '' : 's'} · ` : ''}
+        ${labour ? `Labour ₹${labour.toLocaleString('en-IN')} · ` : ''}
+        Mechanic: ${escapeHtml(job?.mechanic || b.mechanic || '—')}
+      </div>
+      ${parts.length ? `<div style="font-size:12px;color:var(--faint);margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
+        ${parts.slice(0,5).map(p => `<span style="background:var(--bg2);border:1px solid var(--brd);border-radius:100px;padding:2px 8px">${escapeHtml(p.name)} × ${p.qty || 1}</span>`).join('')}
+        ${parts.length > 5 ? `<span style="color:var(--faint);font-size:11px;padding:2px 4px">+${parts.length - 5} more</span>` : ''}
+      </div>` : ''}
+      ${(b.complaints && b.complaints.length) ? `<div style="font-size:11.5px;color:var(--faint);margin-top:4px;font-style:italic">"${escapeHtml(b.complaints.map(c => c.text).join(' · '))}"</div>` : ''}
+    </div>
+    <!-- cost + actions -->
+    <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:8px;min-width:100px">
+      <div style="font-family:var(--fd);font-weight:800;font-size:18px;color:${cost ? 'var(--teal)' : 'var(--faint)'}">${cost ? '₹' + Math.round(cost).toLocaleString('en-IN') : '—'}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
+        ${job ? `<button class="mini-btn" onclick="openJobForm('${escapeHtml(job.id)}')" title="Open job card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Job</button>` : ''}
+        ${inv ? `<button class="mini-btn good" onclick="viewInvoice('${escapeHtml(inv.id)}')" title="View invoice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Invoice</button>` : ''}
+        ${job ? `<button class="mini-btn" onclick="_vhPhotos('${escapeHtml(job.id)}','${escapeHtml(b.date || '')}','${escapeHtml(b.plate || '')}')" title="View photos from this visit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>Photos</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+// Open a sub-modal with all photos from a specific past visit.
+window._vhPhotos = async function(jobId, date, plate) {
+  _openSubModal({
+    title: `Photos · ${escapeHtml(plate || '')} · ${escapeHtml(date || '')}`,
+    bodyHtml: `<div id="_vhPhotoGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;min-height:80px"><div style="grid-column:1/-1;text-align:center;color:var(--faint);padding:20px;font-size:13px">Loading…</div></div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>`
+  });
+  const photos = await loadJobPhotos(jobId);
+  const grid = document.getElementById('_vhPhotoGrid');
+  if (!grid) return;
+  if (!photos.length) { grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--faint);padding:30px;font-size:13px">No photos saved for this visit.</div>`; return; }
+  grid.innerHTML = photos.map(p => `
+    <a href="${escapeHtml(p.data)}" download="${escapeHtml(p.label.replace(/\s+/g,'_'))}-${escapeHtml(p.id.slice(-6))}.jpg" style="display:block;border:1px solid var(--brd);border-radius:8px;overflow:hidden;background:var(--bg2);text-decoration:none">
+      <img src="${escapeHtml(p.data)}" alt="${escapeHtml(p.label)}" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;display:block" />
+      <div style="padding:7px 9px;font-size:11px;color:var(--dim);border-top:1px solid var(--brd)">
+        <b style="color:var(--txt)">${escapeHtml(p.label)}</b><br>
+        <span style="color:var(--faint)">${escapeHtml((p.uploaded_at || '').slice(11,16))} · ${escapeHtml(p.uploaded_by || '—')}</span>
+      </div>
+    </a>`).join('');
 };
 
 // ══════════════════════════════════════════
@@ -5109,7 +5796,7 @@ async function renderWorkers(force = false) {
 }
 window.renderWorkers = renderWorkers;
 
-const ROLE_OPTS = ['owner','manager','floor_manager','receptionist','mechanic'];
+const ROLE_OPTS = ['owner','manager','floor_manager','parts_dept','receptionist','mechanic'];
 
 window.openWorkerForm = function(id) {
   const w = id ? (D.mechanics.find(x => x.id === id) || {}) : {};
@@ -6162,7 +6849,9 @@ async function savePartRequest() {
 }
 
 window.setPartStatus = async function(id, status) {
-  if (!isAdminRole()) return showToast('Only managers can change request status', 'bad');
+  // Anyone with the "Parts Requests" tab can act — owners, managers, floor managers,
+  // parts dept staff, or custom roles given that permission.
+  if (!canSee('parts')) return showToast('You don\'t have permission to act on parts requests', 'bad');
   const r = D.parts_requests.find(x => x.id === id);
   if (!r) return;
   // ── On fulfilment, push each item into inventory ──
@@ -6395,7 +7084,7 @@ async function renderSettings(force = false) {
   const s = D.settings || {};
   const perms = s.role_perms || {};
   const customRoles = Object.keys(perms).filter(r => !DEFAULT_ROLE_PERMS[r]);
-  const allRoles = ['owner','manager','floor_manager','receptionist','mechanic', ...customRoles];
+  const allRoles = ['owner','manager','floor_manager','parts_dept','receptionist','mechanic', ...customRoles];
   document.getElementById('settingsBody').innerHTML = `
     <div style="display:grid;gap:18px">
 
@@ -7084,10 +7773,18 @@ window.renderInvoices = renderInvoices;
 // Pure-math totals from an invoice record. Mirrors buildInvoiceData but operates
 // on a saved invoice (which carries unit_price + tax_pct inline, so the numbers
 // stay frozen even if inventory prices change later).
+//
+// IMPLEMENTATION NOTE — once a client decision has been recorded on the invoice
+// (inv.client_decision_at), totals pull ONLY from approved line items and
+// approved service charges. The estimate (pre-decision) sums everything; the
+// final invoice never bills a rejected concern.
 function _invoiceTotals(inv) {
   const taxPct = Number(inv.tax_pct ?? inv.workshop_snapshot?.tax_pct ?? D.settings.tax_pct ?? 0);
+  const filterByApproval = !!inv.client_decision_at;
+  const keep = (item) => !filterByApproval || (item.approval || 'pending') !== 'rejected';
   let partsTaxable = 0, gst = 0, disc = 0;
   for (const l of inv.lines || []) {
+    if (!keep(l)) continue;
     const unit = Number(l.unit_price || 0);
     const qty  = Math.max(1, Number(l.qty || 1));
     const dp   = Number(l.disc_pct || 0);
@@ -7099,7 +7796,7 @@ function _invoiceTotals(inv) {
     gst          += tx;
     disc         += da;
   }
-  const labour = (inv.charges || []).reduce((s, c) => s + Number(c.amount || 0), 0);
+  const labour = (inv.charges || []).filter(keep).reduce((s, c) => s + Number(c.amount || 0), 0);
   const grand  = +(partsTaxable + gst + labour).toFixed(2);
   return {
     partsTaxable: +partsTaxable.toFixed(2),
@@ -7497,7 +8194,9 @@ window.viewInvoice = async function(id) {
   await loadAllData(true);
   const inv = (D.invoices || []).find(x => x.id === id);
   if (!inv) return showToast('Invoice not found', 'bad');
-  const html = _invoiceHTMLFromRecord(inv);
+  // Pull any photos saved against the linked job so the printed copy can show them
+  const photos = inv.job_id ? await loadJobPhotos(inv.job_id) : [];
+  const html = _invoiceHTMLFromRecord(inv, { photos });
   const w = window.open('', '_blank');
   if (!w) return customAlert('Browser blocked the new tab. Allow pop-ups for this site.', { title: 'Pop-up blocked' });
   w.document.open(); w.document.write(html); w.document.close();
@@ -7515,7 +8214,8 @@ window.deleteInvoice = async function(id) {
 };
 
 // Render an invoice record (saved version, not live from job) using the workshop_snapshot.
-function _invoiceHTMLFromRecord(inv) {
+function _invoiceHTMLFromRecord(inv, opts) {
+  const photos = (opts && opts.photos) || [];
   const ws  = inv.workshop_snapshot || _workshopSnapshot();
   const t   = _invoiceTotals(inv);
   const cur = ws.currency || '₹';
@@ -7597,39 +8297,48 @@ function _invoiceHTMLFromRecord(inv) {
       ${(inv.lines || []).length === 0 && (inv.charges || []).length === 0
         ? `<tr><td colspan="8" style="text-align:center;color:#888;padding:30px">No line items.</td></tr>`
         : ''}
-      ${(inv.lines || []).map((l, i) => {
-        const unit = Number(l.unit_price || 0), qty = Math.max(1, Number(l.qty || 1));
-        const dp = Number(l.disc_pct || 0);
-        const gross = unit * qty;
-        const da = +(gross * dp / 100).toFixed(2);
-        const taxable = +(gross - da).toFixed(2);
-        const tx = +(taxable * (inv.tax_pct || 0) / 100).toFixed(2);
-        // Stage-3 approval state — strike through rejected lines + add a tag so
-        // the printed copy reflects exactly what the client decided.
-        const ap = l.approval || 'pending';
-        const decoration = ap === 'rejected' ? 'text-decoration:line-through;color:#888' : '';
-        const tag = ap === 'approved' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#16a34a;background:#e6f7ef;border-radius:3px">APPROVED</span>'
-                  : ap === 'rejected' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#dc2626;background:#fee2e2;border-radius:3px">REJECTED</span>'
-                  : '';
-        return `<tr style="${decoration}">
-          <td>${i + 1}</td><td>${escapeHtml(l.name)}${tag}</td><td>${escapeHtml(l.hsn || '')}</td>
-          <td class="right">${qty}</td><td class="right">${fmt(unit)}</td>
-          <td class="right">${dp ? dp + '%' : '—'}</td>
-          <td class="right">${fmt(taxable)}</td><td class="right">${fmt(taxable + tx)}</td>
-        </tr>`;
-      }).join('')}
-      ${(inv.charges || []).map(ch => {
-        const ap = ch.approval || 'pending';
-        const decoration = ap === 'rejected' ? 'text-decoration:line-through;color:#888' : '';
-        const tag = ap === 'approved' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#16a34a;background:#e6f7ef;border-radius:3px">APPROVED</span>'
-                  : ap === 'rejected' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#dc2626;background:#fee2e2;border-radius:3px">REJECTED</span>'
-                  : '';
-        return `<tr style="${decoration}">
-          <td></td><td>${escapeHtml(ch.name)}${tag}</td><td></td>
-          <td class="right">—</td><td class="right">—</td><td class="right">—</td><td class="right">—</td>
-          <td class="right">${fmt(ch.amount)}</td>
-        </tr>`;
-      }).join('')}
+      ${(() => {
+        // IMPLEMENTATION NOTE — once the client has decided, the FINAL invoice
+        // lists only approved items (rejected ones move to a "Not approved by
+        // client" footer block below the table, so the customer still has the
+        // record of what was declined). Pre-decision estimates show everything.
+        const decided   = !!inv.client_decision_at;
+        const showLine  = (it) => !decided || (it.approval || 'pending') !== 'rejected';
+        let rowIdx = 0;
+        const lineRows = (inv.lines || []).filter(showLine).map((l) => {
+          const idx = ++rowIdx;
+          const unit = Number(l.unit_price || 0), qty = Math.max(1, Number(l.qty || 1));
+          const dp = Number(l.disc_pct || 0);
+          const gross = unit * qty;
+          const da = +(gross * dp / 100).toFixed(2);
+          const taxable = +(gross - da).toFixed(2);
+          const tx = +(taxable * (inv.tax_pct || 0) / 100).toFixed(2);
+          const ap = l.approval || 'pending';
+          const tag = !decided && ap === 'approved' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#16a34a;background:#e6f7ef;border-radius:3px">APPROVED</span>'
+                    : !decided && ap === 'rejected' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#dc2626;background:#fee2e2;border-radius:3px">REJECTED</span>'
+                    : '';
+          const decoration = !decided && ap === 'rejected' ? 'text-decoration:line-through;color:#888' : '';
+          return `<tr style="${decoration}">
+            <td>${idx}</td><td>${escapeHtml(l.name)}${tag}</td><td>${escapeHtml(l.hsn || '')}</td>
+            <td class="right">${qty}</td><td class="right">${fmt(unit)}</td>
+            <td class="right">${dp ? dp + '%' : '—'}</td>
+            <td class="right">${fmt(taxable)}</td><td class="right">${fmt(taxable + tx)}</td>
+          </tr>`;
+        }).join('');
+        const chargeRows = (inv.charges || []).filter(showLine).map(ch => {
+          const ap = ch.approval || 'pending';
+          const tag = !decided && ap === 'approved' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#16a34a;background:#e6f7ef;border-radius:3px">APPROVED</span>'
+                    : !decided && ap === 'rejected' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#dc2626;background:#fee2e2;border-radius:3px">REJECTED</span>'
+                    : '';
+          const decoration = !decided && ap === 'rejected' ? 'text-decoration:line-through;color:#888' : '';
+          return `<tr style="${decoration}">
+            <td></td><td>${escapeHtml(ch.name)}${tag}</td><td></td>
+            <td class="right">—</td><td class="right">—</td><td class="right">—</td><td class="right">—</td>
+            <td class="right">${fmt(ch.amount)}</td>
+          </tr>`;
+        }).join('');
+        return lineRows + chargeRows;
+      })()}
     </tbody>
   </table>
   ${(() => {
@@ -7651,6 +8360,20 @@ function _invoiceHTMLFromRecord(inv) {
   </div></div>`;
   })()}
   <div class="words">Amount (in Words): ${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only</div>
+  ${(() => {
+    // Post-decision: list everything the client rejected so the customer copy
+    // still has the record of what was declined (useful if they later change
+    // their mind on a future visit). Not billed — informational only.
+    if (!inv.client_decision_at) return '';
+    const rejLines   = (inv.lines   || []).filter(l => (l.approval || '') === 'rejected');
+    const rejCharges = (inv.charges || []).filter(c => (c.approval || '') === 'rejected');
+    if (!rejLines.length && !rejCharges.length) return '';
+    const items = [...rejLines.map(l => `${l.name} × ${l.qty}`), ...rejCharges.map(c => c.name)];
+    return `<div style="margin:18px 0;padding:12px 14px;background:#fff5f5;border:1px solid #fecaca;border-radius:6px;font-size:11.5px;color:#7c2d2d;line-height:1.5">
+      <b style="color:#dc2626;font-size:11px;text-transform:uppercase;letter-spacing:.05em">Not approved by client (not billed)</b><br>
+      ${items.map(escapeHtml).join(' · ')}
+    </div>`;
+  })()}
   ${inv.bank_account ? `
     <div class="bank">
       <h3>PAY BY BANK TRANSFER</h3>
@@ -7664,6 +8387,20 @@ function _invoiceHTMLFromRecord(inv) {
       </div>
     </div>` : ''}
   <div class="pay-status">Payment Status: <b>${escapeHtml(inv.payment_status || 'Outstanding')}${inv.payment_status === 'Partial' && inv.amount_paid ? ` (${fmt(inv.amount_paid)} of ${fmt(t.roundOff)})` : ''}</b></div>
+  ${photos.length ? `
+    <hr>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.04em;color:#1a1a1a;margin-bottom:10px">PHOTOS</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px">
+      ${photos.map(p => `
+        <div style="border:1px solid #d9dde2;border-radius:6px;overflow:hidden;background:#fff">
+          <img src="${escapeHtml(p.data)}" alt="${escapeHtml(p.label || '')}" style="width:100%;height:120px;object-fit:cover;display:block" />
+          <div style="padding:5px 7px;font-size:10px;color:#444;border-top:1px solid #eee">
+            <b style="color:#1a1a1a">${escapeHtml(p.label || 'Photo')}</b><br>
+            <span style="color:#666">${escapeHtml((p.uploaded_at || '').slice(0,16))}</span>
+          </div>
+        </div>`).join('')}
+    </div>
+  ` : ''}
   <hr><div class="foot">I certify that the work has been done to my satisfaction and that I have taken delivery of the vehicle in good condition, with all items / valuables and parts intact.</div>
   <hr><div class="foot">Thank you for choosing ${escapeHtml(ws.workshop_name || 'us')}. Please retain this invoice for your records.</div>
   <div class="no-print" style="margin-top:24px;text-align:center"><button onclick="window.print()" style="background:#1a1a1a;color:#fff;border:0;padding:10px 20px;border-radius:7px;cursor:pointer;font-size:13px">Print invoice</button></div>
@@ -7698,7 +8435,9 @@ window.generateInvoice = async function(jobId) {
   const writes = [wsSave('invoices', D.invoices)];
   if (j && !j.invoice_no) { j.invoice_no = inv.number; writes.push(wsSave('jobs', D.jobs)); }
   if (b && !b.invoice_no) { b.invoice_no = inv.number; writes.push(wsSave('bookings', D.bookings)); }
-  const html = _invoiceHTMLFromRecord(inv);
+  // Lazy-load this job's photos so the printed invoice can include them
+  const photos = await loadJobPhotos(jobId);
+  const html = _invoiceHTMLFromRecord(inv, { photos });
   const w = window.open('', '_blank');
   if (!w) { await Promise.all(writes); return customAlert('Browser blocked the new tab. Allow pop-ups for this site to print invoices.', { title: 'Pop-up blocked' }); }
   w.document.open(); w.document.write(html); w.document.close();
@@ -7965,6 +8704,17 @@ async function renderReports(force = false) {
   const insJobs = jobs.filter(j => j.is_insurance);
   const insApproved = insJobs.reduce((s, j) => s + Number(j.approved_amount || 0), 0);
 
+  // Conversion stats — every job that reached client decision counts as an estimate sent.
+  // Tracks how many got approved (full / partial) vs rejected. Records survive in D.jobs
+  // even after a reject because the visit/diagnosis/estimate is intentionally preserved.
+  const estimateJobs = jobs.filter(j => j.visit_outcome);
+  const cFull    = estimateJobs.filter(j => j.visit_outcome === 'approved_full').length;
+  const cPartial = estimateJobs.filter(j => j.visit_outcome === 'approved_partial').length;
+  const cReject  = estimateJobs.filter(j => j.visit_outcome === 'rejected').length;
+  const cTotal   = estimateJobs.length;
+  const cRate    = cTotal ? Math.round(((cFull + cPartial) / cTotal) * 100) : 0;
+  const cValue   = estimateJobs.reduce((s, j) => s + Number(j.visit_summary?.estimate_total || 0), 0);
+
   // Outstanding invoices (across all time)
   const outstandingList = (D.invoices || [])
     .filter(i => i.payment_status !== 'Paid' && i.status !== 'Cancelled')
@@ -7994,7 +8744,27 @@ async function renderReports(force = false) {
       ${card('Jobs completed', completedJobs, 'var(--acc)')}
       ${card('Bookings', bookings.length, 'var(--blue)')}
       ${card('Insurance jobs', insJobs.length, 'var(--acc2)', insApproved ? `${inr(insApproved)} approved` : '')}
+      ${card('Estimate conversion', cTotal ? `${cRate}%` : '—', cRate >= 75 ? 'var(--teal)' : cRate >= 50 ? 'var(--acc2)' : 'var(--red)', cTotal ? `${cFull + cPartial}/${cTotal} approved · ${inr(cValue)} quoted` : 'No estimates with a client decision yet')}
     </div>
+
+    ${cTotal ? `<div class="card" style="padding:18px;margin-bottom:18px">
+      <h3 style="margin:0 0 14px;font-size:15px">Client decisions on estimates</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+        <div style="padding:14px;border-radius:10px;background:rgba(32,227,178,.08);border:1px solid rgba(32,227,178,.30)">
+          <div style="font-family:var(--fd);font-weight:800;font-size:22px;color:var(--teal)">${cFull}</div>
+          <div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:4px">Fully approved</div>
+        </div>
+        <div style="padding:14px;border-radius:10px;background:rgba(255,179,71,.08);border:1px solid rgba(255,179,71,.30)">
+          <div style="font-family:var(--fd);font-weight:800;font-size:22px;color:var(--acc2)">${cPartial}</div>
+          <div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:4px">Partially approved</div>
+        </div>
+        <div style="padding:14px;border-radius:10px;background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.30)">
+          <div style="font-family:var(--fd);font-weight:800;font-size:22px;color:var(--red)">${cReject}</div>
+          <div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:4px">Rejected (closed without repair)</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:12px;color:var(--faint)">Rejected visits still keep their diagnosis &amp; estimate on file for future reference — they just don't generate a repair record.</div>
+    </div>` : ''}
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px">
       <div class="card" style="padding:18px">
