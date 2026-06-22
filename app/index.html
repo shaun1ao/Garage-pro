@@ -1437,7 +1437,25 @@ window.doGoogleSignIn = async function() {
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    await fbAuth.signInWithPopup(provider);
+    const result = await fbAuth.signInWithPopup(provider);
+    // ── Block Google sign-in for branch accounts and for chain owners with branches ──
+    // Branches MUST use email/password (the credentials their chain owner gave them).
+    // Chain owners with branches must also use email/password so each session is
+    // unambiguously scoped to one workshop.
+    try {
+      const snap = await fbDb.collection('users').doc(result.user.uid).get();
+      const d = snap.exists ? (snap.data() || {}) : {};
+      if (d.branch === true || d.chain_parent_uid) {
+        await fbAuth.signOut().catch(() => {});
+        if (errCurrent) errCurrent.textContent = 'This account is a branch login — sign in with the email and password your chain owner gave you, not with Google.';
+        return;
+      }
+      if (Array.isArray(d.branches) && d.branches.length > 0) {
+        await fbAuth.signOut().catch(() => {});
+        if (errCurrent) errCurrent.textContent = 'You have branches set up — please sign in with email and password so the session is scoped to the right workshop.';
+        return;
+      }
+    } catch (_) {}
     // onAuthStateChanged decides next screen (first-run setup vs PIN-pad)
   } catch (e) {
     const code = e?.code || '';
@@ -7411,9 +7429,15 @@ window.createBranch = async function(ev) {
     showToast(`Branch "${name}" created · PIN ${initialPin}`, 'good');
     audit('branch-create', `${name} (${email})`, { branch_uid: newUid });
   } catch (e) {
-    err.textContent = (e.code === 'auth/email-already-in-use')
-      ? 'That email is already in use. Pick another.'
-      : (e.message || String(e));
+    // Surface the exact Firebase error so misconfigurations are immediately visible
+    const code = e?.code || '';
+    if (code === 'auth/email-already-in-use')         err.innerHTML = 'That email is already in use. Pick another address.';
+    else if (code === 'auth/invalid-email')           err.innerHTML = 'That email format is invalid — check for typos.';
+    else if (code === 'auth/weak-password')           err.innerHTML = 'Password too weak — Firebase requires at least 6 characters.';
+    else if (code === 'auth/operation-not-allowed')   err.innerHTML = '<b>Email/Password sign-in is disabled in your Firebase project.</b><br>Open <a href="https://console.firebase.google.com/project/garage-pro-874c6/authentication/providers" target="_blank" rel="noopener" style="color:var(--blue)">Firebase Console → Authentication → Sign-in method</a> and enable the Email/Password provider, then try again.';
+    else if (code === 'permission-denied')            err.innerHTML = 'Firestore rules blocked the write. Make sure the latest <code>firestore.rules</code> are deployed.';
+    else                                              err.textContent = (e.message || String(e)) + (code ? ' (' + code + ')' : '');
+    console.warn('[createBranch] failed', e);
   } finally {
     btn.disabled = false; btn.textContent = 'Create branch';
   }
