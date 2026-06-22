@@ -1529,6 +1529,25 @@ html,body{max-width:100%;overflow-x:hidden}
         <button class="form-btn form-btn-save" onclick="userChangePassword()">Update Password</button>
         <div class="success-msg" id="udPassMsg"></div>
       </div>
+
+      <!-- Branches — chain-plan only. Renders dynamically based on the active
+           subscription, see renderBranchesPanel() in the JS below. -->
+      <div class="user-card" id="udBranchesCard" style="display:none">
+        <h4>Branches <span id="udBranchesBadge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(255,122,24,.16);color:var(--acc2);margin-left:6px;vertical-align:middle"></span></h4>
+        <p style="color:var(--dim);font-size:13.5px;margin-bottom:14px;line-height:1.5">Create a separate sign-in for every branch in your chain. Each branch lands in <a href="app/" target="_blank" rel="noopener" style="color:var(--acc2)">garagepro.me/app</a> as its own isolated workshop with its own bookings, inventory, and team. Your chain owner ID is stamped on every branch so reports roll up later.</p>
+        <div class="form-row">
+          <div class="form-group"><label>Branch name</label><input id="udb-name" type="text" placeholder="Speed Auto Care · Hyderabad" autocomplete="off" /></div>
+          <div class="form-group"><label>Login email</label><input id="udb-email" type="email" placeholder="hyderabad@yourgarage.in" autocomplete="off" /></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Initial password (8+ chars)</label><input id="udb-pass" type="text" minlength="8" placeholder="set a starter password" autocomplete="off" /></div>
+          <div class="form-group" style="display:flex;align-items:flex-end"><button class="form-btn form-btn-save" onclick="udCreateBranch()" style="width:100%">Create branch login</button></div>
+        </div>
+        <div class="success-msg" id="udBranchMsg" style="margin-bottom:10px"></div>
+        <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">Your branches</div>
+        <div id="udBranchList"></div>
+        <div style="margin-top:10px;font-size:12px;color:var(--faint)">Share the credentials with each branch's manager so they can sign in. They can change the password from their own account afterwards.</div>
+      </div>
     </div>
     <!-- hidden — kept for backwards-compat refs -->
     <span id="udFullName" style="display:none"></span>
@@ -5348,6 +5367,133 @@ function renderUserDashboard() {
   } else {
     document.getElementById('udSavedCard').style.display = 'none';
   }
+  // Branches panel — chain-plan only
+  renderBranchesPanel();
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  BRANCHES — chain-plan owners can spin up isolated workshop logins from
+//  the My Account screen. Each branch is its own Firebase Auth account
+//  with its own users/{uid}/* subcollections (data isolation handled by
+//  the per-user Firestore rules).
+// ═════════════════════════════════════════════════════════════════════════
+let _udBranchSecondaryApp = null;
+
+function renderBranchesPanel() {
+  const card  = document.getElementById('udBranchesCard');
+  const badge = document.getElementById('udBranchesBadge');
+  if (!card || !currentUser) return;
+  const isChain = currentSubscription && isChainTier(currentSubscription);
+  // Only chain-tier subscriptions get the branch feature
+  if (!isChain) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  badge.textContent = 'CHAIN PLAN';
+  // Pull the list of branches from the chain owner's profile doc and render
+  _udFetchAndRenderBranches();
+}
+
+async function _udFetchAndRenderBranches() {
+  if (!fbAuth.currentUser) return;
+  const wrap = document.getElementById('udBranchList');
+  if (!wrap) return;
+  wrap.innerHTML = `<div style="color:var(--faint);font-size:13px;padding:14px;text-align:center">Loading branches…</div>`;
+  try {
+    const doc = await fbDb.collection('users').doc(fbAuth.currentUser.uid).get();
+    const branches = (doc.exists && Array.isArray(doc.data().branches)) ? doc.data().branches : [];
+    if (!branches.length) {
+      wrap.innerHTML = `<div style="padding:18px;background:var(--bg2);border:1px dashed var(--border);border-radius:8px;text-align:center;color:var(--dim);font-size:13.5px">No branches yet. Use the form above to create your first branch login.</div>`;
+      return;
+    }
+    wrap.innerHTML = branches.map(b => `
+      <div style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;color:var(--text);font-size:14px">${_esc(b.name || '—')}</div>
+          <div style="font-size:12.5px;color:var(--dim);margin-top:2px">${_esc(b.email || '')} · created ${_esc((b.created_at || '').slice(0,10))}</div>
+        </div>
+        <span style="font-size:11px;color:var(--acc2);background:rgba(255,122,24,.14);border:1px solid rgba(255,122,24,.32);padding:3px 10px;border-radius:100px;font-weight:700;letter-spacing:.04em">BRANCH</span>
+        <button class="tiny-btn danger" onclick="udUnlinkBranch('${_esc(b.uid)}')" title="Remove from chain (branch keeps its own data)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Unlink</button>
+      </div>`).join('');
+  } catch (e) {
+    wrap.innerHTML = `<div style="color:var(--red);font-size:13px;padding:14px">Couldn't load branches: ${_esc(e.message || String(e))}</div>`;
+  }
+}
+
+function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+window.udCreateBranch = async function() {
+  const msg = document.getElementById('udBranchMsg');
+  const name  = document.getElementById('udb-name').value.trim();
+  const email = document.getElementById('udb-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('udb-pass').value;
+  msg.textContent = '';
+  msg.style.color = '#ff6b6b';
+  if (!name || !email || !pass) { msg.textContent = 'Fill in all three fields.'; return; }
+  if (pass.length < 8) { msg.textContent = 'Password must be at least 8 characters.'; return; }
+  if (!fbAuth.currentUser) { msg.textContent = 'Sign in to your account first.'; return; }
+  msg.style.color = 'var(--dim)'; msg.textContent = 'Creating branch login…';
+  try {
+    // Secondary app instance so we don't sign the chain owner out
+    if (!_udBranchSecondaryApp) _udBranchSecondaryApp = firebase.initializeApp(firebase.app().options, 'gp-branch-creator');
+    const secAuth = _udBranchSecondaryApp.auth();
+    const cred = await secAuth.createUserWithEmailAndPassword(email, pass);
+    const newUid = cred.user.uid;
+    // Provision the branch's profile + stamp chain parent uid for roll-up
+    await fbDb.collection('users').doc(newUid).set({
+      uid: newUid, email,
+      name: name + ' Owner',
+      workshop_name: name,
+      chain_parent_uid: fbAuth.currentUser.uid,
+      chain_parent_name: (await fbDb.collection('users').doc(fbAuth.currentUser.uid).get()).data()?.workshop_name || '',
+      branch: true,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    // Initial owner mechanic so the branch can immediately PIN in to the app.
+    // PIN = last 4 digits of the password, padded to 4 chars (matches the in-app flow).
+    const initialPin = (pass.match(/\d/g) || ['1','2','3','4']).join('').slice(-4).padStart(4, '0');
+    const pinHash = await _udSha256(initialPin);
+    await fbDb.collection('users').doc(newUid).collection('mechanics').doc('data').set({
+      items: [{ id: 'mech-owner', name: name + ' Owner', role: 'owner', active: true,
+                pin_hash: pinHash, pin_len: 4, created_at: new Date().toISOString() }],
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    // Append to chain owner's branches array
+    const parentRef = fbDb.collection('users').doc(fbAuth.currentUser.uid);
+    const parentDoc = await parentRef.get();
+    const existing  = (parentDoc.exists && Array.isArray(parentDoc.data().branches)) ? parentDoc.data().branches : [];
+    existing.push({ uid: newUid, name, email, created_at: new Date().toISOString().slice(0,19).replace('T',' ') });
+    await parentRef.set({ branches: existing }, { merge: true });
+    // Sign the secondary auth out (we don't want to be logged in as the branch)
+    await secAuth.signOut().catch(() => {});
+    // Reset form + re-render
+    document.getElementById('udb-name').value = '';
+    document.getElementById('udb-email').value = '';
+    document.getElementById('udb-pass').value = '';
+    msg.style.color = 'var(--teal)';
+    msg.innerHTML = `✓ Branch "<b>${_esc(name)}</b>" created. Share these credentials with the branch manager:<br><b>${_esc(email)}</b> &middot; password set by you &middot; initial worker PIN <b>${initialPin}</b>`;
+    _udFetchAndRenderBranches();
+  } catch (e) {
+    msg.style.color = '#ff6b6b';
+    msg.textContent = (e.code === 'auth/email-already-in-use')
+      ? 'That email is already in use. Pick another.'
+      : (e.message || String(e));
+  }
+};
+
+window.udUnlinkBranch = async function(uid) {
+  const ok = confirm('Unlink this branch from your chain?\n\nThe branch will keep its own data and login — only the chain roll-up relationship is removed.');
+  if (!ok) return;
+  const parentRef = fbDb.collection('users').doc(fbAuth.currentUser.uid);
+  const parentDoc = await parentRef.get();
+  const existing  = (parentDoc.exists && Array.isArray(parentDoc.data().branches)) ? parentDoc.data().branches : [];
+  await parentRef.set({ branches: existing.filter(b => b.uid !== uid) }, { merge: true });
+  _udFetchAndRenderBranches();
+  showToast('Branch unlinked', 'good');
+};
+
+async function _udSha256(str) {
+  const buf = new TextEncoder().encode(String(str));
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 function renderBranchSection() {
   const branches = myBranchLicenses || [];
