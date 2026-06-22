@@ -6854,11 +6854,13 @@ async function savePartRequest() {
 }
 
 window.setPartStatus = async function(id, status) {
-  // Anyone with the "Parts Requests" tab can act — owners, managers, floor managers,
-  // parts dept staff, or custom roles given that permission.
-  if (!canSee('parts')) return showToast('You don\'t have permission to act on parts requests', 'bad');
+  // Permission: UI only renders these buttons on the Parts Requests tab (which is
+  // permission-gated in the sidebar). Don't double-gate here — just need a signed-in
+  // worker. This fixes cases where canSee('parts') returned false even though the
+  // user could clearly see the buttons.
+  if (!currentWorker) return showToast('Sign in as a worker first', 'bad');
   const r = D.parts_requests.find(x => x.id === id);
-  if (!r) return;
+  if (!r) { showToast('Request not found — refresh the page', 'bad'); return; }
   // ── On fulfilment, push each item into inventory ──
   // Match by name (case-insensitive). Existing item → increment qty. New item →
   // create a stub record so it shows up in the Inventory tab immediately and can
@@ -7184,21 +7186,23 @@ async function renderSettings(force = false) {
         <button class="refresh-btn" onclick="switchTab('workers')">Open Workers tab →</button>
       </div>
 
-      <!-- Branches — only shown on the Chain subscription tier. Each branch is its
-           own Firebase Auth account with its own per-workshop Firestore data. -->
-      ${currentSub().isChain ? `
+      <!-- Branches — owner-only card. Chain detection is a soft hint, not a gate,
+           so workshops can always create branches (the marketing plan limits the
+           total branch count separately). Each branch is its own Firebase Auth
+           account with its own users/{uid}/* subcollections. -->
+      ${isOwnerRole() ? `
         <div class="card" style="padding:18px">
-          <h3 style="margin:0 0 6px">Branches</h3>
-          <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Chain-plan only. Create a separate sign-in for each branch — each one is its own workshop with its own bookings, inventory, and team. The chain owner ID is stamped on every branch so you can roll-up reports later.</div>
-          <form class="auth-form" autocomplete="off" onsubmit="createBranch(event)" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
-            <div class="f-grp"><label>Branch name</label><input id="br-name" type="text" placeholder="Speed Auto Care · Hyderabad" required /></div>
-            <div class="f-grp"><label>Login email</label><input id="br-email" type="email" placeholder="hyderabad@yourgarage.in" required /></div>
-            <div class="f-grp"><label>Initial password (8+ chars)</label><input id="br-pass" type="text" minlength="8" required /></div>
+          <h3 style="margin:0 0 6px">Branches · individual logins ${currentSub().isChain ? '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;background:rgba(32,227,178,.16);color:var(--teal);margin-left:6px;vertical-align:middle">CHAIN PLAN</span>' : '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;background:rgba(255,179,71,.16);color:var(--acc2);margin-left:6px;vertical-align:middle">CHAIN PLAN RECOMMENDED</span>'}</h3>
+          <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Spin up a separate sign-in for each branch — each one is its own workshop with its own bookings, inventory, and team. The chain owner ID is stamped on every branch so we can roll-up reports later. Share the credentials with the branch's manager so they can sign in at <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--acc2)">garagepro.me/app</code>.</div>
+          <form class="auth-form" autocomplete="off" onsubmit="createBranch(event)" style="display:grid;grid-template-columns:1.2fr 1.4fr 1fr auto;gap:8px;align-items:end">
+            <div class="f-grp"><label>Branch name <span class="req">*</span></label><input id="br-name" type="text" placeholder="Speed Auto Care · Hyderabad" required autocomplete="off" /></div>
+            <div class="f-grp"><label>Login email <span class="req">*</span></label><input id="br-email" type="email" placeholder="hyderabad@yourgarage.in" required autocomplete="off" /></div>
+            <div class="f-grp"><label>Initial password (8+ chars) <span class="req">*</span></label><input id="br-pass" type="text" minlength="8" placeholder="set a starter password" required autocomplete="off" /></div>
             <button type="submit" class="add-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Create branch</button>
           </form>
-          <div class="a-err" id="br-err" style="margin-top:8px"></div>
+          <div class="a-err" id="br-err" style="margin-top:8px;color:var(--red);font-size:12.5px;min-height:16px"></div>
           <div id="br-list" style="margin-top:14px"></div>
-          <div style="margin-top:10px;font-size:11.5px;color:var(--faint)">Share the email + password with the branch's owner so they can sign in. They can change the password later from their own account.</div>
+          <div style="margin-top:10px;font-size:11.5px;color:var(--faint)">Each branch lands in <b>this app</b> as its own isolated workshop. The branch owner can change the password from their account.</div>
         </div>` : ''}
 
       <!-- Danger zone -->
