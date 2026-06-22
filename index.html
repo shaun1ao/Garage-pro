@@ -5419,8 +5419,7 @@ function renderBranchesPanel() {
   const badge = document.getElementById('udBranchesBadge');
   if (!card || !currentUser) return;
   // ALWAYS visible to a signed-in user. The Chain plan is *recommended* for
-  // multi-branch workshops but the create flow is never blocked — gating used
-  // to depend on a brittle plan-name match which hid the feature for many users.
+  // multi-branch workshops but the create flow is never blocked.
   card.style.display = 'block';
   const isChain = currentSubscription && isChainTier(currentSubscription);
   if (isChain) {
@@ -5432,8 +5431,30 @@ function renderBranchesPanel() {
     badge.style.background = 'rgba(255,179,71,.16)';
     badge.style.color = 'var(--acc2)';
   }
+  // Google→Email migration banner — auto-shown when this account has no password
+  // provider linked yet (most commonly: someone who signed up with Google).
+  // Branches MUST use email/password so the chain owner needs one too, otherwise
+  // Google sign-in will be blocked once branches exist (see doGoogleSignIn).
+  _udUpdateGooglePromptBanner();
   // Pull the list of branches from the chain owner's profile doc and render
   _udFetchAndRenderBranches();
+}
+
+// True when the signed-in Firebase user has no email/password credential linked
+function _udNeedsPasswordMigration() {
+  const u = fbAuth.currentUser;
+  if (!u) return false;
+  const providers = (u.providerData || []).map(p => p.providerId);
+  const hasPassword = providers.includes('password');
+  const hasGoogle   = providers.includes('google.com');
+  // Show the banner when they signed up with Google but never set a password
+  return hasGoogle && !hasPassword;
+}
+
+function _udUpdateGooglePromptBanner() {
+  const banner = document.getElementById('udGooglePromptBanner');
+  if (!banner) return;
+  banner.style.display = _udNeedsPasswordMigration() ? '' : 'none';
 }
 
 async function _udFetchAndRenderBranches() {
@@ -5537,6 +5558,87 @@ window.udUnlinkBranch = async function(uid) {
   await parentRef.set({ branches: existing.filter(b => b.uid !== uid) }, { merge: true });
   _udFetchAndRenderBranches();
   showToast('Branch unlinked', 'good');
+};
+
+// ═════════════════════════════════════════════════════════════════════════
+//  GOOGLE → EMAIL/PASSWORD MIGRATION
+//  Builds a small modal that pre-fills the Google email (read-only) and asks
+//  for a new password (+ confirm). On submit, links a password credential to
+//  the existing Firebase Auth user via linkWithCredential(). After this, the
+//  same account can sign in with either Google OR email+password — and the
+//  branch system (which blocks Google sign-in when branches exist) won't
+//  lock them out of their own workshop.
+// ═════════════════════════════════════════════════════════════════════════
+window.udOpenPasswordMigration = function() {
+  if (!fbAuth.currentUser) return;
+  const email = fbAuth.currentUser.email || '';
+  // Strip any prior modal so re-opening doesn't stack
+  document.getElementById('gpMigrateModal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'gpMigrateModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:9999;display:grid;place-items:center;padding:16px';
+  m.innerHTML = `
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:14px;max-width:440px;width:100%;padding:24px 26px;box-shadow:0 30px 70px -20px rgba(0,0,0,.85);font-family:Inter,system-ui,sans-serif">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--acc2)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <h3 style="font-family:Sora,Inter,sans-serif;font-size:18px;font-weight:800;color:var(--text);margin:0">Set a password for your account</h3>
+      </div>
+      <p style="color:var(--dim);font-size:13px;line-height:1.55;margin:8px 0 18px">You currently sign in with Google. Add a password so you can keep signing in alongside your branches. Your Google sign-in still works on this account until your first branch is created.</p>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Email (from Google)</label>
+        <input id="mig-email" type="email" value="${email.replace(/"/g, '&quot;')}" readonly
+          style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--dim);font-family:inherit;font-size:14px;opacity:.85" />
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">New password (8+ chars)</label>
+        <input id="mig-pass" type="password" autocomplete="new-password" placeholder="••••••••"
+          style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:inherit;font-size:14px" />
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Confirm password</label>
+        <input id="mig-pass2" type="password" autocomplete="new-password" placeholder="••••••••"
+          style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:inherit;font-size:14px" />
+      </div>
+      <div id="mig-err" style="color:#ff6b6b;font-size:12.5px;min-height:16px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" class="form-btn form-btn-cancel" onclick="document.getElementById('gpMigrateModal').remove()">Cancel</button>
+        <button type="button" class="form-btn form-btn-save" id="mig-save">Set password</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  setTimeout(() => document.getElementById('mig-pass')?.focus(), 50);
+
+  document.getElementById('mig-save').onclick = async () => {
+    const err = document.getElementById('mig-err'); err.textContent = '';
+    const p1 = document.getElementById('mig-pass').value;
+    const p2 = document.getElementById('mig-pass2').value;
+    if (p1.length < 8)                     { err.textContent = 'Password must be at least 8 characters.'; return; }
+    if (p1 !== p2)                         { err.textContent = "Passwords don't match."; return; }
+    const btn = document.getElementById('mig-save');
+    btn.disabled = true; btn.textContent = 'Linking…';
+    try {
+      const credential = firebase.auth.EmailAuthProvider.credential(email, p1);
+      await fbAuth.currentUser.linkWithCredential(credential);
+      // Stamp it on the user profile so other surfaces can see the password is now active
+      await fbDb.collection('users').doc(fbAuth.currentUser.uid).set({
+        has_password: true,
+        password_set_at: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      document.getElementById('gpMigrateModal').remove();
+      showToast('Password set — you can now sign in with email + password.', 'good');
+      // Banner should disappear since the password provider is now attached
+      _udUpdateGooglePromptBanner();
+    } catch (e) {
+      const code = e?.code || '';
+      if      (code === 'auth/provider-already-linked')   err.textContent = 'A password is already linked to this account.';
+      else if (code === 'auth/credential-already-in-use') err.textContent = 'That email is already used by another account.';
+      else if (code === 'auth/weak-password')             err.textContent = 'Password too weak. Try a longer one.';
+      else if (code === 'auth/requires-recent-login')     err.textContent = 'Please sign out and back in with Google, then set the password.';
+      else if (code === 'auth/operation-not-allowed')     err.innerHTML  = 'Email/Password sign-in isn\'t enabled in Firebase yet. <a href="https://console.firebase.google.com/project/garage-pro-874c6/authentication/providers" target="_blank" rel="noopener" style="color:var(--acc2);text-decoration:underline">Enable it here</a>, then retry.';
+      else                                                err.textContent = (e.message || String(e)) + (code ? ' (' + code + ')' : '');
+      btn.disabled = false; btn.textContent = 'Set password';
+    }
+  };
 };
 
 async function _udSha256(str) {
