@@ -1269,18 +1269,23 @@ let currentTab     = 'dashboard';
 const FREE_TIER_LIMITS = { maxBays: 1, maxWorkers: 2, maxBookings: 5, planName: 'Free / unverified' };
 function currentSub() {
   const s = userProfile?.subscription;
-  if (!s) return { ...FREE_TIER_LIMITS, active: false, planName: 'Free / unverified', expiry: null };
+  if (!s) return { ...FREE_TIER_LIMITS, active: false, planName: 'Free / unverified', expiry: null, isChain: false };
   // Expiry can be a Firestore Timestamp, ISO string, or millis
   const exp = s.expiry?.toDate ? s.expiry.toDate() : (s.expiry ? new Date(s.expiry) : null);
   const active = (s.status === 'active') && (!exp || exp.getTime() > Date.now());
+  const planLabel = (s.planName || s.plan || '').toString();
+  // Chain plan detection: any plan with the word "chain" in the name OR truly
+  // unlimited limits (maxBays >= 999). Branches are only available on chain tiers.
+  const isChain = /chain/i.test(planLabel) || Number(s.maxBays || 0) >= 999;
   return {
     active,
-    planName:    s.planName || s.plan || 'Plan',
+    planName:    planLabel || 'Plan',
     maxBays:     Number(s.maxBays || 0)     || FREE_TIER_LIMITS.maxBays,
     maxWorkers:  Number(s.maxWorkers || 0)  || FREE_TIER_LIMITS.maxWorkers,
     maxBookings: Number(s.maxBookings || 0) || FREE_TIER_LIMITS.maxBookings,
     expiry:      exp,
-    licenseKey:  s.licenseKey || ''
+    licenseKey:  s.licenseKey || '',
+    isChain
   };
 }
 // Block an action when adding `extra` more items would exceed the plan limit.
@@ -7130,6 +7135,23 @@ async function renderSettings(force = false) {
           <div class="f-grp"><label>Currency symbol</label><input id="sf-cur" type="text" value="${escapeHtml(s.currency || '₹')}" /></div>
           <div class="f-grp"><label>Default tax %</label><input id="sf-tax" type="number" step="0.01" value="${escapeHtml(String(s.tax_pct ?? 18))}" /></div>
         </div>
+
+        <!-- Bank transfer details — one workshop account, printed at the bottom of every invoice -->
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+          <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--txt);margin-bottom:4px">Bank transfer details</div>
+          <div style="font-size:12px;color:var(--faint);margin-bottom:12px">One workshop account. Prints under "PAY BY BANK TRANSFER" on every invoice. Leave blank to hide the bank block on invoices.</div>
+          <div class="f-row r3">
+            <div class="f-grp"><label>Bank name</label><input id="sf-bank-name" type="text" value="${escapeHtml(s.bank_name || '')}" placeholder="ICICI" /></div>
+            <div class="f-grp"><label>Branch</label><input id="sf-bank-branch" type="text" value="${escapeHtml(s.bank_branch || '')}" placeholder="Madhapur" /></div>
+            <div class="f-grp"><label>Account no.</label><input id="sf-bank-account" type="text" value="${escapeHtml(s.bank_account || '')}" placeholder="123456789012" /></div>
+          </div>
+          <div class="f-row r3">
+            <div class="f-grp"><label>IFSC code</label><input id="sf-bank-ifsc" type="text" value="${escapeHtml(s.bank_ifsc || '')}" placeholder="ICIC0001234" /></div>
+            <div class="f-grp"><label>SWIFT / Sort</label><input id="sf-bank-swift" type="text" value="${escapeHtml(s.bank_swift || '')}" placeholder="(optional)" /></div>
+            <div class="f-grp"><label>Terms</label><input id="sf-bank-terms" type="text" value="${escapeHtml(s.bank_terms || 'WIRE')}" placeholder="WIRE" /></div>
+          </div>
+        </div>
+
         <div style="margin-top:12px;text-align:right"><button class="add-btn" onclick="saveWorkshopInfo()">Save workshop info</button></div>
       </div>
 
@@ -7162,6 +7184,23 @@ async function renderSettings(force = false) {
         <button class="refresh-btn" onclick="switchTab('workers')">Open Workers tab →</button>
       </div>
 
+      <!-- Branches — only shown on the Chain subscription tier. Each branch is its
+           own Firebase Auth account with its own per-workshop Firestore data. -->
+      ${currentSub().isChain ? `
+        <div class="card" style="padding:18px">
+          <h3 style="margin:0 0 6px">Branches</h3>
+          <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Chain-plan only. Create a separate sign-in for each branch — each one is its own workshop with its own bookings, inventory, and team. The chain owner ID is stamped on every branch so you can roll-up reports later.</div>
+          <form class="auth-form" autocomplete="off" onsubmit="createBranch(event)" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
+            <div class="f-grp"><label>Branch name</label><input id="br-name" type="text" placeholder="Speed Auto Care · Hyderabad" required /></div>
+            <div class="f-grp"><label>Login email</label><input id="br-email" type="email" placeholder="hyderabad@yourgarage.in" required /></div>
+            <div class="f-grp"><label>Initial password (8+ chars)</label><input id="br-pass" type="text" minlength="8" required /></div>
+            <button type="submit" class="add-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Create branch</button>
+          </form>
+          <div class="a-err" id="br-err" style="margin-top:8px"></div>
+          <div id="br-list" style="margin-top:14px"></div>
+          <div style="margin-top:10px;font-size:11.5px;color:var(--faint)">Share the email + password with the branch's owner so they can sign in. They can change the password later from their own account.</div>
+        </div>` : ''}
+
       <!-- Danger zone -->
       <div class="card" style="padding:18px;border:1px solid rgba(255,107,107,.3)">
         <h3 style="margin:0 0 6px;color:var(--red)">Danger zone</h3>
@@ -7177,6 +7216,8 @@ async function renderSettings(force = false) {
         </div>
       </div>
     </div>`;
+  // Render the branch list (no-op when the Branches card isn't on screen)
+  if (typeof _renderBranchList === 'function') _renderBranchList();
 }
 
 window.saveWorkshopInfo = async function() {
@@ -7188,7 +7229,13 @@ window.saveWorkshopInfo = async function() {
   D.settings.gstin         = document.getElementById('sf-gst').value.trim();
   D.settings.currency      = document.getElementById('sf-cur').value.trim() || '₹';
   D.settings.tax_pct       = Number(document.getElementById('sf-tax').value) || 0;
-  // Bank transfer details are entered per-invoice now (not in Settings)
+  // One workshop bank account — printed on every invoice
+  D.settings.bank_name     = document.getElementById('sf-bank-name').value.trim();
+  D.settings.bank_branch   = document.getElementById('sf-bank-branch').value.trim();
+  D.settings.bank_account  = document.getElementById('sf-bank-account').value.trim();
+  D.settings.bank_ifsc     = document.getElementById('sf-bank-ifsc').value.trim();
+  D.settings.bank_swift    = document.getElementById('sf-bank-swift').value.trim();
+  D.settings.bank_terms    = document.getElementById('sf-bank-terms').value.trim() || 'WIRE';
   await wsSaveSettings();
   showToast('Workshop info saved', 'good');
 };
@@ -7299,6 +7346,104 @@ window.removeCustomRole = async function(role) {
     showToast(`Role "${role}" removed`, 'good');
     await renderSettings(true);
   }
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CHAIN BRANCHES — chain-plan owners can spin up separate workshop accounts
+//  (one Firebase Auth user per branch). Each branch gets its own users/{uid}/*
+//  subcollections so the data is fully isolated.
+//
+//  We create the auth user via a SECONDARY firebase app instance so the chain
+//  owner doesn't get signed out. The new branch's users/{uid} doc is stamped
+//  with chain_parent_uid so we can roll up reports later.
+// ══════════════════════════════════════════════════════════════════════════
+let _secondaryApp = null;
+
+window.createBranch = async function(ev) {
+  ev.preventDefault();
+  const err = document.getElementById('br-err'); err.textContent = '';
+  const name  = document.getElementById('br-name').value.trim();
+  const email = document.getElementById('br-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('br-pass').value;
+  const btn = ev.target.querySelector('button[type="submit"]');
+  if (pass.length < 8) { err.textContent = 'Password must be at least 8 characters.'; return; }
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    // Use a secondary Firebase app so creating the new account doesn't sign out the chain owner
+    if (!_secondaryApp) _secondaryApp = firebase.initializeApp(FB_CONFIG, 'gp-branch-creator');
+    const secAuth = _secondaryApp.auth();
+    const cred = await secAuth.createUserWithEmailAndPassword(email, pass);
+    const newUid = cred.user.uid;
+    // Provision the branch's profile + stamp the chain parent + initial owner mechanic
+    await fbDb.collection('users').doc(newUid).set({
+      uid: newUid, email,
+      name: name + ' Owner',
+      workshop_name: name,
+      chain_parent_uid: currentUser.uid,
+      chain_parent_name: userProfile?.workshop_name || '',
+      branch: true,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    // Default owner worker so the branch can sign in via PIN-pad. PIN = last 4 of the password.
+    const initialPin = (pass.match(/\d/g) || ['1','2','3','4']).join('').slice(-4).padStart(4, '0');
+    const pinHash = await sha256(initialPin);
+    await fbDb.collection('users').doc(newUid).collection('mechanics').doc('data').set({
+      items: [{ id: 'mech-owner', name: name + ' Owner', role: 'owner', active: true,
+                pin_hash: pinHash, pin_len: 4, created_at: new Date().toISOString() }],
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    // Update the chain owner's profile to track branches
+    const branches = Array.isArray(userProfile?.branches) ? userProfile.branches.slice() : [];
+    branches.push({ uid: newUid, name, email, created_at: nowStr() });
+    await fbDb.collection('users').doc(currentUser.uid).set({ branches }, { merge: true });
+    userProfile = { ...(userProfile || {}), branches };
+    // Sign the secondary out (we don't actually want to be logged in as the branch)
+    await secAuth.signOut().catch(() => {});
+    // Clear form + show the new branch in the list
+    document.getElementById('br-name').value = '';
+    document.getElementById('br-email').value = '';
+    document.getElementById('br-pass').value = '';
+    _renderBranchList();
+    showToast(`Branch "${name}" created · PIN ${initialPin}`, 'good');
+    audit('branch-create', `${name} (${email})`, { branch_uid: newUid });
+  } catch (e) {
+    err.textContent = (e.code === 'auth/email-already-in-use')
+      ? 'That email is already in use. Pick another.'
+      : (e.message || String(e));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create branch';
+  }
+};
+
+function _renderBranchList() {
+  const wrap = document.getElementById('br-list');
+  if (!wrap) return;
+  const branches = Array.isArray(userProfile?.branches) ? userProfile.branches : [];
+  if (!branches.length) {
+    wrap.innerHTML = `<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No branches yet — add one above.</div>`;
+    return;
+  }
+  wrap.innerHTML = `<div style="display:grid;gap:8px">${branches.map(b => `
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;color:var(--txt);font-size:13.5px">${escapeHtml(b.name)}</div>
+        <div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(b.email)} · created ${escapeHtml((b.created_at || '').slice(0,10))}</div>
+      </div>
+      <span style="font-size:10.5px;color:var(--teal);background:rgba(32,227,178,.10);border:1px solid rgba(32,227,178,.28);padding:3px 9px;border-radius:100px;font-weight:700;letter-spacing:.05em">BRANCH</span>
+      <button class="mini-btn danger" onclick="unlinkBranch('${escapeHtml(b.uid)}')">Unlink</button>
+    </div>`).join('')}</div>`;
+}
+
+// Removes the branch link from the chain owner's profile. The branch's Firebase
+// Auth account + Firestore data are LEFT INTACT (so the branch can keep working
+// on its own). Only the chain-roll-up relationship is severed.
+window.unlinkBranch = async function(uid) {
+  if (!(await customConfirm('Unlink this branch from your chain?\n\nThe branch will keep working independently — only the roll-up relationship is removed.', { title: 'Unlink branch', okLabel: 'Unlink' }))) return;
+  const branches = (userProfile.branches || []).filter(b => b.uid !== uid);
+  await fbDb.collection('users').doc(currentUser.uid).set({ branches }, { merge: true });
+  userProfile.branches = branches;
+  _renderBranchList();
+  showToast('Branch unlinked', 'good');
 };
 
 window.wipeCollection = async function(coll) {
@@ -7522,6 +7667,7 @@ function _renderVehicleQRResult(code, customer, vehicle) {
       : ''}
     <div class="r-acts">
       <button class="fbtn fbtn-cancel" onclick="closeScanner()">Close</button>
+      <button class="fbtn fbtn-cancel" onclick="closeScanner();openServiceHistory('${escapeHtml(customer.id)}','${escapeHtml(vehicle.id)}')" title="See every past visit on this vehicle">View history</button>
       ${activeBooking
         ? `<button class="fbtn fbtn-save" onclick="closeScanner();openCheckinForm('${escapeHtml(activeBooking.id)}')">Check in</button>`
         : `<button class="fbtn fbtn-save" onclick="closeScanner();_walkInFromVehicleQR('${escapeHtml(customer.id)}','${escapeHtml(vehicle.id)}')">Start walk-in</button>`}
@@ -7846,34 +7992,35 @@ function _blankInvoice() {
     lines: [], charges: [],
     tax_pct: Number(D.settings.tax_pct || 0),
     payment_status: 'Outstanding', payment_method: '', amount_paid: 0,
-    bank_name: '', bank_branch: '', bank_account: '',
-    bank_ifsc: '', bank_swift: '',  bank_terms: 'WIRE',
     notes: '',
-    workshop_snapshot: _workshopSnapshot(),
+    workshop_snapshot: _workshopSnapshot(),    // bank fields now live here, not per-invoice
     created_at: '', updated_at: '', created_by: currentWorker?.name || ''
   };
 }
 
-// Pull bank info from a customer record (set when the customer was last invoiced).
-// Falls back to "no bank section" if the customer has none yet.
-function _bankFromCustomer(c) {
-  return {
-    bank_name:    c?.bank_name    || '',
-    bank_branch:  c?.bank_branch  || '',
-    bank_account: c?.bank_account || '',
-    bank_ifsc:    c?.bank_ifsc    || '',
-    bank_swift:   c?.bank_swift   || '',
-    bank_terms:   c?.bank_terms   || 'WIRE'
-  };
-}
-
+// Snapshot the workshop's settings at the moment the invoice is saved so old
+// invoices keep printing with the bank details / logo / address that were
+// active when the customer was billed (even if Settings change later).
 function _workshopSnapshot() {
   const s = D.settings || {};
   return {
     workshop_name: s.workshop_name || '', address: s.address || '', email: s.email || '',
     phone: s.phone || '', gstin: s.gstin || '', currency: s.currency || '₹',
-    tax_pct: Number(s.tax_pct || 0), logo: s.logo || ''
+    tax_pct: Number(s.tax_pct || 0), logo: s.logo || '',
+    bank_name:    s.bank_name    || '',
+    bank_branch:  s.bank_branch  || '',
+    bank_account: s.bank_account || '',
+    bank_ifsc:    s.bank_ifsc    || '',
+    bank_swift:   s.bank_swift   || '',
+    bank_terms:   s.bank_terms   || 'WIRE'
   };
+}
+
+// Join a customer's address components into one printable string
+function _customerFullAddress(c) {
+  if (!c) return '';
+  return [c.addr1, c.addr2 || c.address, c.city, c.state ? c.state + (c.pincode ? ' - ' + c.pincode : '') : (c.pincode || '')]
+    .map(s => (s || '').trim()).filter(Boolean).join(', ');
 }
 
 function _seedInvoiceFromJob(jobId) {
@@ -7886,13 +8033,27 @@ function _seedInvoiceFromJob(jobId) {
   inv.number = b.booking_ref ? ('BK-' + b.booking_ref) : ('BK-' + (b.id || j.id || '').slice(-4).toUpperCase());
   inv.booking_id = b.id || '';
   inv.job_id = j.id;
-  inv.customer = { name: b.cust_name || j.cust_name || '', email: c.email || '', phone: c.phone || b.cust_phone || '', address: c.address || '' };
-  // Bank fields auto-fill from the customer's saved bank info (the user wanted these
-  // unique per customer). Editable from the invoice form; saving the invoice writes
-  // them back to the customer.
-  Object.assign(inv, _bankFromCustomer(c));
-  inv.vehicle  = { plate: b.plate || j.plate || '', model: b.vehicle || '' };
-  inv.service  = b.service || j.type || '';
+  inv.customer = {
+    name:    b.cust_name || j.cust_name || '',
+    email:   c.email || '',
+    phone:   c.phone || b.cust_phone || '',
+    address: c.address || _customerFullAddress(c) || '',
+    gstin:   c.gstin || ''
+  };
+  // Bank fields live on the workshop settings now — no per-invoice override.
+  // Pull every vehicle detail the printed invoice surfaces (VIN, KM in, colour, fuel)
+  inv.vehicle  = {
+    plate: b.plate || j.plate || '',
+    model: [b.veh_make, b.veh_model, b.veh_year].filter(Boolean).join(' ') || b.vehicle || '',
+    vin: b.vin || '',
+    kilometer: Number(b.odometer_in || 0),
+    color: b.colour || '',
+    fuel: b.fuel_type || ''
+  };
+  inv.service           = b.service || j.type || '';
+  inv.advisor_name      = b.service_advisor || '';
+  inv.job_card_no       = j.id ? ('JOB-' + (j.id || '').slice(-7).toUpperCase()) : '';
+  inv.service_suggestions = (j.delivery_notes || '').split('\n').map(s => s.trim()).filter(Boolean);
   // Prefer the first mechanic from the assignment list; fall back to the legacy single name
   const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
   inv.mechanic = mechs[0] || b.mechanic || '';
@@ -7968,21 +8129,7 @@ function _invoiceFormHTML() {
       <div id="if-charges"></div>
     </div>
 
-    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
-      <div style="font-family:var(--fd);font-weight:700;font-size:14px;margin-bottom:10px">Bank transfer details <span style="font-weight:500;color:var(--faint);font-size:12px">(printed at the bottom of the invoice — leave blank to hide)</span></div>
-      <div class="f-row">
-        <div class="f-grp"><label>Bank name</label><input id="if-bank" type="text" value="${escapeHtml(inv.bank_name || '')}" placeholder="ICICI" /></div>
-        <div class="f-grp"><label>Branch</label><input id="if-bbranch" type="text" value="${escapeHtml(inv.bank_branch || '')}" placeholder="MADHAPOOR" /></div>
-      </div>
-      <div class="f-row">
-        <div class="f-grp"><label>Account no.</label><input id="if-bacc" type="text" value="${escapeHtml(inv.bank_account || '')}" placeholder="123456789" /></div>
-        <div class="f-grp"><label>IFSC code</label><input id="if-bifsc" type="text" value="${escapeHtml(inv.bank_ifsc || '')}" placeholder="ICIC0001234" /></div>
-      </div>
-      <div class="f-row">
-        <div class="f-grp"><label>SWIFT / sort code</label><input id="if-bswift" type="text" value="${escapeHtml(inv.bank_swift || '')}" placeholder="64345678765" /></div>
-        <div class="f-grp"><label>Terms</label><input id="if-bterms" type="text" value="${escapeHtml(inv.bank_terms || 'WIRE')}" placeholder="WIRE" /></div>
-      </div>
-    </div>
+    <!-- Bank details have moved back into Settings → Workshop info (one workshop account, prints on every invoice automatically). -->
 
     <div class="f-row r3" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
       <div class="f-grp"><label>Payment status</label>
@@ -8137,33 +8284,25 @@ async function saveInvoice() {
   if (inv.payment_status === 'Paid')      inv.amount_paid = total;
   else if (inv.payment_status === 'Partial') inv.amount_paid = Math.min(total, Math.max(0, Number(document.getElementById('if-amount-paid')?.value || 0)));
   else                                    inv.amount_paid = 0;
-  // Bank fields (per-invoice now)
-  inv.bank_name    = document.getElementById('if-bank').value.trim();
-  inv.bank_branch  = document.getElementById('if-bbranch').value.trim();
-  inv.bank_account = document.getElementById('if-bacc').value.trim();
-  inv.bank_ifsc    = document.getElementById('if-bifsc').value.trim();
-  inv.bank_swift   = document.getElementById('if-bswift').value.trim();
-  inv.bank_terms   = document.getElementById('if-bterms').value.trim();
+  // Bank fields no longer per-invoice — they live on settings (one workshop account).
+  // Strip any stale per-invoice copies so the printed invoice always uses settings.bank_*.
+  for (const k of ['bank_name','bank_branch','bank_account','bank_ifsc','bank_swift','bank_terms']) delete inv[k];
   if (!inv.customer.name) throw new Error('Customer name is required');
-  // Refresh workshop snapshot on every save so the latest logo/address is captured
+  // Refresh workshop snapshot on every save so the latest logo/address/bank info is captured
   inv.workshop_snapshot = _workshopSnapshot();
   inv.updated_at = nowStr();
   const idx = (D.invoices || []).findIndex(x => x.id === inv.id);
   if (idx >= 0) D.invoices[idx] = { ...D.invoices[idx], ...inv };
   else { inv.created_at = nowStr(); D.invoices.push(inv); }
-  // Push the bank info back onto the matching customer so the next invoice for them
-  // auto-fills with the same account (the user wants bank fields unique per customer).
+  // Sync contact fields (not bank) back to the matched customer for future auto-fill
   const writes = [wsSave('invoices', D.invoices)];
   const cIdx = (D.customers || []).findIndex(c => (c.name || '').toLowerCase() === inv.customer.name.toLowerCase());
   if (cIdx >= 0) {
     const c = D.customers[cIdx];
-    let bankChanged = false;
-    for (const k of ['bank_name','bank_branch','bank_account','bank_ifsc','bank_swift','bank_terms']) {
-      if ((inv[k] || '') !== (c[k] || '')) { c[k] = inv[k] || ''; bankChanged = true; }
-    }
-    if (inv.customer.email && !c.email) { c.email = inv.customer.email; bankChanged = true; }
-    if (inv.customer.phone && !c.phone) { c.phone = inv.customer.phone; bankChanged = true; }
-    if (bankChanged) writes.push(wsSave('customers', D.customers));
+    let changed = false;
+    if (inv.customer.email && !c.email) { c.email = inv.customer.email; changed = true; }
+    if (inv.customer.phone && !c.phone) { c.phone = inv.customer.phone; changed = true; }
+    if (changed) writes.push(wsSave('customers', D.customers));
   }
   closeModal();
   showToast(`Invoice ${inv.number} saved`, 'good');
@@ -8173,7 +8312,7 @@ async function saveInvoice() {
 }
 
 // Called from the customer-name input — when the typed value matches a known
-// customer, auto-fill email, phone, and bank fields from that customer's record.
+// customer, auto-fill email + phone. (Bank fields no longer per-customer.)
 window._invoiceFillFromCustomer = function() {
   const name = (document.getElementById('if-cname')?.value || '').trim();
   if (!name) return;
@@ -8182,12 +8321,6 @@ window._invoiceFillFromCustomer = function() {
   const set = (id, val) => { const el = document.getElementById(id); if (el && !el.value && val) el.value = val; };
   set('if-cemail', c.email);
   set('if-cphone', c.phone);
-  set('if-bank',   c.bank_name);
-  set('if-bbranch',c.bank_branch);
-  set('if-bacc',   c.bank_account);
-  set('if-bifsc',  c.bank_ifsc);
-  set('if-bswift', c.bank_swift);
-  set('if-bterms', c.bank_terms);
 };
 
 window.viewInvoice = async function(id) {
@@ -8213,196 +8346,306 @@ window.deleteInvoice = async function(id) {
   await renderInvoices(true);
 };
 
-// Render an invoice record (saved version, not live from job) using the workshop_snapshot.
+// Render an invoice record in the "Chequered Flag Kodiaq" layout:
+//   • Banner header: logo top-left, workshop NAME (big, centered), address,
+//     GSTIN under the address — all centered above a thin divider.
+//   • "Tax Invoice" title (italic, right-aligned) under the banner.
+//   • Two-column billing block: BILL TO on the left (workshop info + Customer
+//     name/mobile/address), invoice meta grid on the right (Invoice No, Date,
+//     Job Card No, Vehicle No, VIN, Advisor, Service Type, Vehicle, Kilometer,
+//     Colour, Fuel, PH, Email).
+//   • Line-item table with columns: # · Part Name · Description · HSN/SAC ·
+//     IGST Rate(%) · Quantity · Unit Price · Taxable · Parts Total.
+//   • Twin totals blocks on the right (summary: Taxable / IGST / Discount /
+//     Round-off, then main: Parts / Labour / IGST / Grand / Round-off / Balance).
+//   • Amount-in-words, Service Suggestions list, Bank Details TABLE, certification
+//     text, and three signature lines at the bottom.
 function _invoiceHTMLFromRecord(inv, opts) {
   const photos = (opts && opts.photos) || [];
   const ws  = inv.workshop_snapshot || _workshopSnapshot();
   const t   = _invoiceTotals(inv);
   const cur = ws.currency || '₹';
-  const fmt = (n) => `${cur} ${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const paid = (inv.payment_status || '').toLowerCase() === 'paid';
-  // Re-use the styles from _invoiceHTML but feed it the saved values
+  const taxPct = Number(inv.tax_pct || 0);
+  // Money formatters: with currency symbol, and the "₹ N,NNN.NN" style used everywhere
+  const inr  = (n) => `${cur} ${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const inrR = (n) => `${cur} ${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  // Bank account (workshop snapshot first, fall back to current settings)
+  const bank = {
+    name:    ws.bank_name    || D.settings.bank_name    || '',
+    branch:  ws.bank_branch  || D.settings.bank_branch  || '',
+    account: ws.bank_account || D.settings.bank_account || '',
+    ifsc:    ws.bank_ifsc    || D.settings.bank_ifsc    || '',
+    swift:   ws.bank_swift   || D.settings.bank_swift   || '',
+    terms:   ws.bank_terms   || D.settings.bank_terms   || 'WIRE'
+  };
+  // Determine which lines are actually billed (post-decision: approved-only)
+  const decided  = !!inv.client_decision_at;
+  const showLine = (it) => !decided || (it.approval || 'pending') !== 'rejected';
+  const billedLines   = (inv.lines   || []).filter(showLine);
+  const billedCharges = (inv.charges || []).filter(showLine);
+  // Payment math
+  const amtPaid = inv.payment_status === 'Paid'    ? t.roundOff
+                : inv.payment_status === 'Partial' ? Math.min(t.roundOff, Number(inv.amount_paid || 0))
+                : 0;
+  const balance = Math.max(0, t.roundOff - amtPaid);
+
   return `<!doctype html><html><head><meta charset="utf-8" /><title>Invoice ${escapeHtml(inv.number)}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:36px 44px;font-size:13px;line-height:1.5}
-  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:38px}
-  .top-left h1{font-size:22px;font-weight:700;margin-bottom:6px}
-  .top-left .addr{color:#444;font-size:12.5px;line-height:1.55;max-width:380px}
-  .top-left .email{color:#444;font-size:12.5px;margin-top:2px}
-  .top-right img{max-width:170px;max-height:90px;display:block}
-  .blocks{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:32px}
-  .blocks h3{font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:10px}
-  .bill-to .name{font-size:13px;color:#222;margin-bottom:2px}
-  .bill-to .email{font-size:12.5px;color:#666}
-  .meta-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 24px;font-size:12.5px;color:#444}
-  .meta-grid .v{text-align:right;color:#1a1a1a;font-weight:600}
-  table.items{width:100%;border-collapse:collapse;margin-bottom:24px;border:1px solid #d9dde2}
-  table.items th{background:#f6f7f9;color:#1a1a1a;font-size:11.5px;font-weight:700;padding:11px 10px;text-align:left;border-bottom:1px solid #d9dde2}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:32px 40px;font-size:12.5px;line-height:1.5}
+
+  /* ── Banner header: logo absolute top-left, name + address + GSTIN centered ── */
+  .banner{position:relative;text-align:center;padding:10px 0 16px;border-bottom:1px solid #c9d1da;margin-bottom:10px}
+  .banner .logo{position:absolute;left:0;top:0;max-width:90px;max-height:90px}
+  .banner h1{font-size:22px;font-weight:800;letter-spacing:.02em;color:#0a0f1a;text-transform:uppercase;margin-bottom:4px}
+  .banner .addr{color:#3b424f;font-size:12.5px;line-height:1.5;max-width:780px;margin:0 auto}
+  .banner .gstin{margin-top:4px;font-weight:700;font-size:12.5px;color:#0a0f1a}
+
+  .ti-title{text-align:right;font-style:italic;font-size:18px;color:#0a0f1a;margin:14px 0 18px;font-weight:600}
+
+  /* ── Bill-to / invoice meta ── */
+  .blocks{display:grid;grid-template-columns:1.05fr 1fr;gap:30px;margin-bottom:22px}
+  .bill-to{font-size:12px;color:#3b424f;line-height:1.5}
+  .bill-to .name{font-weight:700;color:#0a0f1a;font-size:13px;margin-bottom:3px}
+  .meta-grid{display:grid;grid-template-columns:auto 1fr auto 1fr;column-gap:14px;row-gap:6px;font-size:11.5px;color:#3b424f}
+  .meta-grid .lbl{font-weight:600;color:#3b424f;white-space:nowrap}
+  .meta-grid .v{color:#0a0f1a;font-weight:700;text-align:right}
+
+  /* ── Line items ── */
+  table.items{width:100%;border-collapse:collapse;margin-bottom:18px;border:1px solid #c9d1da}
+  table.items th{background:#eef2f8;color:#0a0f1a;font-size:10.5px;font-weight:800;padding:8px 7px;text-align:left;border-bottom:1px solid #c9d1da;letter-spacing:.02em}
   table.items th.right{text-align:right}
-  table.items td{padding:11px 10px;font-size:12.5px;border-bottom:1px solid #eef1f4;vertical-align:top}
+  table.items th.ctr{text-align:center}
+  table.items td{padding:8px 7px;font-size:11.5px;border-bottom:1px solid #e2e6ec;vertical-align:top}
   table.items td.right{text-align:right;white-space:nowrap}
+  table.items td.ctr{text-align:center}
   table.items tr:last-child td{border-bottom:0}
-  .totals-wrap{display:flex;justify-content:flex-end;margin-bottom:24px}
-  .totals{min-width:280px;font-size:12.5px}
-  .totals .row{display:flex;justify-content:space-between;padding:6px 0;color:#444}
-  .totals .row.grand{border-top:1px solid #d9dde2;margin-top:6px;padding-top:10px;color:#1a1a1a;font-weight:600}
-  .totals .row.balance{border-top:2px solid #1a1a1a;margin-top:6px;padding-top:10px;font-weight:700;font-size:14px}
-  .words{font-size:12.5px;color:#444;margin-bottom:24px}
-  .bank h3{font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:10px}
-  .bank-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 24px;font-size:12.5px;color:#444;max-width:380px;margin-left:auto;text-align:left}
-  .bank-grid .v{color:#1a1a1a;font-weight:600}
-  .pay-status{font-size:12.5px;color:${paid ? '#16a34a' : '#dc2626'};font-weight:600;margin-top:8px}
-  hr{border:0;border-top:1px solid #d9dde2;margin:28px 0}
-  .foot{font-size:11.5px;color:#666;line-height:1.55;margin-bottom:8px}
-  @media print { body{padding:24px 32px} .no-print{display:none} }
+
+  /* ── Totals blocks ── */
+  .totals-row{display:flex;justify-content:flex-end;gap:30px;margin-bottom:14px}
+  .totals-mini{min-width:280px;font-size:11.5px;border:1px solid #c9d1da}
+  .totals-mini .row{display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid #e2e6ec}
+  .totals-mini .row:last-child{border-bottom:0}
+  .totals-mini .row span:first-child{color:#3b424f;font-weight:600}
+  .totals-mini .row span:last-child{color:#0a0f1a;font-weight:700}
+  .totals-main{min-width:280px;font-size:12.5px}
+  .totals-main .row{display:flex;justify-content:space-between;padding:5px 0;color:#3b424f}
+  .totals-main .row span:last-child{color:#0a0f1a;font-weight:600}
+  .totals-main .row.grand{border-top:1px solid #c9d1da;margin-top:4px;padding-top:8px;font-weight:700;color:#0a0f1a}
+  .totals-main .row.balance{border-top:2px solid #0a0f1a;margin-top:4px;padding-top:8px;font-weight:800;font-size:13.5px;color:#0a0f1a}
+
+  .words{font-size:12px;color:#1a1a1a;margin:18px 0 16px;font-weight:600}
+
+  /* ── Service Suggestions ── */
+  .suggest{margin:14px 0 14px;font-size:12px;color:#1a1a1a}
+  .suggest .h{font-weight:700;margin-bottom:4px}
+  .suggest ol{margin-left:20px}
+
+  /* ── Bank Details table ── */
+  .bank-section{margin:18px 0 22px}
+  .bank-section h3{font-size:12px;font-weight:800;margin-bottom:8px;letter-spacing:.02em}
+  table.bank{width:100%;border-collapse:collapse;border:1px solid #c9d1da;font-size:11.5px}
+  table.bank th{background:#eef2f8;color:#0a0f1a;font-weight:800;padding:7px 8px;text-align:left;border-bottom:1px solid #c9d1da;font-size:10.5px}
+  table.bank td{padding:7px 8px;border-bottom:0;color:#0a0f1a}
+
+  /* ── Certification + signatures ── */
+  .certify{font-size:11.5px;color:#1a1a1a;margin:22px 0 32px;line-height:1.55}
+  .signatures{display:grid;grid-template-columns:1fr 1fr 1fr;gap:30px;margin-top:48px;padding-top:8px;font-size:11px;color:#3b424f}
+  .signatures > div{border-top:1px solid #0a0f1a;padding-top:8px;text-align:left;font-weight:600}
+
+  /* ── Status pill + photo grid ── */
+  .pay-status{font-size:12px;font-weight:600;margin:6px 0 0}
+  .photos{margin-top:18px}
+  .photos h3{font-size:11px;font-weight:800;letter-spacing:.02em;margin-bottom:8px}
+  .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+  .photo-grid > div{border:1px solid #d9dde2;border-radius:4px;overflow:hidden;background:#fff}
+  .photo-grid img{width:100%;height:110px;object-fit:cover;display:block}
+  .photo-grid .cap{padding:5px 7px;font-size:9.5px;color:#3b424f;border-top:1px solid #eee}
+
+  hr{border:0;border-top:1px solid #c9d1da;margin:20px 0}
+  @media print { body{padding:22px 28px} .no-print{display:none} }
 </style></head><body>
-  <div class="top">
-    <div class="top-left">
-      <h1>${escapeHtml(ws.workshop_name || 'Workshop')}</h1>
-      <div class="addr">${escapeHtml(ws.address || '')}</div>
-      <div class="email">${escapeHtml(ws.email || '')}</div>
-    </div>
-    <div class="top-right">${ws.logo ? `<img src="${escapeHtml(ws.logo)}" alt="Logo" />` : ''}</div>
+
+  <!-- ───── BANNER: logo top-left + centered workshop name / address / GSTIN ───── -->
+  <div class="banner">
+    ${ws.logo ? `<img class="logo" src="${escapeHtml(ws.logo)}" alt="Logo" />` : ''}
+    <h1>${escapeHtml(ws.workshop_name || 'Workshop')}</h1>
+    ${ws.address ? `<div class="addr">${escapeHtml(ws.address)}</div>` : ''}
+    ${ws.gstin ? `<div class="gstin">GSTIN: ${escapeHtml(ws.gstin)}</div>` : ''}
   </div>
+
+  <div class="ti-title">Tax Invoice</div>
+
+  <!-- ───── BILL TO + Invoice meta grid ───── -->
   <div class="blocks">
     <div class="bill-to">
-      <h3>BILL TO</h3>
-      <div class="name">${escapeHtml(inv.customer?.name || '—')}</div>
-      <div class="email">${escapeHtml(inv.customer?.email || '')}</div>
-      ${inv.customer?.phone ? `<div class="email">${escapeHtml(inv.customer.phone)}</div>` : ''}
+      <div class="name">${escapeHtml(ws.workshop_name || '')}</div>
+      ${ws.address ? `<div>${escapeHtml(ws.address)}</div>` : ''}
+      ${ws.gstin ? `<div><b>GSTIN:</b> ${escapeHtml(ws.gstin)}</div>` : ''}
+      ${ws.phone ? `<div><b>Contact:</b> ${escapeHtml(ws.phone)}</div>` : ''}
+      ${ws.email ? `<div><b>Email:</b> ${escapeHtml(ws.email)}</div>` : ''}
+      <div style="height:10px"></div>
+      <div class="name">Customer Name: ${escapeHtml(inv.customer?.name || '—')}</div>
+      ${inv.customer?.phone ? `<div><b>Mobile No:</b> ${escapeHtml(inv.customer.phone)}</div>` : ''}
+      ${inv.customer?.address ? `<div><b>Address:</b> ${escapeHtml(inv.customer.address)}</div>` : ''}
+      ${inv.customer?.gstin ? `<div><b>GSTIN:</b> ${escapeHtml(inv.customer.gstin)}</div>` : ''}
     </div>
-    <div class="meta">
-      <h3>INVOICE</h3>
-      <div class="meta-grid">
-        <div>Invoice No:</div><div class="v">${escapeHtml(inv.number)}</div>
-        <div>Issue Date:</div><div class="v">${escapeHtml(inv.issue_date)}</div>
-        <div>Vehicle:</div><div class="v">${escapeHtml(inv.vehicle?.plate || '—')}</div>
-        <div>Service:</div><div class="v">${escapeHtml((inv.service || '—').toUpperCase())}</div>
-        <div>Mechanic${(inv.mechanics && inv.mechanics.length > 1) ? 's' : ''}:</div><div class="v">${escapeHtml(((inv.mechanics && inv.mechanics.length) ? inv.mechanics.join(', ') : (inv.mechanic || '—')).toUpperCase())}</div>
-        ${inv.insurance ? `
-          <div>Insurer:</div><div class="v">${escapeHtml(inv.insurance.insurer_name || '—')}</div>
-          <div>Claim No:</div><div class="v">${escapeHtml(inv.insurance.claim_number || '—')}</div>
-          <div>Approval:</div><div class="v" style="color:${inv.insurance.insurance_approval === 'Approved' ? '#16a34a' : inv.insurance.insurance_approval === 'Rejected' ? '#dc2626' : '#d97706'}">${escapeHtml((inv.insurance.insurance_approval || 'Pending').toUpperCase())}${inv.insurance.approved_amount ? ` · ${cur} ${inv.insurance.approved_amount.toLocaleString('en-IN')}` : ''}</div>` : ''}
-      </div>
+    <div class="meta-grid">
+      <div class="lbl">Invoice No:</div><div class="v">${escapeHtml(inv.number)}</div>
+      <div class="lbl">Date:</div><div class="v">${escapeHtml(inv.issue_date)}</div>
+      ${inv.job_card_no ? `<div class="lbl">Job Card No:</div><div class="v">${escapeHtml(inv.job_card_no)}</div>` : ''}
+      <div class="lbl">Vehicle No:</div><div class="v">${escapeHtml(inv.vehicle?.plate || '—')}</div>
+      ${inv.vehicle?.vin ? `<div class="lbl">VIN:</div><div class="v" style="grid-column:span 3">${escapeHtml(inv.vehicle.vin)}</div>` : ''}
+      ${inv.advisor_name ? `<div class="lbl">Advisor Name:</div><div class="v">${escapeHtml(inv.advisor_name)}</div>` : ''}
+      ${inv.service ? `<div class="lbl">Service Type:</div><div class="v">${escapeHtml(inv.service)}</div>` : ''}
+      ${inv.vehicle?.model ? `<div class="lbl">Vehicle:</div><div class="v" style="grid-column:span 3">${escapeHtml(inv.vehicle.model)}</div>` : ''}
+      ${inv.vehicle?.kilometer ? `<div class="lbl">Kilometer:</div><div class="v">${Number(inv.vehicle.kilometer).toLocaleString('en-IN')}</div>` : ''}
+      ${inv.vehicle?.color ? `<div class="lbl">Color:</div><div class="v">${escapeHtml(inv.vehicle.color)}</div>` : ''}
+      ${inv.vehicle?.fuel ? `<div class="lbl">Fuel:</div><div class="v">${escapeHtml(inv.vehicle.fuel)}</div>` : ''}
+      ${inv.customer?.phone ? `<div class="lbl">PH:</div><div class="v">${escapeHtml(inv.customer.phone)}</div>` : ''}
+      ${inv.customer?.email ? `<div class="lbl">Email:</div><div class="v" style="grid-column:span 3">${escapeHtml(inv.customer.email)}</div>` : ''}
+      ${inv.insurance ? `
+        <div class="lbl">Insurer:</div><div class="v">${escapeHtml(inv.insurance.insurer_name || '—')}</div>
+        <div class="lbl">Claim No:</div><div class="v">${escapeHtml(inv.insurance.claim_number || '—')}</div>` : ''}
     </div>
   </div>
+
+  <!-- ───── LINE ITEMS — Kodiaq columns ───── -->
   <table class="items">
     <thead><tr>
-      <th>#</th><th>Part Name</th><th>HSN/SAC</th>
-      <th class="right">Qty</th><th class="right">Unit Price</th>
-      <th class="right">Disc</th><th class="right">Taxable</th><th class="right">Total</th>
+      <th>#</th><th>Part Name</th><th>Description</th><th>HSN/SAC</th>
+      <th class="ctr">IGST Rate (%)</th><th class="right">Quantity</th><th class="right">Unit Price (${escapeHtml(cur)})</th>
+      <th class="right">Taxable (${escapeHtml(cur)})</th><th class="right">Parts Total (${escapeHtml(cur)})</th>
     </tr></thead>
     <tbody>
-      ${(inv.lines || []).length === 0 && (inv.charges || []).length === 0
-        ? `<tr><td colspan="8" style="text-align:center;color:#888;padding:30px">No line items.</td></tr>`
+      ${(billedLines.length === 0 && billedCharges.length === 0)
+        ? `<tr><td colspan="9" style="text-align:center;color:#888;padding:24px">No line items.</td></tr>`
         : ''}
       ${(() => {
-        // IMPLEMENTATION NOTE — once the client has decided, the FINAL invoice
-        // lists only approved items (rejected ones move to a "Not approved by
-        // client" footer block below the table, so the customer still has the
-        // record of what was declined). Pre-decision estimates show everything.
-        const decided   = !!inv.client_decision_at;
-        const showLine  = (it) => !decided || (it.approval || 'pending') !== 'rejected';
-        let rowIdx = 0;
-        const lineRows = (inv.lines || []).filter(showLine).map((l) => {
-          const idx = ++rowIdx;
+        let i = 0;
+        const partsRows = billedLines.map(l => {
+          i++;
           const unit = Number(l.unit_price || 0), qty = Math.max(1, Number(l.qty || 1));
           const dp = Number(l.disc_pct || 0);
           const gross = unit * qty;
           const da = +(gross * dp / 100).toFixed(2);
           const taxable = +(gross - da).toFixed(2);
-          const tx = +(taxable * (inv.tax_pct || 0) / 100).toFixed(2);
-          const ap = l.approval || 'pending';
-          const tag = !decided && ap === 'approved' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#16a34a;background:#e6f7ef;border-radius:3px">APPROVED</span>'
-                    : !decided && ap === 'rejected' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#dc2626;background:#fee2e2;border-radius:3px">REJECTED</span>'
-                    : '';
-          const decoration = !decided && ap === 'rejected' ? 'text-decoration:line-through;color:#888' : '';
-          return `<tr style="${decoration}">
-            <td>${idx}</td><td>${escapeHtml(l.name)}${tag}</td><td>${escapeHtml(l.hsn || '')}</td>
-            <td class="right">${qty}</td><td class="right">${fmt(unit)}</td>
-            <td class="right">${dp ? dp + '%' : '—'}</td>
-            <td class="right">${fmt(taxable)}</td><td class="right">${fmt(taxable + tx)}</td>
+          const tx = +(taxable * taxPct / 100).toFixed(2);
+          return `<tr>
+            <td>${i}</td>
+            <td><b>${escapeHtml(l.name)}</b></td>
+            <td>Part</td>
+            <td>${escapeHtml(l.hsn || '')}</td>
+            <td class="ctr">${taxPct}</td>
+            <td class="right">${qty.toFixed(2)}</td>
+            <td class="right">${inr(unit)}</td>
+            <td class="right">${inr(taxable)}</td>
+            <td class="right"><b>${inr(taxable + tx)}</b></td>
           </tr>`;
         }).join('');
-        const chargeRows = (inv.charges || []).filter(showLine).map(ch => {
-          const ap = ch.approval || 'pending';
-          const tag = !decided && ap === 'approved' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#16a34a;background:#e6f7ef;border-radius:3px">APPROVED</span>'
-                    : !decided && ap === 'rejected' ? ' <span style="display:inline-block;padding:1px 6px;margin-left:4px;font-size:9.5px;font-weight:700;color:#dc2626;background:#fee2e2;border-radius:3px">REJECTED</span>'
-                    : '';
-          const decoration = !decided && ap === 'rejected' ? 'text-decoration:line-through;color:#888' : '';
-          return `<tr style="${decoration}">
-            <td></td><td>${escapeHtml(ch.name)}${tag}</td><td></td>
-            <td class="right">—</td><td class="right">—</td><td class="right">—</td><td class="right">—</td>
-            <td class="right">${fmt(ch.amount)}</td>
+        const chargeRows = billedCharges.map(ch => {
+          i++;
+          return `<tr>
+            <td>${i}</td>
+            <td><b>${escapeHtml(ch.name)}</b></td>
+            <td>Service charge</td>
+            <td>—</td>
+            <td class="ctr">—</td>
+            <td class="right">—</td>
+            <td class="right">—</td>
+            <td class="right">—</td>
+            <td class="right"><b>${inr(ch.amount)}</b></td>
           </tr>`;
         }).join('');
-        return lineRows + chargeRows;
+        return partsRows + chargeRows;
       })()}
     </tbody>
   </table>
+
+  <!-- ───── TWIN TOTALS BLOCKS (right-aligned) ───── -->
+  <div class="totals-row">
+    <div class="totals-mini">
+      <div class="row"><span>Taxable Value</span><span>${inr(t.partsTaxable)}</span></div>
+      <div class="row"><span>IGST Total</span><span>${inr(t.gst)}</span></div>
+      <div class="row"><span>Discount Total</span><span>${inr(t.disc)}</span></div>
+      <div class="row"><span>Round off</span><span>${inr(t.roundOff)}</span></div>
+    </div>
+  </div>
+  <div class="totals-row">
+    <div class="totals-main">
+      <div class="row"><span>Parts Total</span><span>${inr(t.partsTaxable)}</span></div>
+      <div class="row"><span>Labour Total</span><span>${inr(t.labour)}</span></div>
+      <div class="row"><span>IGST Total</span><span>${inr(t.gst)}</span></div>
+      <div class="row grand"><span>Grand Total</span><span>${inr(t.grand)}</span></div>
+      <div class="row"><span>Round off</span><span>${inr(t.roundOff)}</span></div>
+      ${amtPaid > 0 ? `<div class="row" style="color:#16a34a"><span>Amount Paid</span><span>${inr(amtPaid)}</span></div>` : ''}
+      <div class="row balance"><span>Balance</span><span>${inr(balance)}</span></div>
+    </div>
+  </div>
+
+  <div class="words">Amount ( in Words ): ${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only</div>
+
+  ${(inv.service_suggestions && inv.service_suggestions.length) ? `
+    <div class="suggest">
+      <div class="h">Service Suggestions:</div>
+      <ol>${inv.service_suggestions.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ol>
+    </div>
+  ` : ''}
+
   ${(() => {
-    // Balance math: respects partial payments. "Paid" = fully paid; "Partial" = uses inv.amount_paid;
-    // "Outstanding" = nothing paid yet.
-    const amtPaid = inv.payment_status === 'Paid'    ? t.roundOff
-                  : inv.payment_status === 'Partial' ? Math.min(t.roundOff, Number(inv.amount_paid || 0))
-                  : 0;
-    const balance = Math.max(0, t.roundOff - amtPaid);
-    return `<div class="totals-wrap"><div class="totals">
-    <div class="row"><span>Parts Total</span><span>${fmt(t.partsTaxable + t.gst)}</span></div>
-    <div class="row"><span>Labour Total</span><span>${fmt(t.labour)}</span></div>
-    <div class="row"><span>GST Total</span><span>${fmt(t.gst)}</span></div>
-    <div class="row"><span>Discount Total</span><span>${fmt(t.disc)}</span></div>
-    <div class="row grand"><span>Grand Total</span><span>${fmt(t.grand)}</span></div>
-    <div class="row"><span>Round off</span><span>${fmt(t.roundOff)}</span></div>
-    ${inv.payment_status !== 'Outstanding' ? `<div class="row" style="color:#16a34a"><span>Amount Paid</span><span>${fmt(amtPaid)}</span></div>` : ''}
-    <div class="row balance" style="color:${balance > 0 ? '#dc2626' : '#16a34a'}"><span>Balance</span><span>${fmt(balance)}</span></div>
-  </div></div>`;
-  })()}
-  <div class="words">Amount (in Words): ${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only</div>
-  ${(() => {
-    // Post-decision: list everything the client rejected so the customer copy
-    // still has the record of what was declined (useful if they later change
-    // their mind on a future visit). Not billed — informational only.
-    if (!inv.client_decision_at) return '';
+    // Post-decision: list rejected items so the customer copy keeps a record
+    if (!decided) return '';
     const rejLines   = (inv.lines   || []).filter(l => (l.approval || '') === 'rejected');
     const rejCharges = (inv.charges || []).filter(c => (c.approval || '') === 'rejected');
     if (!rejLines.length && !rejCharges.length) return '';
     const items = [...rejLines.map(l => `${l.name} × ${l.qty}`), ...rejCharges.map(c => c.name)];
-    return `<div style="margin:18px 0;padding:12px 14px;background:#fff5f5;border:1px solid #fecaca;border-radius:6px;font-size:11.5px;color:#7c2d2d;line-height:1.5">
-      <b style="color:#dc2626;font-size:11px;text-transform:uppercase;letter-spacing:.05em">Not approved by client (not billed)</b><br>
+    return `<div style="margin:14px 0;padding:10px 12px;background:#fff5f5;border:1px solid #fecaca;border-radius:4px;font-size:11px;color:#7c2d2d;line-height:1.5">
+      <b style="color:#dc2626;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em">Not approved by client (not billed)</b><br>
       ${items.map(escapeHtml).join(' · ')}
     </div>`;
   })()}
-  ${inv.bank_account ? `
-    <div class="bank">
-      <h3>PAY BY BANK TRANSFER</h3>
-      <div class="bank-grid">
-        <div>Bank Name:</div><div class="v">${escapeHtml(inv.bank_name || '')}</div>
-        <div>Account No:</div><div class="v">${escapeHtml(inv.bank_account || '')}</div>
-        <div>IFSC Code:</div><div class="v">${escapeHtml(inv.bank_ifsc || '')}</div>
-        <div>Branch:</div><div class="v">${escapeHtml(inv.bank_branch || '')}</div>
-        <div>Sort/SWIFT:</div><div class="v">${escapeHtml(inv.bank_swift || '')}</div>
-        <div>Terms:</div><div class="v">${escapeHtml(inv.bank_terms || 'WIRE')}</div>
-      </div>
+
+  ${bank.account ? `
+    <div class="bank-section">
+      <h3>Bank Details</h3>
+      <table class="bank">
+        <thead><tr><th>#</th><th>Bank Name</th><th>Account No</th><th>IFSC Code</th><th>Branch</th>${bank.swift ? '<th>SWIFT/Sort</th>' : ''}<th>Terms</th></tr></thead>
+        <tbody><tr>
+          <td>1</td>
+          <td>${escapeHtml(bank.name)}</td>
+          <td>${escapeHtml(bank.account)}</td>
+          <td>${escapeHtml(bank.ifsc)}</td>
+          <td>${escapeHtml(bank.branch)}</td>
+          ${bank.swift ? `<td>${escapeHtml(bank.swift)}</td>` : ''}
+          <td>${escapeHtml(bank.terms)}</td>
+        </tr></tbody>
+      </table>
     </div>` : ''}
-  <div class="pay-status">Payment Status: <b>${escapeHtml(inv.payment_status || 'Outstanding')}${inv.payment_status === 'Partial' && inv.amount_paid ? ` (${fmt(inv.amount_paid)} of ${fmt(t.roundOff)})` : ''}</b></div>
+
+  <div class="pay-status" style="color:${(inv.payment_status || '').toLowerCase() === 'paid' ? '#16a34a' : '#dc2626'}">Payment Status: <b>${escapeHtml(inv.payment_status || 'Outstanding')}${inv.payment_status === 'Partial' && inv.amount_paid ? ` (${inr(inv.amount_paid)} of ${inr(t.roundOff)})` : ''}</b></div>
+
   ${photos.length ? `
     <hr>
-    <div style="font-size:11px;font-weight:700;letter-spacing:.04em;color:#1a1a1a;margin-bottom:10px">PHOTOS</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px">
-      ${photos.map(p => `
-        <div style="border:1px solid #d9dde2;border-radius:6px;overflow:hidden;background:#fff">
-          <img src="${escapeHtml(p.data)}" alt="${escapeHtml(p.label || '')}" style="width:100%;height:120px;object-fit:cover;display:block" />
-          <div style="padding:5px 7px;font-size:10px;color:#444;border-top:1px solid #eee">
-            <b style="color:#1a1a1a">${escapeHtml(p.label || 'Photo')}</b><br>
-            <span style="color:#666">${escapeHtml((p.uploaded_at || '').slice(0,16))}</span>
-          </div>
-        </div>`).join('')}
+    <div class="photos">
+      <h3>PHOTOS</h3>
+      <div class="photo-grid">
+        ${photos.map(p => `
+          <div>
+            <img src="${escapeHtml(p.data)}" alt="${escapeHtml(p.label || '')}" />
+            <div class="cap"><b style="color:#1a1a1a">${escapeHtml(p.label || 'Photo')}</b> · ${escapeHtml((p.uploaded_at || '').slice(0,16))}</div>
+          </div>`).join('')}
+      </div>
     </div>
   ` : ''}
-  <hr><div class="foot">I certify that the work has been done to my satisfaction and that I have taken delivery of the vehicle in good condition, with all items / valuables and parts intact.</div>
-  <hr><div class="foot">Thank you for choosing ${escapeHtml(ws.workshop_name || 'us')}. Please retain this invoice for your records.</div>
+
+  <div class="certify">I certify that the work has been done to my satisfaction and that I have taken delivery of the vehicle in good condition, with all items / valuables and parts intact.</div>
+
+  <div class="signatures">
+    <div>Customer / Authorized Signatory</div>
+    <div>Service Advisor Signature</div>
+    <div>Cashier / Authorized Signature</div>
+  </div>
+
   <div class="no-print" style="margin-top:24px;text-align:center"><button onclick="window.print()" style="background:#1a1a1a;color:#fff;border:0;padding:10px 20px;border-radius:7px;cursor:pointer;font-size:13px">Print invoice</button></div>
   <script>setTimeout(() => window.print(), 400);<\/script>
 </body></html>`;
