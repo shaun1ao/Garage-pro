@@ -6697,35 +6697,115 @@ async function renderParts(force = false) {
   }
   tbl.innerHTML = `<table class="list-tbl">
     <thead><tr>
-      <th>Requested</th><th>By</th><th>Part</th><th>Qty</th><th>For job</th>
+      <th>Requested</th><th>By</th><th>Items</th><th>For job</th>
       <th>Urgency</th><th>Status</th><th style="text-align:right">Actions</th>
     </tr></thead>
     <tbody>${list.map(r => {
-      const s = r.status || 'Pending';
-      const actions = s === 'Pending'
-        ? `<button class="mini-btn good"   onclick="setPartStatus('${escapeHtml(r.id)}','Approved')">✓ Approve</button>
-           <button class="mini-btn danger" onclick="setPartStatus('${escapeHtml(r.id)}','Declined')">✕ Decline</button>`
-        : s === 'Approved'
-          ? `<button class="mini-btn warn" onclick="setPartStatus('${escapeHtml(r.id)}','Ordered')">📦 Mark ordered</button>`
-        : s === 'Ordered'
-          ? `<button class="mini-btn good" onclick="setPartStatus('${escapeHtml(r.id)}','Received')">✓ Fulfilled</button>`
-        : '';
+      const items = _prRequestItems(r);
+      const rollup = _prRollupStatus(r);
+      // Item-level status counts so the row shows "2 pending · 1 ordered · 3 received"
+      const counts = { Pending:0, Approved:0, Declined:0, Ordered:0, Received:0 };
+      for (const it of items) counts[it.status || 'Pending'] = (counts[it.status || 'Pending'] || 0) + 1;
+      const breakdown = Object.entries(counts).filter(([,v]) => v > 0)
+        .map(([k,v]) => `<span style="font-size:10.5px;padding:1px 7px;border-radius:100px;margin-right:4px;background:${_prStatusTint(k).bg};color:${_prStatusTint(k).fg};font-weight:700;letter-spacing:.02em">${v} ${k.toUpperCase()}</span>`)
+        .join('');
       return `<tr>
         <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((r.requested_at||'').slice(0,16))}</td>
         <td class="k">${escapeHtml(r.requested_by || '—')}</td>
-        <td class="k">${_prItemsCell(r)}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
-        <td>${escapeHtml(String(r.qty || 1))}</td>
+        <td>
+          <div class="k">${_prItemsCell(r)}</div>
+          ${items.length > 1 ? `<div style="margin-top:4px;font-size:11px;color:var(--faint)">${items.length} items · ${items.reduce((s,it) => s + (it.qty || 1), 0)} units</div>` : ''}
+          ${r.notes ? `<div style="font-size:11.5px;color:var(--faint);margin-top:3px">${escapeHtml(r.notes)}</div>` : ''}
+          ${breakdown ? `<div style="margin-top:6px">${breakdown}</div>` : ''}
+        </td>
         <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>` : '—'}</td>
         <td>${escapeHtml(r.urgency || 'Normal')}</td>
-        <td>${statusPill(s)}</td>
+        <td>${statusPill(rollup)}</td>
         <td><div class="row-act">
-          ${actions}
+          <button class="mini-btn good" onclick="openPartReqDetail('${escapeHtml(r.id)}')" title="View items, approve/deny/order/fulfil per item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            ${items.length > 1 ? 'Manage' : 'Open'}
+          </button>
           <button class="mini-btn danger" onclick="deletePartRequest('${escapeHtml(r.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
         </div></td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
 }
+
+// Per-status colour mapping for item-status pills
+function _prStatusTint(s) {
+  return {
+    Pending:  { bg:'rgba(255,255,255,.06)',   fg:'var(--faint)' },
+    Approved: { bg:'rgba(99,159,255,.16)',    fg:'var(--blue)' },
+    Ordered:  { bg:'rgba(255,179,71,.16)',    fg:'var(--acc2)' },
+    Received: { bg:'rgba(32,227,178,.16)',    fg:'var(--teal)' },
+    Declined: { bg:'rgba(255,107,107,.16)',   fg:'var(--red)' }
+  }[s] || { bg:'rgba(255,255,255,.06)', fg:'var(--faint)' };
+}
+
+// ── Detail modal: list every item, per-item buttons + bulk "Apply to all" ──
+window.openPartReqDetail = function(reqId) { _openPartReqDetail(reqId); };
+function _openPartReqDetail(reqId) {
+  const r = D.parts_requests.find(x => x.id === reqId);
+  if (!r) return;
+  const items = _prRequestItems(r);
+  const rollup = _prRollupStatus(r);
+  const itemRow = (it) => {
+    const tint = _prStatusTint(it.status || 'Pending');
+    const act = (label, status, cls) =>
+      `<button class="mini-btn ${cls}" onclick="setPartStatus('${escapeHtml(reqId)}','${status}','${escapeHtml(it.id)}')">${label}</button>`;
+    // Show buttons that make sense for the item's current status (no going backwards)
+    const buttons = it.status === 'Pending'
+      ? `${act('✓ Approve', 'Approved', 'good')}${act('✕ Decline', 'Declined', 'danger')}`
+      : it.status === 'Approved'
+        ? `${act('📦 Mark ordered', 'Ordered', 'warn')}${act('↶ Pending', 'Pending', '')}`
+        : it.status === 'Ordered'
+          ? `${act('✓ Mark received', 'Received', 'good')}${act('↶ Back to approved', 'Approved', '')}`
+          : it.status === 'Received'
+            ? `<span style="font-size:11px;color:var(--teal);font-weight:700">✓ Stocked to inventory</span>${act('↶ Undo', 'Ordered', '')}`
+            : `${act('↶ Re-open', 'Pending', '')}`;
+    return `
+      <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:7px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;color:var(--txt);font-size:13.5px">${escapeHtml(it.name)} <span style="font-weight:500;color:var(--faint);font-size:12px">× ${it.qty}</span></div>
+          <div style="margin-top:3px"><span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:100px;background:${tint.bg};color:${tint.fg}">${(it.status || 'PENDING').toUpperCase()}</span></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${buttons}</div>
+      </div>`;
+  };
+  // Bulk-action buttons act on EVERY item in one click — only enabled when at least one item is in the right starting state
+  const pendingCount  = items.filter(it => it.status === 'Pending').length;
+  const approvedCount = items.filter(it => it.status === 'Approved').length;
+  const orderedCount  = items.filter(it => it.status === 'Ordered').length;
+  const bulk = `
+    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:14px">
+      <span style="font-size:11.5px;color:var(--faint);align-self:center;margin-right:auto"><b style="color:var(--txt)">Apply to all</b> · ${items.length} item${items.length === 1 ? '' : 's'}</span>
+      <button class="mini-btn good"   ${pendingCount  ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Approved')">✓ Approve all</button>
+      <button class="mini-btn danger" ${pendingCount  ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Declined')">✕ Decline all</button>
+      <button class="mini-btn warn"   ${approvedCount ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Ordered')">📦 Mark all ordered</button>
+      <button class="mini-btn good"   ${orderedCount  ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Received')">✓ Mark all received</button>
+    </div>`;
+
+  _openSubModal({
+    title: `Parts request · ${items.length} item${items.length === 1 ? '' : 's'}${r.plate ? ' · ' + r.plate : ''}`,
+    bodyHtml: `
+      <div data-prid="${escapeHtml(reqId)}"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;font-size:12.5px">
+        <div><span style="color:var(--faint)">Requested by</span> <b style="color:var(--txt)">${escapeHtml(r.requested_by || '—')}</b></div>
+        <div><span style="color:var(--faint)">At</span> <b style="color:var(--txt)">${escapeHtml((r.requested_at || '').slice(0,16))}</b></div>
+        <div><span style="color:var(--faint)">Urgency</span> <b style="color:var(--txt)">${escapeHtml(r.urgency || 'Normal')}</b></div>
+        <div><span style="color:var(--faint)">Overall</span> ${statusPill(rollup)}</div>
+        ${r.notes ? `<div style="grid-column:span 2;color:var(--dim);font-style:italic">"${escapeHtml(r.notes)}"</div>` : ''}
+      </div>
+      ${bulk}
+      ${items.map(itemRow).join('')}
+      <div style="font-size:11px;color:var(--faint);margin-top:10px;line-height:1.5">Items marked <b>Received</b> are automatically added to inventory (matched by name — existing items get their qty incremented, new names create a fresh inventory record).</div>`,
+    footHtml: `<div style="flex:1"></div>
+      <button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>`
+  });
+}
+window._openPartReqDetail = _openPartReqDetail;
 
 // ─── Request Parts (worker-only, own only) ─────────────────────────────
 // Same data store (D.parts_requests). This view shows only the current worker's
@@ -6839,7 +6919,13 @@ async function savePartRequest() {
   if (!currentWorker) throw new Error('You must be signed in as a worker');
   const items = (_editingPartReq?.items || [])
     .filter(it => (it.name || '').trim() && Number(it.qty) > 0)
-    .map(it => ({ name: it.name.trim(), qty: Math.max(1, Number(it.qty)) }));
+    .map(it => ({
+      id: uid('pi'),
+      name: it.name.trim(),
+      qty: Math.max(1, Number(it.qty)),
+      status: 'Pending',   // per-item status: Pending → Approved/Declined → Ordered → Received
+      stocked: false       // flips to true once this item lands in inventory
+    }));
   if (!items.length) throw new Error('Add at least one item with a name and quantity');
   const jobId = document.getElementById('pf-job').value || '';
   const job = jobId ? D.jobs.find(j => j.id === jobId) : null;
@@ -6871,23 +6957,25 @@ async function savePartRequest() {
   await wsSave('parts_requests', D.parts_requests);
 }
 
-window.setPartStatus = async function(id, status) {
-  // Permission: UI only renders these buttons on the Parts Requests tab (which is
-  // permission-gated in the sidebar). Don't double-gate here — just need a signed-in
-  // worker. This fixes cases where canSee('parts') returned false even though the
-  // user could clearly see the buttons.
+// Single workhorse for parts-request status changes. Handles three modes:
+//   1. setPartStatus(reqId, status)            — apply to EVERY item in the request
+//   2. setPartStatus(reqId, status, itemId)    — apply to ONE item by id
+//   3. status === 'Received' triggers inventory writeback for the affected items
+//
+// The request's overall status is recomputed from items via _prRollupStatus().
+window.setPartStatus = async function(reqId, status, itemId) {
   if (!currentWorker) return showToast('Sign in as a worker first', 'bad');
-  const r = D.parts_requests.find(x => x.id === id);
+  const r = D.parts_requests.find(x => x.id === reqId);
   if (!r) { showToast('Request not found — refresh the page', 'bad'); return; }
-  // ── On fulfilment, push each item into inventory ──
-  // Match by name (case-insensitive). Existing item → increment qty. New item →
-  // create a stub record so it shows up in the Inventory tab immediately and can
-  // be picked on a job card. Only runs once per request (we set r.stocked = true).
-  let stockSummary = '';
-  if (status === 'Received' && !r.stocked) {
-    const items = _prRequestItems(r);   // handles legacy single-item shape too
-    const adds = [];
-    for (const it of items) {
+  // Normalise the items array onto the request so future writes persist per-item state
+  r.items = _prRequestItems(r);
+  const targets = itemId ? r.items.filter(it => it.id === itemId) : r.items;
+  if (!targets.length) return showToast('No items to update', 'bad');
+
+  // ── Inventory writeback: any item moving to Received gets stocked (once) ──
+  const stockAdds = [];
+  for (const it of targets) {
+    if (status === 'Received' && !it.stocked) {
       const name = (it.name || '').trim();
       if (!name) continue;
       const qty = Math.max(1, Number(it.qty || 1));
@@ -6895,7 +6983,7 @@ window.setPartStatus = async function(id, status) {
       if (existing) {
         existing.qty = Math.max(0, Number(existing.qty || 0)) + qty;
         existing.updated_at = nowStr();
-        adds.push(`${name} +${qty}`);
+        stockAdds.push(`${name} +${qty}`);
       } else {
         D.inventory.push({
           id: uid('inv'), name, qty, unit: 'pcs', category: '',
@@ -6903,30 +6991,74 @@ window.setPartStatus = async function(id, status) {
           low_stock_threshold: 0, location: '', supplier: '', barcode: '',
           created_at: nowStr(), added_via: 'parts-request', source_request_id: r.id
         });
-        adds.push(`${name} (new)`);
+        stockAdds.push(`${name} (new)`);
       }
+      it.stocked = true;
     }
-    r.stocked = true;
-    stockSummary = adds.length ? ` · stocked ${adds.length} item${adds.length === 1 ? '' : 's'}` : '';
+    it.status = status;
   }
-  r.status = status;
+  // Recompute the request-level rollup so the list view shows the right pill
+  r.status     = _prRollupStatus(r);
   r.updated_at = nowStr();
   r.updated_by = currentWorker?.name || '';
+  if (r.status === 'Received') r.stocked = true;   // backward-compat flag
+
   const writes = [wsSave('parts_requests', D.parts_requests)];
-  if (status === 'Received') writes.push(wsSave('inventory', D.inventory));
-  showToast(`Marked ${status}${stockSummary}`, 'good');
-  audit('part-' + status.toLowerCase(), (r.summary || r.part_name || '—') + (r.requested_by ? ' for ' + r.requested_by : '') + stockSummary, { request_id: id });
+  if (stockAdds.length) writes.push(wsSave('inventory', D.inventory));
+  const stockMsg = stockAdds.length ? ` · stocked ${stockAdds.length} item${stockAdds.length === 1 ? '' : 's'}` : '';
+  const scope = itemId ? '1 item' : `${targets.length} item${targets.length === 1 ? '' : 's'}`;
+  showToast(`Marked ${status} on ${scope}${stockMsg}`, 'good');
+  audit('part-' + status.toLowerCase(), `${r.summary || r.part_name || '—'} (${scope})${stockMsg}`, { request_id: reqId, item_id: itemId || null });
+  // Re-render whichever parts view is active AND the open detail modal if there is one
   await _refreshActivePartsView();
+  if (document.getElementById('gpSubModal')?.classList.contains('open') &&
+      document.querySelector('#gpSubModalBody [data-prid]')?.dataset?.prid === reqId) {
+    _openPartReqDetail(reqId);   // re-render the detail with fresh per-item state
+  }
   await Promise.all(writes);
 };
 
 // Normalises the legacy single-item parts request shape into the new items[] form.
+// Also stamps a default status + id on each item if missing (older saves only
+// stored name + qty, the new flow tracks Pending/Approved/Declined/Ordered/Received per item).
 function _prRequestItems(r) {
-  if (Array.isArray(r.items) && r.items.length) return r.items;
-  if (r.part_name) return [{ name: r.part_name, qty: Number(r.qty || 1) }];
+  if (Array.isArray(r.items) && r.items.length) {
+    return r.items.map(it => ({
+      id:      it.id || uid('pi'),
+      name:    it.name || '',
+      qty:     Number(it.qty || 1),
+      status:  it.status || r.status || 'Pending',
+      stocked: !!it.stocked
+    }));
+  }
+  if (r.part_name) {
+    return [{
+      id:      'legacy', name: r.part_name, qty: Number(r.qty || 1),
+      status:  r.status || 'Pending', stocked: !!r.stocked
+    }];
+  }
   return [];
 }
 window._prRequestItems = _prRequestItems;
+
+// Derive the OVERALL request status from its items:
+//   - If every item is Received → Received
+//   - If at least one Ordered (but not all Received) → Ordered
+//   - If at least one Approved (but no Ordered) → Approved
+//   - If every item is Declined → Declined
+//   - Otherwise → Pending (mixed)
+function _prRollupStatus(r) {
+  const items = _prRequestItems(r);
+  if (!items.length) return r.status || 'Pending';
+  const all = (s) => items.every(it => it.status === s);
+  const some = (s) => items.some(it => it.status === s);
+  if (all('Received')) return 'Received';
+  if (all('Declined')) return 'Declined';
+  if (some('Ordered'))  return 'Ordered';
+  if (some('Approved')) return 'Approved';
+  return 'Pending';
+}
+window._prRollupStatus = _prRollupStatus;
 
 // Renders the "Part" column cell for a request — first item + a "+N more" pill
 // that hover-titles the full list. Falls back to plain name for legacy rows.
@@ -7212,6 +7344,21 @@ async function renderSettings(force = false) {
         <div class="card" style="padding:18px">
           <h3 style="margin:0 0 6px">Branches · individual logins ${currentSub().isChain ? '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;background:rgba(32,227,178,.16);color:var(--teal);margin-left:6px;vertical-align:middle">CHAIN PLAN</span>' : '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;background:rgba(255,179,71,.16);color:var(--acc2);margin-left:6px;vertical-align:middle">CHAIN PLAN RECOMMENDED</span>'}</h3>
           <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Spin up a separate sign-in for each branch — each one is its own workshop with its own bookings, inventory, and team. The chain owner ID is stamped on every branch so we can roll-up reports later. Share the credentials with the branch's manager so they can sign in at <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--acc2)">garagepro.me/app</code>.</div>
+
+          <!-- Google→Email migration banner. Auto-shown when this account signed up with
+               Google but hasn't set a password yet. Branches must use email/password,
+               so the chain owner needs one too. -->
+          <div id="brMigrateBanner" style="display:none;background:rgba(255,179,71,.10);border:1px solid rgba(255,179,71,.32);border-radius:9px;padding:14px 16px;margin-bottom:14px">
+            <div style="display:flex;align-items:flex-start;gap:12px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--acc2)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22" style="flex:none;margin-top:1px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div style="flex:1">
+                <div style="font-weight:700;color:var(--acc2);font-size:13.5px">Set a password before adding branches</div>
+                <div style="color:var(--dim);font-size:12.5px;margin-top:4px;line-height:1.5">You signed in with Google. Once branches exist, every sign-in needs email + password so each session unambiguously scopes to one workshop. Add a password now — your Google sign-in still works on this account until your first branch is created.</div>
+                <button type="button" class="mini-btn good" style="margin-top:10px" onclick="brOpenMigration()">Set password</button>
+              </div>
+            </div>
+          </div>
+
           <form class="auth-form" autocomplete="off" onsubmit="createBranch(event)" style="display:grid;grid-template-columns:1.2fr 1.4fr 1fr auto;gap:8px;align-items:end">
             <div class="f-grp"><label>Branch name <span class="req">*</span></label><input id="br-name" type="text" placeholder="Speed Auto Care · Hyderabad" required autocomplete="off" /></div>
             <div class="f-grp"><label>Login email <span class="req">*</span></label><input id="br-email" type="email" placeholder="hyderabad@yourgarage.in" required autocomplete="off" /></div>
@@ -7444,6 +7591,8 @@ window.createBranch = async function(ev) {
 };
 
 function _renderBranchList() {
+  // Show / hide the Google → Email migration banner alongside the list
+  _brUpdateMigrateBanner();
   const wrap = document.getElementById('br-list');
   if (!wrap) return;
   const branches = Array.isArray(userProfile?.branches) ? userProfile.branches : [];
@@ -7472,6 +7621,65 @@ window.unlinkBranch = async function(uid) {
   userProfile.branches = branches;
   _renderBranchList();
   showToast('Branch unlinked', 'good');
+};
+
+// ── Google → Email/password migration (in-app variant of the marketing flow) ──
+// True if this Firebase user signed up with Google and never set a password.
+function _brNeedsMigration() {
+  const u = fbAuth?.currentUser;
+  if (!u) return false;
+  const providers = (u.providerData || []).map(p => p.providerId);
+  return providers.includes('google.com') && !providers.includes('password');
+}
+function _brUpdateMigrateBanner() {
+  const banner = document.getElementById('brMigrateBanner');
+  if (banner) banner.style.display = _brNeedsMigration() ? '' : 'none';
+}
+
+window.brOpenMigration = function() {
+  const email = fbAuth.currentUser?.email || '';
+  const body = `
+    <div style="color:var(--dim);font-size:13.5px;line-height:1.55;margin-bottom:14px">You currently sign in with Google. Add a password so you can keep using this account once your branches exist — Google sign-in is blocked for multi-branch workshops so every session scopes to one workshop.</div>
+    <div class="f-row r1"><div class="f-grp"><label>Email (from Google)</label>
+      <input id="mig-email" type="email" value="${escapeHtml(email)}" readonly style="background:var(--bg2);opacity:.85" /></div></div>
+    <div class="f-row"><div class="f-grp"><label>New password (8+ chars) <span class="req">*</span></label>
+      <input id="mig-pass" type="password" autocomplete="new-password" /></div>
+    <div class="f-grp"><label>Confirm password <span class="req">*</span></label>
+      <input id="mig-pass2" type="password" autocomplete="new-password" /></div></div>
+    <div class="f-err" id="mig-err" style="color:var(--red);font-size:12.5px;min-height:16px"></div>`;
+  openModal({
+    title: 'Set a password for your account',
+    body,
+    saveLabel: 'Set password',
+    onSave: async () => {
+      const err = document.getElementById('mig-err'); err.textContent = '';
+      const p1 = document.getElementById('mig-pass').value;
+      const p2 = document.getElementById('mig-pass2').value;
+      if (p1.length < 8)  throw new Error('Password must be at least 8 characters');
+      if (p1 !== p2)      throw new Error("Passwords don't match");
+      try {
+        const credential = firebase.auth.EmailAuthProvider.credential(email, p1);
+        await fbAuth.currentUser.linkWithCredential(credential);
+        // Mark on profile so other surfaces see the password is now active
+        await fbDb.collection('users').doc(fbAuth.currentUser.uid).set({
+          has_password: true,
+          password_set_at: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        closeModal();
+        showToast('Password set — you can now sign in with email + password.', 'good');
+        _brUpdateMigrateBanner();
+        audit('password-set', 'Linked email/password to Google account', {});
+      } catch (e) {
+        const code = e?.code || '';
+        if      (code === 'auth/provider-already-linked')   throw new Error('A password is already linked to this account.');
+        else if (code === 'auth/credential-already-in-use') throw new Error('That email is already used by another account.');
+        else if (code === 'auth/weak-password')             throw new Error('Password too weak — try a longer one.');
+        else if (code === 'auth/requires-recent-login')     throw new Error('Sign out and back in with Google, then try again.');
+        else if (code === 'auth/operation-not-allowed')     throw new Error('Email/Password sign-in is disabled in Firebase. Enable it in Firebase Console → Authentication → Sign-in method, then retry.');
+        else                                                throw e;
+      }
+    }
+  });
 };
 
 window.wipeCollection = async function(coll) {
