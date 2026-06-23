@@ -4,6 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Garage Pro — App</title>
+<!-- Force-revalidate on every load so feature additions show up without a hard refresh.
+     Firebase Hosting and most static servers respect these meta hints. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <meta name="theme-color" content="#0a0e14" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -3873,7 +3878,7 @@ window.emailBookingCustomer = async function(bookingId) {
   </label>`).join('');
   openModal({
     title: `Email ${escapeHtml(b.cust_email)}`,
-    body: `<div style="font-size:13.5px;color:var(--dim);margin-bottom:12px;line-height:1.5">Pick the email to send. Uses your saved template (${escapeHtml((s.email_template || 'wellness'))}) and the booking's details.</div>
+    body: `<div style="font-size:13.5px;color:var(--dim);margin-bottom:12px;line-height:1.5">Pick the email to send. Uses your saved template (${escapeHtml((s.email_template || 'classic'))}) and the booking's details.</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">${choices}</div>
       <div id="em-pick-msg" style="margin-top:12px;font-size:12.5px;min-height:14px"></div>`,
     saveLabel: 'Send',
@@ -7522,15 +7527,21 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
           <div style="font-size:12px;color:var(--faint);margin-bottom:10px">All three templates use your workshop logo from above. Pick the style that matches your brand.</div>
           <div id="sf-em-tpls" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
             ${EMAIL_TEMPLATES.map(t => {
-              const selected = (s.email_template || 'wellness') === t.id;
-              return `<label style="cursor:pointer;border:2px solid ${selected ? 'var(--acc2)' : 'var(--brd2)'};border-radius:10px;padding:14px;background:${selected ? 'rgba(255,179,71,.07)' : 'var(--bg2)'};display:flex;flex-direction:column;gap:8px" onclick="_selectEmailTemplate('${t.id}')">
-                <div style="display:flex;align-items:center;justify-content:space-between">
-                  <span style="font-family:var(--fd);font-weight:700;font-size:13.5px">${escapeHtml(t.label)}</span>
-                  <input type="radio" name="sf-em-tpl" value="${t.id}" ${selected ? 'checked' : ''} style="cursor:pointer" />
-                </div>
-                <div style="font-size:11.5px;color:var(--faint);line-height:1.4">${escapeHtml(t.note)}</div>
-                <button type="button" class="mini-btn" style="font-size:11px" onclick="event.stopPropagation();_previewEmailTemplate('${t.id}')">Preview</button>
-              </label>`;
+              const selected = (s.email_template || 'classic') === t.id;
+              // Preview button lives OUTSIDE the <label> so clicking it doesn't
+              // also fire the radio's change handler (which would race the
+              // window.open call and the browser would treat it as a non-user
+              // gesture, silently blocking the popup).
+              return `<div data-em-tile="${t.id}" style="border:2px solid ${selected ? 'var(--acc2)' : 'var(--brd2)'};border-radius:10px;padding:14px;background:${selected ? 'rgba(255,179,71,.07)' : 'var(--bg2)'};display:flex;flex-direction:column;gap:8px;position:relative">
+                <label style="cursor:pointer;display:flex;flex-direction:column;gap:8px;margin:0">
+                  <div style="display:flex;align-items:center;justify-content:space-between">
+                    <span style="font-family:var(--fd);font-weight:700;font-size:13.5px">${escapeHtml(t.label)}</span>
+                    <input type="radio" name="sf-em-tpl" value="${t.id}" ${selected ? 'checked' : ''} style="cursor:pointer" onclick="_selectEmailTemplate('${t.id}')" />
+                  </div>
+                  <div style="font-size:11.5px;color:var(--faint);line-height:1.4">${escapeHtml(t.note)}</div>
+                </label>
+                <button type="button" class="mini-btn" style="font-size:11px;align-self:flex-start" onclick="_previewEmailTemplate('${t.id}')">Preview</button>
+              </div>`;
             }).join('')}
           </div>
         </div>
@@ -7618,7 +7629,7 @@ window.saveEmailSettings = async function() {
   D.settings.email_enabled       = !!document.getElementById('sf-em-on').checked;
   D.settings.email_appscript_url = document.getElementById('sf-em-url').value.trim();
   D.settings.email_from_name     = document.getElementById('sf-em-from').value.trim();
-  D.settings.email_template      = (document.querySelector('input[name="sf-em-tpl"]:checked')?.value) || 'wellness';
+  D.settings.email_template      = (document.querySelector('input[name="sf-em-tpl"]:checked')?.value) || 'classic';
   D.settings.cancellation_policy = document.getElementById('sf-em-policy').value.trim();
   // Drop any old SMTP credentials from the previous (Cloud Function) flow.
   // They're no longer used and shouldn't sit in Firestore as dead config.
@@ -7645,41 +7656,62 @@ window.saveEmailSettings = async function() {
 };
 
 // Tile click → flip the radio + restyle the tiles. (Avoids re-rendering the
-// whole settings panel which would lose the user's password input.)
+// whole settings panel which would lose the user's URL input.)
 window._selectEmailTemplate = function(id) {
   const radio = document.querySelector(`input[name="sf-em-tpl"][value="${id}"]`);
   if (radio) radio.checked = true;
-  document.querySelectorAll('#sf-em-tpls > label').forEach(lbl => {
-    const r = lbl.querySelector('input[type="radio"]');
+  document.querySelectorAll('#sf-em-tpls > [data-em-tile]').forEach(tile => {
+    const r = tile.querySelector('input[type="radio"]');
     const on = !!(r && r.checked);
-    lbl.style.borderColor = on ? 'var(--acc2)' : 'var(--brd2)';
-    lbl.style.background  = on ? 'rgba(255,179,71,.07)' : 'var(--bg2)';
+    tile.style.borderColor = on ? 'var(--acc2)' : 'var(--brd2)';
+    tile.style.background  = on ? 'rgba(255,179,71,.07)' : 'var(--bg2)';
   });
 };
 
-// Preview a template in a new tab with sample data so the user can see exactly
-// what their customers will receive (logo, colours, layout).
+// Preview a template with sample data so the user can see exactly what their
+// customers will receive (logo, colours, layout). Falls back to an in-app modal
+// if the browser blocks the new tab — no silent failures.
 window._previewEmailTemplate = function(templateId) {
-  const sample = _buildEmailData({
-    event: 'booking_confirmed',
-    to: 'preview@example.com',
-    booking: { cust_name: 'Rajesh Kumar', cust_email: 'preview@example.com', service: 'Full service', date: '2026-07-15', time: '10:30 AM', plate: 'MH 12 AB 1234', notes: 'Bring service history book.' },
-    invoice: { number: 'BK-1234', lines: [{name:'Engine oil change', qty:1, unit_price:1800, disc_pct:0}, {name:'Brake pad set', qty:1, unit_price:3200, disc_pct:5}], charges:[{name:'Labour', amount:1500}], roundOff: 6500 }
+  let subject = 'Preview', html = '';
+  try {
+    const sample = _buildEmailData({
+      event: 'booking_confirmed',
+      to: 'preview@example.com',
+      booking: { cust_name: 'Rajesh Kumar', cust_email: 'preview@example.com', service: 'Full service', date: '2026-07-15', time: '10:30 AM', plate: 'MH 12 AB 1234', notes: 'Bring service history book.' },
+      invoice: { number: 'BK-1234', lines: [{name:'Engine oil change', qty:1, unit_price:1800, disc_pct:0}, {name:'Brake pad set', qty:1, unit_price:3200, disc_pct:5}], charges:[{name:'Labour', amount:1500}], roundOff: 6500 }
+    });
+    sample.headline = (EMAIL_EVENTS.find(e => e.id === 'booking_confirmed') || {}).headline || 'Preview';
+    sample.total = 6500;   // hand-fed since the sample invoice isn't a real record
+    const rendered = _renderEmailTemplate(templateId, sample);
+    subject = rendered.subject; html = rendered.html;
+  } catch (e) {
+    return customAlert('Couldn\'t render the preview: ' + (e?.message || e), { title: 'Preview error' });
+  }
+  // Try popup first — but Safari often refuses inside Settings UI
+  let w = null;
+  try { w = window.open('', '_blank'); } catch (_) { w = null; }
+  if (w) {
+    w.document.open();
+    w.document.write(`<!doctype html><html><head><title>Preview · ${escapeHtml(subject)}</title></head><body style="margin:0">
+      <div style="background:#0b0d12;color:#9aa0aa;padding:10px 14px;font:13px -apple-system,BlinkMacSystemFont,Segoe UI;display:flex;justify-content:space-between;align-items:center">
+        <div><b style="color:#fff">Preview</b> · subject: <i>${escapeHtml(subject)}</i></div>
+        <button onclick="window.close()" style="background:#fff;color:#0b0d12;border:0;padding:6px 14px;border-radius:5px;font-weight:700;cursor:pointer">Close</button>
+      </div>
+      ${html}
+    </body></html>`);
+    w.document.close();
+    return;
+  }
+  // Popup blocked → render inline in a modal with an iframe sandbox so the
+  // template's inline styles don't leak into the app
+  const iframeSrc = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  openModal({
+    title: `Preview · ${subject}`,
+    body: `<div style="margin-bottom:10px;font-size:12.5px;color:var(--faint);line-height:1.5">Your browser blocked a new tab, so the preview is shown inline. Allow pop-ups for this site to open future previews in their own window.</div>
+      <iframe src="${escapeHtml(iframeSrc)}" style="width:100%;height:520px;border:1px solid var(--brd);border-radius:8px;background:#fff" sandbox="allow-same-origin"></iframe>`,
+    saveLabel: 'Close',
+    onSave: () => { closeModal(); }
   });
-  sample.headline = (EMAIL_EVENTS.find(e => e.id === 'booking_confirmed') || {}).headline || 'Preview';
-  sample.total = 6500;   // hand-fed since the sample invoice isn't a real record
-  const { subject, html } = _renderEmailTemplate(templateId, sample);
-  const w = window.open('', '_blank');
-  if (!w) return customAlert('Browser blocked the new tab. Allow pop-ups to preview email templates.', { title: 'Pop-up blocked' });
-  w.document.open();
-  w.document.write(`<!doctype html><html><head><title>Preview · ${escapeHtml(subject)}</title></head><body style="margin:0">
-    <div style="background:#0b0d12;color:#9aa0aa;padding:10px 14px;font:13px -apple-system,BlinkMacSystemFont,Segoe UI;display:flex;justify-content:space-between;align-items:center">
-      <div><b style="color:#fff">Preview</b> · subject: <i>${escapeHtml(subject)}</i></div>
-      <button onclick="window.close()" style="background:#fff;color:#0b0d12;border:0;padding:6px 14px;border-radius:5px;font-weight:700;cursor:pointer">Close</button>
-    </div>
-    ${html}
-  </body></html>`);
-  w.document.close();
 };
 
 // Send a test email to whatever address is typed into the test field. Uses
@@ -9556,7 +9588,7 @@ window.generateInvoice = async function(jobId) {
 //  Blaze plan, no backend, no App Password. This module owns the
 //  templates, the trigger registry, and the client-side dispatcher.
 //
-//  Templates:  Wellness | Restaurant | Receipt — chosen in Settings.
+//  Templates:  Classic | Formal | Receipt — chosen in Settings.
 //  Triggers:   booking_confirmed, estimate_ready, customer_approved,
 //              work_started, work_complete, ready_for_pickup, thank_you,
 //              invoice_ready  — each individually toggleable.
@@ -9576,9 +9608,9 @@ const EMAIL_EVENTS = [
 window.EMAIL_EVENTS = EMAIL_EVENTS;
 
 const EMAIL_TEMPLATES = [
-  { id: 'wellness',   label: 'Wellness',   note: 'Clean, centered logo. Friendly tone.' },
-  { id: 'restaurant', label: 'Restaurant', note: 'Logo top-left, contact right. Formal.' },
-  { id: 'receipt',    label: 'Receipt',    note: 'Itemised receipt with totals (best for invoices).' }
+  { id: 'classic', label: 'Classic', note: 'Clean, centered logo. Friendly tone.' },
+  { id: 'formal',  label: 'Formal',  note: 'Letterhead style — logo top-left, contact top-right.' },
+  { id: 'receipt', label: 'Receipt', note: 'Itemised receipt with totals (best for invoices).' }
 ];
 window.EMAIL_TEMPLATES = EMAIL_TEMPLATES;
 
@@ -9621,19 +9653,21 @@ function _buildEmailData(opts) {
 function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // Render the chosen template into a {subject, html} pair.
+// Old ids ('wellness' / 'restaurant') still resolve so existing saved settings
+// don't break when the rename rolls out.
 function _renderEmailTemplate(templateId, data) {
   const evt = EMAIL_EVENTS.find(e => e.id === data.event) || EMAIL_EVENTS[0];
   const subject = (typeof evt.subject === 'function') ? evt.subject(data) : `${data.workshop_name} — update`;
   let html;
-  if      (templateId === 'restaurant') html = _emailTplRestaurant(data, evt);
-  else if (templateId === 'receipt')    html = _emailTplReceipt(data, evt);
-  else                                  html = _emailTplWellness(data, evt);
+  if      (templateId === 'formal' || templateId === 'restaurant') html = _emailTplFormal(data, evt);
+  else if (templateId === 'receipt')                                html = _emailTplReceipt(data, evt);
+  else                                                              html = _emailTplClassic(data, evt);   // 'classic' + legacy 'wellness'
   return { subject, html };
 }
 window._renderEmailTemplate = _renderEmailTemplate;
 
-// ── Template 1: Wellness — centered logo, clean order summary, cancellation policy
-function _emailTplWellness(d, evt) {
+// ── Template 1: Classic — centered logo, clean order summary, cancellation policy
+function _emailTplClassic(d, evt) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${_esc(evt.subject(d))}</title></head>
 <body style="margin:0;padding:0;background:#f7f8fa;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;color:#1a1a1a">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f8fa;padding:40px 20px">
@@ -9668,8 +9702,8 @@ function _emailTplWellness(d, evt) {
 </body></html>`;
 }
 
-// ── Template 2: Restaurant — logo top-left, contact top-right, Roman-numeral sections
-function _emailTplRestaurant(d, evt) {
+// ── Template 2: Formal (letterhead) — logo top-left, contact top-right, Roman-numeral sections
+function _emailTplFormal(d, evt) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${_esc(evt.subject(d))}</title></head>
 <body style="margin:0;padding:0;background:#fafafa;font-family:Georgia,Cambria,'Times New Roman',serif;color:#1a1a1a">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa;padding:0 20px">
@@ -9787,7 +9821,7 @@ function _emailTplReceipt(d, evt) {
 // To actually send, requires:
 //   D.settings.email_enabled            = true
 //   D.settings.email_appscript_url      = the Apps Script Web App URL (ends /exec)
-//   D.settings.email_template           = 'wellness' | 'restaurant' | 'receipt'
+//   D.settings.email_template           = 'classic' | 'formal' | 'receipt'
 //   D.settings.email_triggers[eventId]  = true
 //
 // The actual send is done by the workshop's Apps Script Web App.
@@ -9801,7 +9835,7 @@ async function sendCustomerNotification(eventId, opts = {}) {
   if (!evt) return { ok: false, skipped: 'unknown-event' };
   const data = _buildEmailData({ ...opts, event: eventId, headline: evt.headline });
   if (!data.customer_email) return { ok: false, skipped: 'no-recipient' };
-  const { subject, html } = _renderEmailTemplate(s.email_template || 'wellness', data);
+  const { subject, html } = _renderEmailTemplate(s.email_template || 'classic', data);
   try {
     const res = await _smtpSend({ to: data.customer_email, subject, html, fromName: data.workshop_name });
     if (res.ok) audit('email-sent', `${eventId} → ${data.customer_email}`, { event: eventId, to: data.customer_email });
