@@ -7509,7 +7509,11 @@ async function renderSettings(force = false) {
           </ol>
           <pre style="background:#0b0d12;color:#eaeef5;font-size:11px;padding:12px;border-radius:6px;overflow:auto;margin-top:10px;line-height:1.55">function doPost(e) {
   try {
-    const b = JSON.parse(e.postData.contents);
+    // Garage Pro posts as a regular HTML form (to dodge browser CORS rules),
+    // so the JSON arrives in e.parameter.payload. Older clients used raw POST
+    // bodies — fall back to e.postData.contents so both work.
+    const raw = (e.parameter && e.parameter.payload) || (e.postData && e.postData.contents) || '';
+    const b   = JSON.parse(raw);
     if (!b.to || !b.subject) return out({ok:false, error:'Missing to/subject'});
     const opts = { htmlBody: b.html || b.body || '', name: b.fromName || 'Workshop' };
     if (b.replyTo) opts.replyTo = b.replyTo;
@@ -7528,10 +7532,6 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
           <div id="sf-em-tpls" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
             ${EMAIL_TEMPLATES.map(t => {
               const selected = (s.email_template || 'classic') === t.id;
-              // Preview button lives OUTSIDE the <label> so clicking it doesn't
-              // also fire the radio's change handler (which would race the
-              // window.open call and the browser would treat it as a non-user
-              // gesture, silently blocking the popup).
               return `<div data-em-tile="${t.id}" style="border:2px solid ${selected ? 'var(--acc2)' : 'var(--brd2)'};border-radius:10px;padding:14px;background:${selected ? 'rgba(255,179,71,.07)' : 'var(--bg2)'};display:flex;flex-direction:column;gap:8px;position:relative">
                 <label style="cursor:pointer;display:flex;flex-direction:column;gap:8px;margin:0">
                   <div style="display:flex;align-items:center;justify-content:space-between">
@@ -7543,6 +7543,17 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
                 <button type="button" class="mini-btn" style="font-size:11px;align-self:flex-start" onclick="_previewEmailTemplate('${t.id}')">Preview</button>
               </div>`;
             }).join('')}
+          </div>
+
+          <!-- Inline email preview pane — rendered into a sandboxed iframe so
+               the template's inline styles can't leak into the app. Hidden
+               until the user clicks Preview on a tile. -->
+          <div id="sf-em-preview-wrap" style="display:none;margin-top:14px;border:1px solid var(--brd);border-radius:10px;overflow:hidden;background:#fff">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--brd);font-size:12px;color:var(--dim)">
+              <span><b style="color:var(--txt)">Preview</b> · <span id="sf-em-preview-sub" style="color:var(--faint)"></span></span>
+              <button type="button" class="mini-btn" style="font-size:11px" onclick="_closeEmailPreview()">Close preview</button>
+            </div>
+            <iframe id="sf-em-preview-frame" sandbox="allow-same-origin" style="width:100%;height:560px;border:0;background:#fff;display:block"></iframe>
           </div>
         </div>
 
@@ -7668,11 +7679,19 @@ window._selectEmailTemplate = function(id) {
   });
 };
 
-// Preview a template with sample data so the user can see exactly what their
-// customers will receive (logo, colours, layout). Falls back to an in-app modal
-// if the browser blocks the new tab — no silent failures.
+// Preview a template inline inside the Settings tab. We render the email
+// HTML into a sandboxed iframe right under the template tiles — no popup,
+// no modal, no separate tab. Sandbox keeps the template's inline styles
+// from bleeding into the rest of the app.
 window._previewEmailTemplate = function(templateId) {
-  let subject = 'Preview', html = '';
+  const wrap   = document.getElementById('sf-em-preview-wrap');
+  const frame  = document.getElementById('sf-em-preview-frame');
+  const subEl  = document.getElementById('sf-em-preview-sub');
+  if (!wrap || !frame) {
+    // Settings panel not rendered — shouldn't happen but bail safely
+    return customAlert('Preview is only available from the Settings tab.', { title: 'Open Settings first' });
+  }
+  let subject, html;
   try {
     const sample = _buildEmailData({
       event: 'booking_confirmed',
@@ -7687,31 +7706,22 @@ window._previewEmailTemplate = function(templateId) {
   } catch (e) {
     return customAlert('Couldn\'t render the preview: ' + (e?.message || e), { title: 'Preview error' });
   }
-  // Try popup first — but Safari often refuses inside Settings UI
-  let w = null;
-  try { w = window.open('', '_blank'); } catch (_) { w = null; }
-  if (w) {
-    w.document.open();
-    w.document.write(`<!doctype html><html><head><title>Preview · ${escapeHtml(subject)}</title></head><body style="margin:0">
-      <div style="background:#0b0d12;color:#9aa0aa;padding:10px 14px;font:13px -apple-system,BlinkMacSystemFont,Segoe UI;display:flex;justify-content:space-between;align-items:center">
-        <div><b style="color:#fff">Preview</b> · subject: <i>${escapeHtml(subject)}</i></div>
-        <button onclick="window.close()" style="background:#fff;color:#0b0d12;border:0;padding:6px 14px;border-radius:5px;font-weight:700;cursor:pointer">Close</button>
-      </div>
-      ${html}
-    </body></html>`);
-    w.document.close();
-    return;
-  }
-  // Popup blocked → render inline in a modal with an iframe sandbox so the
-  // template's inline styles don't leak into the app
-  const iframeSrc = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-  openModal({
-    title: `Preview · ${subject}`,
-    body: `<div style="margin-bottom:10px;font-size:12.5px;color:var(--faint);line-height:1.5">Your browser blocked a new tab, so the preview is shown inline. Allow pop-ups for this site to open future previews in their own window.</div>
-      <iframe src="${escapeHtml(iframeSrc)}" style="width:100%;height:520px;border:1px solid var(--brd);border-radius:8px;background:#fff" sandbox="allow-same-origin"></iframe>`,
-    saveLabel: 'Close',
-    onSave: () => { closeModal(); }
-  });
+  // Stream the rendered HTML straight into the iframe — srcdoc is the cleanest
+  // path and gives us same-origin within the sandbox so JS-free templates
+  // render exactly as Gmail will display them.
+  frame.srcdoc = html;
+  if (subEl) subEl.textContent = 'subject: ' + subject;
+  wrap.style.display = '';
+  // Scroll the preview into view so the user actually sees the result —
+  // otherwise it can be below the fold and look like nothing happened.
+  setTimeout(() => wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 0);
+};
+
+window._closeEmailPreview = function() {
+  const wrap  = document.getElementById('sf-em-preview-wrap');
+  const frame = document.getElementById('sf-em-preview-frame');
+  if (frame) frame.srcdoc = '';
+  if (wrap)  wrap.style.display = 'none';
 };
 
 // Send a test email to whatever address is typed into the test field. Uses
@@ -9848,17 +9858,19 @@ async function sendCustomerNotification(eventId, opts = {}) {
 }
 window.sendCustomerNotification = sendCustomerNotification;
 
-// Low-level send. POSTs to the workshop's Apps Script Web App URL, which uses
+// Low-level send. Posts to the workshop's Apps Script Web App URL, which uses
 // MailApp.sendEmail to deliver via the owner's Gmail. Free forever — no Cloud
 // Functions, no Blaze plan, no App Password.
 //
-// CORS note: Apps Script web apps respond with a 302 redirect to
-// `script.googleusercontent.com`, and neither response includes an
-// Access-Control-Allow-Origin header. So we use `mode: 'no-cors'` — the
-// browser sends the POST and Apps Script processes it, but the response is
-// "opaque" (status 0, body unreadable). We treat "fetch resolved without a
-// network error" as success. Real failures (auth misconfig, JSON parse error,
-// etc.) only show up in the Apps Script execution log at script.google.com.
+// Why hidden form + iframe instead of fetch:
+//   Apps Script web apps respond with a 302 redirect to script.googleusercontent.com,
+//   and neither response includes an Access-Control-Allow-Origin header. fetch()
+//   (even with mode:'no-cors') refuses to follow that cross-origin redirect and
+//   throws "Failed to fetch". HTML forms are NOT subject to CORS for the request
+//   itself — the browser submits, follows the redirect, and lands the response in
+//   a target iframe. We can't read the response body (cross-origin iframe), but
+//   the request goes through and Apps Script processes it. The iframe's `load`
+//   event tells us the round-trip completed.
 async function _smtpSend({ to, subject, html, fromName }) {
   const url = (D.settings || {}).email_appscript_url;
   if (!url) throw new Error('No Apps Script URL configured. Open Settings → Customer email notifications and paste the Web app URL.');
@@ -9866,22 +9878,42 @@ async function _smtpSend({ to, subject, html, fromName }) {
     throw new Error('That doesn\'t look like an Apps Script Web App URL. It should end with /exec.');
   const replyTo = (D.settings || {}).email || (D.settings || {}).workshop_email || '';
   const payload = JSON.stringify({ to, subject, html, body: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), fromName, replyTo });
-  try {
-    await fetch(url, {
-      method: 'POST',
-      mode: 'no-cors',                              // see header comment
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: payload,
-      redirect: 'follow'
-    });
-  } catch (e) {
-    // True network failures (offline, DNS, etc.) — Apps Script CORS errors
-    // can't reach us in no-cors mode, so anything thrown here is real.
-    throw new Error('Network error reaching Apps Script: ' + (e?.message || e));
-  }
-  // We can't see the response, so optimistically succeed. The user verifies
-  // delivery by checking the recipient's inbox or the script's execution log.
-  return { ok: true, opaque: true };
+
+  return new Promise((resolve, reject) => {
+    // One reusable hidden iframe per page — Apps Script's response lands here
+    // and stays cross-origin-opaque, but the load event still fires when it's done.
+    let frame = document.getElementById('_emailRelayFrame');
+    if (!frame) {
+      frame = document.createElement('iframe');
+      frame.id   = '_emailRelayFrame';
+      frame.name = '_emailRelayFrame';
+      frame.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
+      document.body.appendChild(frame);
+    }
+    const form = document.createElement('form');
+    form.action  = url;
+    form.method  = 'POST';
+    form.target  = '_emailRelayFrame';
+    form.enctype = 'application/x-www-form-urlencoded';   // simple form post — no CORS preflight
+    form.style.display = 'none';
+    const input = document.createElement('input');
+    input.type  = 'hidden';
+    input.name  = 'payload';
+    input.value = payload;
+    form.appendChild(input);
+    document.body.appendChild(form);
+
+    // 15-second hard timeout — covers slow Gmail / cold-start Apps Script
+    const timeout = setTimeout(() => { cleanup(); reject(new Error('Apps Script timed out after 15s. Check the script URL and your network.')); }, 15000);
+    const onLoad  = () => { clearTimeout(timeout); cleanup(); resolve({ ok: true, opaque: true }); };
+    function cleanup() {
+      frame.removeEventListener('load', onLoad);
+      // Defer form removal one tick so the submit completes cleanly in Safari
+      setTimeout(() => { try { form.remove(); } catch(_){} }, 0);
+    }
+    frame.addEventListener('load', onLoad);
+    form.submit();
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
