@@ -1272,6 +1272,21 @@ let currentTab     = 'dashboard';
 //  most-restrictive defaults so the app stays usable but won't grow unbounded.
 // ══════════════════════════════════════════
 const FREE_TIER_LIMITS = { maxBays: 1, maxWorkers: 2, maxBookings: 5, planName: 'Free / unverified' };
+
+// ── Departments ───────────────────────────────────────────────────────────
+// Used on booking + job-card forms. Workshop can add their own custom ones
+// in Settings → Departments. The first three are the historical defaults and
+// can be removed by the workshop if they truly don't apply (Detailing-only
+// shops, etc.) — but the array is never allowed to be empty.
+const DEFAULT_DEPARTMENTS = ['Mechanical', 'Bodyshop', 'Both'];
+function departments() {
+  const list = (D.settings && Array.isArray(D.settings.departments) && D.settings.departments.length)
+    ? D.settings.departments
+    : DEFAULT_DEPARTMENTS;
+  return list.filter(s => String(s || '').trim());
+}
+window.departments = departments;
+
 function currentSub() {
   const s = userProfile?.subscription;
   if (!s) return { ...FREE_TIER_LIMITS, active: false, planName: 'Free / unverified', expiry: null, isChain: false };
@@ -3191,7 +3206,7 @@ function _bookingFormHTML(b) {
     <div class="f-row r3">
       <div class="f-grp"><label>Department <span class="req">*</span></label>
         <select id="bf-dept">
-          ${['Mechanical','Bodyshop','Both'].map(d => `<option value="${d}" ${(b.department || 'Mechanical') === d ? 'selected' : ''}>${d}</option>`).join('')}
+          ${departments().map(d => `<option value="${escapeHtml(d)}" ${(b.department || departments()[0]) === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
         </select>
         <span class="hint" style="display:block;font-size:11px;color:var(--faint);margin-top:4px">Used to route the job to the right floor manager</span>
       </div>
@@ -4833,7 +4848,7 @@ window.openJobForm = function(id) {
         <div class="f-grp"><label>Status <span class="req">*</span></label>
           <select id="jf-status">${JOB_STATUSES.map(s => `<option value="${s}" ${(j.status || 'Awaiting Assignment') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
         <div class="f-grp"><label>Department <span class="req">*</span></label>
-          <select id="jf-dept">${['Mechanical','Bodyshop','Both'].map(d => `<option value="${d}" ${(j.department || _jobDeptFromBooking(j) || 'Mechanical') === d ? 'selected' : ''}>${d}</option>`).join('')}</select></div>
+          <select id="jf-dept">${departments().map(d => `<option value="${escapeHtml(d)}" ${(j.department || _jobDeptFromBooking(j) || departments()[0]) === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}</select></div>
       </div>
 
       <!-- Mechanics: multi-pick. Primary = first chip. Click chip × to remove. -->
@@ -7450,6 +7465,27 @@ async function renderSettings(force = false) {
         <div style="margin-top:12px;text-align:right"><button class="add-btn" onclick="saveWorkshopInfo()">Save workshop info</button></div>
       </div>
 
+      <!-- ──────────────────────────────────────────────────────────────────
+           Departments — used on booking + job-card forms. Workshops can
+           add their own (Detailing, EV service, Performance tuning, …)
+           and remove any they don't run. Cannot be left empty.
+           ────────────────────────────────────────────────────────────── -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Departments</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Shown in the Department dropdown on bookings and job cards. Defaults are <b>Mechanical</b>, <b>Bodyshop</b>, and <b>Both</b> — add your own (Detailing, EV service, etc.) or remove ones you don't run.</div>
+        <div id="sf-dept-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+          ${departments().map(d => `<span style="display:inline-flex;align-items:center;gap:6px;padding:7px 11px;background:var(--bg2);border:1px solid var(--brd2);border-radius:100px;font-size:13px;font-weight:600">
+            ${escapeHtml(d)}
+            <button type="button" class="mini-btn danger" title="Remove ${escapeHtml(d)}" style="padding:2px 6px;font-size:10px;line-height:1" onclick="_removeDepartment('${escapeHtml(d).replace(/'/g, "\\'")}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          </span>`).join('')}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="sf-dept-new" placeholder="New department (e.g. Detailing)" style="flex:1;min-width:200px;padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb)" onkeydown="if(event.key==='Enter'){event.preventDefault();_addDepartment();}" />
+          <button class="refresh-btn" onclick="_addDepartment()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add department</button>
+        </div>
+        <div id="sf-dept-msg" style="margin-top:8px;font-size:12.5px;min-height:14px"></div>
+      </div>
+
       <!-- Role permissions -->
       <div class="card" style="padding:18px">
         <h3 style="margin:0 0 6px">Role permissions</h3>
@@ -7634,6 +7670,49 @@ window.saveWorkshopInfo = async function() {
   showToast('Workshop info saved', 'good');
 };
 
+// ─── Departments (used on bookings + job cards) ──────────────────
+window._addDepartment = async function() {
+  const input = document.getElementById('sf-dept-new');
+  const msg   = document.getElementById('sf-dept-msg');
+  const name  = (input?.value || '').trim();
+  msg.style.color = 'var(--red)';
+  if (!name)               { msg.textContent = 'Type a department name first.'; return; }
+  if (name.length > 40)    { msg.textContent = 'Keep the name under 40 characters.'; return; }
+  const current = departments();
+  // Case-insensitive duplicate check
+  if (current.some(d => d.toLowerCase() === name.toLowerCase())) {
+    msg.textContent = '"' + name + '" already exists.'; return;
+  }
+  D.settings = D.settings || {};
+  D.settings.departments = [...current, name];
+  await wsSaveSettings();
+  showToast('Added "' + name + '"', 'good');
+  msg.textContent = '';
+  await renderSettings(true);          // re-render so the new chip appears
+};
+
+window._removeDepartment = async function(name) {
+  const msg = document.getElementById('sf-dept-msg');
+  const current = departments();
+  if (current.length <= 1) {
+    if (msg) { msg.style.color = 'var(--red)'; msg.textContent = 'Need at least one department — add another before removing this.'; }
+    return;
+  }
+  // Warn if any existing bookings/jobs use this department, so the user
+  // knows what's about to fall off the dropdown for those records.
+  const inUse = (D.bookings || []).filter(b => (b.department || '') === name).length
+              + (D.jobs     || []).filter(j => (j.department || '') === name).length;
+  const warn = inUse
+    ? `"${name}" is set on ${inUse} record${inUse===1?'':'s'}. They'll keep that label but the dropdown won't show it anymore. Continue?`
+    : `Remove "${name}" from the list?`;
+  if (!(await customConfirm(warn, { title: 'Remove department', okLabel: 'Remove' }))) return;
+  D.settings = D.settings || {};
+  D.settings.departments = current.filter(d => d !== name);
+  await wsSaveSettings();
+  showToast('Removed "' + name + '"', 'good');
+  await renderSettings(true);
+};
+
 // ─── Customer-email settings ─────────────────────────────────────
 window.saveEmailSettings = async function() {
   D.settings = D.settings || {};
@@ -7679,17 +7758,15 @@ window._selectEmailTemplate = function(id) {
   });
 };
 
-// Preview a template inline inside the Settings tab. We render the email
-// HTML into a sandboxed iframe right under the template tiles — no popup,
-// no modal, no separate tab. Sandbox keeps the template's inline styles
-// from bleeding into the rest of the app.
+// Preview a template inline inside the Settings tab. Renders the email HTML
+// directly into the iframe via document.open/write/close — bulletproof in
+// every browser and avoids both srcdoc edge-cases and any sandbox surprises.
 window._previewEmailTemplate = function(templateId) {
   const wrap   = document.getElementById('sf-em-preview-wrap');
   const frame  = document.getElementById('sf-em-preview-frame');
   const subEl  = document.getElementById('sf-em-preview-sub');
   if (!wrap || !frame) {
-    // Settings panel not rendered — shouldn't happen but bail safely
-    return customAlert('Preview is only available from the Settings tab.', { title: 'Open Settings first' });
+    return customAlert('Preview pane missing — re-open the Settings tab and try again.', { title: 'Preview unavailable' });
   }
   let subject, html;
   try {
@@ -7700,20 +7777,35 @@ window._previewEmailTemplate = function(templateId) {
       invoice: { number: 'BK-1234', lines: [{name:'Engine oil change', qty:1, unit_price:1800, disc_pct:0}, {name:'Brake pad set', qty:1, unit_price:3200, disc_pct:5}], charges:[{name:'Labour', amount:1500}], roundOff: 6500 }
     });
     sample.headline = (EMAIL_EVENTS.find(e => e.id === 'booking_confirmed') || {}).headline || 'Preview';
-    sample.total = 6500;   // hand-fed since the sample invoice isn't a real record
+    sample.total = 6500;
     const rendered = _renderEmailTemplate(templateId, sample);
     subject = rendered.subject; html = rendered.html;
   } catch (e) {
+    console.error('[preview] template render failed:', e);
     return customAlert('Couldn\'t render the preview: ' + (e?.message || e), { title: 'Preview error' });
   }
-  // Stream the rendered HTML straight into the iframe — srcdoc is the cleanest
-  // path and gives us same-origin within the sandbox so JS-free templates
-  // render exactly as Gmail will display them.
-  frame.srcdoc = html;
+  // Reveal the pane first so the iframe has layout before we write into it
+  // (some browsers don't paint into iframes that are still display:none).
   if (subEl) subEl.textContent = 'subject: ' + subject;
   wrap.style.display = '';
-  // Scroll the preview into view so the user actually sees the result —
-  // otherwise it can be below the fold and look like nothing happened.
+
+  // Write directly into the iframe document — works regardless of srcdoc
+  // support quirks. Wrapped in try/catch so any future sandbox tightening
+  // surfaces as a visible error instead of a blank pane.
+  try {
+    const doc = frame.contentDocument || frame.contentWindow?.document;
+    if (!doc) throw new Error('Iframe document not reachable');
+    doc.open();
+    doc.write(html);
+    doc.close();
+  } catch (e) {
+    console.error('[preview] iframe write failed, falling back to srcdoc:', e);
+    try { frame.srcdoc = html; }
+    catch (e2) {
+      return customAlert('Couldn\'t paint the preview into the iframe: ' + (e2?.message || e2), { title: 'Preview error' });
+    }
+  }
+
   setTimeout(() => wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 0);
 };
 
