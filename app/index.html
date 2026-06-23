@@ -6953,8 +6953,18 @@ async function savePartRequest() {
   closeModal();
   showToast(`Request sent · ${items.length} item${items.length === 1 ? '' : 's'}`, 'good');
   audit('part-request', summary + (job ? ' for ' + job.plate : ''), { request_id: req.id });
+  // Save FIRST so Firestore has the new request, THEN refresh the view.
+  // (Reversed order races: loadAllData(true) inside refresh overwrites D.parts_requests
+  // with the pre-save snapshot, and the subsequent wsSave then persists stale data —
+  // the new request silently vanishes.)
+  try {
+    await wsSave('parts_requests', D.parts_requests);
+  } catch (e) {
+    showToast('Couldn\'t save request: ' + (e?.message || e), 'bad');
+    // Roll back optimistic insert so the next refresh doesn't show a ghost row
+    D.parts_requests = D.parts_requests.filter(x => x.id !== req.id);
+  }
   await _refreshActivePartsView();
-  await wsSave('parts_requests', D.parts_requests);
 }
 
 // Single workhorse for parts-request status changes. Handles three modes:
@@ -7003,19 +7013,25 @@ window.setPartStatus = async function(reqId, status, itemId) {
   r.updated_by = currentWorker?.name || '';
   if (r.status === 'Received') r.stocked = true;   // backward-compat flag
 
-  const writes = [wsSave('parts_requests', D.parts_requests)];
-  if (stockAdds.length) writes.push(wsSave('inventory', D.inventory));
   const stockMsg = stockAdds.length ? ` · stocked ${stockAdds.length} item${stockAdds.length === 1 ? '' : 's'}` : '';
   const scope = itemId ? '1 item' : `${targets.length} item${targets.length === 1 ? '' : 's'}`;
   showToast(`Marked ${status} on ${scope}${stockMsg}`, 'good');
   audit('part-' + status.toLowerCase(), `${r.summary || r.part_name || '—'} (${scope})${stockMsg}`, { request_id: reqId, item_id: itemId || null });
+  // Persist BEFORE refreshing — refresh calls loadAllData(true) which would otherwise
+  // overwrite our just-mutated D.parts_requests with the pre-save Firestore snapshot.
+  try {
+    const writes = [wsSave('parts_requests', D.parts_requests)];
+    if (stockAdds.length) writes.push(wsSave('inventory', D.inventory));
+    await Promise.all(writes);
+  } catch (e) {
+    showToast('Couldn\'t save status change: ' + (e?.message || e), 'bad');
+  }
   // Re-render whichever parts view is active AND the open detail modal if there is one
   await _refreshActivePartsView();
   if (document.getElementById('gpSubModal')?.classList.contains('open') &&
       document.querySelector('#gpSubModalBody [data-prid]')?.dataset?.prid === reqId) {
     _openPartReqDetail(reqId);   // re-render the detail with fresh per-item state
   }
-  await Promise.all(writes);
 };
 
 // Normalises the legacy single-item parts request shape into the new items[] form.
