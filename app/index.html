@@ -1985,9 +1985,21 @@ function wsRef() {
 }
 function wsCol(name) { return wsRef().collection(name); }
 
+// Cache-first read: hit IndexedDB cache for an instant first paint, then fall
+// back to a server fetch only if there's no cached copy yet. Firestore keeps
+// the local cache in sync automatically via onSnapshot pipes, so the cache
+// is fresh as long as the user has been online recently.
 async function wsLoad(name) {
   try {
-    const d = await wsCol(name).doc('data').get();
+    const ref = wsCol(name).doc('data');
+    // Try cache first — this is instant (<5ms) when the doc has ever been read
+    try {
+      const cached = await ref.get({ source: 'cache' });
+      if (cached.exists) return cached.data().items || [];
+    } catch (cacheMiss) {
+      // No cached copy yet — fall through to server fetch
+    }
+    const d = await ref.get();
     return d.exists ? (d.data().items || []) : [];
   } catch (e) {
     console.warn(`[wsLoad ${name}] failed:`, e);
@@ -2111,7 +2123,10 @@ async function loadAllData(force = false) {
     try { await _loadingPromise; } catch (e) {}
     if (!force) return;  // someone else already refreshed; nothing more to do
   }
-  if (!force && D.loadedAt && (Date.now() - D.loadedAt < 60000)) return; // 60s grace — persistence keeps the local cache hot
+  // 5-minute grace — IndexedDB persistence keeps reads hot, and Firestore
+  // pipes changes to the local cache via background sync. Re-fetching every
+  // 60s was making tab-switches feel laggy. Click "Refresh" to force-bypass.
+  if (!force && D.loadedAt && (Date.now() - D.loadedAt < 300000)) return;
   _loadingPromise = (async () => {
     const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, invoices, audit, vehicleDBArr, notifications, settingsArr] =
       await Promise.all([
@@ -4229,6 +4244,7 @@ async function renderJobs(force = false) {
         ${stageBtns}
         <button class="mini-btn" onclick="openJobForm('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
         <button class="mini-btn good" onclick="generateInvoice('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Invoice</button>
+        ${j.is_insurance ? `<button class="mini-btn warn" onclick="viewInsuranceDoc('${escapeHtml(j.id)}')" title="Generate insurance claim PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Claim PDF</button>` : ''}
         <button class="mini-btn danger" onclick="deleteJob('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
       </div></td>
     </tr>`;
@@ -4805,6 +4821,10 @@ window.openJobForm = function(id) {
           </div>
           <div class="f-row r1">
             <div class="f-grp"><label>Notes / remarks</label><textarea id="jf-ins-notes" placeholder="Photos submitted, partial settlement reasons, follow-ups…">${escapeHtml(_editingJob.insurance_notes)}</textarea></div>
+          </div>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(255,179,71,.30);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="font-size:12px;color:var(--dim);line-height:1.5;max-width:480px">Generate a branded claim document with the customer, vehicle, parts, labour, and uploaded photos — ready to print or save as PDF for the insurer.</div>
+            <button type="button" class="mini-btn good" onclick="viewInsuranceDoc('${escapeHtml(j.id)}')" style="white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg>Generate insurance PDF</button>
           </div>
         </div>
       </div>
@@ -8543,16 +8563,303 @@ window._invoiceFillFromCustomer = function() {
 };
 
 window.viewInvoice = async function(id) {
-  await loadAllData(true);
-  const inv = (D.invoices || []).find(x => x.id === id);
-  if (!inv) return showToast('Invoice not found', 'bad');
-  // Pull any photos saved against the linked job so the printed copy can show them
-  const photos = inv.job_id ? await loadJobPhotos(inv.job_id) : [];
-  const html = _invoiceHTMLFromRecord(inv, { photos });
+  // CRITICAL: open the new tab SYNCHRONOUSLY in the click handler. If we
+  // await anything first, Safari/Chrome treat the eventual window.open as
+  // a non-user-gesture popup and silently block it (this was "invoices
+  // don't open"). We write the rendered HTML into the placeholder window
+  // after the data is ready.
   const w = window.open('', '_blank');
   if (!w) return customAlert('Browser blocked the new tab. Allow pop-ups for this site.', { title: 'Pop-up blocked' });
-  w.document.open(); w.document.write(html); w.document.close();
+  try {
+    w.document.open();
+    w.document.write('<!doctype html><meta charset="utf-8"><title>Loading invoice…</title><style>body{font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#666}</style><div>Loading invoice…</div>');
+    w.document.close();
+    // Use the in-memory copy if we already have it — no need to force-reload
+    // 14 collections from Firestore just to render an invoice we already loaded.
+    let inv = (D.invoices || []).find(x => x.id === id);
+    if (!inv) {
+      // Fall back to a refresh in case the invoice was created on another tab
+      await loadAllData(true);
+      inv = (D.invoices || []).find(x => x.id === id);
+    }
+    if (!inv) { w.close(); return showToast('Invoice not found', 'bad'); }
+    const photos = inv.job_id ? await loadJobPhotos(inv.job_id) : [];
+    const html = _invoiceHTMLFromRecord(inv, { photos });
+    w.document.open(); w.document.write(html); w.document.close();
+  } catch (e) {
+    try { w.close(); } catch(_){}
+    showToast('Couldn\'t open invoice: ' + (e?.message || e), 'bad');
+  }
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+//  INSURANCE CLAIM DOCUMENT  — generate a branded PDF-style HTML document
+//  from a job marked as insurance. Mirrors viewInvoice's popup pattern so
+//  Safari/Chrome don't block the new tab.
+// ══════════════════════════════════════════════════════════════════════════
+window.viewInsuranceDoc = async function(jobId) {
+  // Open the tab synchronously inside the click handler so the popup
+  // blocker treats it as a user gesture
+  const w = window.open('', '_blank');
+  if (!w) return customAlert('Browser blocked the new tab. Allow pop-ups for this site.', { title: 'Pop-up blocked' });
+  try {
+    w.document.open();
+    w.document.write('<!doctype html><meta charset="utf-8"><title>Loading insurance doc…</title><style>body{font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#666}</style><div>Preparing insurance document…</div>');
+    w.document.close();
+    let j = (D.jobs || []).find(x => x.id === jobId);
+    if (!j) {
+      await loadAllData(true);
+      j = (D.jobs || []).find(x => x.id === jobId);
+    }
+    if (!j) { w.close(); return showToast('Job not found', 'bad'); }
+    if (!j.is_insurance) { w.close(); return showToast('Not an insurance job — turn on the insurance toggle on the job card first', 'bad'); }
+    const photos = await loadJobPhotos(jobId);
+    const html = _insuranceHTMLFromJob(j, { photos });
+    w.document.open(); w.document.write(html); w.document.close();
+    audit('insurance-doc-view', `${j.plate || '—'} · ${j.insurer_name || 'insurer'} · ${j.claim_number || 'no claim no.'}`, { job_id: jobId });
+  } catch (e) {
+    try { w.close(); } catch(_){}
+    showToast('Couldn\'t open insurance doc: ' + (e?.message || e), 'bad');
+  }
+};
+
+// Render an insurance job into a branded, printable HTML claim document.
+// Includes: workshop banner, insured/vehicle/claim blocks, parts + labour
+// breakdown, totals, embedded photos grouped by label, surveyor notes, and
+// a three-way signature line (workshop / insured / surveyor).
+function _insuranceHTMLFromJob(j, opts) {
+  const photos = (opts && opts.photos) || [];
+  const ws  = _workshopSnapshot();
+  const cur = ws.currency || '₹';
+  const inr  = (n) => `${cur} ${Number(n||0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtDate = (s) => {
+    if (!s) return '—';
+    const d = new Date(s);
+    return isNaN(d) ? s : d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  };
+  // Customer lookup — match by name to pull address/phone if not already on the job
+  const b = D.bookings.find(x => x.id === j.booking_id) || {};
+  const cName = b.cust_name || j.cust_name || '';
+  const c = (D.customers || []).find(x => (x.name||'').toLowerCase() === cName.toLowerCase()) || {};
+  const cAddr  = c.address || _customerFullAddress(c) || '';
+  const cPhone = c.phone   || b.cust_phone || '';
+  const cEmail = c.email   || '';
+  // Money: parts + service charges (mirrors the invoice math)
+  const parts   = (j.parts || []).map(p => ({
+    name: p.name || '', hsn: p.hsn || '', qty: Number(p.qty || 1),
+    unit_price: Number(p.unit_price || 0), disc_pct: Number(p.disc_pct || 0)
+  }));
+  const charges = (j.service_charges || []).map(c => ({ name: c.name || '', amount: Number(c.amount || 0) }));
+  const partsTotal = parts.reduce((s, p) => s + (p.qty * p.unit_price * (1 - p.disc_pct/100)), 0);
+  const labourTotal = charges.reduce((s, c) => s + c.amount, 0);
+  const grand = partsTotal + labourTotal;
+  const approvedAmt = Number(j.approved_amount || 0);
+  const docNo = `INS-${(j.id || '').slice(-6).toUpperCase()}`;
+  const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  const approval = j.insurance_approval || 'Pending';
+  // Approval status colour
+  const apprColours = {
+    'Approved':         { bg:'#e6f7f0', fg:'#0a8a4e', bd:'#a3dfc4' },
+    'Submitted':        { bg:'#eef4ff', fg:'#1d4ed8', bd:'#bcd2ff' },
+    'Pending':          { bg:'#fff7e6', fg:'#9a5b00', bd:'#ffd592' },
+    'Partially Approved':{bg:'#fff7e6', fg:'#9a5b00', bd:'#ffd592' },
+    'Rejected':         { bg:'#fdecec', fg:'#a32020', bd:'#f4b4b4' },
+    'Settled':          { bg:'#e6f7f0', fg:'#0a8a4e', bd:'#a3dfc4' }
+  };
+  const ap = apprColours[approval] || apprColours['Pending'];
+  // Group photos by label so the printed doc has structured evidence sections
+  const photosByLabel = {};
+  for (const p of photos) {
+    const lbl = p.label || 'Other';
+    (photosByLabel[lbl] = photosByLabel[lbl] || []).push(p);
+  }
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Insurance Claim · ${escapeHtml(docNo)}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:32px 40px;font-size:12.5px;line-height:1.5}
+  .banner{position:relative;text-align:center;padding:10px 0 16px;border-bottom:1px solid #c9d1da;margin-bottom:10px}
+  .banner .logo{position:absolute;left:0;top:0;max-width:90px;max-height:90px}
+  .banner h1{font-size:22px;font-weight:800;letter-spacing:.02em;color:#0a0f1a;text-transform:uppercase;margin-bottom:4px}
+  .banner .addr{color:#3b424f;font-size:12.5px;line-height:1.5;max-width:780px;margin:0 auto}
+  .banner .gstin{margin-top:4px;font-weight:700;font-size:12.5px;color:#0a0f1a}
+  .doc-title-row{display:flex;justify-content:space-between;align-items:center;margin:14px 0 18px}
+  .doc-title{font-size:18px;font-weight:800;letter-spacing:.04em;color:#0a0f1a;text-transform:uppercase}
+  .doc-sub{font-style:italic;font-size:12px;color:#5b6573}
+  .pill{display:inline-block;padding:4px 10px;border-radius:100px;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;background:${ap.bg};color:${ap.fg};border:1px solid ${ap.bd}}
+  .blocks{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:18px}
+  .blk{border:1px solid #c9d1da;padding:12px 14px;background:#fafbfc}
+  .blk h3{font-size:10.5px;font-weight:800;color:#5b6573;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+  .row{display:grid;grid-template-columns:110px 1fr;column-gap:10px;row-gap:5px;font-size:12px}
+  .row .lbl{color:#5b6573;font-weight:600}
+  .row .v{color:#0a0f1a;font-weight:600}
+  table.items{width:100%;border-collapse:collapse;margin:6px 0 14px;border:1px solid #c9d1da}
+  table.items th{background:#eef2f8;color:#0a0f1a;font-size:10.5px;font-weight:800;padding:8px 7px;text-align:left;border-bottom:1px solid #c9d1da;letter-spacing:.02em}
+  table.items th.right{text-align:right}
+  table.items td{padding:7px 7px;font-size:11.5px;border-bottom:1px solid #e2e6ec;vertical-align:top}
+  table.items td.right{text-align:right;white-space:nowrap}
+  table.items tr:last-child td{border-bottom:0}
+  .sec-title{font-size:11px;font-weight:800;color:#0a0f1a;text-transform:uppercase;letter-spacing:.06em;margin:18px 0 6px}
+  .totals{display:flex;justify-content:flex-end;margin-top:10px}
+  .totals-box{min-width:300px;border:1px solid #c9d1da}
+  .totals-box .r{display:flex;justify-content:space-between;padding:7px 12px;font-size:12px;border-bottom:1px solid #e2e6ec}
+  .totals-box .r:last-child{border-bottom:0;background:#0a0f1a;color:#fff;font-weight:800;font-size:13px}
+  .totals-box .r.approved{background:#e6f7f0;color:#0a8a4e;font-weight:700}
+  .notes-box{border:1px solid #c9d1da;padding:12px 14px;background:#fafbfc;min-height:60px;font-size:12px;color:#1a1a1a;white-space:pre-wrap;line-height:1.55}
+  .photos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px;page-break-inside:avoid}
+  .photo{border:1px solid #c9d1da;overflow:hidden;background:#fafbfc;page-break-inside:avoid}
+  .photo img{width:100%;height:160px;object-fit:cover;display:block}
+  .photo .cap{padding:6px 8px;font-size:10.5px;color:#5b6573;background:#fff;border-top:1px solid #e2e6ec}
+  .photo-section{margin-top:14px;page-break-inside:avoid}
+  .photo-section .lbl{font-size:10.5px;font-weight:800;color:#5b6573;text-transform:uppercase;letter-spacing:.08em;margin:10px 0 6px}
+  .declaration{font-size:11.5px;color:#1a1a1a;margin:22px 0 8px;line-height:1.55;padding:12px 14px;border:1px solid #c9d1da;background:#fafbfc}
+  .signatures{display:grid;grid-template-columns:1fr 1fr 1fr;gap:30px;margin-top:48px;padding-top:8px;font-size:11px;color:#3b424f}
+  .signatures > div{border-top:1px solid #0a0f1a;padding-top:8px;text-align:left;font-weight:700;color:#0a0f1a}
+  .signatures > div small{display:block;font-weight:500;color:#5b6573;margin-top:2px;font-size:10.5px}
+  .toolbar{position:fixed;top:12px;right:12px;display:flex;gap:6px;z-index:10}
+  .toolbar button{font-family:inherit;font-size:12px;font-weight:700;padding:8px 14px;border-radius:6px;border:0;cursor:pointer;background:#0a0f1a;color:#fff}
+  .toolbar button.ghost{background:#fff;color:#0a0f1a;border:1px solid #0a0f1a}
+  @media print { .toolbar{display:none} body{padding:24px 30px} .photo img{height:140px} }
+</style></head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">Print / Save as PDF</button>
+    <button class="ghost" onclick="window.close()">Close</button>
+  </div>
+
+  <div class="banner">
+    ${ws.logo ? `<img class="logo" src="${escapeHtml(ws.logo)}" alt="" />` : ''}
+    <h1>${escapeHtml(ws.workshop_name || 'Workshop')}</h1>
+    <div class="addr">${escapeHtml(ws.address || '')}</div>
+    ${ws.gstin ? `<div class="gstin">GSTIN: ${escapeHtml(ws.gstin)}</div>` : ''}
+  </div>
+
+  <div class="doc-title-row">
+    <div>
+      <div class="doc-title">Insurance Claim Document</div>
+      <div class="doc-sub">Doc no. ${escapeHtml(docNo)} · Issued ${escapeHtml(today)}</div>
+    </div>
+    <span class="pill">${escapeHtml(approval)}</span>
+  </div>
+
+  <div class="blocks">
+    <div class="blk">
+      <h3>Insured / Customer</h3>
+      <div class="row">
+        <div class="lbl">Name</div><div class="v">${escapeHtml(cName || '—')}</div>
+        <div class="lbl">Phone</div><div class="v">${escapeHtml(cPhone || '—')}</div>
+        ${cEmail ? `<div class="lbl">Email</div><div class="v">${escapeHtml(cEmail)}</div>` : ''}
+        ${cAddr  ? `<div class="lbl">Address</div><div class="v">${escapeHtml(cAddr)}</div>` : ''}
+      </div>
+    </div>
+    <div class="blk">
+      <h3>Vehicle</h3>
+      <div class="row">
+        <div class="lbl">Reg. No.</div><div class="v">${escapeHtml(j.plate || '—')}</div>
+        <div class="lbl">Make / Model</div><div class="v">${escapeHtml(j.vehicle_model || b.vehicle_model || '—')}</div>
+        ${j.vin ? `<div class="lbl">VIN / Chassis</div><div class="v">${escapeHtml(j.vin)}</div>` : ''}
+        ${j.km  ? `<div class="lbl">Odometer</div><div class="v">${escapeHtml(String(j.km))} km</div>` : ''}
+        ${j.colour ? `<div class="lbl">Colour</div><div class="v">${escapeHtml(j.colour)}</div>` : ''}
+        ${j.fuel   ? `<div class="lbl">Fuel</div><div class="v">${escapeHtml(j.fuel)}</div>` : ''}
+      </div>
+    </div>
+    <div class="blk" style="grid-column:1 / -1">
+      <h3>Claim &amp; Policy</h3>
+      <div class="row" style="grid-template-columns:130px 1fr 130px 1fr;column-gap:14px">
+        <div class="lbl">Insurer</div><div class="v">${escapeHtml(j.insurer_name || '—')}</div>
+        <div class="lbl">Surveyor</div><div class="v">${escapeHtml(j.surveyor_name || '—')}</div>
+        <div class="lbl">Claim No.</div><div class="v">${escapeHtml(j.claim_number || '—')}</div>
+        <div class="lbl">Policy No.</div><div class="v">${escapeHtml(j.policy_number || '—')}</div>
+        <div class="lbl">Job ID</div><div class="v">${escapeHtml(j.id || '—')}</div>
+        <div class="lbl">Service Type</div><div class="v">${escapeHtml(j.type || '—')}</div>
+        <div class="lbl">Job opened</div><div class="v">${escapeHtml(fmtDate(j.created_at))}</div>
+        <div class="lbl">Mechanic</div><div class="v">${escapeHtml(j.mechanic || '—')}</div>
+      </div>
+    </div>
+  </div>
+
+  ${j.labour_notes ? `
+    <div class="sec-title">Damage / Work description</div>
+    <div class="notes-box">${escapeHtml(j.labour_notes)}</div>
+  ` : ''}
+
+  ${parts.length ? `
+    <div class="sec-title">Parts replaced</div>
+    <table class="items">
+      <thead><tr>
+        <th style="width:36px">#</th><th>Part name</th><th>HSN/SAC</th>
+        <th class="right">Qty</th><th class="right">Unit price</th>
+        <th class="right">Disc %</th><th class="right">Line total</th>
+      </tr></thead>
+      <tbody>${parts.map((p, i) => {
+        const line = p.qty * p.unit_price * (1 - p.disc_pct/100);
+        return `<tr>
+          <td>${i+1}</td>
+          <td>${escapeHtml(p.name || '—')}</td>
+          <td>${escapeHtml(p.hsn || '—')}</td>
+          <td class="right">${p.qty}</td>
+          <td class="right">${inr(p.unit_price)}</td>
+          <td class="right">${p.disc_pct}%</td>
+          <td class="right">${inr(line)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  ` : ''}
+
+  ${charges.length ? `
+    <div class="sec-title">Labour &amp; service charges</div>
+    <table class="items">
+      <thead><tr><th style="width:36px">#</th><th>Description</th><th class="right">Amount</th></tr></thead>
+      <tbody>${charges.map((c, i) => `<tr>
+        <td>${i+1}</td>
+        <td>${escapeHtml(c.name || '—')}</td>
+        <td class="right">${inr(c.amount)}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+  ` : ''}
+
+  <div class="totals">
+    <div class="totals-box">
+      <div class="r"><span>Parts total</span><span>${inr(partsTotal)}</span></div>
+      <div class="r"><span>Labour / charges</span><span>${inr(labourTotal)}</span></div>
+      <div class="r"><span>Claim amount</span><span>${inr(grand)}</span></div>
+      ${approvedAmt > 0 ? `<div class="r approved"><span>Approved by insurer</span><span>${inr(approvedAmt)}</span></div>` : ''}
+    </div>
+  </div>
+
+  ${Object.keys(photosByLabel).length ? `
+    <div class="sec-title">Photographic evidence (${photos.length} photo${photos.length===1?'':'s'})</div>
+    ${Object.entries(photosByLabel).map(([label, items]) => `
+      <div class="photo-section">
+        <div class="lbl">${escapeHtml(label)} · ${items.length}</div>
+        <div class="photos-grid">
+          ${items.map(p => `<div class="photo">
+            <img src="${escapeHtml(p.data || p.url || '')}" alt="${escapeHtml(label)}" />
+            <div class="cap">${escapeHtml(label)}${p.uploaded_at ? ' · ' + escapeHtml(p.uploaded_at.slice(0,10)) : ''}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+    `).join('')}
+  ` : `
+    <div class="sec-title">Photographic evidence</div>
+    <div class="notes-box" style="color:#5b6573">No photos attached. Upload damage / parts / repair photos on the job card before submitting this claim.</div>
+  `}
+
+  ${j.insurance_notes ? `
+    <div class="sec-title">Surveyor notes / remarks</div>
+    <div class="notes-box">${escapeHtml(j.insurance_notes)}</div>
+  ` : ''}
+
+  <div class="declaration">
+    <b>Declaration:</b> We certify that the parts listed above were actually replaced and the labour described was performed on the vehicle identified above. The photographs attached are genuine and were captured during the course of repair. All amounts shown are exclusive of any prior settlements unless noted, and are subject to the terms of the policy referenced above.
+  </div>
+
+  <div class="signatures">
+    <div>Workshop authorised signatory<small>${escapeHtml(ws.workshop_name || '')}</small></div>
+    <div>Insured / Customer signature<small>${escapeHtml(cName || '')}</small></div>
+    <div>Surveyor signature<small>${escapeHtml(j.surveyor_name || '')}</small></div>
+  </div>
+</body></html>`;
+}
 
 window.deleteInvoice = async function(id) {
   const inv = (D.invoices || []).find(x => x.id === id);
