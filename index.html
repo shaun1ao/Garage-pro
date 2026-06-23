@@ -1454,15 +1454,23 @@ html,body{max-width:100%;overflow-x:hidden}
     </div>
   </div>
   <div class="user-tabs">
-    <button class="utab active" onclick="switchUserTab('license')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>License</button>
+    <button class="utab active" onclick="switchUserTab('branches')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="12" r="3"/><path d="M9 6h6a3 3 0 0 1 3 3v0a3 3 0 0 1-3 3M9 18h6a3 3 0 0 0 3-3v0"/></svg>Branches</button>
+    <button class="utab" onclick="switchUserTab('subscription')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Subscription</button>
     <button class="utab" onclick="switchUserTab('billing')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>Billing</button>
     <button class="utab" onclick="switchUserTab('account')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7"/></svg>Account</button>
   </div>
   <div class="user-main">
-    <!-- LICENSE PANEL -->
-    <div class="user-tab-panel active" id="upanel-license">
-      <h1 class="greet" id="udGreet">Your license</h1>
-      <p class="greet-sub">Use this key to activate your Garage Pro workshop. Sign in to the web app at <a href="app/" target="_blank" rel="noopener" style="color:var(--acc2)">garagepro.me/app</a> with your account.</p>
+    <!-- BRANCHES PANEL — promoted to its own first-class tab. Was the chain-only
+         card inside Account; now the default landing screen for all owners. -->
+    <div class="user-tab-panel active" id="upanel-branches">
+      <h1 class="greet">Branches &middot; individual logins</h1>
+      <p class="greet-sub">Spin up a separate sign-in for every branch in your chain. Each one is its own isolated workshop with its own bookings, inventory, and team. Your chain owner ID is stamped on every branch so reports roll up later.</p>
+      <div id="udBranchesPanelHost"></div>
+    </div>
+    <!-- SUBSCRIPTION PANEL (was License — license keys removed) -->
+    <div class="user-tab-panel" id="upanel-subscription">
+      <h1 class="greet" id="udGreet">Your subscription</h1>
+      <p class="greet-sub">Sign in to the web app at <a href="app/" target="_blank" rel="noopener" style="color:var(--acc2)">garagepro.me/app</a> with your account email and password.</p>
       <div id="udLicenseArea"></div>
     </div>
     <!-- BILLING PANEL -->
@@ -1530,9 +1538,14 @@ html,body{max-width:100%;overflow-x:hidden}
         <div class="success-msg" id="udPassMsg"></div>
       </div>
 
-      <!-- Branches — renders dynamically based on subscription + auth provider. -->
-      <div class="user-card" id="udBranchesCard" style="display:none">
-        <h4>Branches <span id="udBranchesBadge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(255,122,24,.16);color:var(--acc2);margin-left:6px;vertical-align:middle"></span></h4>
+    </div>
+    <!-- BRANCHES CARD — physically lives here at the bottom but moved into
+         #upanel-branches at runtime so the dashboard render keeps targeting
+         the same #udBranchesCard / #udBranchList / #udGooglePromptBanner ids. -->
+    <div id="udBranchesMount" style="display:none">
+      <div class="user-card" id="udBranchesCard">
+        <h4 style="display:none">Branches <span id="udBranchesBadge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(255,122,24,.16);color:var(--acc2);margin-left:6px;vertical-align:middle"></span></h4>
+        <div style="margin:-6px 0 14px"><span id="udBranchesBadgeTop" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:100px;background:rgba(255,122,24,.16);color:var(--acc2);letter-spacing:.04em"></span></div>
 
         <!-- Google→Email migration banner. Auto-shown for users who signed up with
              Google and don't yet have a password set. Branch creation is blocked
@@ -1549,7 +1562,7 @@ html,body{max-width:100%;overflow-x:hidden}
           </div>
         </div>
 
-        <p style="color:var(--dim);font-size:13.5px;margin-bottom:14px;line-height:1.5">Create a separate sign-in for every branch in your chain. Each branch lands in <a href="app/" target="_blank" rel="noopener" style="color:var(--acc2)">garagepro.me/app</a> as its own isolated workshop with its own bookings, inventory, and team. Your chain owner ID is stamped on every branch so reports roll up later.</p>
+        <p style="color:var(--dim);font-size:13px;margin-bottom:14px;line-height:1.5">Each branch lands in <a href="app/" target="_blank" rel="noopener" style="color:var(--acc2)">garagepro.me/app</a> as its own isolated workshop. Share the credentials with the branch's manager so they can sign in.</p>
         <div class="form-row">
           <div class="form-group"><label>Branch name</label><input id="udb-name" type="text" placeholder="Speed Auto Care · Hyderabad" autocomplete="off" /></div>
           <div class="form-group"><label>Login email</label><input id="udb-email" type="email" placeholder="hyderabad@yourgarage.in" autocomplete="off" /></div>
@@ -5300,7 +5313,7 @@ function openUserDashboard() {
   if (!currentUser || currentUser.isAdmin) return;
   document.getElementById('userDashboard').classList.add('open');
   document.body.style.overflow = 'hidden';
-  switchUserTab('license');
+  switchUserTab('branches');
   renderUserDashboard();
 }
 function closeUserDashboard() {
@@ -5308,15 +5321,26 @@ function closeUserDashboard() {
   document.body.style.overflow = '';
 }
 function switchUserTab(t) {
+  // Legacy callers may still pass 'license' — map it to its new name
+  if (t === 'license') t = 'subscription';
   document.querySelectorAll('.utab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.user-tab-panel').forEach(p => p.classList.remove('active'));
-  const idx = {license:0, billing:1, account:2}[t];
+  const idx = {branches:0, subscription:1, billing:2, account:3}[t];
+  if (idx == null) return;
   document.querySelectorAll('.utab')[idx].classList.add('active');
   document.getElementById('upanel-' + t).classList.add('active');
   if (t === 'account') loadUserProfileIntoForm();
 }
 function renderUserDashboard() {
   if (!currentUser) return;
+  // Mount the branches card under the Branches tab (first time only) — the card
+  // physically lives in a hidden #udBranchesMount holder so the rest of the
+  // dashboard code can keep its #udBranchesCard / #udBranchList references.
+  const branchesCard = document.getElementById('udBranchesCard');
+  const branchesHost = document.getElementById('udBranchesPanelHost');
+  if (branchesCard && branchesHost && branchesCard.parentElement?.id !== 'udBranchesPanelHost') {
+    branchesHost.appendChild(branchesCard);
+  }
   const acc = S.accounts.find(a => a.email === currentUser.email);
   const firstName = currentUser.name.split(' ')[0];
   document.getElementById('udGreet').textContent = `Hi ${firstName}, here's your subscription`;
@@ -5359,7 +5383,6 @@ function renderUserDashboard() {
       : `<button class="btn btn-primary" style="margin-top:14px" onclick="closeUserDashboard()">Renew subscription</button>`;
     area.innerHTML = `<div class="lic-card">
       <div class="lic-label">Subscription  ${statusTag}</div>
-      ${sub.licenseKey ? `<div class="lic-key"><span class="key-val">${sub.licenseKey}</span><button class="copy-btn" onclick="copyKey('${sub.licenseKey}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div>` : ''}
       <div class="lic-meta">
         <div class="lic-meta-item"><div class="lmi-lbl">Plan</div><div class="lmi-val">${planName}</div></div>
         <div class="lic-meta-item"><div class="lmi-lbl">Billing</div><div class="lmi-val">${(sub.billingCycle || 'monthly').replace(/^./, c => c.toUpperCase())}</div></div>
@@ -5375,14 +5398,14 @@ function renderUserDashboard() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
         Subscription status verified from secure server. Updates in real time.
       </div>
-    </div>
-    ${isChainTier(sub) ? renderBranchSection() : ''}`;
+    </div>`;
+    // Branches now live in their own first-class tab — no inline copy here
   } else {
     // No subscription in Firestore — show empty state
     area.innerHTML = `<div class="lic-empty">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
       <h3>No active subscription</h3>
-      <p>Choose a plan to activate Garage Pro and get your license key.</p>
+      <p>Choose a plan to activate Garage Pro for your workshop.</p>
       <button class="btn btn-primary" onclick="closeUserDashboard();setTimeout(()=>document.getElementById('pricing').scrollIntoView({behavior:'smooth'}),200)">View plans</button>
     </div>`;
   }
@@ -5417,19 +5440,19 @@ let _udBranchSecondaryApp = null;
 function renderBranchesPanel() {
   const card  = document.getElementById('udBranchesCard');
   const badge = document.getElementById('udBranchesBadge');
+  const badgeTop = document.getElementById('udBranchesBadgeTop');
   if (!card || !currentUser) return;
   // ALWAYS visible to a signed-in user. The Chain plan is *recommended* for
   // multi-branch workshops but the create flow is never blocked.
   card.style.display = 'block';
   const isChain = currentSubscription && isChainTier(currentSubscription);
+  const setBadge = (el, text, bg, col) => { if (!el) return; el.textContent = text; el.style.background = bg; el.style.color = col; };
   if (isChain) {
-    badge.textContent = 'CHAIN PLAN';
-    badge.style.background = 'rgba(32,227,178,.16)';
-    badge.style.color = 'var(--teal)';
+    setBadge(badge,    'CHAIN PLAN',             'rgba(32,227,178,.16)', 'var(--teal)');
+    setBadge(badgeTop, 'CHAIN PLAN',             'rgba(32,227,178,.16)', 'var(--teal)');
   } else {
-    badge.textContent = 'CHAIN PLAN RECOMMENDED';
-    badge.style.background = 'rgba(255,179,71,.16)';
-    badge.style.color = 'var(--acc2)';
+    setBadge(badge,    'CHAIN PLAN RECOMMENDED', 'rgba(255,179,71,.16)', 'var(--acc2)');
+    setBadge(badgeTop, 'CHAIN PLAN RECOMMENDED', 'rgba(255,179,71,.16)', 'var(--acc2)');
   }
   // Google→Email migration banner — auto-shown when this account has no password
   // provider linked yet (most commonly: someone who signed up with Google).
