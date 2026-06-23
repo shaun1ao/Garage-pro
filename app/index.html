@@ -2034,28 +2034,49 @@ window.wsRef = wsRef; window.wsCol = wsCol; window.wsLoad = wsLoad; window.wsSav
 // ══════════════════════════════════════════════════════════════════════════
 const PHOTO_LABELS = ['Before','After','Damage','Parts replaced','Insurance','Reference','Other'];
 
-// Resize an uploaded image to fit within `maxDim` px on the longest side and
-// re-encode as JPEG (or PNG if it has transparency). Returns a data URL.
+// Resize an uploaded image and re-encode as JPEG. Iteratively shrinks the
+// dimensions + quality until the resulting data URL fits under MAX_BYTES so
+// the Firestore doc (1MB hard limit) always accepts it. Always outputs JPEG —
+// PNG photos were exceeding the limit and silently failing.
 function _resizePhoto(file, maxDim = 1280) {
+  const MAX_BYTES = 850 * 1024;   // ~850KB after base64 leaves headroom for metadata in the 1MB doc
   return new Promise((resolve, reject) => {
     const r = new FileReader();
-    r.onerror = reject;
+    r.onerror = () => reject(new Error('Couldn\'t read the file. Try a different image.'));
     r.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        const ctx = c.getContext('2d');
-        // JPEG is much smaller than PNG for photos; quality 0.78 is the sweet
-        // spot for sub-150KB at 1280px on most cameras.
-        const isPhoto = !/png|webp/i.test(file.type);
-        if (isPhoto) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); }
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(c.toDataURL(isPhoto ? 'image/jpeg' : 'image/png', 0.78));
+        try {
+          let dim = Math.min(maxDim, Math.max(img.width, img.height));
+          let quality = 0.78;
+          // Shrink loop — start at requested dim, drop dim 20% per pass after the
+          // quality floor, until we fit under MAX_BYTES or hit a sensible minimum.
+          for (let pass = 0; pass < 10; pass++) {
+            const scale = Math.min(1, dim / Math.max(img.width, img.height));
+            const w = Math.max(1, Math.round(img.width * scale));
+            const h = Math.max(1, Math.round(img.height * scale));
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            // Fill white so JPEG doesn't render alpha as black for source PNGs
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            const url = c.toDataURL('image/jpeg', quality);
+            // Estimate decoded byte size from the base64 string (each 4 chars → 3 bytes)
+            const b64 = url.split(',')[1] || '';
+            const bytes = Math.floor(b64.length * 3 / 4);
+            if (bytes <= MAX_BYTES || (dim <= 480 && quality <= 0.5)) return resolve(url);
+            // Too big — drop quality first, then dimensions
+            if (quality > 0.5) quality = Math.max(0.5, quality - 0.12);
+            else dim = Math.round(dim * 0.82);
+          }
+          reject(new Error('Photo too detailed to fit in Firestore (1MB doc limit). Use a smaller image, or enable Firebase Storage for bigger uploads.'));
+        } catch (e) {
+          reject(e);
+        }
       };
-      img.onerror = reject;
+      img.onerror = () => reject(new Error('That file isn\'t a readable image (HEIC, RAW, or corrupted file?). Try JPEG or PNG.'));
       img.src = r.result;
     };
     r.readAsDataURL(file);
@@ -3073,6 +3094,7 @@ async function renderBookings(force = false) {
           <button class="mini-btn" onclick="openBookingForm('${escapeHtml(b.id)}')" title="Edit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit
           </button>
+          ${b.cust_email ? `<button class="mini-btn" onclick="emailBookingCustomer('${escapeHtml(b.id)}')" title="Email ${escapeHtml(b.cust_email)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</button>` : ''}
           ${canCancel ? `<button class="mini-btn danger" onclick="cancelBooking('${escapeHtml(b.id)}')" title="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Cancel</button>` : ''}
         </div></td>
       </tr>`;
@@ -3267,7 +3289,7 @@ function _bookingFormHTML(b) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
       <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim)">Primary details</div>
       <div style="display:inline-flex;gap:4px;padding:3px;background:var(--bg2);border:1px solid var(--brd);border-radius:100px;font-size:12px;font-weight:600">
-        ${['individual','corporate','sez'].map(t => `
+        ${['individual','corporate'].map(t => `
           <button type="button" data-ctype="${t}" onclick="_bookingSetCustType('${t}')"
             style="padding:7px 14px;border-radius:100px;border:0;cursor:pointer;font-family:var(--fb);font-size:12px;font-weight:600;background:${custType === t ? 'var(--acc)' : 'transparent'};color:${custType === t ? '#170f05' : 'var(--dim)'}">
             ${t === 'individual' ? 'Individual' : t === 'corporate' ? 'Corporate / Fleet' : 'SEZ'}
@@ -3822,7 +3844,52 @@ async function saveBooking(id) {
   audit(id ? 'booking-update' : 'booking-create', `${plate} · ${custName}${isCorp ? ' (' + companyName + ')' : ''}`, { booking_id: patch.id });
   renderBookings();
   await Promise.all(writes);
+  // Fire booking_confirmed only on NEW bookings (not edits). Fire-and-forget so
+  // a slow Gmail call doesn't block the UI; sendCustomerNotification is a no-op
+  // when emails are disabled or the trigger is off.
+  if (!id && custEmail) {
+    const savedBk = D.bookings.find(b => b.id === patch.id);
+    sendCustomerNotification('booking_confirmed', { booking: savedBk, to: custEmail });
+  }
 }
+
+// Manual customer-email trigger from the bookings row. Lets the user pick
+// which of the EMAIL_EVENTS to send (no auto-fire involved — this is the
+// "I want to email them right now" path).
+window.emailBookingCustomer = async function(bookingId) {
+  const b = D.bookings.find(x => x.id === bookingId);
+  if (!b) return;
+  if (!b.cust_email) return showToast('No customer email on this booking', 'bad');
+  const s = D.settings || {};
+  if (!s.email_enabled) return customAlert('Customer emails are disabled. Open Settings → Customer email notifications and enable them first.', { title: 'Emails disabled' });
+  if (!s.email_appscript_url) return customAlert('Apps Script Web App URL isn\'t set yet. Open Settings → Customer email notifications to paste it in.', { title: 'Email relay not configured' });
+  // Build the picker — checkboxes off, user picks ONE event then Send
+  const choices = EMAIL_EVENTS.map(e => `<label style="display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--brd2);border-radius:8px;background:var(--bg2);cursor:pointer">
+    <input type="radio" name="em-pick" value="${escapeHtml(e.id)}" style="width:16px;height:16px;cursor:pointer" />
+    <div style="display:flex;flex-direction:column">
+      <span style="font-size:13px;font-weight:600">${escapeHtml(e.label)}</span>
+      <span style="font-size:11px;color:var(--faint)">${escapeHtml(e.headline)}</span>
+    </div>
+  </label>`).join('');
+  openModal({
+    title: `Email ${escapeHtml(b.cust_email)}`,
+    body: `<div style="font-size:13.5px;color:var(--dim);margin-bottom:12px;line-height:1.5">Pick the email to send. Uses your saved template (${escapeHtml((s.email_template || 'wellness'))}) and the booking's details.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">${choices}</div>
+      <div id="em-pick-msg" style="margin-top:12px;font-size:12.5px;min-height:14px"></div>`,
+    saveLabel: 'Send',
+    onSave: async () => {
+      const sel = document.querySelector('input[name="em-pick"]:checked');
+      const msg = document.getElementById('em-pick-msg');
+      if (!sel) { if (msg) { msg.style.color='var(--red)'; msg.textContent='Pick an event first.'; } throw new Error('No event picked'); }
+      msg.style.color='var(--dim)'; msg.textContent='Sending…';
+      const job = D.jobs.find(j => j.booking_id === bookingId);
+      const invoice = (D.invoices || []).find(i => i.booking_id === bookingId || i.job_id === job?.id);
+      const res = await sendCustomerNotification(sel.value, { force: true, booking: b, job, invoice, to: b.cust_email });
+      if (res.ok) { showToast('Email sent to ' + b.cust_email, 'good'); }
+      else        { showToast('Send failed: ' + (res.error || res.skipped || 'unknown'), 'bad'); throw new Error(res.error || res.skipped || 'send failed'); }
+    }
+  });
+};
 
 window.cancelBooking = async function(id) {
   const b = D.bookings.find(x => x.id === id);
@@ -4300,6 +4367,19 @@ window.markJobStatus = async function(jobId, newStatus) {
       job_id: jobId
     });
   }
+  // ── Customer email triggers tied to stage transitions ──
+  // Each is a no-op unless the workshop has enabled emails AND ticked
+  // that specific trigger in Settings → Customer email notifications.
+  const emailEvent =
+      newStatus === 'In Progress'          ? 'work_started'
+    : newStatus === 'QC Passed'            ? 'work_complete'
+    : newStatus === 'Ready for Pickup'     ? 'ready_for_pickup'
+    : newStatus === 'Ready for Delivery'   ? 'ready_for_pickup'   // legacy alias
+    : newStatus === 'Delivered'            ? 'thank_you'
+    : null;
+  if (emailEvent) {
+    sendCustomerNotification(emailEvent, { job: j });   // fire-and-forget
+  }
   renderJobs();
   await wsSave('jobs', D.jobs);
 };
@@ -4494,6 +4574,8 @@ window.sendJobEstimate = async function(jobId) {
   const w = window.open('', '_blank');
   if (w) { w.document.open(); w.document.write(html); w.document.close(); }
   renderJobs();
+  // estimate_ready customer email — fire-and-forget
+  sendCustomerNotification('estimate_ready', { job: j, invoice: inv });
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -4676,6 +4758,10 @@ async function _cdSubmit(invId) {
   closeModal();
   renderJobs();
   await Promise.all(writes);
+  // customer_approved customer email — only on approve branches (skip rejects)
+  if (counts.approved > 0) {
+    sendCustomerNotification('customer_approved', { job: j, invoice: inv });
+  }
 }
 window._cdSubmit = _cdSubmit;
 window.openClientDecision = window.openClientDecision;   // re-export
@@ -4985,22 +5071,38 @@ window._jobUploadPhotos = async function(ev) {
   const label = document.getElementById('jf-photo-label').value || 'Other';
   const jobId = _editingJob?.id;
   if (!jobId) return customAlert('Please save the job first before uploading photos.', { title: 'Save the job first' });
+  if (!currentUser) return customAlert('You\'re signed out. Sign back in and retry.', { title: 'Not signed in' });
   showToast(`Uploading ${files.length} photo${files.length === 1 ? '' : 's'}…`, 'good');
-  let ok = 0, fail = 0;
+  let ok = 0;
+  const errors = [];
   for (const f of files) {
     try {
       await uploadJobPhoto(jobId, f, label);
       ok++;
     } catch (e) {
-      console.warn('upload failed', e);
-      fail++;
+      console.warn('upload failed', f.name, e);
+      // Decode common Firestore errors into something actionable
+      let reason = e?.message || String(e);
+      if (e?.code === 'permission-denied')         reason = 'Firestore rules block this write. Redeploy firestore.rules.';
+      else if (/longer than/i.test(reason) || /size/i.test(reason)) reason = 'Photo too large for Firestore (>1MB after compression). Try a smaller image, or enable Firebase Storage.';
+      else if (/quota/i.test(reason))              reason = 'Firestore daily quota exceeded. Wait 24h or upgrade plan.';
+      else if (/network|offline/i.test(reason))    reason = 'Network unavailable. Check your connection.';
+      errors.push(`${f.name}: ${reason}`);
     }
   }
   // Single refresh after all uploads is much faster than fetching after every file
   _editingJob.photos = await loadJobPhotos(jobId);
   ev.target.value = '';
   _drawJobPhotos();
-  showToast(`${ok} uploaded${fail ? ' · ' + fail + ' failed' : ''}`, fail ? 'bad' : 'good');
+  if (errors.length) {
+    // Show the first error in detail so the user can act on it
+    customAlert(
+      `${ok} uploaded · ${errors.length} failed.\n\n` + errors.slice(0, 3).join('\n\n') + (errors.length > 3 ? `\n\n+${errors.length - 3} more…` : ''),
+      { title: 'Photo upload problem' }
+    );
+  } else {
+    showToast(`${ok} photo${ok === 1 ? '' : 's'} uploaded`, 'good');
+  }
   if (ok) audit('photo-upload', `${ok} photo(s) added to job ${jobId.slice(-6)}`, { job_id: jobId });
 };
 
@@ -7373,6 +7475,104 @@ async function renderSettings(force = false) {
       </div>
 
 
+      <!-- ────────────────────────────────────────────────────────────────
+           Customer email notifications — Apps Script relay (NO Firebase
+           Blaze plan required, NO backend, NO app password). Free Gmail
+           sends 100/day, Workspace 1500/day, and emails ship from the
+           workshop's own Gmail address (real reply-to, no spam tax).
+           ──────────────────────────────────────────────────────────────── -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Customer email notifications</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px;line-height:1.55">Send branded emails to customers when bookings, jobs, and invoices change state. Uses a tiny <a href="https://script.google.com" target="_blank" rel="noopener" style="color:var(--acc2)">Google Apps Script</a> running in <i>your own</i> Google account — <b>free, no credit card, no backend, no app password</b>. Free Gmail sends 100/day; Workspace 1500/day.</div>
+
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:14px">
+          <input type="checkbox" id="sf-em-on" ${s.email_enabled ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer" />
+          <span style="font-family:var(--fd);font-weight:700;font-size:14px">Enable customer emails</span>
+        </label>
+
+        <div class="f-row" style="grid-template-columns:2fr 1fr">
+          <div class="f-grp"><label>Apps Script Web App URL <span class="req">*</span></label><input id="sf-em-url" type="url" value="${escapeHtml(s.email_appscript_url || '')}" placeholder="https://script.google.com/macros/s/AKfy.../exec" autocomplete="off" /></div>
+          <div class="f-grp"><label>From name (displayed)</label><input id="sf-em-from" type="text" value="${escapeHtml(s.email_from_name || s.workshop_name || '')}" placeholder="Speed Auto Care" /></div>
+        </div>
+        <details style="margin-top:8px;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:8px">
+          <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--acc2)">How to get this URL (one-time, ~4 minutes)</summary>
+          <ol style="margin:10px 0 4px 18px;font-size:12.5px;color:var(--dim);line-height:1.7">
+            <li>Go to <a href="https://script.google.com" target="_blank" rel="noopener" style="color:var(--acc2)">script.google.com</a> and sign in with the Gmail you want emails to come from.</li>
+            <li>Click <b>+ New project</b>. Delete the default code and paste the script below. Click <b>Save</b>.</li>
+            <li>Click <b>Deploy → New deployment</b>. Type: <b>Web app</b>. Execute as: <b>Me</b>. Who has access: <b>Anyone</b>. Click <b>Deploy</b>.</li>
+            <li>Authorise the script (Google asks once). Copy the <b>Web app URL</b> it gives you and paste it above.</li>
+          </ol>
+          <pre style="background:#0b0d12;color:#eaeef5;font-size:11px;padding:12px;border-radius:6px;overflow:auto;margin-top:10px;line-height:1.55">function doPost(e) {
+  try {
+    const b = JSON.parse(e.postData.contents);
+    if (!b.to || !b.subject) return out({ok:false, error:'Missing to/subject'});
+    const opts = { htmlBody: b.html || b.body || '', name: b.fromName || 'Workshop' };
+    if (b.replyTo) opts.replyTo = b.replyTo;
+    MailApp.sendEmail(b.to, b.subject, b.body || '', opts);
+    return out({ok:true});
+  } catch (err) { return out({ok:false, error:String(err)}); }
+}
+function doGet() { return ContentService.createTextOutput('Email relay — OK'); }
+function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }</pre>
+        </details>
+
+        <!-- Template picker — three tile choices -->
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+          <div style="font-family:var(--fd);font-weight:700;font-size:13.5px;margin-bottom:4px">Email template</div>
+          <div style="font-size:12px;color:var(--faint);margin-bottom:10px">All three templates use your workshop logo from above. Pick the style that matches your brand.</div>
+          <div id="sf-em-tpls" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+            ${EMAIL_TEMPLATES.map(t => {
+              const selected = (s.email_template || 'wellness') === t.id;
+              return `<label style="cursor:pointer;border:2px solid ${selected ? 'var(--acc2)' : 'var(--brd2)'};border-radius:10px;padding:14px;background:${selected ? 'rgba(255,179,71,.07)' : 'var(--bg2)'};display:flex;flex-direction:column;gap:8px" onclick="_selectEmailTemplate('${t.id}')">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <span style="font-family:var(--fd);font-weight:700;font-size:13.5px">${escapeHtml(t.label)}</span>
+                  <input type="radio" name="sf-em-tpl" value="${t.id}" ${selected ? 'checked' : ''} style="cursor:pointer" />
+                </div>
+                <div style="font-size:11.5px;color:var(--faint);line-height:1.4">${escapeHtml(t.note)}</div>
+                <button type="button" class="mini-btn" style="font-size:11px" onclick="event.stopPropagation();_previewEmailTemplate('${t.id}')">Preview</button>
+              </label>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Per-event triggers -->
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+          <div style="font-family:var(--fd);font-weight:700;font-size:13.5px;margin-bottom:4px">When to send</div>
+          <div style="font-size:12px;color:var(--faint);margin-bottom:10px">Tick the events that should trigger an email. Untick to skip. You can always send manually from the booking row.</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+            ${EMAIL_EVENTS.map(e => {
+              const triggers = s.email_triggers || {};
+              const on = triggers[e.id] !== false;
+              return `<label style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--brd2);border-radius:8px;background:var(--bg2);cursor:pointer">
+                <input type="checkbox" data-em-trig="${escapeHtml(e.id)}" ${on ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer" />
+                <div style="display:flex;flex-direction:column">
+                  <span style="font-size:13px;font-weight:600">${escapeHtml(e.label)}</span>
+                  <span style="font-size:11px;color:var(--faint)">${escapeHtml(e.headline)}</span>
+                </div>
+              </label>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Custom cancellation policy footer -->
+        <div style="margin-top:18px">
+          <div class="f-grp"><label>Cancellation policy (shown at the foot of every email)</label>
+            <textarea id="sf-em-policy" placeholder="If you need to reschedule, please give us 24 hours' notice…">${escapeHtml(s.cancellation_policy || '')}</textarea>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input type="email" id="sf-em-test" placeholder="Send a test email to…" style="padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:13.5px;width:240px" />
+            <button class="refresh-btn" onclick="_sendTestEmail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Send test</button>
+          </div>
+          <button class="add-btn" onclick="saveEmailSettings()">Save email settings</button>
+        </div>
+        <div id="sf-em-msg" style="margin-top:8px;font-size:12.5px;min-height:16px"></div>
+      </div>
+
+
       <!-- Danger zone -->
       <div class="card" style="padding:18px;border:1px solid rgba(255,107,107,.3)">
         <h3 style="margin:0 0 6px;color:var(--red)">Danger zone</h3>
@@ -7410,6 +7610,97 @@ window.saveWorkshopInfo = async function() {
   D.settings.bank_terms    = document.getElementById('sf-bank-terms').value.trim() || 'WIRE';
   await wsSaveSettings();
   showToast('Workshop info saved', 'good');
+};
+
+// ─── Customer-email settings ─────────────────────────────────────
+window.saveEmailSettings = async function() {
+  D.settings = D.settings || {};
+  D.settings.email_enabled       = !!document.getElementById('sf-em-on').checked;
+  D.settings.email_appscript_url = document.getElementById('sf-em-url').value.trim();
+  D.settings.email_from_name     = document.getElementById('sf-em-from').value.trim();
+  D.settings.email_template      = (document.querySelector('input[name="sf-em-tpl"]:checked')?.value) || 'wellness';
+  D.settings.cancellation_policy = document.getElementById('sf-em-policy').value.trim();
+  // Drop any old SMTP credentials from the previous (Cloud Function) flow.
+  // They're no longer used and shouldn't sit in Firestore as dead config.
+  delete D.settings.email_smtp_user;
+  delete D.settings.email_smtp_pass;
+  // Collect each trigger toggle
+  const triggers = {};
+  document.querySelectorAll('input[data-em-trig]').forEach(el => { triggers[el.dataset.emTrig] = !!el.checked; });
+  D.settings.email_triggers = triggers;
+  // Validation when emails are enabled
+  const msg = document.getElementById('sf-em-msg');
+  msg.style.color = 'var(--red)';
+  if (D.settings.email_enabled) {
+    if (!D.settings.email_appscript_url) { msg.textContent = 'Paste the Apps Script Web App URL above.'; return; }
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(D.settings.email_appscript_url)) {
+      msg.textContent = 'That doesn\'t look like an Apps Script URL — it should start with https://script.google.com/macros/s/… and end with /exec.';
+      return;
+    }
+  }
+  await wsSaveSettings();
+  msg.style.color = 'var(--teal)';
+  msg.textContent = '✓ Saved. ' + (D.settings.email_enabled ? 'Emails will fire on the events you ticked.' : 'Emails are disabled — toggle on to send.');
+  showToast('Email settings saved', 'good');
+};
+
+// Tile click → flip the radio + restyle the tiles. (Avoids re-rendering the
+// whole settings panel which would lose the user's password input.)
+window._selectEmailTemplate = function(id) {
+  const radio = document.querySelector(`input[name="sf-em-tpl"][value="${id}"]`);
+  if (radio) radio.checked = true;
+  document.querySelectorAll('#sf-em-tpls > label').forEach(lbl => {
+    const r = lbl.querySelector('input[type="radio"]');
+    const on = !!(r && r.checked);
+    lbl.style.borderColor = on ? 'var(--acc2)' : 'var(--brd2)';
+    lbl.style.background  = on ? 'rgba(255,179,71,.07)' : 'var(--bg2)';
+  });
+};
+
+// Preview a template in a new tab with sample data so the user can see exactly
+// what their customers will receive (logo, colours, layout).
+window._previewEmailTemplate = function(templateId) {
+  const sample = _buildEmailData({
+    event: 'booking_confirmed',
+    to: 'preview@example.com',
+    booking: { cust_name: 'Rajesh Kumar', cust_email: 'preview@example.com', service: 'Full service', date: '2026-07-15', time: '10:30 AM', plate: 'MH 12 AB 1234', notes: 'Bring service history book.' },
+    invoice: { number: 'BK-1234', lines: [{name:'Engine oil change', qty:1, unit_price:1800, disc_pct:0}, {name:'Brake pad set', qty:1, unit_price:3200, disc_pct:5}], charges:[{name:'Labour', amount:1500}], roundOff: 6500 }
+  });
+  sample.headline = (EMAIL_EVENTS.find(e => e.id === 'booking_confirmed') || {}).headline || 'Preview';
+  sample.total = 6500;   // hand-fed since the sample invoice isn't a real record
+  const { subject, html } = _renderEmailTemplate(templateId, sample);
+  const w = window.open('', '_blank');
+  if (!w) return customAlert('Browser blocked the new tab. Allow pop-ups to preview email templates.', { title: 'Pop-up blocked' });
+  w.document.open();
+  w.document.write(`<!doctype html><html><head><title>Preview · ${escapeHtml(subject)}</title></head><body style="margin:0">
+    <div style="background:#0b0d12;color:#9aa0aa;padding:10px 14px;font:13px -apple-system,BlinkMacSystemFont,Segoe UI;display:flex;justify-content:space-between;align-items:center">
+      <div><b style="color:#fff">Preview</b> · subject: <i>${escapeHtml(subject)}</i></div>
+      <button onclick="window.close()" style="background:#fff;color:#0b0d12;border:0;padding:6px 14px;border-radius:5px;font-weight:700;cursor:pointer">Close</button>
+    </div>
+    ${html}
+  </body></html>`);
+  w.document.close();
+};
+
+// Send a test email to whatever address is typed into the test field. Uses
+// the CURRENT form values, not the persisted settings, so the user can iterate
+// without saving first. (Saves the entered creds first so the function can read them.)
+window._sendTestEmail = async function() {
+  const msg = document.getElementById('sf-em-msg');
+  const to  = document.getElementById('sf-em-test').value.trim();
+  if (!to) { msg.style.color='var(--red)'; msg.textContent='Enter an address in the test field first.'; return; }
+  // Persist whatever's typed in so the Cloud Function has live creds to use
+  await saveEmailSettings();
+  if (!D.settings.email_enabled) { msg.style.color='var(--red)'; msg.textContent='Tick "Enable customer emails" first.'; return; }
+  msg.style.color='var(--dim)';
+  msg.textContent='Sending test…';
+  const res = await sendCustomerNotification('booking_confirmed', {
+    force: true,                                  // bypass the trigger toggle
+    to,
+    booking: { cust_name: 'Test Customer', cust_email: to, service: 'Test service', date: new Date().toISOString().slice(0,10), time: '10:30 AM', plate: 'TEST-1234', notes: 'This is a test email from Garage Pro.' }
+  });
+  if (res.ok) { msg.style.color='var(--teal)'; msg.textContent='✓ Test sent. Check '+to+' in a moment.'; }
+  else         { msg.style.color='var(--red)';  msg.textContent='Test failed: ' + (res.error || res.skipped || 'unknown error'); }
 };
 
 // ─── Logo upload ─────────────────────────────────────────────────
@@ -8612,16 +8903,53 @@ window.viewInsuranceDoc = async function(jobId) {
       j = (D.jobs || []).find(x => x.id === jobId);
     }
     if (!j) { w.close(); return showToast('Job not found', 'bad'); }
-    if (!j.is_insurance) { w.close(); return showToast('Not an insurance job — turn on the insurance toggle on the job card first', 'bad'); }
+    // Build a working copy that overlays UNSAVED edits from the open job form.
+    // The user typically ticks "this is an insurance job", fills fields, and
+    // clicks Generate PDF — without saving first. Without this overlay we'd
+    // render stale data (or refuse with "not an insurance job").
+    const live = _readLiveJobForm(jobId);
+    const jWork = { ...j, ...live };
+    if (!jWork.is_insurance) {
+      w.close();
+      return showToast('Tick "This is an insurance job" first, then click Generate', 'bad');
+    }
     const photos = await loadJobPhotos(jobId);
-    const html = _insuranceHTMLFromJob(j, { photos });
+    const html = _insuranceHTMLFromJob(jWork, { photos });
     w.document.open(); w.document.write(html); w.document.close();
-    audit('insurance-doc-view', `${j.plate || '—'} · ${j.insurer_name || 'insurer'} · ${j.claim_number || 'no claim no.'}`, { job_id: jobId });
+    audit('insurance-doc-view', `${jWork.plate || '—'} · ${jWork.insurer_name || 'insurer'} · ${jWork.claim_number || 'no claim no.'}`, { job_id: jobId });
   } catch (e) {
     try { w.close(); } catch(_){}
     showToast('Couldn\'t open insurance doc: ' + (e?.message || e), 'bad');
   }
 };
+
+// Read the currently-open job form's insurance + parts/charges state so the
+// insurance PDF reflects what the user is looking at — not whatever was last
+// saved. Returns an empty object if the form isn't open for this job.
+function _readLiveJobForm(jobId) {
+  if (!_editingJob || _editingJob.id !== jobId) return {};
+  const out = {};
+  const insOn = document.getElementById('jf-ins-on');
+  if (!insOn) return {};  // form not on screen
+  out.is_insurance = !!insOn.checked;
+  const v = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+  if (out.is_insurance) {
+    out.insurer_name       = v('jf-ins-name').trim();
+    out.claim_number       = v('jf-ins-claim').trim();
+    out.policy_number      = v('jf-ins-policy').trim();
+    out.insurance_approval = v('jf-ins-approval');
+    out.approved_amount    = Number(v('jf-ins-amount')) || 0;
+    out.surveyor_name      = v('jf-ins-surveyor').trim();
+    out.insurance_notes    = v('jf-ins-notes').trim();
+  }
+  // Pull labour notes + parts/charges/mechanics from the live editing buffer
+  out.labour_notes    = v('jf-labour').trim();
+  out.parts           = (_editingJob.parts   || []).slice();
+  out.service_charges = (_editingJob.charges || []).slice();
+  out.mechanics       = (_editingJob.mechanics || []).slice();
+  if (out.mechanics.length) out.mechanic = out.mechanics[0];
+  return out;
+}
 
 // Render an insurance job into a branded, printable HTML claim document.
 // Includes: workshop banner, insured/vehicle/claim blocks, parts + labour
@@ -9212,7 +9540,318 @@ window.generateInvoice = async function(jobId) {
   w.document.open(); w.document.write(html); w.document.close();
   audit(isNew ? 'invoice-create' : 'invoice-refresh', `${inv.number} · ${inv.customer?.name || '—'} · ${j.plate || '—'}`, { invoice_id: inv.id, job_id: j.id });
   await Promise.all(writes);
+  // invoice_ready customer email — only on NEW invoices (re-printing an existing
+  // invoice shouldn't re-email the customer)
+  if (isNew && inv.customer?.email) {
+    sendCustomerNotification('invoice_ready', { job: j, invoice: inv, to: inv.customer.email });
+  }
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CUSTOMER EMAIL NOTIFICATIONS
+//  Browser can't speak SMTP, so the actual send is performed by a tiny
+//  Google Apps Script Web App running in the workshop owner's Google
+//  account (URL stored in D.settings.email_appscript_url). The script
+//  uses MailApp.sendEmail under the hood — free forever, no Firebase
+//  Blaze plan, no backend, no App Password. This module owns the
+//  templates, the trigger registry, and the client-side dispatcher.
+//
+//  Templates:  Wellness | Restaurant | Receipt — chosen in Settings.
+//  Triggers:   booking_confirmed, estimate_ready, customer_approved,
+//              work_started, work_complete, ready_for_pickup, thank_you,
+//              invoice_ready  — each individually toggleable.
+// ══════════════════════════════════════════════════════════════════════════
+
+// Canonical list of customer-email events. label/headline drive the UI copy.
+const EMAIL_EVENTS = [
+  { id: 'booking_confirmed',  label: 'Booking confirmed',     headline: 'Your booking is confirmed',         subject: (d) => `Booking confirmed · ${d.workshop_name}` },
+  { id: 'estimate_ready',     label: 'Estimate ready',        headline: 'Your repair estimate is ready',     subject: (d) => `Repair estimate ready · ${d.workshop_name}` },
+  { id: 'customer_approved',  label: 'Customer approved',     headline: 'Thanks — we\'re proceeding',         subject: (d) => `Approval received · ${d.workshop_name}` },
+  { id: 'work_started',       label: 'Work started',          headline: 'We\'ve started work on your car',    subject: (d) => `Work started on ${d.plate || 'your vehicle'}` },
+  { id: 'work_complete',      label: 'Work complete',         headline: 'Work is complete',                  subject: (d) => `Work complete · ${d.workshop_name}` },
+  { id: 'ready_for_pickup',   label: 'Ready for pickup',      headline: 'Your car is ready for pickup',      subject: (d) => `Ready for pickup · ${d.workshop_name}` },
+  { id: 'thank_you',          label: 'Thank-you (after pickup)', headline: 'Thank you for choosing us',     subject: (d) => `Thank you · ${d.workshop_name}` },
+  { id: 'invoice_ready',      label: 'Invoice ready',         headline: 'Your invoice is ready',             subject: (d) => `Invoice ${d.invoice_no || ''} · ${d.workshop_name}` }
+];
+window.EMAIL_EVENTS = EMAIL_EVENTS;
+
+const EMAIL_TEMPLATES = [
+  { id: 'wellness',   label: 'Wellness',   note: 'Clean, centered logo. Friendly tone.' },
+  { id: 'restaurant', label: 'Restaurant', note: 'Logo top-left, contact right. Formal.' },
+  { id: 'receipt',    label: 'Receipt',    note: 'Itemised receipt with totals (best for invoices).' }
+];
+window.EMAIL_TEMPLATES = EMAIL_TEMPLATES;
+
+// Build a payload from the various app records (booking + job + invoice + customer).
+// Each trigger calls this with what it has — missing fields render as "—" or hide.
+function _buildEmailData(opts) {
+  const ws = D.settings || {};
+  const j  = opts.job || null;
+  const b  = opts.booking || (j ? (D.bookings || []).find(x => x.id === j.booking_id) : null) || null;
+  const inv = opts.invoice || null;
+  const cust = opts.customer || (D.customers || []).find(x => (x.name||'').toLowerCase() === ((b?.cust_name || j?.cust_name || inv?.customer?.name || '')).toLowerCase()) || {};
+  return {
+    event:           opts.event,
+    headline:        opts.headline,
+    customer_name:   b?.cust_name || j?.cust_name || inv?.customer?.name || cust.name || 'Customer',
+    customer_email:  opts.to || cust.email || inv?.customer?.email || b?.cust_email || '',
+    workshop_name:   ws.workshop_name || 'Garage Pro',
+    workshop_logo:   ws.logo || '',
+    workshop_phone:  ws.phone || '',
+    workshop_email:  ws.email || '',
+    workshop_address: ws.address || '',
+    workshop_url:    ws.url || '',
+    service_name:    b?.service || j?.type || inv?.service || '—',
+    date:            (b?.date) || (j?.created_at || '').slice(0,10) || '',
+    time:            b?.time   || '',
+    location:        ws.address || '',
+    notes:           opts.notes || b?.notes || '',
+    plate:           b?.plate || j?.plate || inv?.vehicle?.plate || '',
+    invoice_no:      inv?.number || '',
+    currency:        ws.currency || '₹',
+    // Receipt-style breakdown — only filled when an invoice is in scope
+    items:           inv ? (inv.lines || []).map(l => ({ name: l.name || '', qty: Number(l.qty || 1), amount: Number(l.unit_price || 0) * Number(l.qty || 1) * (1 - Number(l.disc_pct||0)/100) })) : [],
+    charges:         inv ? (inv.charges || []) : [],
+    total:           inv ? _invoiceTotals(inv).roundOff : 0,
+    cancellation_policy: ws.cancellation_policy || 'If you need to reschedule, please give us 24 hours\' notice. Thank you.'
+  };
+}
+
+// HTML escape helper used in email bodies (separate name so we can swap it later)
+function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Render the chosen template into a {subject, html} pair.
+function _renderEmailTemplate(templateId, data) {
+  const evt = EMAIL_EVENTS.find(e => e.id === data.event) || EMAIL_EVENTS[0];
+  const subject = (typeof evt.subject === 'function') ? evt.subject(data) : `${data.workshop_name} — update`;
+  let html;
+  if      (templateId === 'restaurant') html = _emailTplRestaurant(data, evt);
+  else if (templateId === 'receipt')    html = _emailTplReceipt(data, evt);
+  else                                  html = _emailTplWellness(data, evt);
+  return { subject, html };
+}
+window._renderEmailTemplate = _renderEmailTemplate;
+
+// ── Template 1: Wellness — centered logo, clean order summary, cancellation policy
+function _emailTplWellness(d, evt) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${_esc(evt.subject(d))}</title></head>
+<body style="margin:0;padding:0;background:#f7f8fa;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;color:#1a1a1a">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f8fa;padding:40px 20px">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;max-width:600px;padding:48px 44px">
+        <tr><td align="center" style="padding-bottom:24px">
+          ${d.workshop_logo ? `<img src="${_esc(d.workshop_logo)}" alt="${_esc(d.workshop_name)}" style="max-width:88px;max-height:88px;border-radius:50%;background:#eaf3fb;padding:14px"/>` : ''}
+        </td></tr>
+        <tr><td align="center" style="font-size:32px;font-weight:800;letter-spacing:-.02em;padding-bottom:32px;color:#0a0f1a">${_esc(evt.headline)}</td></tr>
+        <tr><td style="font-size:15px;line-height:1.6;color:#1a1a1a">
+          <p style="margin:0 0 14px">Hi ${_esc(d.customer_name)},</p>
+          <p style="margin:0 0 24px">Here are your details for ${_esc(d.workshop_name)}.</p>
+          <h3 style="margin:24px 0 12px;font-size:17px;font-weight:800">Order Summary</h3>
+          <p style="margin:6px 0"><b>Service:</b> ${_esc(d.service_name)}</p>
+          ${d.plate ? `<p style="margin:6px 0"><b>Vehicle:</b> ${_esc(d.plate)}</p>` : ''}
+          ${d.date  ? `<p style="margin:6px 0"><b>Date:</b> ${_esc(d.date)}</p>` : ''}
+          ${d.time  ? `<p style="margin:6px 0"><b>Time:</b> ${_esc(d.time)}</p>` : ''}
+          ${d.location ? `<p style="margin:6px 0"><b>Location:</b> ${_esc(d.location)}</p>` : ''}
+          ${d.invoice_no ? `<p style="margin:6px 0"><b>Invoice:</b> ${_esc(d.invoice_no)} · Total ${_esc(d.currency)}${Number(d.total||0).toLocaleString('en-IN')}</p>` : ''}
+          <p style="margin:6px 0"><b>Notes:</b> ${_esc(d.notes || 'N/A')}</p>
+          <p style="margin:24px 0 4px">We look forward to seeing you soon,</p>
+          <p style="margin:0;font-weight:700">${_esc(d.workshop_name)}</p>
+          ${d.workshop_url ? `<p style="margin:14px 0 0"><a href="${_esc(d.workshop_url)}" style="color:#1e7be0;text-decoration:underline">${_esc(d.workshop_url)}</a></p>` : ''}
+        </td></tr>
+        <tr><td style="border-top:1px solid #e2e6ec;margin-top:24px;padding-top:18px;font-size:12.5px;color:#5b6573;line-height:1.6">
+          ${_esc(d.cancellation_policy)}
+          ${d.workshop_phone ? ` Call us on <b>${_esc(d.workshop_phone)}</b>.` : ''}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+// ── Template 2: Restaurant — logo top-left, contact top-right, Roman-numeral sections
+function _emailTplRestaurant(d, evt) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${_esc(evt.subject(d))}</title></head>
+<body style="margin:0;padding:0;background:#fafafa;font-family:Georgia,Cambria,'Times New Roman',serif;color:#1a1a1a">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa;padding:0 20px">
+    <tr><td align="center">
+      <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="background:#fff;max-width:640px">
+        <tr><td style="background:#fff4e8;padding:24px 28px">
+          <table role="presentation" width="100%"><tr>
+            <td style="vertical-align:middle">
+              ${d.workshop_logo ? `<img src="${_esc(d.workshop_logo)}" alt="${_esc(d.workshop_name)}" style="max-height:64px;max-width:200px"/>` : `<div style="font-size:22px;font-weight:800;color:#c0392b">${_esc(d.workshop_name)}</div>`}
+            </td>
+            <td align="right" style="vertical-align:middle;font-size:12.5px;color:#3b424f;line-height:1.5">
+              ${d.workshop_address ? `<div>${_esc(d.workshop_address)}</div>` : ''}
+              ${d.workshop_email   ? `<div>${_esc(d.workshop_email)}</div>` : ''}
+              ${d.workshop_phone   ? `<div>${_esc(d.workshop_phone)}</div>` : ''}
+              ${d.workshop_url     ? `<div>${_esc(d.workshop_url)}</div>`   : ''}
+            </td>
+          </tr></table>
+        </td></tr>
+        <tr><td align="center" style="padding:32px 28px 8px;font-size:24px;font-weight:800;color:#0a0f1a">${_esc(evt.headline)}</td></tr>
+        <tr><td style="padding:18px 28px;font-size:14px;line-height:1.7;color:#1a1a1a">
+          <p><b>Subject:</b> ${_esc(evt.subject(d))}</p>
+          <p><b>To:</b> ${_esc(d.customer_email)}</p>
+          <hr style="border:0;border-top:1px solid #ddd;margin:18px 0"/>
+          <p><b>Dear ${_esc(d.customer_name)},</b></p>
+          <p>Thank you for choosing <b>${_esc(d.workshop_name)}</b>. ${_esc(evt.headline.toLowerCase())} — see the full details below.</p>
+        </td></tr>
+        <tr><td style="padding:6px 28px 0">
+          <h3 style="margin:18px 0 8px;font-size:18px;font-weight:800">I. Booking Details</h3>
+          <p style="margin:3px 0"><b>Service:</b> ${_esc(d.service_name)}</p>
+          ${d.plate ? `<p style="margin:3px 0"><b>Vehicle:</b> ${_esc(d.plate)}</p>` : ''}
+          ${d.date  ? `<p style="margin:3px 0"><b>Date:</b> ${_esc(d.date)}</p>` : ''}
+          ${d.time  ? `<p style="margin:3px 0"><b>Time:</b> ${_esc(d.time)}</p>` : ''}
+          ${d.invoice_no ? `<p style="margin:3px 0"><b>Invoice no.:</b> ${_esc(d.invoice_no)}</p>` : ''}
+          ${d.total ? `<p style="margin:3px 0"><b>Total:</b> ${_esc(d.currency)}${Number(d.total).toLocaleString('en-IN')}</p>` : ''}
+          ${d.notes ? `<p style="margin:8px 0 3px"><b>Notes:</b> ${_esc(d.notes)}</p>` : ''}
+          <h3 style="margin:22px 0 8px;font-size:18px;font-weight:800">II. Workshop Information</h3>
+          <p style="margin:3px 0"><b>${_esc(d.workshop_name)}</b></p>
+          ${d.workshop_address ? `<p style="margin:3px 0">${_esc(d.workshop_address)}</p>` : ''}
+          ${d.workshop_phone   ? `<p style="margin:3px 0">${_esc(d.workshop_phone)}</p>` : ''}
+          ${d.workshop_email   ? `<p style="margin:3px 0">${_esc(d.workshop_email)}</p>` : ''}
+        </td></tr>
+        <tr><td style="padding:24px 28px 32px;border-top:1px solid #eee;margin-top:18px;font-size:12.5px;color:#5b6573;line-height:1.6">
+          ${_esc(d.cancellation_policy)}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+// ── Template 3: Receipt (ASOS-style) — minimalist, item table, totals
+function _emailTplReceipt(d, evt) {
+  const allItems = [
+    ...(d.items   || []).map(it => ({ name: it.name, qty: it.qty, amount: it.amount })),
+    ...(d.charges || []).map(c  => ({ name: c.name,  qty: 1,      amount: c.amount }))
+  ];
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${_esc(evt.subject(d))}</title></head>
+<body style="margin:0;padding:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;color:#1a1a1a">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 20px">
+    <tr><td align="center">
+      <table role="presentation" width="540" cellpadding="0" cellspacing="0" style="max-width:540px">
+        <tr><td align="center" style="padding-bottom:10px">
+          ${d.workshop_logo ? `<img src="${_esc(d.workshop_logo)}" alt="${_esc(d.workshop_name)}" style="max-height:32px;max-width:160px"/>` : `<div style="font-weight:900;font-size:22px;letter-spacing:-.02em">${_esc(d.workshop_name).toUpperCase()}</div>`}
+        </td></tr>
+        <tr><td align="center" style="font-size:30px;font-weight:900;padding-bottom:8px">${_esc(evt.headline)}!</td></tr>
+        <tr><td align="center" style="padding-bottom:24px;color:#5b6573;font-size:13.5px">Hi ${_esc(d.customer_name)} — thanks for choosing ${_esc(d.workshop_name)}.</td></tr>
+        <tr><td><hr style="border:0;border-top:1px solid #d8dde3;margin:8px 0 18px"/></td></tr>
+        <tr><td>
+          <table role="presentation" width="100%"><tr>
+            <td style="vertical-align:top;width:50%;font-size:13px;color:#1a1a1a">
+              <div style="font-weight:800;color:#5b6573;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Where</div>
+              ${_esc(d.workshop_address || d.workshop_name)}
+            </td>
+            <td style="vertical-align:top;width:50%;font-size:13px;color:#1a1a1a">
+              <div style="font-weight:800;color:#5b6573;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">When</div>
+              ${_esc(d.date)}${d.time ? ' · ' + _esc(d.time) : ''}<br>
+              ${d.plate ? 'Vehicle: ' + _esc(d.plate) : ''}
+            </td>
+          </tr></table>
+        </td></tr>
+        <tr><td><hr style="border:0;border-top:1px solid #d8dde3;margin:18px 0"/></td></tr>
+        ${allItems.length ? `
+        <tr><td>
+          <div style="font-weight:800;font-size:13px;margin-bottom:10px">What you ordered:</div>
+          ${d.invoice_no ? `<div style="font-size:12.5px;color:#5b6573;margin-bottom:10px">Order number: <b>${_esc(d.invoice_no)}</b></div>` : ''}
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px">
+            <tr style="border-bottom:1px solid #d8dde3"><th align="left" style="padding:6px 0;font-weight:800;font-size:11.5px;color:#5b6573;text-transform:uppercase;letter-spacing:.04em">Item description</th><th align="right" style="padding:6px 0;font-weight:800;font-size:11.5px;color:#5b6573;text-transform:uppercase;letter-spacing:.04em">${_esc(d.currency)}</th></tr>
+            ${allItems.map(it => `<tr><td style="padding:8px 0;border-bottom:1px solid #eef0f3">${_esc(it.name)}${it.qty>1?` <span style="color:#5b6573">× ${it.qty}</span>`:''}</td><td align="right" style="padding:8px 0;border-bottom:1px solid #eef0f3">${Number(it.amount||0).toLocaleString('en-IN')}</td></tr>`).join('')}
+            <tr><td align="right" style="padding:12px 0 4px;font-weight:800">Total</td><td align="right" style="padding:12px 0 4px;font-weight:800">${_esc(d.currency)}${Number(d.total||0).toLocaleString('en-IN')}</td></tr>
+          </table>
+        </td></tr>
+        ` : `
+        <tr><td>
+          <div style="font-size:13.5px;line-height:1.6">
+            <p><b>Service:</b> ${_esc(d.service_name)}</p>
+            ${d.notes ? `<p><b>Notes:</b> ${_esc(d.notes)}</p>` : ''}
+          </div>
+        </td></tr>
+        `}
+        <tr><td><hr style="border:0;border-top:1px solid #d8dde3;margin:18px 0"/></td></tr>
+        <tr><td align="center" style="font-size:12px;color:#5b6573;line-height:1.6">
+          ${_esc(d.workshop_name)}${d.workshop_phone ? ' · ' + _esc(d.workshop_phone) : ''}${d.workshop_email ? ' · ' + _esc(d.workshop_email) : ''}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Dispatcher — every trigger funnels through here. Returns { ok, skipped? }.
+// Silent no-op when emails are disabled or the toggle for that event is off,
+// so callers can safely fire-and-forget without gating themselves.
+//
+// To actually send, requires:
+//   D.settings.email_enabled            = true
+//   D.settings.email_appscript_url      = the Apps Script Web App URL (ends /exec)
+//   D.settings.email_template           = 'wellness' | 'restaurant' | 'receipt'
+//   D.settings.email_triggers[eventId]  = true
+//
+// The actual send is done by the workshop's Apps Script Web App.
+// ──────────────────────────────────────────────────────────────────────────
+async function sendCustomerNotification(eventId, opts = {}) {
+  const s = D.settings || {};
+  if (!s.email_enabled) return { ok: false, skipped: 'disabled' };
+  const triggers = s.email_triggers || {};
+  if (!opts.force && triggers[eventId] === false) return { ok: false, skipped: 'event-off' };
+  const evt = EMAIL_EVENTS.find(e => e.id === eventId);
+  if (!evt) return { ok: false, skipped: 'unknown-event' };
+  const data = _buildEmailData({ ...opts, event: eventId, headline: evt.headline });
+  if (!data.customer_email) return { ok: false, skipped: 'no-recipient' };
+  const { subject, html } = _renderEmailTemplate(s.email_template || 'wellness', data);
+  try {
+    const res = await _smtpSend({ to: data.customer_email, subject, html, fromName: data.workshop_name });
+    if (res.ok) audit('email-sent', `${eventId} → ${data.customer_email}`, { event: eventId, to: data.customer_email });
+    return res;
+  } catch (e) {
+    console.warn('[email]', eventId, e);
+    audit('email-failed', `${eventId} → ${data.customer_email}: ${e?.message || e}`, { event: eventId, to: data.customer_email, error: String(e?.message || e) });
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+window.sendCustomerNotification = sendCustomerNotification;
+
+// Low-level send. POSTs to the workshop's Apps Script Web App URL, which uses
+// MailApp.sendEmail to deliver via the owner's Gmail. Free forever — no Cloud
+// Functions, no Blaze plan, no App Password.
+//
+// CORS note: we send Content-Type: text/plain on purpose. Apps Script Web Apps
+// don't handle CORS preflight (OPTIONS requests), so any non-simple Content-Type
+// (like application/json) would fail. text/plain is a "simple" request — the
+// body is still valid JSON, and the Apps Script does JSON.parse on it.
+async function _smtpSend({ to, subject, html, fromName }) {
+  const url = (D.settings || {}).email_appscript_url;
+  if (!url) throw new Error('No Apps Script URL configured. Open Settings → Customer email notifications and paste the Web app URL.');
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(url))
+    throw new Error('That doesn\'t look like an Apps Script Web App URL. It should end with /exec.');
+  const replyTo = (D.settings || {}).email || (D.settings || {}).workshop_email || '';
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      // Plain text content-type → no CORS preflight; Apps Script JSON.parse handles the body.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ to, subject, html, body: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), fromName, replyTo }),
+      redirect: 'follow'   // Apps Script returns a 302 to googleusercontent.com which holds the JSON response
+    });
+  } catch (e) {
+    throw new Error('Network error reaching Apps Script: ' + (e?.message || e));
+  }
+  const text = await resp.text();
+  let result;
+  try { result = JSON.parse(text); }
+  catch (_) {
+    // Apps Script auth errors return HTML, not JSON
+    if (/Sign in|Authorization required|requires.*to be signed in/i.test(text))
+      throw new Error('Apps Script needs to be deployed with "Who has access: Anyone" — currently set to a restricted audience.');
+    throw new Error('Apps Script returned non-JSON. Re-check the URL ends with /exec and the script was deployed as Web app.');
+  }
+  if (!result.ok) throw new Error(result.error || 'Apps Script rejected the request');
+  return { ok: true };
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 //  AUDIT LOG — append-only event trail
