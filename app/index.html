@@ -9852,39 +9852,36 @@ window.sendCustomerNotification = sendCustomerNotification;
 // MailApp.sendEmail to deliver via the owner's Gmail. Free forever — no Cloud
 // Functions, no Blaze plan, no App Password.
 //
-// CORS note: we send Content-Type: text/plain on purpose. Apps Script Web Apps
-// don't handle CORS preflight (OPTIONS requests), so any non-simple Content-Type
-// (like application/json) would fail. text/plain is a "simple" request — the
-// body is still valid JSON, and the Apps Script does JSON.parse on it.
+// CORS note: Apps Script web apps respond with a 302 redirect to
+// `script.googleusercontent.com`, and neither response includes an
+// Access-Control-Allow-Origin header. So we use `mode: 'no-cors'` — the
+// browser sends the POST and Apps Script processes it, but the response is
+// "opaque" (status 0, body unreadable). We treat "fetch resolved without a
+// network error" as success. Real failures (auth misconfig, JSON parse error,
+// etc.) only show up in the Apps Script execution log at script.google.com.
 async function _smtpSend({ to, subject, html, fromName }) {
   const url = (D.settings || {}).email_appscript_url;
   if (!url) throw new Error('No Apps Script URL configured. Open Settings → Customer email notifications and paste the Web app URL.');
   if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(url))
     throw new Error('That doesn\'t look like an Apps Script Web App URL. It should end with /exec.');
   const replyTo = (D.settings || {}).email || (D.settings || {}).workshop_email || '';
-  let resp;
+  const payload = JSON.stringify({ to, subject, html, body: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), fromName, replyTo });
   try {
-    resp = await fetch(url, {
+    await fetch(url, {
       method: 'POST',
-      // Plain text content-type → no CORS preflight; Apps Script JSON.parse handles the body.
+      mode: 'no-cors',                              // see header comment
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ to, subject, html, body: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), fromName, replyTo }),
-      redirect: 'follow'   // Apps Script returns a 302 to googleusercontent.com which holds the JSON response
+      body: payload,
+      redirect: 'follow'
     });
   } catch (e) {
+    // True network failures (offline, DNS, etc.) — Apps Script CORS errors
+    // can't reach us in no-cors mode, so anything thrown here is real.
     throw new Error('Network error reaching Apps Script: ' + (e?.message || e));
   }
-  const text = await resp.text();
-  let result;
-  try { result = JSON.parse(text); }
-  catch (_) {
-    // Apps Script auth errors return HTML, not JSON
-    if (/Sign in|Authorization required|requires.*to be signed in/i.test(text))
-      throw new Error('Apps Script needs to be deployed with "Who has access: Anyone" — currently set to a restricted audience.');
-    throw new Error('Apps Script returned non-JSON. Re-check the URL ends with /exec and the script was deployed as Web app.');
-  }
-  if (!result.ok) throw new Error(result.error || 'Apps Script rejected the request');
-  return { ok: true };
+  // We can't see the response, so optimistically succeed. The user verifies
+  // delivery by checking the recipient's inbox or the script's execution log.
+  return { ok: true, opaque: true };
 }
 
 // ══════════════════════════════════════════════════════════════════════════
