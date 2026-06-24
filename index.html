@@ -1595,6 +1595,7 @@ html,body{max-width:100%;overflow-x:hidden}
       <a href="#how">How it works</a>
       <a href="#screens">Preview</a>
       <a href="#pricing">Pricing</a>
+      <a href="#track" style="color:var(--acc2);font-weight:600">Track repair</a>
       <a href="#faq">FAQ</a>
       <a href="app/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Open app</a>
     </nav>
@@ -1982,6 +1983,111 @@ html,body{max-width:100%;overflow-x:hidden}
     <div class="quotes" id="quotesGrid"></div>
   </div>
 </section>
+
+<!-- ═══════════════ TRACK REPAIR ═══════════════
+     Public page where a customer enters their workshop + plate and sees the
+     live status of their vehicle. Reads from users/{wsUid}/public_status/
+     {plateNorm} — a minimal, customer-safe mirror (no name/phone/address).
+     ════════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="track" style="background:linear-gradient(180deg,rgba(255,179,71,0.04) 0%,transparent 100%)">
+  <div class="wrap">
+    <div class="sec-head reveal" style="text-align:center">
+      <div class="eyebrow">Track your repair</div>
+      <h2>See where your car is in real time</h2>
+      <p style="color:var(--dim);max-width:580px;margin:14px auto 0;font-size:15.5px;line-height:1.6">No login. Just pick your workshop and type your plate.</p>
+    </div>
+
+    <div class="track-box reveal" style="max-width:640px;margin:36px auto 0;background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.35)">
+
+      <!-- Step 1: workshop picker -->
+      <div id="track-step-workshop">
+        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Which workshop is your car at?</label>
+        <div style="position:relative">
+          <input id="track-ws-input" type="text" autocomplete="off" placeholder="Start typing your workshop name…" style="width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" />
+          <div id="track-ws-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow-y:auto;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
+        </div>
+        <div id="track-ws-msg" style="margin-top:8px;font-size:12.5px;color:var(--faint);min-height:16px"></div>
+      </div>
+
+      <!-- Step 2: plate input -->
+      <div id="track-step-plate" style="display:none">
+        <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="font-size:13.5px">
+            <span style="color:var(--faint)">Workshop:</span>
+            <b id="track-ws-name" style="color:var(--text);margin-left:6px"></b>
+          </div>
+          <button onclick="trackBack()" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
+        </div>
+        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">License plate</label>
+        <div style="display:flex;gap:8px">
+          <input id="track-plate-input" type="text" autocomplete="off" placeholder="MH 12 AB 1234" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Courier New',monospace;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase" onkeydown="if(event.key==='Enter')trackLookup()" />
+          <button onclick="trackLookup()" class="btn btn-primary" style="padding:0 22px;font-size:14px">Find my car</button>
+        </div>
+        <div id="track-lookup-msg" style="margin-top:10px;font-size:12.5px;color:var(--faint);min-height:16px;line-height:1.5"></div>
+      </div>
+
+      <!-- Step 3: status display -->
+      <div id="track-step-status" style="display:none">
+        <div id="track-status-card"></div>
+        <div style="margin-top:20px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Status history
+          </div>
+          <div id="track-history"></div>
+        </div>
+        <div style="margin-top:18px;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+          <button onclick="trackBack()" style="background:none;border:1px solid var(--border);color:var(--dim);padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer">Track another car</button>
+          <button onclick="trackLookup()" class="btn btn-ghost" style="padding:8px 14px;font-size:13px">Refresh</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+/* Track Repair — scoped styles. Reuses existing var(--…) tokens. */
+.track-ws-item {
+  display: block; padding: 12px 14px; cursor: pointer;
+  border-bottom: 1px solid var(--border); transition: background .12s;
+  font-family: var(--fb); font-size: 13.5px; color: var(--text);
+}
+.track-ws-item:last-child { border-bottom: 0 }
+.track-ws-item:hover { background: rgba(255,179,71,.08) }
+.track-ws-item .branch-tag {
+  font-size: 10.5px; color: var(--acc2); background: rgba(255,179,71,.14);
+  padding: 2px 8px; border-radius: 100px; margin-left: 6px;
+  font-weight: 700; letter-spacing: .04em;
+}
+.track-status-big {
+  text-align: center; padding: 24px 18px;
+  background: linear-gradient(135deg, rgba(255,179,71,.08), rgba(32,227,178,.04));
+  border: 1px solid var(--border); border-radius: 12px;
+}
+.track-status-big .pill {
+  display: inline-block; padding: 8px 18px; border-radius: 100px;
+  font-family: var(--fd); font-weight: 800; font-size: 16px;
+  letter-spacing: .02em; margin-bottom: 12px;
+}
+.track-status-big .meta {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px; margin-top: 16px; padding-top: 16px;
+  border-top: 1px solid var(--border); text-align: left; font-size: 13px;
+}
+.track-status-big .meta b { color: var(--text); display: block; margin-bottom: 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); font-weight: 700 }
+.track-hist-item {
+  display: grid; grid-template-columns: 24px 1fr auto;
+  gap: 12px; padding: 12px 0; align-items: center;
+  border-bottom: 1px solid var(--border); font-size: 13.5px;
+}
+.track-hist-item:last-child { border-bottom: 0 }
+.track-hist-item .dot {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--dim);
+  margin: 0 auto;
+}
+.track-hist-item.is-current .dot { background: var(--acc2); box-shadow: 0 0 0 4px rgba(255,179,71,.22) }
+.track-hist-item .time { color: var(--faint); font-size: 12px; white-space: nowrap }
+</style>
 
 <!-- ═══════════════ FAQ ═══════════════ -->
 <section class="sec how" id="faq">
@@ -6836,6 +6942,202 @@ detectCountry().then(() => {
   renderComparisonTable();
   renderDemoCta();
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+//  TRACK REPAIR  — public page where customers look up their car's status
+//  Reads from users (for workshop dropdown — public) and from
+//  users/{wsUid}/public_status/{plateNorm} (the privacy-safe status mirror).
+// ══════════════════════════════════════════════════════════════════════════
+let _trackAllWorkshops = null;   // cached list of {uid, name, isBranch}
+let _trackPickedUid    = null;
+let _trackPickedName   = null;
+let _trackLastResult   = null;   // last lookup result for refresh
+
+// Strip everything but A–Z 0–9 + uppercase — must match the app-side normaliser
+function _trackPlateNorm(p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function _trackEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function _trackLoadWorkshops() {
+  if (_trackAllWorkshops) return _trackAllWorkshops;
+  if (!fbDb) throw new Error('Site not connected to Firebase yet. Refresh in a moment.');
+  // Pull every users/{uid} doc. The collection is publicly readable per rules.
+  const snap = await fbDb.collection('users').get();
+  const list = [];
+  snap.forEach(doc => {
+    const d = doc.data() || {};
+    const name = (d.workshop_name || '').trim();
+    if (!name) return;       // skip docs without a workshop name set
+    list.push({
+      uid:      doc.id,
+      name,
+      isBranch: !!d.branch,
+      parent:   d.chain_parent_name || ''
+    });
+  });
+  // Sort alphabetically; chain-parent name shows on branches as a hint
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  _trackAllWorkshops = list;
+  return list;
+}
+
+function _trackRenderDropdown(matches) {
+  const dd = document.getElementById('track-ws-dropdown');
+  if (!matches.length) {
+    dd.innerHTML = `<div class="track-ws-item" style="color:var(--faint);cursor:default">No workshops match. Check the spelling.</div>`;
+    dd.style.display = 'block';
+    return;
+  }
+  dd.innerHTML = matches.slice(0, 12).map(w => `<div class="track-ws-item" onclick="_trackPickWorkshop('${_trackEsc(w.uid)}', '${_trackEsc(w.name).replace(/'/g, "\\'")}')">
+    ${_trackEsc(w.name)}
+    ${w.isBranch ? `<span class="branch-tag">BRANCH${w.parent ? ' OF ' + _trackEsc(w.parent).toUpperCase() : ''}</span>` : ''}
+  </div>`).join('');
+  dd.style.display = 'block';
+}
+
+// Hook up as soon as the section is in the DOM. Wrap in a watcher in case
+// the user lands on garagepro.me/#track before Firebase finishes initialising.
+function _trackInit() {
+  const input = document.getElementById('track-ws-input');
+  const msg   = document.getElementById('track-ws-msg');
+  if (!input || input._trackBound) return;
+  input._trackBound = true;
+
+  msg.textContent = 'Loading workshops…';
+  _trackLoadWorkshops().then(list => {
+    msg.textContent = `${list.length} workshop${list.length === 1 ? '' : 's'} on Garage Pro`;
+  }).catch(e => {
+    msg.style.color = '#ff6b6b';
+    msg.textContent = e.message || String(e);
+  });
+
+  input.addEventListener('input', () => {
+    const q = input.value.toLowerCase().trim();
+    if (!q || !_trackAllWorkshops) {
+      document.getElementById('track-ws-dropdown').style.display = 'none';
+      return;
+    }
+    const matches = _trackAllWorkshops.filter(w => w.name.toLowerCase().includes(q));
+    _trackRenderDropdown(matches);
+  });
+  input.addEventListener('focus', () => {
+    if (input.value.trim() && _trackAllWorkshops) {
+      const matches = _trackAllWorkshops.filter(w => w.name.toLowerCase().includes(input.value.toLowerCase().trim()));
+      _trackRenderDropdown(matches);
+    }
+  });
+  // Close dropdown on outside click
+  document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('#track-step-workshop')) {
+      const dd = document.getElementById('track-ws-dropdown');
+      if (dd) dd.style.display = 'none';
+    }
+  });
+}
+
+window._trackPickWorkshop = function(uid, name) {
+  _trackPickedUid  = uid;
+  _trackPickedName = name;
+  document.getElementById('track-step-workshop').style.display = 'none';
+  document.getElementById('track-step-plate').style.display    = 'block';
+  document.getElementById('track-step-status').style.display   = 'none';
+  document.getElementById('track-ws-name').textContent         = name;
+  document.getElementById('track-plate-input').focus();
+};
+
+window.trackBack = function() {
+  document.getElementById('track-step-workshop').style.display = 'block';
+  document.getElementById('track-step-plate').style.display    = 'none';
+  document.getElementById('track-step-status').style.display   = 'none';
+  document.getElementById('track-ws-input').value              = '';
+  document.getElementById('track-plate-input').value           = '';
+  document.getElementById('track-ws-dropdown').style.display   = 'none';
+  document.getElementById('track-lookup-msg').textContent      = '';
+  _trackPickedUid  = null;
+  _trackPickedName = null;
+  _trackLastResult = null;
+};
+
+window.trackLookup = async function() {
+  const plateInput = document.getElementById('track-plate-input');
+  const msg        = document.getElementById('track-lookup-msg');
+  const plateRaw   = (plateInput.value || '').trim();
+  const plateNorm  = _trackPlateNorm(plateRaw);
+  msg.style.color  = 'var(--faint)';
+  if (!plateNorm) { msg.textContent = 'Type your license plate first.'; return; }
+  if (!_trackPickedUid) { msg.textContent = 'Pick a workshop first.'; return; }
+  msg.textContent = 'Looking up…';
+  try {
+    const snap = await fbDb.collection('users').doc(_trackPickedUid)
+      .collection('public_status').doc(plateNorm).get();
+    if (!snap.exists) {
+      msg.style.color = '#ff6b6b';
+      msg.innerHTML = `Nothing on file for <b>${_trackEsc(plateRaw)}</b> at ${_trackEsc(_trackPickedName)}. Double-check the plate, or ask the workshop if your car has been logged in yet.`;
+      return;
+    }
+    _trackLastResult = snap.data();
+    _trackRenderStatus(_trackLastResult);
+  } catch (e) {
+    msg.style.color = '#ff6b6b';
+    msg.textContent = 'Lookup failed: ' + (e?.message || e);
+  }
+};
+
+function _trackStatusColor(s) {
+  const t = String(s || '').toLowerCase();
+  if (t.includes('delivered') || t.includes('ready'))     return { bg: 'rgba(32,227,178,.15)', fg: 'var(--teal,#20e3b2)' };
+  if (t.includes('cancel') || t.includes('rejected'))     return { bg: 'rgba(255,107,107,.15)', fg: '#ff6b6b' };
+  if (t.includes('progress') || t.includes('execut'))     return { bg: 'rgba(255,179,71,.18)', fg: 'var(--acc2)' };
+  if (t.includes('approved'))                             return { bg: 'rgba(99,159,255,.15)', fg: 'var(--blue,#639fff)' };
+  return { bg: 'rgba(255,255,255,.07)', fg: 'var(--text)' };
+}
+
+function _trackRenderStatus(data) {
+  document.getElementById('track-step-plate').style.display  = 'none';
+  document.getElementById('track-step-status').style.display = 'block';
+  const c = _trackStatusColor(data.status);
+  const updatedAgo = _trackTimeAgo(data.updated_at);
+  document.getElementById('track-status-card').innerHTML = `<div class="track-status-big">
+    <div class="pill" style="background:${c.bg};color:${c.fg}">${_trackEsc(data.status || '—')}</div>
+    <div style="font-size:13.5px;color:var(--dim);margin-top:4px">Updated ${_trackEsc(updatedAgo)}</div>
+    <div class="meta">
+      <div><b>Vehicle</b>${_trackEsc(data.plate || '—')}</div>
+      ${data.service           ? `<div><b>Service</b>${_trackEsc(data.service)}</div>` : ''}
+      ${data.mechanic_first_name ? `<div><b>Mechanic</b>${_trackEsc(data.mechanic_first_name)}</div>` : ''}
+      ${data.booking_no        ? `<div><b>Booking</b>${_trackEsc(data.booking_no)}</div>` : ''}
+    </div>
+  </div>`;
+  const hist = Array.isArray(data.history) ? data.history.slice().reverse() : [];
+  const histHtml = hist.length
+    ? hist.map((h, i) => `<div class="track-hist-item ${i === 0 ? 'is-current' : ''}">
+        <div class="dot"></div>
+        <div>${_trackEsc(h.status || '—')}</div>
+        <div class="time">${_trackEsc(_trackTimeAgo(h.at))}</div>
+      </div>`).join('')
+    : `<div style="color:var(--faint);font-size:13px;padding:14px;text-align:center;background:var(--bg2);border-radius:8px">No status changes recorded yet.</div>`;
+  document.getElementById('track-history').innerHTML = histHtml;
+}
+
+// "5 minutes ago" / "2 hours ago" / "yesterday" — relative when recent, absolute
+// (date) when old. Falls back to the raw string if parsing fails.
+function _trackTimeAgo(s) {
+  if (!s) return '—';
+  const d = new Date(String(s).replace(' ', 'T'));
+  if (isNaN(d)) return s;
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60)        return 'just now';
+  if (diff < 3600)      return Math.floor(diff / 60) + ' min ago';
+  if (diff < 86400)     return Math.floor(diff / 3600) + ' hr ago';
+  if (diff < 172800)    return 'yesterday';
+  if (diff < 604800)    return Math.floor(diff / 86400) + ' days ago';
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// Watch for the section to come on-screen / for Firebase to come up, then init
+function _trackWaitForFirebase() {
+  if (fbDb && document.getElementById('track-ws-input')) { _trackInit(); return; }
+  setTimeout(_trackWaitForFirebase, 250);
+}
+_trackWaitForFirebase();
 </script>
 </body>
 </html>
