@@ -1999,9 +1999,22 @@ html,body{max-width:100%;overflow-x:hidden}
 
     <div class="track-box reveal" style="max-width:640px;margin:36px auto 0;background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.35)">
 
-      <!-- Step 1: workshop picker -->
-      <div id="track-step-workshop">
-        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Which workshop is your car at?</label>
+      <!-- Step 1: state picker -->
+      <div id="track-step-state">
+        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Which state is your workshop in?</label>
+        <select id="track-state-input" style="width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" onchange="_trackStatePicked()">
+          <option value="">— Pick a state —</option>
+        </select>
+        <div id="track-state-msg" style="margin-top:8px;font-size:12.5px;color:var(--faint);min-height:16px"></div>
+      </div>
+
+      <!-- Step 2: workshop picker (filtered by state) -->
+      <div id="track-step-workshop" style="display:none">
+        <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="font-size:13.5px"><span style="color:var(--faint)">State:</span><b id="track-state-name" style="color:var(--text);margin-left:6px"></b></div>
+          <button onclick="trackBack('state')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
+        </div>
+        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Pick your workshop</label>
         <div style="position:relative">
           <input id="track-ws-input" type="text" autocomplete="off" placeholder="Start typing your workshop name…" style="width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" />
           <div id="track-ws-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow-y:auto;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
@@ -2009,20 +2022,41 @@ html,body{max-width:100%;overflow-x:hidden}
         <div id="track-ws-msg" style="margin-top:8px;font-size:12.5px;color:var(--faint);min-height:16px"></div>
       </div>
 
-      <!-- Step 2: plate input -->
+      <!-- Step 3: plate OR booking# input -->
       <div id="track-step-plate" style="display:none">
         <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
           <div style="font-size:13.5px">
             <span style="color:var(--faint)">Workshop:</span>
             <b id="track-ws-name" style="color:var(--text);margin-left:6px"></b>
           </div>
-          <button onclick="trackBack()" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
+          <button onclick="trackBack('workshop')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
         </div>
-        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">License plate</label>
-        <div style="display:flex;gap:8px">
-          <input id="track-plate-input" type="text" autocomplete="off" placeholder="MH 12 AB 1234" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Courier New',monospace;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase" onkeydown="if(event.key==='Enter')trackLookup()" />
-          <button onclick="trackLookup()" class="btn btn-primary" style="padding:0 22px;font-size:14px">Find my car</button>
+
+        <!-- Mode tabs: plate vs booking number -->
+        <div role="tablist" style="display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
+          <button id="track-tab-plate"   onclick="_trackSwitchMode('plate')"   style="flex:1;padding:11px 14px;background:none;border:0;border-bottom:2px solid var(--acc2);color:var(--acc2);font-family:var(--fd);font-weight:700;font-size:13.5px;cursor:pointer">Search by plate</button>
+          <button id="track-tab-booking" onclick="_trackSwitchMode('booking')" style="flex:1;padding:11px 14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--dim);font-family:var(--fd);font-weight:700;font-size:13.5px;cursor:pointer">Search by booking #</button>
         </div>
+
+        <!-- Plate mode -->
+        <div id="track-mode-plate">
+          <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">License plate</label>
+          <div style="display:flex;gap:8px">
+            <input id="track-plate-input" type="text" autocomplete="off" placeholder="MH 12 AB 1234" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Courier New',monospace;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase" onkeydown="if(event.key==='Enter')trackLookup('plate')" />
+            <button onclick="trackLookup('plate')" class="btn btn-primary" style="padding:0 22px;font-size:14px">Find my car</button>
+          </div>
+        </div>
+
+        <!-- Booking# mode -->
+        <div id="track-mode-booking" style="display:none">
+          <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Booking number</label>
+          <div style="display:flex;gap:8px">
+            <input id="track-booking-input" type="text" autocomplete="off" placeholder="BK-0042" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Courier New',monospace;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase" onkeydown="if(event.key==='Enter')trackLookup('booking')" />
+            <button onclick="trackLookup('booking')" class="btn btn-primary" style="padding:0 22px;font-size:14px">Find my car</button>
+          </div>
+          <div style="margin-top:6px;font-size:11.5px;color:var(--faint)">The booking number is on the slip your workshop gave you (looks like <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--acc2)">BK-0042</code>).</div>
+        </div>
+
         <div id="track-lookup-msg" style="margin-top:10px;font-size:12.5px;color:var(--faint);min-height:16px;line-height:1.5"></div>
       </div>
 
@@ -2037,7 +2071,7 @@ html,body{max-width:100%;overflow-x:hidden}
           <div id="track-history"></div>
         </div>
         <div style="margin-top:18px;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">
-          <button onclick="trackBack()" style="background:none;border:1px solid var(--border);color:var(--dim);padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer">Track another car</button>
+          <button onclick="trackBack('state')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer">Track another car</button>
           <button onclick="trackLookup()" class="btn btn-ghost" style="padding:8px 14px;font-size:13px">Refresh</button>
         </div>
       </div>
@@ -6945,87 +6979,134 @@ detectCountry().then(() => {
 
 // ══════════════════════════════════════════════════════════════════════════
 //  TRACK REPAIR  — public page where customers look up their car's status
-//  Reads from users (for workshop dropdown — public) and from
-//  users/{wsUid}/public_status/{plateNorm} (the privacy-safe status mirror).
+//  Flow: State → Workshop → (Plate OR Booking #)
+//  Reads: users root docs (public) for workshop list, and the privacy-safe
+//  status mirror at users/{wsUid}/public_status/{plateNorm} for lookups.
 // ══════════════════════════════════════════════════════════════════════════
-let _trackAllWorkshops = null;   // cached list of {uid, name, isBranch}
+
+// Canonical Indian state list — mirrors INDIA_STATES in the app so the
+// dropdown order matches what workshop owners chose in their Settings.
+const TRACK_INDIA_STATES = [
+  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa',
+  'Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala',
+  'Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland',
+  'Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura',
+  'Uttar Pradesh','Uttarakhand','West Bengal',
+  'Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry'
+];
+
+let _trackAllWorkshops = null;   // cached list of {uid, name, state, isBranch, parent}
+let _trackPickedState  = null;
 let _trackPickedUid    = null;
 let _trackPickedName   = null;
-let _trackLastResult   = null;   // last lookup result for refresh
+let _trackLastResult   = null;
+let _trackMode         = 'plate';   // 'plate' | 'booking'
 
-// Strip everything but A–Z 0–9 + uppercase — must match the app-side normaliser
 function _trackPlateNorm(p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function _trackEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 async function _trackLoadWorkshops() {
   if (_trackAllWorkshops) return _trackAllWorkshops;
   if (!fbDb) throw new Error('Site not connected to Firebase yet. Refresh in a moment.');
-  // Pull every users/{uid} doc. The collection is publicly readable per rules.
   const snap = await fbDb.collection('users').get();
   const list = [];
   snap.forEach(doc => {
     const d = doc.data() || {};
     const name = (d.workshop_name || '').trim();
-    if (!name) return;       // skip docs without a workshop name set
+    if (!name) return;
     list.push({
       uid:      doc.id,
       name,
+      state:    (d.state || '').trim(),
+      city:     (d.city  || '').trim(),
       isBranch: !!d.branch,
       parent:   d.chain_parent_name || ''
     });
   });
-  // Sort alphabetically; chain-parent name shows on branches as a hint
   list.sort((a, b) => a.name.localeCompare(b.name));
   _trackAllWorkshops = list;
   return list;
 }
 
+// Populate the State dropdown with every state that has at least one
+// registered workshop, plus an "Other / state not specified" bucket so
+// workshops that haven't set their state yet remain reachable.
+function _trackBuildStateDropdown() {
+  const sel = document.getElementById('track-state-input');
+  if (!sel || sel._trackBuilt) return;
+  const haveStates = new Set();
+  let haveUnspecified = false;
+  for (const w of (_trackAllWorkshops || [])) {
+    if (w.state) haveStates.add(w.state);
+    else         haveUnspecified = true;
+  }
+  // Show all India states ordered alphabetically; mark ones with no workshops
+  // as disabled so the user doesn't pick an empty bucket by mistake.
+  const opts = [];
+  opts.push(`<option value="">— Pick a state —</option>`);
+  for (const st of TRACK_INDIA_STATES) {
+    const has = haveStates.has(st);
+    opts.push(`<option value="${_trackEsc(st)}" ${has ? '' : 'disabled style="color:#666"'}>${_trackEsc(st)}${has ? '' : ' (no workshops yet)'}</option>`);
+  }
+  if (haveUnspecified) opts.push(`<option value="__unspecified__">Other / state not specified</option>`);
+  sel.innerHTML = opts.join('');
+  sel._trackBuilt = true;
+}
+
+// Filter the cached workshop list by the picked state. "__unspecified__"
+// matches workshops whose owner hasn't set a state yet.
+function _trackWorkshopsForState(state) {
+  if (!_trackAllWorkshops) return [];
+  if (state === '__unspecified__') return _trackAllWorkshops.filter(w => !w.state);
+  return _trackAllWorkshops.filter(w => w.state === state);
+}
+
 function _trackRenderDropdown(matches) {
   const dd = document.getElementById('track-ws-dropdown');
   if (!matches.length) {
-    dd.innerHTML = `<div class="track-ws-item" style="color:var(--faint);cursor:default">No workshops match. Check the spelling.</div>`;
+    dd.innerHTML = `<div class="track-ws-item" style="color:var(--faint);cursor:default">No workshops match. Check the spelling, or change state.</div>`;
     dd.style.display = 'block';
     return;
   }
-  dd.innerHTML = matches.slice(0, 12).map(w => `<div class="track-ws-item" onclick="_trackPickWorkshop('${_trackEsc(w.uid)}', '${_trackEsc(w.name).replace(/'/g, "\\'")}')">
-    ${_trackEsc(w.name)}
-    ${w.isBranch ? `<span class="branch-tag">BRANCH${w.parent ? ' OF ' + _trackEsc(w.parent).toUpperCase() : ''}</span>` : ''}
+  dd.innerHTML = matches.slice(0, 20).map(w => `<div class="track-ws-item" onclick="_trackPickWorkshop('${_trackEsc(w.uid)}', '${_trackEsc(w.name).replace(/'/g, "\\'")}')">
+    <div>${_trackEsc(w.name)}${w.isBranch ? `<span class="branch-tag">BRANCH${w.parent ? ' OF ' + _trackEsc(w.parent).toUpperCase() : ''}</span>` : ''}</div>
+    ${w.city ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">${_trackEsc(w.city)}</div>` : ''}
   </div>`).join('');
   dd.style.display = 'block';
 }
 
-// Hook up as soon as the section is in the DOM. Wrap in a watcher in case
-// the user lands on garagepro.me/#track before Firebase finishes initialising.
+// Bind once. Waits for Firebase, then loads workshop list and builds dropdowns.
 function _trackInit() {
-  const input = document.getElementById('track-ws-input');
-  const msg   = document.getElementById('track-ws-msg');
-  if (!input || input._trackBound) return;
-  input._trackBound = true;
+  const stateSel = document.getElementById('track-state-input');
+  const wsInput  = document.getElementById('track-ws-input');
+  if (!stateSel || stateSel._trackBound) return;
+  stateSel._trackBound = true;
 
-  msg.textContent = 'Loading workshops…';
+  const stateMsg = document.getElementById('track-state-msg');
+  stateMsg.textContent = 'Loading workshops…';
   _trackLoadWorkshops().then(list => {
-    msg.textContent = `${list.length} workshop${list.length === 1 ? '' : 's'} on Garage Pro`;
+    _trackBuildStateDropdown();
+    stateMsg.textContent = list.length
+      ? `${list.length} workshop${list.length === 1 ? '' : 's'} across India · pick a state to narrow down`
+      : 'No workshops registered yet';
   }).catch(e => {
-    msg.style.color = '#ff6b6b';
-    msg.textContent = e.message || String(e);
+    stateMsg.style.color = '#ff6b6b';
+    stateMsg.textContent = e.message || String(e);
   });
 
-  input.addEventListener('input', () => {
-    const q = input.value.toLowerCase().trim();
-    if (!q || !_trackAllWorkshops) {
-      document.getElementById('track-ws-dropdown').style.display = 'none';
-      return;
-    }
-    const matches = _trackAllWorkshops.filter(w => w.name.toLowerCase().includes(q));
-    _trackRenderDropdown(matches);
+  // Workshop-name autocomplete (only active on step 2)
+  wsInput.addEventListener('input', () => {
+    const q = wsInput.value.toLowerCase().trim();
+    const pool = _trackWorkshopsForState(_trackPickedState);
+    if (!q) { _trackRenderDropdown(pool.slice(0, 20)); return; }
+    _trackRenderDropdown(pool.filter(w => w.name.toLowerCase().includes(q)));
   });
-  input.addEventListener('focus', () => {
-    if (input.value.trim() && _trackAllWorkshops) {
-      const matches = _trackAllWorkshops.filter(w => w.name.toLowerCase().includes(input.value.toLowerCase().trim()));
-      _trackRenderDropdown(matches);
-    }
+  wsInput.addEventListener('focus', () => {
+    const q = wsInput.value.toLowerCase().trim();
+    const pool = _trackWorkshopsForState(_trackPickedState);
+    _trackRenderDropdown(q ? pool.filter(w => w.name.toLowerCase().includes(q)) : pool.slice(0, 20));
   });
-  // Close dropdown on outside click
   document.addEventListener('click', (ev) => {
     if (!ev.target.closest('#track-step-workshop')) {
       const dd = document.getElementById('track-ws-dropdown');
@@ -7034,6 +7115,25 @@ function _trackInit() {
   });
 }
 
+// Triggered when the State <select> changes — moves to the workshop step.
+window._trackStatePicked = function() {
+  const sel = document.getElementById('track-state-input');
+  const state = sel.value;
+  if (!state) return;
+  _trackPickedState = state;
+  document.getElementById('track-step-state').style.display    = 'none';
+  document.getElementById('track-step-workshop').style.display = 'block';
+  document.getElementById('track-state-name').textContent      = state === '__unspecified__' ? 'Other (not specified)' : state;
+  // Pre-populate workshop dropdown with the full list for this state
+  const pool = _trackWorkshopsForState(state);
+  _trackRenderDropdown(pool.slice(0, 20));
+  const msg = document.getElementById('track-ws-msg');
+  msg.textContent = pool.length
+    ? `${pool.length} workshop${pool.length === 1 ? '' : 's'} in this state`
+    : 'No workshops in this state yet — go back and pick another state.';
+  setTimeout(() => document.getElementById('track-ws-input').focus(), 0);
+};
+
 window._trackPickWorkshop = function(uid, name) {
   _trackPickedUid  = uid;
   _trackPickedName = name;
@@ -7041,37 +7141,68 @@ window._trackPickWorkshop = function(uid, name) {
   document.getElementById('track-step-plate').style.display    = 'block';
   document.getElementById('track-step-status').style.display   = 'none';
   document.getElementById('track-ws-name').textContent         = name;
-  document.getElementById('track-plate-input').focus();
+  // Default to whichever mode the user was last on (sticky between lookups)
+  _trackSwitchMode(_trackMode);
+  setTimeout(() => document.getElementById(_trackMode === 'plate' ? 'track-plate-input' : 'track-booking-input').focus(), 0);
 };
 
-window.trackBack = function() {
-  document.getElementById('track-step-workshop').style.display = 'block';
-  document.getElementById('track-step-plate').style.display    = 'none';
+// Tab switch between plate-based and booking#-based lookup.
+window._trackSwitchMode = function(mode) {
+  _trackMode = mode;
+  const tabP = document.getElementById('track-tab-plate');
+  const tabB = document.getElementById('track-tab-booking');
+  const onCol = 'var(--acc2)', offCol = 'var(--dim)';
+  tabP.style.borderBottomColor = mode === 'plate'   ? onCol  : 'transparent';
+  tabP.style.color             = mode === 'plate'   ? onCol  : offCol;
+  tabB.style.borderBottomColor = mode === 'booking' ? onCol  : 'transparent';
+  tabB.style.color             = mode === 'booking' ? onCol  : offCol;
+  document.getElementById('track-mode-plate').style.display   = mode === 'plate'   ? 'block' : 'none';
+  document.getElementById('track-mode-booking').style.display = mode === 'booking' ? 'block' : 'none';
+};
+
+// `to` controls which step to land on: 'state' | 'workshop'
+window.trackBack = function(to) {
+  to = to || 'state';
   document.getElementById('track-step-status').style.display   = 'none';
-  document.getElementById('track-ws-input').value              = '';
-  document.getElementById('track-plate-input').value           = '';
-  document.getElementById('track-ws-dropdown').style.display   = 'none';
-  document.getElementById('track-lookup-msg').textContent      = '';
-  _trackPickedUid  = null;
-  _trackPickedName = null;
+  document.getElementById('track-step-plate').style.display    = 'none';
+  document.getElementById('track-step-workshop').style.display = to === 'workshop' ? 'block' : 'none';
+  document.getElementById('track-step-state').style.display    = to === 'state'    ? 'block' : 'none';
+  document.getElementById('track-ws-input').value      = '';
+  document.getElementById('track-plate-input').value   = '';
+  document.getElementById('track-booking-input').value = '';
+  document.getElementById('track-ws-dropdown').style.display = 'none';
+  document.getElementById('track-lookup-msg').textContent    = '';
+  if (to === 'state') {
+    document.getElementById('track-state-input').value = '';
+    _trackPickedState = null;
+    _trackPickedUid   = null;
+    _trackPickedName  = null;
+  }
   _trackLastResult = null;
 };
 
-window.trackLookup = async function() {
-  const plateInput = document.getElementById('track-plate-input');
-  const msg        = document.getElementById('track-lookup-msg');
-  const plateRaw   = (plateInput.value || '').trim();
-  const plateNorm  = _trackPlateNorm(plateRaw);
-  msg.style.color  = 'var(--faint)';
-  if (!plateNorm) { msg.textContent = 'Type your license plate first.'; return; }
-  if (!_trackPickedUid) { msg.textContent = 'Pick a workshop first.'; return; }
+// Dispatch to the right query based on _trackMode (or explicit override).
+window.trackLookup = async function(mode) {
+  mode = mode || _trackMode;
+  _trackMode = mode;
+  if (mode === 'booking') return _trackLookupByBooking();
+  return _trackLookupByPlate();
+};
+
+async function _trackLookupByPlate() {
+  const plateRaw  = (document.getElementById('track-plate-input').value || '').trim();
+  const plateNorm = _trackPlateNorm(plateRaw);
+  const msg = document.getElementById('track-lookup-msg');
+  msg.style.color = 'var(--faint)';
+  if (!plateNorm)         { msg.textContent = 'Type your license plate first.'; return; }
+  if (!_trackPickedUid)   { msg.textContent = 'Pick a workshop first.'; return; }
   msg.textContent = 'Looking up…';
   try {
     const snap = await fbDb.collection('users').doc(_trackPickedUid)
       .collection('public_status').doc(plateNorm).get();
     if (!snap.exists) {
       msg.style.color = '#ff6b6b';
-      msg.innerHTML = `Nothing on file for <b>${_trackEsc(plateRaw)}</b> at ${_trackEsc(_trackPickedName)}. Double-check the plate, or ask the workshop if your car has been logged in yet.`;
+      msg.innerHTML = `Nothing on file for <b>${_trackEsc(plateRaw)}</b> at ${_trackEsc(_trackPickedName)}. Double-check the plate or try the booking-number tab.`;
       return;
     }
     _trackLastResult = snap.data();
@@ -7080,7 +7211,33 @@ window.trackLookup = async function() {
     msg.style.color = '#ff6b6b';
     msg.textContent = 'Lookup failed: ' + (e?.message || e);
   }
-};
+}
+
+async function _trackLookupByBooking() {
+  const bkRaw = (document.getElementById('track-booking-input').value || '').trim().toUpperCase();
+  const msg   = document.getElementById('track-lookup-msg');
+  msg.style.color = 'var(--faint)';
+  if (!bkRaw)             { msg.textContent = 'Type your booking number first.'; return; }
+  if (!_trackPickedUid)   { msg.textContent = 'Pick a workshop first.'; return; }
+  msg.textContent = 'Looking up…';
+  try {
+    const qsnap = await fbDb.collection('users').doc(_trackPickedUid)
+      .collection('public_status')
+      .where('booking_no', '==', bkRaw)
+      .limit(1)
+      .get();
+    if (qsnap.empty) {
+      msg.style.color = '#ff6b6b';
+      msg.innerHTML = `No booking found with number <b>${_trackEsc(bkRaw)}</b> at ${_trackEsc(_trackPickedName)}. The number on your slip should look like <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--acc2)">BK-0042</code>.`;
+      return;
+    }
+    _trackLastResult = qsnap.docs[0].data();
+    _trackRenderStatus(_trackLastResult);
+  } catch (e) {
+    msg.style.color = '#ff6b6b';
+    msg.textContent = 'Lookup failed: ' + (e?.message || e);
+  }
+}
 
 function _trackStatusColor(s) {
   const t = String(s || '').toLowerCase();
