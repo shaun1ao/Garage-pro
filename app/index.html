@@ -1240,6 +1240,24 @@ const FB_CONFIG = {
   obs.observe(document.body || document.documentElement, { childList: true, subtree: true });
 })();
 
+
+// Example: Listen to bookings collection
+db.collection('users').doc(userId)
+  .collection('bookings')
+  .onSnapshot(snapshot => {
+    snapshot.docs.forEach(doc => {
+      // Update UI whenever bookings change on any device
+      updateBookingUI(doc.data());
+    });
+  });
+// When you edit a booking on device 1
+db.collection('users').doc(userId)
+  .collection('bookings')
+  .doc(bookingId)
+  .set(updatedData, { merge: true }) // Use merge:true to keep other fields
+  .then(() => console.log('Synced to Firebase'))
+  .catch(err => console.error('Sync failed:', err));
+
 firebase.initializeApp(FB_CONFIG);
 const fbAuth = firebase.auth();
 const fbDb   = firebase.firestore();
