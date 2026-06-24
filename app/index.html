@@ -3273,7 +3273,7 @@ function _bookingFormHTML(b) {
         <div class="f-grp"><label>Company name <span class="req">*</span></label>
           <input id="bf-company" type="text" value="${escapeHtml(b.company_name || '')}" /></div>
         <div class="f-grp"><label>GSTIN <span class="req">*</span></label>
-          <input id="bf-gstin" type="text" maxlength="15" style="text-transform:uppercase" value="${escapeHtml(b.gstin || '')}" oninput="_bookingValidateGstin()" />
+          <input id="bf-gstin" type="text" maxlength="15" style="text- transform:uppercase" value="${escapeHtml(b.gstin || '')}" oninput="_bookingValidateGstin()" />
           <div id="bf-gstin-msg" style="font-size:11.5px;margin-top:4px;min-height:14px"></div></div>
         <div class="f-grp"><label>Ref No</label><input id="bf-refno" type="text" value="${escapeHtml(b.ref_no || '')}" /></div>
       </div>
