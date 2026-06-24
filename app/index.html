@@ -7557,7 +7557,17 @@ async function renderSettings(force = false) {
     return out({ok:true});
   } catch (err) { return out({ok:false, error:String(err)}); }
 }
-function doGet() { return ContentService.createTextOutput('Email relay — OK'); }
+// doGet supports JSONP so Garage Pro can verify the URL works — POST responses
+// are CORS-blocked, but a <script src="...?callback=foo"> tag isn't.
+function doGet(e) {
+  const cb = e && e.parameter && e.parameter.callback;
+  const payload = { ok: true, message: 'Email relay alive', quota: MailApp.getRemainingDailyQuota() };
+  if (cb) {
+    return ContentService.createTextOutput(cb + '(' + JSON.stringify(payload) + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput('Email relay — OK');
+}
 function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }</pre>
         </details>
 
@@ -7621,13 +7631,14 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
 
         <!-- Actions -->
         <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <input type="email" id="sf-em-test" placeholder="Send a test email to…" style="padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:13.5px;width:240px" />
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="refresh-btn" onclick="_testAppsScriptConnection()" title="Verify the URL reaches a deployed script"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>Test connection</button>
+            <input type="email" id="sf-em-test" placeholder="Send test to…" style="padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:13.5px;width:200px" />
             <button class="refresh-btn" onclick="_sendTestEmail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Send test</button>
           </div>
           <button class="add-btn" onclick="saveEmailSettings()">Save email settings</button>
         </div>
-        <div id="sf-em-msg" style="margin-top:8px;font-size:12.5px;min-height:16px"></div>
+        <div id="sf-em-msg" style="margin-top:8px;font-size:12.5px;min-height:16px;line-height:1.5"></div>
       </div>
 
 
@@ -7816,6 +7827,63 @@ window._closeEmailPreview = function() {
   if (wrap)  wrap.style.display = 'none';
 };
 
+// JSONP-based connection test — verifies the URL points at a live, properly
+// deployed Apps Script with "Anyone" access. POST responses are CORS-blocked
+// so we can't inspect a real send, but a <script> tag isn't subject to CORS,
+// so we ask doGet to wrap its response in a JSONP callback we control.
+//
+// Tells us 4 critical things in one call:
+//   1. The URL itself loads (no 404 → wrong URL or no deployment)
+//   2. The script executed (no error → script saved)
+//   3. The script reached the LATEST deployed version (the JSONP block exists in the new code)
+//   4. MailApp permission was granted (getRemainingDailyQuota throws otherwise)
+window._testAppsScriptConnection = function() {
+  const url = (document.getElementById('sf-em-url')?.value || (D.settings||{}).email_appscript_url || '').trim();
+  const msg = document.getElementById('sf-em-msg');
+  if (!url) { msg.style.color='var(--red)'; msg.textContent='Paste your Apps Script URL above first.'; return; }
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(url)) {
+    msg.style.color='var(--red)'; msg.textContent='That URL doesn\'t look like an Apps Script Web App URL (must end in /exec).'; return;
+  }
+  msg.style.color = 'var(--dim)';
+  msg.textContent = 'Testing connection…';
+  const cbName = '_gpEmCb' + Date.now() + Math.floor(Math.random()*1000);
+  const script = document.createElement('script');
+  let done = false;
+  const cleanup = () => {
+    delete window[cbName];
+    try { script.remove(); } catch(_) {}
+  };
+  // 12s timeout — if the script never fires the callback, the deployment
+  // probably isn't using the latest code (the OLD doGet returns plain text,
+  // not JSONP, so the browser silently fails to execute it as JS).
+  const timeout = setTimeout(() => {
+    if (done) return; done = true; cleanup();
+    msg.style.color = 'var(--red)';
+    msg.innerHTML = '✗ <b>No response from your Apps Script.</b> Likely causes:<br>'
+      + '&nbsp;&nbsp;• The script wasn\'t redeployed after editing (Apps Script "Save" ≠ "Deploy"). Go to <b>Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy</b>.<br>'
+      + '&nbsp;&nbsp;• The deployment\'s "Who has access" isn\'t set to <b>Anyone</b>.<br>'
+      + '&nbsp;&nbsp;• You pasted a Save URL, not a Web App URL (the right one ends in <code>/exec</code>).';
+  }, 12000);
+  window[cbName] = (resp) => {
+    if (done) return; done = true; clearTimeout(timeout); cleanup();
+    if (resp && resp.ok) {
+      msg.style.color = 'var(--teal)';
+      const quotaStr = (typeof resp.quota === 'number') ? ` · ${resp.quota} emails left in Gmail's daily quota` : '';
+      msg.innerHTML = '✓ <b>Connected.</b> Your Apps Script is alive and authorised' + quotaStr + '. You can send a test email below.';
+    } else {
+      msg.style.color = 'var(--red)';
+      msg.innerHTML = '✗ Script responded but reported an error: ' + escapeHtml(JSON.stringify(resp || {}));
+    }
+  };
+  script.onerror = () => {
+    if (done) return; done = true; clearTimeout(timeout); cleanup();
+    msg.style.color = 'var(--red)';
+    msg.innerHTML = '✗ <b>Couldn\'t load the script URL.</b> Either the URL is wrong, the deployment was deleted, or the script crashed with an authorization error. Open the script at <a href="https://script.google.com" target="_blank" style="color:var(--acc2)">script.google.com</a> and check the <b>Executions</b> log.';
+  };
+  script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + encodeURIComponent(cbName);
+  document.body.appendChild(script);
+};
+
 // Send a test email to whatever address is typed into the test field. Uses
 // the CURRENT form values, not the persisted settings, so the user can iterate
 // without saving first. (Saves the entered creds first so the function can read them.)
@@ -7833,8 +7901,17 @@ window._sendTestEmail = async function() {
     to,
     booking: { cust_name: 'Test Customer', cust_email: to, service: 'Test service', date: new Date().toISOString().slice(0,10), time: '10:30 AM', plate: 'TEST-1234', notes: 'This is a test email from Garage Pro.' }
   });
-  if (res.ok) { msg.style.color='var(--teal)'; msg.textContent='✓ Test sent. Check '+to+' in a moment.'; }
-  else         { msg.style.color='var(--red)';  msg.textContent='Test failed: ' + (res.error || res.skipped || 'unknown error'); }
+  if (res.ok) {
+    msg.style.color = 'var(--teal)';
+    // Be explicit: we know the POST was delivered to Apps Script, but Apps
+    // Script's response is CORS-blocked so we can't verify the actual send.
+    // If the inbox stays empty after ~30s, run Test Connection (above) and
+    // check the Executions log inside the Apps Script.
+    msg.innerHTML = '✓ <b>Request sent to your Apps Script.</b> Check the inbox at <b>' + escapeHtml(to) + '</b> in a moment. If nothing arrives, click <b>Test Connection</b> above or open <a href="https://script.google.com" target="_blank" style="color:var(--acc2)">script.google.com</a> → your project → <b>Executions</b> to see what the script did.';
+  } else {
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Test failed: ' + (res.error || res.skipped || 'unknown error');
+  }
 };
 
 // ─── Logo upload ─────────────────────────────────────────────────
