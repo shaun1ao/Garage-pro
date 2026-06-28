@@ -53,15 +53,16 @@ body::before{content:"";position:fixed;inset:0;background:radial-gradient(800px 
 /* ── nav ── */
 header.nav{position:sticky;top:0;z-index:50;transition:background .3s,border-color .3s}
 header.nav.scrolled{background:rgba(10,14,20,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--brd)}
-.nav-inner{display:flex;align-items:center;justify-content:space-between;height:72px}
-.brand{display:flex;align-items:center;gap:11px;font-family:var(--fd);font-weight:800;font-size:19px;letter-spacing:-.02em}
-.brand .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;box-shadow:0 6px 18px -4px rgba(255,122,24,.6)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:72px;gap:18px;flex-wrap:nowrap}
+.brand{display:flex;align-items:center;gap:11px;font-family:var(--fd);font-weight:800;font-size:19px;letter-spacing:-.02em;flex-shrink:0;white-space:nowrap}
+.brand .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;box-shadow:0 6px 18px -4px rgba(255,122,24,.6);flex-shrink:0}
 .brand .logo svg{width:22px;height:22px}
-.nav-links{display:flex;align-items:center;gap:34px}
-.nav-links a{color:var(--dim);font-weight:500;font-size:15px;transition:color .2s}
+.nav-links{display:flex;align-items:center;gap:22px;min-width:0;flex-wrap:nowrap}
+.nav-links a{color:var(--dim);font-weight:500;font-size:14.5px;transition:color .2s;white-space:nowrap}
 .nav-links a:hover{color:var(--txt)}
-.nav-cta{display:flex;align-items:center;gap:12px}
-.nav-user{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--dim)}
+.nav-cta{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:nowrap}
+.nav-cta .btn{white-space:nowrap;padding:9px 14px;font-size:13.5px}
+.nav-user{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--dim);white-space:nowrap}
 .nav-user .uname{color:var(--txt)}
 .admin-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:rgba(255,122,24,.18);color:var(--acc2);border:1px solid rgba(255,122,24,.3)}
 .menu-btn{display:none;background:none;border:0;color:var(--txt);cursor:pointer}
@@ -600,7 +601,10 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
   .float-card{right:12px}
   .app-stats{grid-template-columns:repeat(3,1fr)}
 }
-@media(max-width:720px){
+/* Collapse nav links into hamburger when logged-in CTAs (Hi name + 2 buttons)
+   would crowd the row. 980px is the empirical sweet spot — above it everything
+   fits; below it the menu button takes over. */
+@media(max-width:980px){
   .nav-links{display:none}.menu-btn{display:inline-flex}
   .nav-links.mobile-open{display:flex;flex-direction:column;align-items:flex-start;gap:4px;position:absolute;top:72px;left:0;right:0;background:rgba(10,14,20,.97);backdrop-filter:blur(14px);border-bottom:1px solid var(--brd);padding:16px 24px 22px;z-index:60}
   .nav-links.mobile-open a{padding:10px 0;width:100%}
