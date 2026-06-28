@@ -707,6 +707,10 @@ input[list]{background:var(--bg2)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
           Dashboard
         </button>
+        <button class="snav" data-tab="notifications" onclick="switchTab('notifications')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+          Notifications
+        </button>
         <button class="snav" data-tab="_newbk" onclick="switchTab('bookings'); setTimeout(()=>openBookingForm(),200)">
           <svg class="snav-icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           New Appointment
@@ -766,10 +770,6 @@ input[list]{background:var(--bg2)}
         <button class="snav" data-tab="timesheets" onclick="switchTab('timesheets')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           Timesheets
-        </button>
-        <button class="snav" data-tab="notifications" onclick="switchTab('notifications')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
-          Notifications
         </button>
         <button class="snav" data-tab="audit" onclick="switchTab('audit')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg>
@@ -1896,6 +1896,10 @@ const ADMIN_ROLES = ['owner','manager'];
 function currentRole() { return (currentWorker?.role || 'mechanic').toLowerCase(); }
 function isAdminRole() { return ADMIN_ROLES.includes(currentRole()); }
 function isOwnerRole() { return currentRole() === 'owner'; }
+// Job-card creation is restricted to Service Advisors. Owners/managers
+// can do it too — they always have full permissions in this app.
+function isServiceAdvisorRole() { return currentRole() === 'service_advisor' || isAdminRole(); }
+window.isServiceAdvisorRole = isServiceAdvisorRole;
 
 // Pull the active role permissions: owner override → settings.role_perms[role] → DEFAULT_ROLE_PERMS[role] → []
 function getRolePerms(role) {
@@ -3162,7 +3166,9 @@ async function renderBookings(force = false) {
           </button>
           ${(D.jobs || []).some(j => j.booking_id === b.id)
             ? `<button class="mini-btn" disabled style="opacity:.5" title="Job card already exists for this appointment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Job created</button>`
-            : `<button class="mini-btn good" onclick="openCreateJobCardForm('${escapeHtml(b.id)}')" title="Review details, then spin up a job card and notify the assigned mechanic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 11v6M9 14h6"/></svg>Create job card</button>`}
+            : (isServiceAdvisorRole()
+                ? `<button class="mini-btn good" onclick="openCreateJobCardForm('${escapeHtml(b.id)}')" title="Review details, then spin up a job card and notify the assigned mechanic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 11v6M9 14h6"/></svg>Create job card</button>`
+                : '')}
           ${b.cust_email ? `<button class="mini-btn" onclick="emailBookingCustomer('${escapeHtml(b.id)}')" title="Email ${escapeHtml(b.cust_email)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</button>` : ''}
           ${canCancel ? `<button class="mini-btn danger" onclick="cancelBooking('${escapeHtml(b.id)}')" title="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Cancel</button>` : ''}
         </div></td>
@@ -3555,6 +3561,9 @@ window.openCreateJobCardForm = function(bookingId) {
   if ((D.jobs || []).some(j => j.booking_id === bookingId)) {
     return showToast('A job card already exists for this appointment', 'bad');
   }
+  if (!isServiceAdvisorRole()) {
+    return customAlert('Only the Service Advisor can open a job card. Ask them to do the intake check.', { title: 'Service Advisor only' });
+  }
   _lastBookingCustomerId = null;
   _editingBooking = { complaints: Array.isArray(existing.complaints) ? existing.complaints.slice() : [] };
   const c = D.customers.find(x => (x.name || '').toLowerCase() === (existing.cust_name || '').toLowerCase());
@@ -3628,8 +3637,213 @@ async function _spinJobCardFromBooking(bookingId) {
   // "Create job card" button flips to "Job created"
   if (currentTab === 'bookings')    renderBookings(true);
   else if (currentTab === 'jobs')   renderJobs(true);
+  // Right after a new job card opens, walk the service advisor through the
+  // vehicle intake checklist (spare wheel, tools, fuel, custom items) — this
+  // is the moment the customer is still standing there, so it's the only
+  // good time to capture what was in the car at handover.
+  setTimeout(() => openVehicleIntake(newJob.id), 250);
 }
 window._spinJobCardFromBooking = _spinJobCardFromBooking;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  VEHICLE INTAKE CHECKLIST
+//  Run at job-card creation. Captures what was in the car at handover so
+//  there's never a "where's my spare wheel?" argument at delivery. Saved
+//  to job.intake = { items: {key: present}, fuel_level, custom: [], notes }.
+//  After save, prompts the advisor to add photos via the existing flow.
+// ══════════════════════════════════════════════════════════════════════════
+const INTAKE_DEFAULT_ITEMS = [
+  { key: 'spare_wheel',   label: 'Spare wheel',         dflt: true  },
+  { key: 'tool_kit',      label: 'Tool kit',            dflt: true  },
+  { key: 'jack',          label: 'Jack',                dflt: true  },
+  { key: 'wheel_spanner', label: 'Wheel spanner',       dflt: true  },
+  { key: 'first_aid',     label: 'First aid kit',       dflt: false },
+  { key: 'floor_mats',    label: 'Floor mats',          dflt: true  },
+  { key: 'stereo',        label: 'Stereo / head unit',  dflt: true  },
+  { key: 'parcel_tray',   label: 'Parcel tray',         dflt: false },
+  { key: 'docs_rc',       label: 'RC book',             dflt: false },
+  { key: 'docs_ins',      label: 'Insurance papers',    dflt: false },
+  { key: 'fuel_lid_key',  label: 'Fuel-lid key',        dflt: false }
+];
+const INTAKE_FUEL_LEVELS = ['Empty', '1/4', '1/2', '3/4', 'Full'];
+
+let _intakeBuffer = null;   // { jobId, items: {key:bool}, fuel, custom:[{name,present}], notes }
+
+window.openVehicleIntake = function(jobId) {
+  const j = (D.jobs || []).find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  const prior = j.intake || {};
+  _intakeBuffer = {
+    jobId,
+    items: { ...Object.fromEntries(INTAKE_DEFAULT_ITEMS.map(i => [i.key, prior.items?.[i.key] ?? i.dflt])) },
+    fuel:   prior.fuel_level || '1/2',
+    custom: Array.isArray(prior.custom) ? prior.custom.slice() : [],
+    notes:  prior.notes || ''
+  };
+  openModal({
+    title: `Vehicle intake · ${j.plate || j.id}`,
+    body: _intakeFormHTML(j),
+    saveLabel: 'Save intake & add photos',
+    onSave: async () => { await _saveVehicleIntake(); }
+  });
+  setTimeout(_intakeDrawCustom, 0);
+};
+
+function _intakeFormHTML(j) {
+  const b = D.bookings.find(x => x.id === j.booking_id);
+  const cust = b?.cust_name || j.cust_name || '—';
+  return `
+    <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);margin-bottom:16px;line-height:1.55">
+      <b style="color:var(--txt)">${escapeHtml(cust)}</b> · ${escapeHtml(j.plate || '—')} · ${escapeHtml(j.type || 'Service')}<br>
+      <span style="font-size:12px;color:var(--faint)">Tick what's IN the car when the customer hands it over. This prints on the invoice so they can verify at pickup.</span>
+    </div>
+
+    <!-- Default items grid -->
+    <div style="margin-bottom:18px;padding:14px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px">
+      <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Standard items</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
+        ${INTAKE_DEFAULT_ITEMS.map(i => `
+          <label style="display:flex;align-items:center;gap:9px;padding:9px 11px;background:var(--surf);border:1px solid var(--brd2);border-radius:8px;cursor:pointer">
+            <input type="checkbox" data-intake-item="${escapeHtml(i.key)}" ${_intakeBuffer.items[i.key] ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer" />
+            <span style="font-size:13px">${escapeHtml(i.label)}</span>
+          </label>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- Fuel level -->
+    <div style="margin-bottom:18px;padding:14px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px">
+      <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Fuel level at intake</div>
+      <div style="display:inline-flex;gap:0;background:var(--surf);border:1px solid var(--brd2);border-radius:100px;padding:3px;font-size:13px;font-weight:600">
+        ${INTAKE_FUEL_LEVELS.map(lvl => `
+          <button type="button" data-intake-fuel="${escapeHtml(lvl)}" onclick="_intakePickFuel('${escapeHtml(lvl)}')" style="padding:8px 18px;border-radius:100px;border:0;cursor:pointer;font-family:var(--fb);font-size:13px;font-weight:600;background:${_intakeBuffer.fuel === lvl ? 'var(--acc)' : 'transparent'};color:${_intakeBuffer.fuel === lvl ? '#170f05' : 'var(--dim)'}">${lvl}</button>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- Custom items -->
+    <div style="margin-bottom:18px;padding:14px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em">Other items in the car</div>
+        <button type="button" class="mini-btn" onclick="_intakeAddCustom()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add item</button>
+      </div>
+      <div id="intake-custom-list"></div>
+    </div>
+
+    <!-- Notes -->
+    <div class="f-grp">
+      <label>Notes (dents, scratches, fuel exact, other concerns)</label>
+      <textarea id="intake-notes" placeholder="e.g. small dent on rear-left door, half-used fragrance, ₹200 in glovebox…">${escapeHtml(_intakeBuffer.notes)}</textarea>
+    </div>
+  `;
+}
+
+window._intakePickFuel = function(lvl) {
+  if (!_intakeBuffer) return;
+  _intakeBuffer.fuel = lvl;
+  // Restyle buttons in place — no full re-render so checkbox state is preserved
+  document.querySelectorAll('[data-intake-fuel]').forEach(b => {
+    const on = b.dataset.intakeFuel === lvl;
+    b.style.background = on ? 'var(--acc)' : 'transparent';
+    b.style.color      = on ? '#170f05' : 'var(--dim)';
+  });
+};
+
+window._intakeAddCustom = function() {
+  if (!_intakeBuffer) return;
+  _intakeBuffer.custom.push({ name: '', present: true });
+  _intakeDrawCustom();
+};
+window._intakeRemoveCustom = function(idx) {
+  if (!_intakeBuffer) return;
+  _intakeBuffer.custom.splice(idx, 1);
+  _intakeDrawCustom();
+};
+function _intakeDrawCustom() {
+  const wrap = document.getElementById('intake-custom-list');
+  if (!wrap || !_intakeBuffer) return;
+  if (!_intakeBuffer.custom.length) {
+    wrap.innerHTML = `<div style="color:var(--faint);font-size:12.5px;padding:10px;text-align:center;background:var(--surf);border:1px dashed var(--brd2);border-radius:8px">No custom items. Click "Add item" for anything else in the car.</div>`;
+    return;
+  }
+  wrap.innerHTML = _intakeBuffer.custom.map((c, i) => `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+    <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surf);border:1px solid var(--brd2);border-radius:8px;cursor:pointer">
+      <input type="checkbox" data-intake-cust-pres="${i}" ${c.present ? 'checked' : ''} style="width:15px;height:15px" />
+    </label>
+    <input type="text" data-intake-cust-name="${i}" value="${escapeHtml(c.name)}" placeholder="Item name (e.g. Sunglasses, phone holder…)" style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt);font-family:var(--fb);font-size:13px" />
+    <button type="button" class="mini-btn danger" onclick="_intakeRemoveCustom(${i})" title="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+  </div>`).join('');
+  // Wire live updates so user edits survive the next redraw
+  wrap.querySelectorAll('[data-intake-cust-name]').forEach(el => el.addEventListener('input', e => {
+    _intakeBuffer.custom[Number(e.target.dataset.intakeCustName)].name = e.target.value;
+  }));
+  wrap.querySelectorAll('[data-intake-cust-pres]').forEach(el => el.addEventListener('change', e => {
+    _intakeBuffer.custom[Number(e.target.dataset.intakeCustPres)].present = e.target.checked;
+  }));
+}
+
+async function _saveVehicleIntake() {
+  if (!_intakeBuffer) return;
+  const j = D.jobs.find(x => x.id === _intakeBuffer.jobId);
+  if (!j) return showToast('Job vanished — refresh', 'bad');
+  // Harvest current state from the checkboxes
+  document.querySelectorAll('[data-intake-item]').forEach(el => {
+    _intakeBuffer.items[el.dataset.intakeItem] = el.checked;
+  });
+  _intakeBuffer.notes = (document.getElementById('intake-notes')?.value || '').trim();
+  // Drop empty custom rows so we don't save junk
+  const custom = (_intakeBuffer.custom || []).filter(c => (c.name || '').trim());
+  j.intake = {
+    items:       { ..._intakeBuffer.items },
+    fuel_level:  _intakeBuffer.fuel,
+    custom,
+    notes:       _intakeBuffer.notes,
+    recorded_at: nowStr(),
+    recorded_by: currentWorker?.name || ''
+  };
+  j.updated_at = nowStr();
+  await wsSave('jobs', D.jobs);
+  audit('vehicle-intake', `${j.plate} · fuel ${j.intake.fuel_level} · ${Object.values(j.intake.items).filter(Boolean).length + custom.filter(c=>c.present).length} items present`, { job_id: j.id });
+  showToast('Intake checklist saved · now add photos', 'good');
+  // Reset buffer
+  const jobId = _intakeBuffer.jobId; const plate = j.plate;
+  _intakeBuffer = null;
+  // Chain to the photo upload step. We open a tiny chooser that lets the
+  // advisor either snap photos now (mobile camera) or skip to do it later
+  // from the job card form.
+  setTimeout(() => _intakePromptPhotos(jobId, plate), 250);
+}
+
+function _intakePromptPhotos(jobId, plate) {
+  openModal({
+    title: `Add photos · ${plate || jobId}`,
+    body: `
+      <div style="font-size:13.5px;color:var(--dim);line-height:1.6;margin-bottom:14px">Capture <b>before-work</b> photos now so any pre-existing dents, scratches, or damage are on record. The customer's already with you — easy to point out the spots together.</div>
+      <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px;text-align:center">
+        <input id="intake-photo-input" type="file" accept="image/*" multiple capture="environment" style="display:none" onchange="_intakeUploadPhotos(event, '${escapeHtml(jobId)}')" />
+        <button type="button" class="add-btn" onclick="document.getElementById('intake-photo-input').click()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Take / upload photos</button>
+        <div id="intake-photo-status" style="margin-top:10px;font-size:12.5px;color:var(--faint)"></div>
+      </div>
+      <div style="margin-top:12px;font-size:12px;color:var(--faint);text-align:center">You can always add more photos later from the job card.</div>
+    `,
+    saveLabel: 'Done',
+    onSave: () => { closeModal(); }
+  });
+}
+
+window._intakeUploadPhotos = async function(ev, jobId) {
+  const files = Array.from(ev.target.files || []);
+  if (!files.length) return;
+  const status = document.getElementById('intake-photo-status');
+  if (status) status.textContent = `Uploading ${files.length} photo${files.length===1?'':'s'}…`;
+  let ok = 0;
+  for (const f of files) {
+    try { await uploadJobPhoto(jobId, f, 'Before'); ok++; }
+    catch (e) { console.warn('intake photo failed', e); }
+  }
+  if (status) status.innerHTML = `<span style="color:var(--teal)">✓ ${ok} of ${files.length} uploaded — saved against this job card.</span>`;
+  ev.target.value = '';
+};
 
 // Called as the customer field is typed/picked.
 //   • Phone auto-fills when empty
@@ -4268,6 +4482,8 @@ function _ciRenderTable(list, kind) {
         ${kind === 'awaiting'
           ? `<button class="mini-btn good" onclick="openCheckinForm('${escapeHtml(b.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Check in</button>`
           : `<button class="mini-btn warn" onclick="openCheckoutForm('${escapeHtml(b.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M16 17l5-5-5-5M21 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg>Check out</button>`}
+        ${kind === 'inside' && isServiceAdvisorRole() && !(D.jobs || []).some(j => j.booking_id === b.id)
+          ? `<button class="mini-btn good" onclick="openCreateJobCardForm('${escapeHtml(b.id)}')" title="Run vehicle intake checklist and open the job card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 11v6M9 14h6"/></svg>Create job card</button>` : ''}
         <button class="mini-btn" onclick="openBookingForm('${escapeHtml(b.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
       </div></td>
     </tr>`).join('')}</tbody>
@@ -4368,30 +4584,19 @@ async function doCheckin(bookingId) {
   b.checked_in_at = nowStr();
   b.updated_at = nowStr();
 
-  // Auto-create a job card if one doesn't already exist for this booking.
-  // Stage 1 lands the job in "Awaiting Assignment" so the floor manager knows
-  // to assign a technician; carries the booking's department for routing.
+  // Notify the service advisor that the car has arrived. Job-card creation is
+  // an explicit step the advisor now triggers (it used to auto-fire from here)
+  // — that lets the advisor do the vehicle-intake checklist with the customer
+  // present before the job is opened. Floor manager / mechanic get involved
+  // only after the advisor presses "Create job card".
   if (!D.jobs.find(j => j.booking_id === b.id)) {
-    const initialStatus = b.mechanic ? 'Technician Assigned' : 'Awaiting Assignment';
-    D.jobs.push({
-      id: uid('j'), booking_id: b.id, plate: b.plate, cust_name: b.cust_name,
-      type: b.service || '', mechanic: b.mechanic || '',
-      mechanics: b.mechanic ? [b.mechanic] : [],
-      department: b.department || 'Mechanical',
-      status: initialStatus, parts: [], labour_notes: '',
-      service_charges: [], photos: [],
-      created_at: nowStr(), completed_at: null
-    });
-    writes.push(wsSave('jobs', D.jobs));
-    const newJobId = D.jobs[D.jobs.length - 1].id;
-    // Trigger 1 — Job card created → notify floor manager (dept-routed)
-    audit('floor-manager-notify', `${b.plate} arrived for ${b.department || 'Mechanical'} — needs technician assignment`, { booking_id: b.id });
     notify({
-      kind: 'job-created',
-      message: `${b.plate} arrived for ${b.department || 'Mechanical'} — assign a technician`,
-      target: { role: 'floor_manager' },
-      job_id: newJobId
+      kind: 'car-arrived',
+      message: `${b.plate} (${b.cust_name || 'customer'}) has arrived${b.bay_name ? ' · ' + b.bay_name : (b.bay_type ? ' · waiting for ' + b.bay_type + ' bay' : '')} — start the intake checklist & open a job card`,
+      target: { role: 'service_advisor' },
+      booking_id: b.id
     });
+    audit('car-arrived', `${b.plate} (${b.cust_name || '—'})`, { booking_id: b.id });
   }
 
   writes.push(wsSave('bookings', D.bookings));
@@ -4631,6 +4836,122 @@ function _jobDeptFromBooking(j) {
 }
 
 // One-click status advance from the Jobs table (Mark Inspected, Mark Approved, Start work).
+// Quick-assign popup launched from the Notifications tab. Lets floor managers
+// (and mechanics with bay-assign rights) pick a technician + bay for a freshly-
+// created job card without diving into the full job-card form. Saves both
+// changes in one go and re-notifies the picked mechanic.
+window.openAssignFromNotif = function(jobId) {
+  const j = (D.jobs || []).find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  const b = (D.bookings || []).find(x => x.id === j.booking_id);
+  // Mechanic dropdown — active workers with any role that can hold a wrench
+  const mechs = (D.mechanics || []).filter(m => m.active !== false);
+  // Bay dropdown — show currently free bays + the one currently assigned (if any)
+  const freeBays = (D.bays || []).filter(x => _bayState(x) === 'available');
+  const currentBay = b?.bay_id ? (D.bays || []).find(x => x.id === b.bay_id) : null;
+  const bayOpts = []
+    .concat(currentBay ? [{ id: currentBay.id, label: (currentBay.type || '') + ' · Bay ' + (currentBay.num || '') + ' (currently assigned)' }] : [])
+    .concat(freeBays.filter(x => x.id !== currentBay?.id).map(x => ({ id: x.id, label: (x.type || '') + ' · Bay ' + (x.num || '') })));
+  openModal({
+    title: `Assign · ${j.plate}`,
+    body: `
+      <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);margin-bottom:16px;line-height:1.55">
+        <b style="color:var(--txt)">${escapeHtml(j.plate || '—')}</b> · ${escapeHtml(j.cust_name || '—')} · ${escapeHtml(j.type || 'Service')}<br>
+        ${b ? `Department: ${escapeHtml(b.department || j.department || 'Mechanical')} · Bay type requested: ${escapeHtml(b.bay_type || 'Any')}` : ''}
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Mechanic</label>
+          <select id="qa-mech">
+            <option value="">— Unassigned —</option>
+            ${mechs.map(m => `<option value="${escapeHtml(m.name || '')}" ${j.mechanic === m.name ? 'selected' : ''}>${escapeHtml(m.name || '—')}${m.role ? ` (${escapeHtml(m.role)})` : ''}</option>`).join('')}
+          </select>
+        </div>
+        <div class="f-grp"><label>Bay</label>
+          <select id="qa-bay">
+            <option value="">— Queue (no bay) —</option>
+            ${bayOpts.map(o => `<option value="${escapeHtml(o.id)}" ${b?.bay_id === o.id ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+          </select>
+          ${bayOpts.length === 0 ? `<div style="font-size:11.5px;color:var(--acc2);margin-top:4px">No free bays — car will wait in queue.</div>` : ''}
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--faint);margin-top:10px;line-height:1.5">Mechanic gets a notification immediately. Bay assignment updates the bay panel + check-in board.</div>
+    `,
+    saveLabel: 'Assign',
+    onSave: () => _qaApplyAssignment(jobId)
+  });
+};
+
+async function _qaApplyAssignment(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) throw new Error('Job not found');
+  const b = D.bookings.find(x => x.id === j.booking_id);
+  const newMech = (document.getElementById('qa-mech')?.value || '').trim();
+  const newBay  = (document.getElementById('qa-bay')?.value  || '').trim();
+  const writes = [];
+  const prevMech = j.mechanic || '';
+  // ── Mechanic side ──
+  if (newMech !== prevMech) {
+    j.mechanic = newMech;
+    j.mechanics = newMech ? [newMech] : [];
+    if (newMech && j.status === 'Awaiting Assignment') j.status = 'Technician Assigned';
+    if (!newMech && j.status === 'Technician Assigned') j.status = 'Awaiting Assignment';
+    j.updated_at = nowStr();
+    writes.push(wsSave('jobs', D.jobs));
+  }
+  // ── Bay side ──
+  if (b) {
+    const prevBayId = b.bay_id || '';
+    if (newBay !== prevBayId) {
+      // Free the old bay if any
+      if (prevBayId) {
+        const oldBay = D.bays.find(x => x.id === prevBayId);
+        if (oldBay) { oldBay.status = 'available'; oldBay.booking_id = null; oldBay.plate = ''; }
+      }
+      // Take the new bay if picked
+      if (newBay) {
+        const bay = D.bays.find(x => x.id === newBay);
+        if (!bay) throw new Error('Selected bay no longer exists');
+        if (_bayState(bay) === 'maintenance') throw new Error('Bay is under maintenance');
+        if (_bayState(bay) === 'occupied' && bay.booking_id !== b.id) throw new Error('Bay was just taken by another car');
+        bay.status = 'occupied';
+        bay.booking_id = b.id;
+        bay.plate = b.plate;
+        b.bay_id   = bay.id;
+        b.bay_name = (bay.type || '') + ' · Bay ' + (bay.num || '');
+        b.bay_num  = bay.num || '';
+      } else {
+        b.bay_id = ''; b.bay_name = ''; b.bay_num = '';
+      }
+      b.updated_at = nowStr();
+      writes.push(wsSave('bays', D.bays));
+      writes.push(wsSave('bookings', D.bookings));
+    }
+  }
+  if (!writes.length) {
+    showToast('Nothing changed', 'good');
+    closeModal();
+    return;
+  }
+  closeModal();
+  showToast(`${j.plate} assigned${newMech ? ' to ' + newMech : ''}${b?.bay_name ? ' · ' + b.bay_name : ''}`, 'good');
+  audit('job-assign', `${j.plate} → ${newMech || 'unassigned'}${b?.bay_name ? ' · ' + b.bay_name : ''}`, { job_id: jobId, booking_id: j.booking_id });
+  // Re-notify the newly-picked mechanic so they see it on their device
+  if (newMech && newMech !== prevMech) {
+    notify({
+      kind: 'job-assigned',
+      message: `${j.plate} (${j.cust_name || 'customer'}) — ${j.type || 'service'} assigned to you${b?.bay_name ? ' · ' + b.bay_name : ''}`,
+      target: { worker_name: newMech },
+      job_id: jobId
+    });
+  }
+  publishTracking(j.booking_id);
+  await Promise.all(writes);
+  if (currentTab === 'jobs')          renderJobs(true);
+  else if (currentTab === 'checkin')  renderCheckin(true);
+  else if (currentTab === 'bays')     (typeof renderBays === 'function') && renderBays(true);
+  else if (currentTab === 'notifications') renderNotifications();
+}
+
 window.markJobStatus = async function(jobId, newStatus) {
   const j = D.jobs.find(x => x.id === jobId);
   if (!j) return;
@@ -5815,17 +6136,54 @@ let _editingVehicles = [];
 window.openCustomerForm = function(id) {
   const c = id ? (D.customers.find(x => x.id === id) || {}) : {};
   const isNew = !id;
+  const custType = c.customer_type || 'individual';
+  // Back-compat: old records used a single `address` field. Keep showing it
+  // in addr1 if the new split fields are blank.
+  const a1 = c.addr1 || c.address || '';
   _editingVehicles = Array.isArray(c.vehicles) ? c.vehicles.map(v => ({...v})) : [];
+  const stateOpts = INDIAN_STATES.map(s => `<option value="${escapeHtml(s.name)}" ${(c.state || '') === s.name ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('');
   openModal({
     title: isNew ? 'New customer' : `Edit · ${c.name}`,
     body: `
-      <div class="f-row">
-        <div class="f-grp"><label>Full name <span class="req">*</span></label><input id="cf-name" type="text" value="${escapeHtml(c.name || '')}" required /></div>
-        <div class="f-grp"><label>Phone</label><input id="cf-phone" type="tel" value="${escapeHtml(c.phone || '')}" placeholder="+91 ..." /></div>
+      <!-- Type toggle: individual vs corporate/fleet -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em">Customer details</div>
+        <div style="display:inline-flex;gap:4px;padding:3px;background:var(--bg2);border:1px solid var(--brd);border-radius:100px;font-size:12px;font-weight:600">
+          ${['individual','corporate'].map(t => `<button type="button" data-cf-type="${t}" onclick="_cfSetType('${t}')" style="padding:7px 14px;border-radius:100px;border:0;cursor:pointer;font-family:var(--fb);font-size:12px;font-weight:600;background:${custType === t ? 'var(--acc)' : 'transparent'};color:${custType === t ? '#170f05' : 'var(--dim)'}">${t === 'individual' ? 'Individual' : 'Corporate / Fleet'}</button>`).join('')}
+        </div>
       </div>
-      <div class="f-row">
+      <input type="hidden" id="cf-type" value="${escapeHtml(custType)}" />
+
+      <!-- Corporate-only block (shown when type=corporate) -->
+      <div id="cf-corp-block" style="display:${custType === 'corporate' ? '' : 'none'};margin-bottom:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.25);border-radius:9px">
+        <div class="f-row r3">
+          <div class="f-grp"><label>Company name <span class="req">*</span></label><input id="cf-company" type="text" value="${escapeHtml(c.company_name || '')}" placeholder="Acme Logistics Pvt Ltd" /></div>
+          <div class="f-grp"><label>GSTIN <span class="req">*</span></label><input id="cf-gstin" type="text" maxlength="15" value="${escapeHtml(c.gstin || '')}" style="text-transform:uppercase" /></div>
+          <div class="f-grp"><label>Ref no.</label><input id="cf-refno" type="text" value="${escapeHtml(c.ref_no || '')}" /></div>
+        </div>
+      </div>
+
+      <div class="f-row r3">
+        <div class="f-grp"><label>Full name <span class="req">*</span></label><input id="cf-name" type="text" value="${escapeHtml(c.name || '')}" required /></div>
+        <div class="f-grp"><label>Mobile no. <span class="req">*</span></label><input id="cf-phone" type="tel" value="${escapeHtml(c.phone || '')}" placeholder="+91 ..." /></div>
+        <div class="f-grp"><label>Alt contact</label><input id="cf-phone2" type="tel" value="${escapeHtml(c.phone2 || '')}" /></div>
+      </div>
+      <div class="f-row r3">
         <div class="f-grp"><label>Email</label><input id="cf-email" type="email" value="${escapeHtml(c.email || '')}" placeholder="customer@example.in" /></div>
-        <div class="f-grp"><label>Address</label><input id="cf-addr" type="text" value="${escapeHtml(c.address || '')}" placeholder="Shop 12, MG Road, Pune" /></div>
+        <div class="f-grp"><label>Driver / contact name</label><input id="cf-driver" type="text" value="${escapeHtml(c.driver_name || '')}" /></div>
+        <div class="f-grp"><label>Birth date</label><input id="cf-dob" type="date" value="${escapeHtml(c.dob || '')}" /></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Flat / House / Building</label><input id="cf-addr1" type="text" value="${escapeHtml(a1)}" /></div>
+        <div class="f-grp"><label>Colony / Street / Location</label><input id="cf-addr2" type="text" value="${escapeHtml(c.addr2 || '')}" /></div>
+        <div class="f-grp"><label>City</label><input id="cf-city" type="text" value="${escapeHtml(c.city || '')}" /></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>State</label>
+          <select id="cf-state"><option value="">—</option>${stateOpts}</select>
+        </div>
+        <div class="f-grp"><label>Pincode</label><input id="cf-pin" type="text" inputmode="numeric" maxlength="6" value="${escapeHtml(c.pincode || '')}" /></div>
+        <div class="f-grp"></div>
       </div>
       <div class="f-row r1">
         <div class="f-grp"><label>Notes</label><textarea id="cf-notes" placeholder="VIP, prefers WhatsApp, etc.">${escapeHtml(c.notes || '')}</textarea></div>
@@ -5847,9 +6205,21 @@ window.openCustomerForm = function(id) {
 
       <div class="f-err" id="cf-err"></div>`,
     saveLabel: isNew ? 'Add customer' : 'Save changes',
-    onSave: () => saveCustomer(id || null)
+    onSave: () => saveCustomer(id || null),
+    wide: true
   });
   _renderVehiclesInForm();
+};
+
+// Type pill toggle. Updates hidden field + shows/hides corporate block.
+window._cfSetType = function(t) {
+  document.getElementById('cf-type').value = t;
+  document.getElementById('cf-corp-block').style.display = (t === 'corporate') ? '' : 'none';
+  document.querySelectorAll('[data-cf-type]').forEach(btn => {
+    const on = btn.dataset.cfType === t;
+    btn.style.background = on ? 'var(--acc)' : 'transparent';
+    btn.style.color      = on ? '#170f05' : 'var(--dim)';
+  });
 };
 
 function _renderVehiclesInForm() {
@@ -10618,7 +10988,19 @@ async function renderNotifications(force = false) {
             ${unread ? '<span style="color:var(--blue);font-weight:700">● NEW · </span>' : ''}
             from <b style="color:var(--dim)">${escapeHtml(n.by || 'system')}</b>${n.by_role ? ` (${escapeHtml(n.by_role)})` : ''} ${escapeHtml(targetLabel)}
           </div>
-          ${n.job_id ? `<button class="mini-btn" onclick="openJobForm('${escapeHtml(n.job_id)}')">Open job</button>` : ''}
+          ${(() => {
+            // job-needs-assignment + job-assigned land on floor managers /
+            // mechanics whose first useful action is to pick a tech + bay.
+            // Other notification kinds keep the plain Open-job button.
+            if (!n.job_id) return '';
+            const needsAssign = ['job-needs-assignment','job-assigned','job-created'].includes(n.kind);
+            return needsAssign
+              ? `<div style="display:flex;gap:6px">
+                  <button class="mini-btn good" onclick="openAssignFromNotif('${escapeHtml(n.job_id)}')" title="Pick a mechanic & bay without opening the full job form"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>Assign</button>
+                  <button class="mini-btn" onclick="openJobForm('${escapeHtml(n.job_id)}')">Open job</button>
+                </div>`
+              : `<button class="mini-btn" onclick="openJobForm('${escapeHtml(n.job_id)}')">Open job</button>`;
+          })()}
         </div>
       </div>
     </div>`;
