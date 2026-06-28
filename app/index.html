@@ -1263,27 +1263,6 @@ fbDb.enablePersistence({ synchronizeTabs: true }).catch(err => {
   else console.warn('[fb] persistence error:', err);
 });
 
-
-
-// Example: Listen to bookings collection
-fbDb.collection('users').doc(userId)
-  .collection('bookings')
-  .onSnapshot(snapshot => {
-    snapshot.docs.forEach(doc => {
-      // Update UI whenever bookings change on any device
-      updateBookingUI(doc.data());
-    });
-  });
-// When you edit a booking on device 1
-fbDb.collection('users').doc(userId)
-  .collection('bookings')
-  .doc(bookingId)
-  .set(updatedData, { merge: true }) // Use merge:true to keep other fields
-  .then(() => console.log('Synced to Firebase'))
-  .catch(err => console.error('Sync failed:', err));
-
-
-
 // ══════════════════════════════════════════
 //  GLOBAL STATE
 // ══════════════════════════════════════════
