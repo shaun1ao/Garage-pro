@@ -1368,12 +1368,14 @@ function showOnly(overlayId) {
 // ══════════════════════════════════════════
 fbAuth.onAuthStateChanged(async (user) => {
   if (!user) {
+    unsubscribeLive();   // drop any old live listeners before we lose the uid
     currentUser = null; currentWorker = null;
     sessionStorage.removeItem('gp_worker:' + (currentUser?.uid || ''));
     showOnly('overlaySignin');
     return;
   }
   currentUser = user;
+  subscribeLiveCollections();   // start pushing remote writes into D in real time
   const el = document.getElementById('signedInEmail');
   if (el) el.textContent = user.email || '—';
 
@@ -2072,21 +2074,13 @@ function wsRef() {
 }
 function wsCol(name) { return wsRef().collection(name); }
 
-// Cache-first read: hit IndexedDB cache for an instant first paint, then fall
-// back to a server fetch only if there's no cached copy yet. Firestore keeps
-// the local cache in sync automatically via onSnapshot pipes, so the cache
-// is fresh as long as the user has been online recently.
+// Default get strategy — IndexedDB persistence makes the FIRST get hot for the
+// rest of the session and onSnapshot subscriptions (subscribeLiveCollections)
+// keep that cache fresh as other devices write. The old cache-first variant
+// returned stale rows when another device updated mid-session.
 async function wsLoad(name) {
   try {
-    const ref = wsCol(name).doc('data');
-    // Try cache first — this is instant (<5ms) when the doc has ever been read
-    try {
-      const cached = await ref.get({ source: 'cache' });
-      if (cached.exists) return cached.data().items || [];
-    } catch (cacheMiss) {
-      // No cached copy yet — fall through to server fetch
-    }
-    const d = await ref.get();
+    const d = await wsCol(name).doc('data').get();
     return d.exists ? (d.data().items || []) : [];
   } catch (e) {
     console.warn(`[wsLoad ${name}] failed:`, e);
@@ -2231,10 +2225,10 @@ async function loadAllData(force = false) {
     try { await _loadingPromise; } catch (e) {}
     if (!force) return;  // someone else already refreshed; nothing more to do
   }
-  // 5-minute grace — IndexedDB persistence keeps reads hot, and Firestore
-  // pipes changes to the local cache via background sync. Re-fetching every
-  // 60s was making tab-switches feel laggy. Click "Refresh" to force-bypass.
-  if (!force && D.loadedAt && (Date.now() - D.loadedAt < 300000)) return;
+  // Short 30-second grace — onSnapshot keeps D fresh between calls. Grace
+  // exists only to coalesce burst tab-switches; real updates come via the
+  // live subscriptions, not polling.
+  if (!force && D.loadedAt && (Date.now() - D.loadedAt < 30000)) return;
   _loadingPromise = (async () => {
     const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, invoices, audit, vehicleDBArr, notifications, settingsArr] =
       await Promise.all([
@@ -2266,6 +2260,84 @@ async function loadAllData(force = false) {
   finally { _loadingPromise = null; }
 }
 window.D = D; window.loadAllData = loadAllData;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  LIVE SYNC — onSnapshot subscriptions per collection. Other devices'
+//  writes push to this client in ~1s via Firestore's realtime listeners,
+//  so all tabs auto-update without manual refresh. Each subscription:
+//   1. Writes the latest items[] into D
+//   2. Calls a render coalescer (debounced) for the active tab
+//   3. Skips local-origin events (hasPendingWrites) so we don't double-render
+//      our own optimistic mutations
+//  Unsubscribed on sign-out to avoid cross-account leaks.
+// ══════════════════════════════════════════════════════════════════════════
+let _liveSubs = [];          // active unsubscribe handles
+let _renderCoalesce = null;  // debounce timer
+const LIVE_COLLECTIONS = [
+  'bookings','bays','jobs','queue','customers','mechanics','inventory',
+  'timesheets','parts_requests','invoices','audit','notifications','settings','vehicleDB'
+];
+
+function subscribeLiveCollections() {
+  unsubscribeLive();
+  if (!currentUser) return;
+  for (const name of LIVE_COLLECTIONS) {
+    const ref = wsCol(name).doc('data');
+    const unsub = ref.onSnapshot({ includeMetadataChanges: false }, snap => {
+      // Skip events that originated from this client (our own optimistic write)
+      if (snap.metadata.hasPendingWrites) return;
+      const data = snap.exists ? (snap.data() || {}) : {};
+      const items = Array.isArray(data.items) ? data.items : [];
+      if (name === 'vehicleDB')      D.vehicleDB = (items[0] && items[0].db) || null;
+      else if (name === 'settings')  D.settings  = items[0] || {};
+      else                            D[name]    = items;
+      D.loadedAt = Date.now();
+      _coalesceRerender();
+      // Special-case the notification badge — it should always reflect latest
+      if (name === 'notifications' && typeof _renderNotifBadge === 'function') _renderNotifBadge();
+    }, err => {
+      console.warn(`[live ${name}] subscription error:`, err);
+    });
+    _liveSubs.push(unsub);
+  }
+  console.log('[live] subscribed to', LIVE_COLLECTIONS.length, 'collections');
+}
+window.subscribeLiveCollections = subscribeLiveCollections;
+
+function unsubscribeLive() {
+  for (const u of _liveSubs) { try { u(); } catch(_) {} }
+  _liveSubs = [];
+}
+window.unsubscribeLive = unsubscribeLive;
+
+// Re-render the active tab when remote data lands. Debounced so a burst of
+// writes (e.g. another device saves 14 collections at sign-in) only triggers
+// one render at the end.
+function _coalesceRerender() {
+  if (_renderCoalesce) clearTimeout(_renderCoalesce);
+  _renderCoalesce = setTimeout(() => {
+    _renderCoalesce = null;
+    try {
+      const t = currentTab;
+      if      (t === 'dashboard')     renderDashboard && renderDashboard();
+      else if (t === 'bookings')      renderBookings && renderBookings();
+      else if (t === 'checkin')       renderCheckin && renderCheckin();
+      else if (t === 'jobs')          renderJobs && renderJobs();
+      else if (t === 'queue')         renderQueue && renderQueue();
+      else if (t === 'customers')     renderCustomers && renderCustomers();
+      else if (t === 'workers')       renderWorkers && renderWorkers();
+      else if (t === 'bays')          renderBays && renderBays();
+      else if (t === 'inventory')     renderInventory && renderInventory();
+      else if (t === 'parts')         renderParts && renderParts();
+      else if (t === 'invoices')      renderInvoices && renderInvoices();
+      else if (t === 'reports')       renderReports && renderReports();
+      else if (t === 'timesheets')    renderTimesheets && renderTimesheets();
+      else if (t === 'notifications') renderNotifications && renderNotifications();
+      else if (t === 'audit')         renderAudit && renderAudit();
+      else if (t === 'settings')      renderSettings && renderSettings();
+    } catch (e) { console.warn('[live rerender]', e); }
+  }, 250);
+}
 
 // ══════════════════════════════════════════
 //  DASHBOARD
@@ -3581,49 +3653,73 @@ window.openCreateJobCardForm = function(bookingId) {
     if (!isServiceAdvisorRole()) {
       return customAlert('Only the Service Advisor (or Owner/Manager) can open a job card.', { title: 'Service Advisor only' });
     }
-    _lastBookingCustomerId = null;
-    _editingBooking = { complaints: Array.isArray(existing.complaints) ? existing.complaints.slice() : [] };
-    const c = D.customers.find(x => (x.name || '').toLowerCase() === (existing.cust_name || '').toLowerCase());
-    if (c) _lastBookingCustomerId = c.id;
-
-    // Floor managers list — SA picks who'll own assigning the mechanic.
-    // Falls back to anyone with floor_manager role; if none configured, the
-    // picker shows empty and the job stays unassigned.
+    // Lean form — review summary, pick FM, optionally append a complaint at intake.
+    // We do NOT re-validate the whole appointment here (that was failing silently
+    // when old bookings missed fields like time_end). Edit the appointment via
+    // the row's Edit button first if changes are needed.
     const fmList = (D.mechanics || []).filter(m => m.active !== false && (m.role || '').toLowerCase() === 'floor_manager');
-    const fmPickerHtml = `
-      <div style="margin-top:10px;padding:12px 14px;background:rgba(99,159,255,.06);border:1px solid rgba(99,159,255,.30);border-radius:9px">
-        <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--blue,#639fff);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Assign floor manager</div>
-        <select id="cjc-fm" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
-          <option value="">— Pick a floor manager —</option>
-          ${fmList.map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('')}
-        </select>
-        <div style="font-size:11.5px;color:var(--faint);margin-top:6px">${fmList.length ? 'They\'ll get a notification and assign a mechanic.' : 'No floor managers configured — add one in Workers tab.'}</div>
-      </div>`;
-
+    const complaintsRows = (existing.complaints || []).map(c =>
+      `<li style="margin-bottom:3px">${escapeHtml(c.text || c)}</li>`).join('');
     openModal({
       title: `Create job card · ${existing.plate || existing.id}`,
-      body: _bookingFormHTML(existing) + fmPickerHtml,
-      saveLabel: 'Save & create job card',
+      body: `
+        <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);margin-bottom:16px;line-height:1.55">
+          <b style="color:var(--txt)">${escapeHtml(existing.cust_name || '—')}</b> · ${escapeHtml(existing.plate || '—')} · ${escapeHtml(existing.service || 'Service')}<br>
+          Booked: ${escapeHtml(existing.date || '—')} ${escapeHtml(existing.time_start || existing.time || '')}${existing.time_end ? ' – ' + escapeHtml(existing.time_end) : ''}<br>
+          Department: ${escapeHtml(existing.department || 'Mechanical')}
+        </div>
+
+        <div style="margin-bottom:14px;padding:12px 14px;background:rgba(32,227,178,.05);border:1px solid rgba(32,227,178,.30);border-radius:9px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--teal,#20e3b2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Customer concerns (from appointment)</div>
+          ${complaintsRows ? `<ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.5;color:var(--txt)">${complaintsRows}</ul>` : '<div style="font-size:12.5px;color:var(--faint)">No complaints recorded yet.</div>'}
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input id="cjc-cmp-input" type="text" placeholder="Add a complaint at intake…" style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:13px" />
+            <button type="button" class="mini-btn" onclick="_cjcAddComplaint()" style="white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+          </div>
+          <div id="cjc-extra-list" style="margin-top:8px;font-size:12.5px;color:var(--dim)"></div>
+        </div>
+
+        <div style="padding:12px 14px;background:rgba(99,159,255,.06);border:1px solid rgba(99,159,255,.30);border-radius:9px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--blue,#639fff);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Assign floor manager</div>
+          <select id="cjc-fm" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
+            <option value="">— Pick a floor manager —</option>
+            ${fmList.map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('')}
+          </select>
+          <div style="font-size:11.5px;color:var(--faint);margin-top:6px">${fmList.length ? 'They get a notification and assign a mechanic.' : 'No floor managers configured. Add one in Workers tab — job will still be created.'}</div>
+        </div>
+      `,
+      saveLabel: 'Create job card',
       onSave: async () => {
         const fmName = (document.getElementById('cjc-fm')?.value || '').trim();
-        await saveBooking(bookingId);
+        // Persist any new complaints onto the booking before we spin the job
+        if (_cjcExtraComplaints.length) {
+          const b = D.bookings.find(x => x.id === bookingId);
+          if (b) {
+            b.complaints = (b.complaints || []).concat(_cjcExtraComplaints.map(t => ({ id: uid('cmp'), text: t })));
+            b.updated_at = nowStr();
+            await wsSave('bookings', D.bookings);
+          }
+        }
         await _spinJobCardFromBooking(bookingId, { floorManager: fmName });
-      },
-      wide: true
+        _cjcExtraComplaints = [];
+      }
     });
-    setTimeout(() => {
-      try {
-        _bookingModelChain('init');
-        _bookingDrawComplaints();
-        _bookingSyncStateCode();
-        const ps = document.getElementById('bf-plate-suffix');
-        if (ps) ps.addEventListener('input', _bookingFillFromPlate);
-      } catch (e) { console.warn('[CJC post-init]', e); }
-    }, 0);
   } catch (e) {
     console.error('[openCreateJobCardForm]', e);
     customAlert('Couldn\'t open the create-job-card form: ' + (e?.message || e), { title: 'Error' });
   }
+};
+
+// Buffer for complaints typed during CJC intake
+let _cjcExtraComplaints = [];
+window._cjcAddComplaint = function() {
+  const inp = document.getElementById('cjc-cmp-input');
+  const t = (inp?.value || '').trim();
+  if (!t) return;
+  _cjcExtraComplaints.push(t);
+  inp.value = '';
+  const list = document.getElementById('cjc-extra-list');
+  if (list) list.innerHTML = `<b>+ ${_cjcExtraComplaints.length} new at intake:</b> ` + _cjcExtraComplaints.map(c => escapeHtml(c)).join(' · ');
 };
 
 // Stand up a Stage-1 job card from an existing booking and notify the
@@ -10924,7 +11020,7 @@ window.audit = function(kind, detail, meta) {
 //    { worker_name: 'Aslam' }         — by display name (when ID isn't known)
 //    { broadcast: true }              — everyone sees it
 // ══════════════════════════════════════════════════════════════════════════
-window.notify = function({ kind, message, target, job_id, meta }) {
+window.notify = function({ kind, message, target, job_id, booking_id, meta }) {
   if (!Array.isArray(D.notifications)) D.notifications = [];
   const note = {
     id: uid('notif'),
@@ -10933,6 +11029,7 @@ window.notify = function({ kind, message, target, job_id, meta }) {
     message: message || '',
     target: target || { broadcast: true },
     job_id: job_id || '',
+    booking_id: booking_id || '',
     meta: meta || null,
     by: currentWorker?.name || 'system',
     by_role: currentWorker?.role || '',
