@@ -709,11 +709,11 @@ input[list]{background:var(--bg2)}
         </button>
         <button class="snav" data-tab="_newbk" onclick="switchTab('bookings'); setTimeout(()=>openBookingForm(),200)">
           <svg class="snav-icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          New Booking
+          New Appointment
         </button>
         <button class="snav" data-tab="bookings" onclick="switchTab('bookings')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h6"/></svg>
-          Bookings
+          Appointments
         </button>
         <button class="snav" data-tab="checkin" onclick="switchTab('checkin')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -844,13 +844,18 @@ input[list]{background:var(--bg2)}
       <!-- All other tabs are placeholders for now — populated in later steps -->
       <div class="tab-panel" id="tab-bookings">
         <div class="page-head">
-          <div><h2>Bookings</h2><div class="dash-meta"><span class="live-dot"></span><span id="bkCrumb">—</span></div></div>
+          <div><h2>Appointments</h2><div class="dash-meta"><span class="live-dot"></span><span id="bkCrumb">—</span></div></div>
           <div style="display:flex;gap:8px">
             <button class="refresh-btn" onclick="renderBookings(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
-            <button class="add-btn" onclick="openBookingForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New booking</button>
+            <button class="add-btn" onclick="openBookingForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New appointment</button>
           </div>
         </div>
         <div class="toolbar">
+          <!-- List / Calendar view toggle -->
+          <div style="display:inline-flex;gap:0;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;overflow:hidden">
+            <button id="bkViewListBtn" class="refresh-btn" style="border-radius:0;border:0;background:var(--acc);color:#170f05" onclick="_bkSetView('list')">List</button>
+            <button id="bkViewCalBtn"  class="refresh-btn" style="border-radius:0;border:0;background:transparent" onclick="_bkSetView('calendar')">Calendar</button>
+          </div>
           <input type="text" id="bkSearch" placeholder="Search plate, customer, ref…" oninput="renderBookings()" />
           <select id="bkStatus" onchange="renderBookings()">
             <option value="">All statuses</option>
@@ -864,6 +869,7 @@ input[list]{background:var(--bg2)}
           <span class="pill"><b id="bkCount">0</b>&nbsp;results</span>
         </div>
         <div id="bkTableWrap"></div>
+        <div id="bkCalendarWrap" style="display:none"></div>
       </div>
       <div class="tab-panel" id="tab-checkin">
         <div class="page-head">
@@ -1257,6 +1263,27 @@ fbDb.enablePersistence({ synchronizeTabs: true }).catch(err => {
   else console.warn('[fb] persistence error:', err);
 });
 
+
+
+// Example: Listen to bookings collection
+fbDb.collection('users').doc(userId)
+  .collection('bookings')
+  .onSnapshot(snapshot => {
+    snapshot.docs.forEach(doc => {
+      // Update UI whenever bookings change on any device
+      updateBookingUI(doc.data());
+    });
+  });
+// When you edit a booking on device 1
+fbDb.collection('users').doc(userId)
+  .collection('bookings')
+  .doc(bookingId)
+  .set(updatedData, { merge: true }) // Use merge:true to keep other fields
+  .then(() => console.log('Synced to Firebase'))
+  .catch(err => console.error('Sync failed:', err));
+
+
+
 // ══════════════════════════════════════════
 //  GLOBAL STATE
 // ══════════════════════════════════════════
@@ -1286,6 +1313,7 @@ function departments() {
   return list.filter(s => String(s || '').trim());
 }
 window.departments = departments;
+
 
 
 function currentSub() {
@@ -1810,6 +1838,45 @@ function enterApp() {
   renderHeader();
   renderSidebarVisibility();
   switchTab(currentTab);
+  // Beginning-of-day briefing — once per day, per worker, fired the first
+  // time they sign in. Notifies service advisors with today's appointment
+  // count so they can prepare. No-op for non-advisor roles.
+  _maybeFireMorningBriefing();
+}
+
+// Send a "today at a glance" notification on the first login of the day
+// per (uid, worker). Uses localStorage so it doesn't double-fire across
+// reloads. Targets the service_advisor role plus anyone with the same
+// role assigned on the workshop.
+function _maybeFireMorningBriefing() {
+  if (!currentUser || !currentWorker) return;
+  const role = (currentWorker.role || '').toLowerCase();
+  // Only fire for advisor + owner + manager (they're the ones planning the day).
+  if (!['service_advisor','owner','manager'].includes(role)) return;
+  const today = todayStr();
+  const key = `gp_briefing:${currentUser.uid}:${currentWorker.id}:${today}`;
+  if (localStorage.getItem(key)) return;
+  // Wait a beat for D.bookings to be hydrated, then fire once
+  setTimeout(() => {
+    try {
+      const todaysAppts = (D.bookings || []).filter(b =>
+        (b.date || '') === today && (b.status || 'Scheduled') !== 'Cancelled'
+      );
+      if (!todaysAppts.length) {
+        localStorage.setItem(key, '1');   // still mark so we don't keep checking
+        return;
+      }
+      const earliest = todaysAppts.map(b => b.time_start || b.time || '').filter(Boolean).sort()[0] || '';
+      const plates   = todaysAppts.map(b => b.plate || '—').filter(Boolean).slice(0, 8).join(', ');
+      const more     = todaysAppts.length > 8 ? ` +${todaysAppts.length - 8} more` : '';
+      notify({
+        kind: 'morning-briefing',
+        message: `Good morning — ${todaysAppts.length} appointment${todaysAppts.length === 1 ? '' : 's'} today${earliest ? `, first at ${earliest}` : ''}: ${plates}${more}`,
+        target: { role: 'service_advisor' }
+      });
+      localStorage.setItem(key, '1');
+    } catch (e) { console.warn('[morning-briefing]', e); }
+  }, 1200);
 }
 
 function renderHeader() {
@@ -2330,7 +2397,7 @@ async function renderDashboard(force = false) {
         <td>${statusPill(jstatus)}</td>
         <td>${escapeHtml(b.mechanic || job?.mechanic || '—')}</td>
         <td><div class="row-act">
-          <button class="mini-btn" onclick="_dashGoToBooking('${escapeHtml(b.id)}')" title="Edit this booking">
+          <button class="mini-btn" onclick="_dashGoToBooking('${escapeHtml(b.id)}')" title="Edit this appointment">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 12h18M15 5l7 7-7 7"/></svg>Open
           </button>
           <button class="mini-btn good" onclick="_dashInvoice('${escapeHtml(b.id)}')" title="Generate / open invoice for this booking">
@@ -2352,7 +2419,7 @@ window._dashGoToBooking = function(bookingId) {
 };
 window._dashCheckout = function(bookingId) {
   const b = D.bookings.find(x => x.id === bookingId);
-  if (!b) return showToast('Booking not found', 'bad');
+  if (!b) return showToast('Appointment not found', 'bad');
   if (b.status !== 'Arrived') {
     return showToast('Car must be checked in before it can be checked out', 'bad');
   }
@@ -2362,7 +2429,7 @@ window._dashCheckout = function(bookingId) {
 window._dashInvoice = async function(bookingId) {
   await loadAllData(true);
   const b = D.bookings.find(x => x.id === bookingId);
-  if (!b) return showToast('Booking not found', 'bad');
+  if (!b) return showToast('Appointment not found', 'bad');
   // Prefer the job linked to this booking. Generate-or-reuse the invoice.
   const job = D.jobs.find(j => j.booking_id === bookingId);
   if (job) return generateInvoice(job.id);
@@ -3088,13 +3155,13 @@ async function renderBookings(force = false) {
   document.getElementById('bkCount').textContent = list.length;
   const wrap = document.getElementById('bkTableWrap');
   if (!list.length) {
-    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">No bookings match. ${D.bookings.length === 0 ? 'Create your first booking with the "New booking" button above.' : 'Adjust your filters.'}</td></tr></table>`;
+    wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">No appointments match. ${D.bookings.length === 0 ? 'Create your first appointment with the "New appointment" button above.' : 'Adjust your filters.'}</td></tr></table>`;
     return;
   }
   wrap.innerHTML = `<table class="list-tbl">
     <thead><tr>
-      <th>Booking #</th><th>Date</th><th>Time</th><th>Plate</th><th>Customer</th>
-      <th>Service</th><th>Bay</th><th>Mechanic</th><th>Status</th><th style="text-align:right">Actions</th>
+      <th>Appt #</th><th>Date</th><th>Time</th><th>Plate</th><th>Customer</th>
+      <th>Service</th><th>Mechanic</th><th>Status</th><th style="text-align:right">Actions</th>
     </tr></thead>
     <tbody>${list.map(b => {
       const status = b.status || 'Scheduled';
@@ -3104,17 +3171,19 @@ async function renderBookings(force = false) {
       return `<tr>
         <td class="k" style="font-family:'Courier New',monospace;font-size:12.5px">${escapeHtml(b.booking_no || '—')}${b.booking_ref ? `<br><span style="font-size:10.5px;color:var(--faint)">ref ${escapeHtml(b.booking_ref)}</span>` : ''}</td>
         <td class="k">${escapeHtml(b.date || '—')}</td>
-        <td>${escapeHtml(b.time || '—')}</td>
+        <td>${escapeHtml((b.time_start || b.time || '—') + (b.time_end ? ' – ' + b.time_end : ''))}</td>
         <td><span class="plate">${escapeHtml(b.plate || '—')}</span></td>
         <td class="k">${escapeHtml(b.cust_name || '—')}</td>
         <td>${escapeHtml(b.service || '—')}</td>
-        <td>${escapeHtml(b.bay_name || b.bay_type || '—')}</td>
         <td>${escapeHtml(b.mechanic || '—')}</td>
         <td>${statusPill(status)}</td>
         <td><div class="row-act">
           <button class="mini-btn" onclick="openBookingForm('${escapeHtml(b.id)}')" title="Edit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit
           </button>
+          ${(D.jobs || []).some(j => j.booking_id === b.id)
+            ? `<button class="mini-btn" disabled style="opacity:.5" title="Job card already exists for this appointment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Job created</button>`
+            : `<button class="mini-btn good" onclick="openCreateJobCardForm('${escapeHtml(b.id)}')" title="Review details, then spin up a job card and notify the assigned mechanic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 11v6M9 14h6"/></svg>Create job card</button>`}
           ${b.cust_email ? `<button class="mini-btn" onclick="emailBookingCustomer('${escapeHtml(b.id)}')" title="Email ${escapeHtml(b.cust_email)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</button>` : ''}
           ${canCancel ? `<button class="mini-btn danger" onclick="cancelBooking('${escapeHtml(b.id)}')" title="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Cancel</button>` : ''}
         </div></td>
@@ -3123,6 +3192,108 @@ async function renderBookings(force = false) {
   </table>`;
 }
 window.renderBookings = renderBookings;
+
+// ────────────────────────────────────────────────────────────────────────
+//  Calendar view for Appointments — 7-day grid starting from the date
+//  in the bkDate filter (or today). Each day column shows time-ranged
+//  appointment blocks. Click a block to open its edit form.
+// ────────────────────────────────────────────────────────────────────────
+let _bkView = 'list';   // 'list' | 'calendar'
+let _bkCalAnchor = '';  // ISO date the calendar week starts at (Mon)
+
+window._bkSetView = function(view) {
+  _bkView = view;
+  document.getElementById('bkTableWrap').style.display    = view === 'list' ? '' : 'none';
+  document.getElementById('bkCalendarWrap').style.display = view === 'calendar' ? '' : 'none';
+  // Toggle button styling
+  const lbtn = document.getElementById('bkViewListBtn');
+  const cbtn = document.getElementById('bkViewCalBtn');
+  if (lbtn && cbtn) {
+    lbtn.style.background = view === 'list' ? 'var(--acc)' : 'transparent';
+    lbtn.style.color      = view === 'list' ? '#170f05' : '';
+    cbtn.style.background = view === 'calendar' ? 'var(--acc)' : 'transparent';
+    cbtn.style.color      = view === 'calendar' ? '#170f05' : '';
+  }
+  if (view === 'calendar') _bkRenderCalendar();
+};
+
+// Helpers: ISO yyyy-mm-dd ↔ Date
+function _bkIso(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function _bkParseIso(s) { const [y,m,d] = (s || '').split('-').map(Number); return new Date(y || 1970, (m||1)-1, d||1); }
+function _bkMonday(d) { const day = d.getDay(); const off = (day + 6) % 7; const nd = new Date(d); nd.setDate(d.getDate() - off); return nd; }
+function _bkAddDays(d, n) { const nd = new Date(d); nd.setDate(d.getDate() + n); return nd; }
+
+// Move the week window forwards or backwards
+window._bkCalShift = function(deltaDays) {
+  const anchor = _bkCalAnchor ? _bkParseIso(_bkCalAnchor) : _bkMonday(new Date());
+  _bkCalAnchor = _bkIso(_bkAddDays(anchor, deltaDays));
+  _bkRenderCalendar();
+};
+
+function _bkRenderCalendar() {
+  const wrap = document.getElementById('bkCalendarWrap');
+  if (!wrap) return;
+  const filterDate = (document.getElementById('bkDate') || {}).value;
+  const startDate = filterDate
+    ? _bkMonday(_bkParseIso(filterDate))
+    : (_bkCalAnchor ? _bkParseIso(_bkCalAnchor) : _bkMonday(new Date()));
+  _bkCalAnchor = _bkIso(startDate);
+  const days = Array.from({length: 7}, (_, i) => _bkAddDays(startDate, i));
+  const today = _bkIso(new Date());
+
+  // Group appointments by date
+  const byDate = {};
+  for (const b of (D.bookings || [])) {
+    if ((b.status || 'Scheduled') === 'Cancelled') continue;
+    const d = b.date || '';
+    if (!d) continue;
+    (byDate[d] = byDate[d] || []).push(b);
+  }
+  // Sort each day by start time
+  for (const d of Object.keys(byDate)) {
+    byDate[d].sort((a, b) => (a.time_start || a.time || '').localeCompare(b.time_start || b.time || ''));
+  }
+
+  const weekLabel = startDate.toLocaleDateString('en-IN', { day:'numeric', month:'short' })
+                  + ' – '
+                  + _bkAddDays(startDate, 6).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+
+  wrap.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div style="font-family:var(--fd);font-weight:700;font-size:15px">${weekLabel}</div>
+      <div style="display:flex;gap:6px">
+        <button class="mini-btn" onclick="_bkCalShift(-7)">‹ Prev week</button>
+        <button class="mini-btn" onclick="_bkCalShift(0)">Today</button>
+        <button class="mini-btn" onclick="_bkCalShift(7)">Next week ›</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px">
+      ${days.map(day => {
+        const iso = _bkIso(day);
+        const list = byDate[iso] || [];
+        const isToday = iso === today;
+        return `<div style="background:var(--surf);border:1px solid ${isToday ? 'var(--acc2)' : 'var(--brd)'};border-radius:10px;padding:10px;min-height:200px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:12px;color:${isToday ? 'var(--acc2)' : 'var(--dim)'};text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">${day.toLocaleDateString('en-IN', { weekday:'short' })}</div>
+          <div style="font-family:var(--fd);font-weight:800;font-size:18px;color:var(--txt);margin-bottom:10px">${day.getDate()}</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${list.length === 0 ? `<div style="font-size:11px;color:var(--faint);text-align:center;padding:14px 0">No appointments</div>` : ''}
+            ${list.map(b => {
+              const t1 = b.time_start || b.time || '';
+              const t2 = b.time_end || '';
+              const status = b.status || 'Scheduled';
+              const tint = status === 'Arrived' ? 'var(--acc2)' : status === 'Delivered' ? 'var(--teal,#20e3b2)' : 'var(--blue,#639fff)';
+              return `<button onclick="openBookingForm('${escapeHtml(b.id)}')" style="cursor:pointer;text-align:left;background:rgba(99,159,255,.10);border:1px solid ${tint};border-left:3px solid ${tint};border-radius:6px;padding:7px 9px;font-size:11.5px;color:var(--txt);line-height:1.4">
+                <div style="font-family:var(--fd);font-weight:700;font-size:11px;color:${tint}">${escapeHtml(t1)}${t2 ? '–' + escapeHtml(t2) : ''}</div>
+                <div style="font-weight:600;margin-top:2px">${escapeHtml(b.plate || '—')}</div>
+                <div style="color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(b.cust_name || '')}</div>
+              </button>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
 
 // Booking form scratchpad — lives between modal open & save so dropdowns
 // (make/model/year/variant) can drive each other and complaints can be added
@@ -3226,15 +3397,11 @@ function _bookingFormHTML(b) {
       <div class="f-grp"></div><div class="f-grp"></div>
     </div>
     <div class="f-row r3">
-      <div class="f-grp"><label>Bay type</label>
-        <select id="bf-baytype">
-          <option value="">Any</option>
-          ${bayTypes.map(t => `<option value="${escapeHtml(t)}" ${b.bay_type === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
-        </select></div>
       <div class="f-grp"><label>Mechanic</label>
         <input list="dlMechanics" id="bf-mech" type="text" value="${escapeHtml(b.mechanic || '')}" placeholder="Unassigned" /></div>
       <div class="f-grp"><label>Estimated delivery <span class="req">*</span></label>
         <input id="bf-delivery" type="date" value="${escapeHtml(b.estimated_delivery || '')}" /></div>
+      <div class="f-grp"></div>
     </div>
   `);
 
@@ -3333,19 +3500,26 @@ function _bookingFormHTML(b) {
     <div id="bf-cmp-list"></div>
   `);
 
-  // ── Scheduling (date/time/cost) — kept compact at the bottom ──
-  const schedulePane = card('SCHEDULE', 'var(--purple, #cbd2dc)', `
+  // ── Appointment time window — date + from/to time. The calendar view + the
+  // double-booking check both key off these three fields. Time end defaults
+  // to start + 1 hour so workshops only have to override when they know.
+  const _defStart = b.time || b.time_start || toTime();
+  const _addHour  = (t) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return ''; const h = (Number(m[1]) + 1) % 24; return String(h).padStart(2,'0') + ':' + m[2]; };
+  const _defEnd   = b.time_end || _addHour(_defStart);
+  const schedulePane = card('APPOINTMENT TIME', 'var(--purple, #cbd2dc)', `
     <div class="f-row r3">
       <div class="f-grp"><label>Date <span class="req">*</span></label>
         <input id="bf-date" type="date" value="${escapeHtml(b.date || today)}" /></div>
-      <div class="f-grp"><label>Time <span class="req">*</span></label>
-        <input id="bf-time" type="time" value="${escapeHtml(b.time || toTime())}" /></div>
+      <div class="f-grp"><label>From <span class="req">*</span></label>
+        <input id="bf-time" type="time" value="${escapeHtml(_defStart)}" /></div>
+      <div class="f-grp"><label>To <span class="req">*</span></label>
+        <input id="bf-time-end" type="time" value="${escapeHtml(_defEnd)}" /></div>
+    </div>
+    <div class="f-row r3">
       <div class="f-grp"><label>Cost estimate (₹)</label>
         <input id="bf-cost" type="number" min="0" step="100" value="${escapeHtml(b.cost_estimate || '')}" /></div>
-    </div>
-    <div class="f-row r1">
-      <div class="f-grp"><label>Notes</label>
-        <textarea id="bf-notes" placeholder="Any details — symptoms, customer preferences, urgent flags…">${escapeHtml(b.notes || '')}</textarea></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Notes</label>
+        <textarea id="bf-notes" placeholder="Symptoms, customer preferences, urgent flags…">${escapeHtml(b.notes || '')}</textarea></div>
     </div>
   `);
 
@@ -3374,9 +3548,9 @@ window.openBookingForm = function(id) {
     if (c) _lastBookingCustomerId = c.id;
   }
   openModal({
-    title: isNew ? 'New booking' : `Edit booking · ${b.plate || b.id}`,
+    title: isNew ? 'New appointment' : `Edit appointment · ${b.plate || b.id}`,
     body: _bookingFormHTML(b),
-    saveLabel: isNew ? 'Create booking' : 'Save changes',
+    saveLabel: isNew ? 'Create appointment' : 'Save changes',
     onSave: () => saveBooking(b.id || null),
     wide: true
   });
@@ -3390,6 +3564,93 @@ window.openBookingForm = function(id) {
     if (ps) ps.addEventListener('input', _bookingFillFromPlate);
   }, 0);
 };
+
+// "Create job card" row action. Reuses the appointment form (so the user can
+// review + edit details one last time, add new complaints discovered at intake,
+// etc.) — but on save we ALSO spin up a job card and notify the assigned
+// mechanic. Skips the auto-Arrived/bay routing of the regular check-in path;
+// this is for explicitly creating a job from an already-known appointment.
+window.openCreateJobCardForm = function(bookingId) {
+  const existing = D.bookings.find(b => b.id === bookingId);
+  if (!existing) return showToast('Appointment not found', 'bad');
+  if ((D.jobs || []).some(j => j.booking_id === bookingId)) {
+    return showToast('A job card already exists for this appointment', 'bad');
+  }
+  _lastBookingCustomerId = null;
+  _editingBooking = { complaints: Array.isArray(existing.complaints) ? existing.complaints.slice() : [] };
+  const c = D.customers.find(x => (x.name || '').toLowerCase() === (existing.cust_name || '').toLowerCase());
+  if (c) _lastBookingCustomerId = c.id;
+  openModal({
+    title: `Create job card · ${existing.plate || existing.id}`,
+    body: _bookingFormHTML(existing),
+    saveLabel: 'Save & create job card',
+    onSave: async () => {
+      // Save the (possibly-edited) appointment first, then spin the job card
+      await saveBooking(bookingId);
+      await _spinJobCardFromBooking(bookingId);
+    },
+    wide: true
+  });
+  setTimeout(() => {
+    _bookingModelChain('init');
+    _bookingDrawComplaints();
+    _bookingSyncStateCode();
+    const ps = document.getElementById('bf-plate-suffix');
+    if (ps) ps.addEventListener('input', _bookingFillFromPlate);
+  }, 0);
+};
+
+// Stand up a Stage-1 job card from an existing booking and notify the
+// assigned mechanic (or, if none, the floor manager). Idempotent — silently
+// no-ops if a job already exists for this booking.
+async function _spinJobCardFromBooking(bookingId) {
+  const b = D.bookings.find(x => x.id === bookingId);
+  if (!b) return;
+  if ((D.jobs || []).some(j => j.booking_id === bookingId)) return;
+  const newJob = {
+    id: uid('job'),
+    booking_id:   b.id,
+    plate:        b.plate || '',
+    cust_name:    b.cust_name || '',
+    type:         b.service || '',
+    department:   b.department || departments()[0] || 'Mechanical',
+    mechanic:     b.mechanic || '',
+    mechanics:    b.mechanic ? [b.mechanic] : [],
+    parts:        [],
+    service_charges: [],
+    complaints:   (b.complaints || []).slice(),
+    status:       b.mechanic ? 'Technician Assigned' : 'Awaiting Assignment',
+    created_at:   nowStr(),
+    updated_at:   nowStr(),
+    odometer_in:  Number(b.odometer_in || 0)
+  };
+  D.jobs = D.jobs || [];
+  D.jobs.push(newJob);
+  await wsSave('jobs', D.jobs);
+  publishTracking(b.id);
+  audit('job-create', `${newJob.plate} · ${newJob.type || 'Service'}${newJob.mechanic ? ' → ' + newJob.mechanic : ''}`, { job_id: newJob.id, booking_id: bookingId });
+  if (newJob.mechanic) {
+    notify({
+      kind:    'job-assigned',
+      message: `New job card for ${newJob.plate} (${newJob.cust_name || 'customer'}) — ${newJob.type || 'service'} assigned to you`,
+      target:  { worker_name: newJob.mechanic },
+      job_id:  newJob.id
+    });
+  } else {
+    notify({
+      kind:    'job-needs-assignment',
+      message: `New job card for ${newJob.plate} — needs a technician`,
+      target:  { role: 'floor_manager' },
+      job_id:  newJob.id
+    });
+  }
+  showToast(`Job card created for ${newJob.plate}${newJob.mechanic ? ' · ' + newJob.mechanic + ' notified' : ''}`, 'good');
+  // If the user is on the Bookings/Appointments tab, re-render so the
+  // "Create job card" button flips to "Job created"
+  if (currentTab === 'bookings')    renderBookings(true);
+  else if (currentTab === 'jobs')   renderJobs(true);
+}
+window._spinJobCardFromBooking = _spinJobCardFromBooking;
 
 // Called as the customer field is typed/picked.
 //   • Phone auto-fills when empty
@@ -3743,10 +4004,10 @@ async function saveBooking(id) {
 
   // Service + scheduling
   const service     = v('bf-service');
-  const bayType     = v('bf-baytype');
   const mech        = v('bf-mech');
   const date        = v('bf-date');
-  const time        = v('bf-time');
+  const time        = v('bf-time');         // start time (kept as `time` for back-compat)
+  const timeEnd     = v('bf-time-end');     // end time — new
   const cost        = v('bf-cost');
   const delivery    = v('bf-delivery');
   const notes       = (document.getElementById('bf-notes')?.value || '').trim();
@@ -3757,8 +4018,26 @@ async function saveBooking(id) {
   if (!plateSuf)  throw new Error('Plate is required');
   if (!service)   throw new Error('Service is required');
   if (!date)      throw new Error('Date is required');
-  if (!time)      throw new Error('Time is required');
+  if (!time)      throw new Error('Start time is required');
+  if (!timeEnd)   throw new Error('End time is required');
+  if (timeEnd <= time) throw new Error('End time must be after the start time');
   if (!delivery)  throw new Error('Estimated delivery date is required');
+
+  // ── Double-booking check ─────────────────────────────────────────────
+  // Reject if any other non-cancelled appointment overlaps this date+range.
+  // Two ranges overlap when start1 < end2 AND end1 > start2.
+  const conflict = (D.bookings || []).find(o => {
+    if (id && o.id === id)                            return false;   // skip self when editing
+    if (o.status === 'Cancelled')                     return false;
+    if ((o.date || '') !== date)                      return false;
+    const oStart = o.time_start || o.time || '';
+    const oEnd   = o.time_end   || '';
+    if (!oStart || !oEnd)                             return false;   // legacy single-time rows can't overlap
+    return time < oEnd && timeEnd > oStart;
+  });
+  if (conflict) {
+    throw new Error(`Time conflict — ${conflict.plate || 'another appointment'} is already booked from ${conflict.time_start || conflict.time} to ${conflict.time_end || '?'} on ${date}. Pick another slot.`);
+  }
   if (!make)      throw new Error('Vehicle make is required');
   if (!model)     throw new Error('Vehicle model is required');
   if (!year)      throw new Error('Vehicle year is required');
@@ -3804,8 +4083,8 @@ async function saveBooking(id) {
     odometer_in: odo ? Number(odo) : 0, avg_kms: avgKms ? Number(avgKms) : 0,
     vin, engine_no: engineNo, colour, fuel_type: fuelType, in_house: inHouse,
     service_advisor: advisor, department,
-    // Service + scheduling
-    service, bay_type: bayType, mechanic: mech, date, time,
+    // Service + scheduling — keep `time` for back-compat (= time_start)
+    service, mechanic: mech, date, time, time_start: time, time_end: timeEnd,
     cost_estimate: cost ? Number(cost) : 0,
     estimated_delivery: delivery,
     notes,
@@ -3835,9 +4114,13 @@ async function saveBooking(id) {
     company_name: companyName, gstin: isCorp ? gstin : '', ref_no: refNo,
     updated_at: nowStr()
   };
+  // Track whether this is a first-time vehicle so we can prompt the user to
+  // print/download a QR sticker for the customer's keychain.
+  let isFirstVisitForVehicle = false;
   if (custIdx < 0) {
     // Brand-new customer — create with this vehicle
     D.customers.push({ id: uid('c'), ...custBody, vehicles: [newVehicle], created_at: nowStr() });
+    isFirstVisitForVehicle = true;
   } else {
     // Existing customer — merge contact info (only fill blanks so manual edits stick),
     // and attach the vehicle if it isn't already on file.
@@ -3848,8 +4131,10 @@ async function saveBooking(id) {
     c.vehicles = Array.isArray(c.vehicles) ? c.vehicles : [];
     const plateKey = plate.replace(/\s+/g,'').toUpperCase();
     const matchVeh = c.vehicles.find(v => (v.plate || '').replace(/\s+/g,'').toUpperCase() === plateKey);
-    if (!matchVeh) c.vehicles.push(newVehicle);
-    else {
+    if (!matchVeh) {
+      c.vehicles.push(newVehicle);
+      isFirstVisitForVehicle = true;   // existing customer but new car
+    } else {
       // Update fields that were previously blank
       for (const k of ['make','model','year','variant','color','vin','engine_no','fuel_type','gstin']) {
         if (newVehicle[k] && !matchVeh[k]) matchVeh[k] = newVehicle[k];
@@ -3861,7 +4146,7 @@ async function saveBooking(id) {
   writes.push(wsSave('customers', D.customers));
 
   closeModal();
-  showToast(id ? 'Booking updated' : `Booking ${bookingNo} created`, 'good');
+  showToast(id ? 'Appointment updated' : `Appointment ${bookingNo} created`, 'good');
   audit(id ? 'booking-update' : 'booking-create', `${plate} · ${custName}${isCorp ? ' (' + companyName + ')' : ''}`, { booking_id: patch.id });
   renderBookings();
   await Promise.all(writes);
@@ -3871,6 +4156,19 @@ async function saveBooking(id) {
   if (!id && custEmail) {
     const savedBk = D.bookings.find(b => b.id === patch.id);
     sendCustomerNotification('booking_confirmed', { booking: savedBk, to: custEmail });
+  }
+  // Mirror the latest status to the public tracker so the marketing site's
+  // Track Repair page can show "your car is at this stage" to the customer.
+  publishTracking(patch.id);
+  // First-visit prompt: if this appointment introduced a brand-new vehicle,
+  // pop the QR straight away so the user can print/stick it on the customer's
+  // keychain at intake. Skip on edits — we only want this on the first save.
+  if (!id && isFirstVisitForVehicle && plate) {
+    // Defer so the modal close animation finishes first
+    setTimeout(() => {
+      customConfirm(`This is the first time ${plate} has been booked. Print or download a QR sticker now so the customer can scan it on future visits?`, { title: 'First-visit vehicle QR', okLabel: 'Show QR', cancelLabel: 'Skip' })
+        .then(ok => { if (ok) showQRForPlate(plate); });
+    }, 300);
   }
 }
 
@@ -3924,7 +4222,7 @@ window.cancelBooking = async function(id) {
     const bay = D.bays.find(x => x.id === b.bay_id);
     if (bay) { bay.status = 'available'; bay.booking_id = null; bay.plate = ''; writes.push(wsSave('bays', D.bays)); }
   }
-  showToast('Booking cancelled', 'good');
+  showToast('Appointment cancelled', 'good');
   audit('cancel-booking', `${b.plate || b.id} (${b.cust_name || '—'})`, { booking_id: b.id });
   renderBookings();
   await Promise.all(writes);
@@ -3947,7 +4245,11 @@ async function renderCheckin(force = false) {
   // Currently in workshop: Arrived (any date — they stay until checkout)
   const inWorkshop = D.bookings
     .filter(b => b.status === 'Arrived')
-    .sort((a,b) => (a.bay_name||'').localeCompare(b.bay_name||''));
+    // Order by actual check-in time (earliest first) so the floor sees who's
+    // been waiting longest at the top. Falls back to the scheduled time, then
+    // bay name for the rare row without either.
+    .sort((a,b) => (a.checked_in_at || a.time_start || a.time || '').localeCompare(b.checked_in_at || b.time_start || b.time || '')
+                || (a.bay_name||'').localeCompare(b.bay_name||''));
 
   document.getElementById('ciCrumb').textContent =
     `${awaiting.length} arriving · ${inWorkshop.length} on site`;
@@ -4004,7 +4306,7 @@ window.openCheckinForm = async function(bookingId) {
     await wsSave('bays', D.bays);
   }
   const b = D.bookings.find(x => x.id === bookingId);
-  if (!b) return showToast('Booking not found', 'bad');
+  if (!b) return showToast('Appointment not found', 'bad');
   // Available bays = bay state 'available' (excludes occupied + maintenance), optionally filtered by requested type
   const allAvail = D.bays.filter(x => _bayState(x) === 'available');
   const matching = b.bay_type ? allAvail.filter(x => x.type === b.bay_type) : allAvail;
@@ -4057,7 +4359,7 @@ window.openCheckinForm = async function(bookingId) {
 async function doCheckin(bookingId) {
   // No pre-load — D is already current; persistence keeps writes consistent.
   const b = D.bookings.find(x => x.id === bookingId);
-  if (!b) throw new Error('Booking not found');
+  if (!b) throw new Error('Appointment not found');
   const bayId = (document.getElementById('ci-bay') || {}).value || '';
   const mech  = (document.getElementById('ci-mech') || {}).value.trim();
   if (mech) b.mechanic = mech;
@@ -4124,7 +4426,7 @@ async function doCheckin(bookingId) {
 // ── Check-out flow: free bay, mark Delivered, set job to Delivered ──
 window.openCheckoutForm = function(bookingId) {
   const b = D.bookings.find(x => x.id === bookingId);
-  if (!b) return showToast('Booking not found', 'bad');
+  if (!b) return showToast('Appointment not found', 'bad');
   const job = D.jobs.find(j => j.booking_id === b.id);
   openModal({
     title: `Check out · ${b.plate}`,
@@ -4159,7 +4461,7 @@ window.openCheckoutForm = function(bookingId) {
 async function doCheckout(bookingId) {
   // No pre-load — local D is current.
   const b = D.bookings.find(x => x.id === bookingId);
-  if (!b) throw new Error('Booking not found');
+  if (!b) throw new Error('Appointment not found');
   const cost = (document.getElementById('co-cost')?.value || '').trim();
   const pay  = document.getElementById('co-pay')?.value || 'Outstanding';
   const notes= (document.getElementById('co-notes')?.value || '').trim();
@@ -4331,6 +4633,7 @@ async function renderJobs(force = false) {
       <td><div class="row-act">
         ${stageBtns}
         <button class="mini-btn" onclick="openJobForm('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+        ${j.plate ? `<button class="mini-btn" onclick="showQRForPlate('${escapeHtml(j.plate)}')" title="View / print this vehicle's QR sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v3M14 21h3M21 17v4"/></svg>QR</button>` : ''}
         <button class="mini-btn good" onclick="generateInvoice('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Invoice</button>
         ${j.is_insurance ? `<button class="mini-btn warn" onclick="viewInsuranceDoc('${escapeHtml(j.id)}')" title="Generate insurance claim PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Claim PDF</button>` : ''}
         <button class="mini-btn danger" onclick="deleteJob('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
@@ -4862,6 +5165,23 @@ window.openJobForm = function(id) {
         </div>
         <datalist id="dlMechJob">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
       </div>
+
+      <!-- Customer concerns / complaints surfaced from the booking (read-only)
+           — the technician needs to see exactly what the customer reported at
+           intake, even after the booking record is closed. Falls back to the
+           job's own complaints[] if it was created standalone. -->
+      ${(() => {
+        const fromBk  = (() => { const b = D.bookings.find(x => x.id === j.booking_id); return (b && Array.isArray(b.complaints)) ? b.complaints : []; })();
+        const fromJob = Array.isArray(j.complaints) ? j.complaints : [];
+        const list    = fromBk.length ? fromBk : fromJob;
+        if (!list.length) return '';
+        return `<div style="margin:14px 0;padding:12px 14px;background:rgba(32,227,178,.05);border:1px solid rgba(32,227,178,.30);border-radius:9px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--teal,#20e3b2);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Customer concerns from appointment</div>
+          <ul style="margin:0;padding-left:20px;color:var(--txt);font-size:13px;line-height:1.6">
+            ${list.map(c => `<li>${escapeHtml(c.text || c)}</li>`).join('')}
+          </ul>
+        </div>`;
+      })()}
 
       <div class="f-row r1">
         <div class="f-grp"><label>Labour notes</label>
@@ -5636,11 +5956,38 @@ window._removeVehicleInline = async function(idx) {
   _renderVehiclesInForm();
 };
 
+// Global entry point — looks up a vehicle by plate across all customers,
+// then shows its QR in the sub-modal. Use this from the Jobs/Appointments
+// tabs and from the first-visit auto-prompt.
+window.showQRForPlate = async function(plate) {
+  const norm = String(plate || '').toUpperCase().replace(/\s+/g, '');
+  if (!norm) return showToast('No plate to look up', 'bad');
+  let foundVeh = null;
+  for (const c of (D.customers || [])) {
+    for (const v of (c.vehicles || [])) {
+      if (String(v.plate || '').toUpperCase().replace(/\s+/g, '') === norm) { foundVeh = v; break; }
+    }
+    if (foundVeh) break;
+  }
+  if (!foundVeh) {
+    // No saved customer/vehicle yet — fabricate a one-shot QR scoped by plate.
+    // Lets workshops print a QR for an ad-hoc booking before the customer record exists.
+    foundVeh = { id: 'plate-' + norm.toLowerCase(), plate: plate };
+  }
+  return _showQRFromVehicle(foundVeh);
+};
+
 // QR display — overlays the customer form via the sub-modal so the form stays open underneath.
 // Uses ensureQR() with multi-CDN fallback; render is element-based (davidshimjs/qrcodejs).
 window._showVehicleQR = async function(idx) {
   const v = _editingVehicles[idx];
   if (!v) return;
+  return _showQRFromVehicle(v);
+};
+
+// Shared QR-rendering core — used by both the in-form button (_showVehicleQR)
+// and the global plate-keyed entry point (showQRForPlate).
+async function _showQRFromVehicle(v) {
   const qrText = 'GPV-' + v.id;
   _openSubModal({
     title: `${v.plate} — vehicle QR`,
@@ -6051,7 +6398,7 @@ async function saveWorker(id) {
 //  indicator all stay in sync.
 // ══════════════════════════════════════════
 const TAB_TITLES = {
-  dashboard:'Dashboard', bookings:'Bookings', checkin:'Check-in', jobs:'Job Cards',
+  dashboard:'Dashboard', bookings:'Appointments', checkin:'Check-in', jobs:'Job Cards',
   bays:'Bays', queue:'Queue', customers:'Customers',
   workers:'Workers', inventory:'Inventory', parts:'Parts Requests', request_parts:'Request Parts',
   invoices:'Invoices', reports:'Reports', timesheets:'Timesheets', notifications:'Notifications', audit:'Audit Log', settings:'Settings'
@@ -7373,7 +7720,7 @@ window._tsClearRange = function() {
 // ══════════════════════════════════════════
 const ALL_TABS = [
   { id:'dashboard',   label:'Dashboard' },
-  { id:'bookings',    label:'Bookings' },
+  { id:'bookings',    label:'Appointments' },
   { id:'checkin',     label:'Check-in' },
   { id:'jobs',        label:'Job Cards' },
   { id:'queue',       label:'Live Queue' },
@@ -8404,7 +8751,7 @@ function _renderVehicleQRResult(code, customer, vehicle) {
     <code class="r-code">${escapeHtml(code)}</code>
     ${activeBooking
       ? `<div style="background:rgba(120,140,255,.10);border:1px solid rgba(120,140,255,.28);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;color:var(--blue)">
-          📅 Has a booking scheduled${activeBooking.time ? ' at <b>' + escapeHtml(activeBooking.time) + '</b>' : ''} — check in?
+          📅 Has an appointment scheduled${activeBooking.time ? ' at <b>' + escapeHtml(activeBooking.time) + '</b>' : ''} — check in?
         </div>`
       : ''}
     <div class="r-acts">
@@ -10383,7 +10730,7 @@ async function renderReports(force = false) {
       ${card('Paid', inr(paid + partialPaid), 'var(--teal)', partialPaid ? `incl. ${inr(partialPaid)} partial` : '')}
       ${card('Outstanding', inr(Math.max(0, outstanding)), outstanding > 0 ? 'var(--red)' : 'var(--faint)')}
       ${card('Jobs completed', completedJobs, 'var(--acc)')}
-      ${card('Bookings', bookings.length, 'var(--blue)')}
+      ${card('Appointments', bookings.length, 'var(--blue)')}
       ${card('Insurance jobs', insJobs.length, 'var(--acc2)', insApproved ? `${inr(insApproved)} approved` : '')}
       ${card('Estimate conversion', cTotal ? `${cRate}%` : '—', cRate >= 75 ? 'var(--teal)' : cRate >= 50 ? 'var(--acc2)' : 'var(--red)', cTotal ? `${cFull + cPartial}/${cTotal} approved · ${inr(cValue)} quoted` : 'No estimates with a client decision yet')}
     </div>
