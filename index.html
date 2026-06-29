@@ -7010,10 +7010,24 @@ let _trackMode         = 'plate';   // 'plate' | 'booking'
 function _trackPlateNorm(p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function _trackEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// Slugify a workshop name into URL-safe form. Lowercase, replace runs of
+// non-alphanumeric with single dash, strip leading/trailing dash. Same logic
+// used in the app's Settings share-link so the URL the workshop owner copies
+// always matches what this page expects.
+function _trackSlugify(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+}
+
 async function _trackLoadWorkshops() {
   if (_trackAllWorkshops) return _trackAllWorkshops;
   if (!fbDb) throw new Error('Site not connected to Firebase yet. Refresh in a moment.');
-  const snap = await fbDb.collection('users').get();
+  let snap;
+  try { snap = await fbDb.collection('users').get(); }
+  catch (e) {
+    console.error('[track] users list failed:', e);
+    throw new Error('Couldn\'t load workshops: ' + (e.code || e.message));
+  }
   const list = [];
   snap.forEach(doc => {
     const d = doc.data() || {};
@@ -7022,6 +7036,7 @@ async function _trackLoadWorkshops() {
     list.push({
       uid:      doc.id,
       name,
+      slug:     _trackSlugify(name),
       state:    (d.state || '').trim(),
       city:     (d.city  || '').trim(),
       isBranch: !!d.branch,
@@ -7295,10 +7310,54 @@ function _trackTimeAgo(s) {
 
 // Watch for the section to come on-screen / for Firebase to come up, then init
 function _trackWaitForFirebase() {
-  if (fbDb && document.getElementById('track-ws-input')) { _trackInit(); return; }
+  if (fbDb && document.getElementById('track-ws-input')) {
+    _trackInit();
+    // Deep-link: if URL is /track/<slug> OR /#track/<slug>, auto-pick that
+    // workshop and skip the state/workshop pickers. Plate field gets focus
+    // so a customer who scans/clicks the workshop's shareable link is one
+    // tap from typing their plate.
+    _trackAutoPickFromUrl().catch(e => console.warn('[track] autopick failed:', e));
+    return;
+  }
   setTimeout(_trackWaitForFirebase, 250);
 }
 _trackWaitForFirebase();
+
+// Try to match the current URL to a workshop slug. Supports both:
+//   /track/<slug>           — needs the host to rewrite to index.html
+//   /#track/<slug>          — works on any static host (hash routing)
+async function _trackAutoPickFromUrl() {
+  let slug = '';
+  // Path: /track/<slug>
+  const pm = (location.pathname || '').match(/^\/track\/([^\/?#]+)/i);
+  if (pm) slug = decodeURIComponent(pm[1]);
+  // Hash: #track/<slug>
+  if (!slug) {
+    const hm = (location.hash || '').match(/^#track\/([^\/?#]+)/i);
+    if (hm) slug = decodeURIComponent(hm[1]);
+  }
+  if (!slug) return;
+  // Scroll to the track section so the user sees what's happening
+  const sec = document.getElementById('track');
+  if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Wait for the workshop list
+  const list = await _trackLoadWorkshops();
+  const wantSlug = _trackSlugify(slug);
+  const match = list.find(w => w.slug === wantSlug)
+              || list.find(w => w.slug.startsWith(wantSlug))   // partial
+              || list.find(w => _trackSlugify(w.name).includes(wantSlug));
+  if (!match) {
+    const msg = document.getElementById('track-state-msg');
+    if (msg) {
+      msg.style.color = '#ff6b6b';
+      msg.innerHTML = `Workshop <b>${_trackEsc(slug)}</b> not found. Pick from the dropdown below.`;
+    }
+    return;
+  }
+  // Jump straight to step 3 (plate input) bypassing state + workshop pickers.
+  _trackPickedState = match.state || '__unspecified__';
+  _trackPickWorkshop(match.uid, match.name);
+}
 </script>
 </body>
 </html>
