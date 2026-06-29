@@ -1305,6 +1305,77 @@ function departments() {
 }
 window.departments = departments;
 
+// ──────────────────────────────────────────────────────────────────────────
+//  PUBLIC TRACKING MIRROR
+//  Writes a minimal status doc per vehicle plate at
+//  users/{uid}/public_status/{plateNorm}. The marketing site's Track Repair
+//  page reads these (public-read rule) so customers can see status without
+//  exposing the full bookings/jobs collections. Called from saveBooking,
+//  markJobStatus, _spinJobCardFromBooking. Fire-and-forget — failures log
+//  but never break the calling workflow.
+// ──────────────────────────────────────────────────────────────────────────
+function _plateNorm(p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+async function publishTracking(bookingId) {
+  try {
+    if (!currentUser) return;
+    if (!fbDb || !D.bookings) return;
+    const b = D.bookings.find(x => x.id === bookingId);
+    if (!b || !b.plate) return;
+    const plateNorm = _plateNorm(b.plate);
+    if (!plateNorm) return;
+    const j = (D.jobs || []).find(x => x.booking_id === b.id);
+    const status = j?.status || b.status || 'Scheduled';
+    const ref = fbDb.collection('users').doc(currentUser.uid).collection('public_status').doc(plateNorm);
+    // Read prior history (if any) and append on real status changes only.
+    let history = [];
+    try {
+      const prior = await ref.get();
+      if (prior.exists) history = prior.data().history || [];
+    } catch (_) {}
+    const last = history[history.length - 1];
+    if (!last || last.status !== status) {
+      history.push({ status, at: nowStr() });
+      if (history.length > 30) history = history.slice(-30);
+    }
+    await ref.set({
+      plate:               b.plate,
+      plate_norm:          plateNorm,
+      status,
+      updated_at:          nowStr(),
+      service:             b.service || j?.type || '',
+      booking_no:          b.booking_no || '',
+      mechanic_first_name: (j?.mechanic || '').split(' ')[0] || '',
+      workshop_name:       D.settings?.workshop_name || userProfile?.workshop_name || '',
+      history
+    }, { merge: true });
+  } catch (e) {
+    console.warn('[publishTracking]', e);
+  }
+}
+window.publishTracking = publishTracking;
+
+// One-shot backfill: pushes every existing non-cancelled booking into the
+// public mirror so the tracker has data the very first time the owner opens
+// the app after deploying this code. Throttled, marked done in localStorage
+// so we only run it once per workshop per device.
+async function backfillPublicTracking() {
+  try {
+    if (!currentUser || !D.bookings?.length) return;
+    const key = 'gp_tracking_backfilled:' + currentUser.uid;
+    if (localStorage.getItem(key)) return;
+    const targets = D.bookings.filter(b => b.plate && (b.status || 'Scheduled') !== 'Cancelled');
+    if (!targets.length) { localStorage.setItem(key, '1'); return; }
+    console.log('[backfill] publishing', targets.length, 'bookings to public tracker');
+    for (const b of targets) {
+      await publishTracking(b.id);
+    }
+    localStorage.setItem(key, '1');
+    console.log('[backfill] done');
+  } catch (e) { console.warn('[backfill]', e); }
+}
+window.backfillPublicTracking = backfillPublicTracking;
+
 
 
 function currentSub() {
@@ -1376,6 +1447,9 @@ fbAuth.onAuthStateChanged(async (user) => {
   }
   currentUser = user;
   subscribeLiveCollections();   // start pushing remote writes into D in real time
+  // One-shot backfill of public_status mirror for existing bookings. Defers so
+  // D.bookings is hydrated by loadAllData first.
+  setTimeout(() => backfillPublicTracking(), 4000);
   const el = document.getElementById('signedInEmail');
   if (el) el.textContent = user.email || '—';
 
@@ -7633,17 +7707,22 @@ const REQ_STATUSES = ['Pending','Approved','Ordered','Received','Declined'];
 
 let _prScope = null;   // 'mine' | 'all' — null = pick a sensible default from role
 
-window._prSetScope = function(scope) {
-  _prScope = scope;
-  // Restyle toggle buttons
+// Restyle the Mine/All toggle buttons to match _prScope. Pure DOM — no render.
+function _prStyleScopeButtons() {
   const mb = document.getElementById('prScopeMineBtn');
   const ab = document.getElementById('prScopeAllBtn');
   if (mb && ab) {
-    mb.style.background = scope === 'mine' ? 'var(--acc)' : 'transparent';
-    mb.style.color      = scope === 'mine' ? '#170f05' : '';
-    ab.style.background = scope === 'all'  ? 'var(--acc)' : 'transparent';
-    ab.style.color      = scope === 'all'  ? '#170f05' : '';
+    mb.style.background = _prScope === 'mine' ? 'var(--acc)' : 'transparent';
+    mb.style.color      = _prScope === 'mine' ? '#170f05' : '';
+    ab.style.background = _prScope === 'all'  ? 'var(--acc)' : 'transparent';
+    ab.style.color      = _prScope === 'all'  ? '#170f05' : '';
   }
+}
+// User clicks a scope tab → set + re-render ONCE. (Was recursing into renderParts
+// which itself re-invoked _prSetScope → infinite render loop that froze the tab.)
+window._prSetScope = function(scope) {
+  _prScope = scope;
+  _prStyleScopeButtons();
   renderParts();
 };
 
@@ -7651,8 +7730,8 @@ async function renderParts(force = false) {
   await loadAllData(force);
   // Default scope based on role — approvers see All, workers see Mine.
   if (_prScope === null) _prScope = canApproveParts() ? 'all' : 'mine';
-  // Re-apply the toggle styling each render (in case the template just rebuilt)
-  setTimeout(() => _prSetScope(_prScope), 0);
+  // Re-apply toggle styling each render — pure DOM, no re-render (was looping).
+  _prStyleScopeButtons();
   let list = D.parts_requests.slice();
   // Scope filter — Mine = requests I created
   if (_prScope === 'mine') {
@@ -7781,7 +7860,6 @@ function _openPartReqDetail(reqId) {
       <button class="mini-btn danger" ${pendingCount  ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Declined')">✕ Decline all</button>
       <button class="mini-btn warn"   ${approvedCount ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Ordered')">📦 Mark all ordered</button>
       <button class="mini-btn good"   ${orderedCount  ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Received')">✓ Mark all received</button>
-      <button class="mini-btn"        onclick="_prSendEstimate('${escapeHtml(reqId)}')" title="Notify the requesting worker with current prices — no approval">💬 Send estimate to worker</button>
     </div>` : `<div style="padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:14px;font-size:12.5px;color:var(--faint)">Read-only view — only the Parts department can approve, order, or receive.</div>`;
 
   _openSubModal({
@@ -7798,11 +7876,48 @@ function _openPartReqDetail(reqId) {
       ${bulk}
       ${items.map(itemRow).join('')}
       <div style="font-size:11px;color:var(--faint);margin-top:10px;line-height:1.5">Items marked <b>Received</b> are automatically added to inventory (matched by name — existing items get their qty incremented, new names create a fresh inventory record).</div>`,
-    footHtml: `<div style="flex:1"></div>
+    footHtml: `${isApprover ? `<button class="fbtn fbtn-save" onclick="_prSaveEstimate('${escapeHtml(reqId)}')" title="Save the prices you typed and notify the worker">Save estimate &amp; notify worker</button>` : ''}
+      <div style="flex:1"></div>
       <button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>`
   });
 }
 window._openPartReqDetail = _openPartReqDetail;
+
+// Harvest every price input currently in the detail modal, persist them, then
+// notify the requesting worker. One button does both — no reliance on the
+// per-input onchange firing (it doesn't if the user never blurs the field).
+window._prSaveEstimate = async function(reqId) {
+  if (!canApproveParts()) return showToast('Only the Parts department can set prices', 'bad');
+  const r = D.parts_requests.find(x => x.id === reqId);
+  if (!r) return showToast('Request not found', 'bad');
+  r.items = _prRequestItems(r);
+  // Read every visible price box
+  document.querySelectorAll('[data-pr-item-price]').forEach(inp => {
+    const itId = inp.dataset.prItemPrice;
+    const it = r.items.find(x => x.id === itId);
+    if (!it) return;
+    const n = Number(inp.value);
+    it.price = (inp.value === '' || isNaN(n)) ? null : n;
+  });
+  r.updated_at = nowStr();
+  await wsSave('parts_requests', D.parts_requests);
+  const priced = r.items.filter(it => it.price != null && !isNaN(Number(it.price)));
+  if (!priced.length) {
+    showToast('Prices saved. Add at least one price to notify the worker.', 'good');
+    return;
+  }
+  const total = priced.reduce((s, it) => s + (Number(it.price) * Number(it.qty || 1)), 0);
+  const lines = priced.map(it => `${it.name} × ${it.qty} @ ₹${Number(it.price).toLocaleString('en-IN')}`).join(' · ');
+  notify({
+    kind:    'part-estimate',
+    message: `Parts estimate for ${r.plate || 'your request'}: ${lines} · Total ₹${total.toLocaleString('en-IN')}`,
+    target:  r.requested_by_id ? { worker_id: r.requested_by_id } : { worker_name: r.requested_by || '' },
+    meta:    { request_id: r.id, estimate_total: total }
+  });
+  audit('part-estimate-sent', `${r.plate || '—'} · ₹${total.toLocaleString('en-IN')} → ${r.requested_by}`, { request_id: r.id });
+  showToast(`Estimate (₹${total.toLocaleString('en-IN')}) saved & sent to ${r.requested_by || 'worker'}`, 'good');
+  closeSubModal();
+};
 
 // Set the estimated price for a single part item. Approver only. Saves
 // inline so the requester sees the price immediately when they re-open.
@@ -8342,9 +8457,19 @@ async function renderSettings(force = false) {
           <div class="f-grp"><label>Address</label><textarea id="sf-addr" placeholder="Street, area, city, state PIN, country">${escapeHtml(s.address || '')}</textarea></div>
         </div>
         <div class="f-row r3">
+          <div class="f-grp"><label>State <span style="color:var(--faint);font-weight:500;font-size:11px">(for the public Track Repair page)</span></label>
+            <select id="sf-state">
+              <option value="">— Select state —</option>
+              ${INDIAN_STATES.map(st => `<option value="${escapeHtml(st.name)}" ${(s.state || '') === st.name ? 'selected' : ''}>${escapeHtml(st.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="f-grp"><label>City</label><input id="sf-city" type="text" value="${escapeHtml(s.city || '')}" placeholder="Pune" /></div>
           <div class="f-grp"><label>GSTIN</label><input id="sf-gst" type="text" value="${escapeHtml(s.gstin || '')}" /></div>
+        </div>
+        <div class="f-row r3">
           <div class="f-grp"><label>Currency symbol</label><input id="sf-cur" type="text" value="${escapeHtml(s.currency || '₹')}" /></div>
           <div class="f-grp"><label>Default tax %</label><input id="sf-tax" type="number" step="0.01" value="${escapeHtml(String(s.tax_pct ?? 18))}" /></div>
+          <div class="f-grp"></div>
         </div>
 
         <!-- Bank transfer details — one workshop account, printed at the bottom of every invoice -->
@@ -8362,6 +8487,26 @@ async function renderSettings(force = false) {
             <div class="f-grp"><label>Terms</label><input id="sf-bank-terms" type="text" value="${escapeHtml(s.bank_terms || 'WIRE')}" placeholder="WIRE" /></div>
           </div>
         </div>
+
+        <!-- Shareable Track Repair link — built from the workshop name
+             slug. Customers can scan/click it and skip straight to plate entry.
+             Updates whenever the workshop name changes (re-render the panel). -->
+        ${(() => {
+          const slugify = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60);
+          const slug = slugify(s.workshop_name || '');
+          const host = 'garagepro.me';
+          const pathUrl = slug ? `https://${host}/track/${slug}` : '';
+          const hashUrl = slug ? `https://${host}/#track/${slug}`  : '';
+          if (!slug) return `<div style="margin-top:14px;padding:12px 14px;background:rgba(255,179,71,.08);border:1px solid rgba(255,179,71,.30);border-radius:9px;font-size:12.5px;color:var(--dim)">Set your workshop name above to generate a shareable Track Repair link.</div>`;
+          return `<div style="margin-top:14px;padding:12px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px">
+            <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Customer Track Repair link</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input id="sf-share-url" readonly value="${escapeHtml(pathUrl)}" style="flex:1;min-width:240px;padding:9px 12px;border-radius:8px;border:1px solid var(--brd2);background:var(--surf);color:var(--acc2);font-family:'Courier New',monospace;font-size:12.5px" onclick="this.select()" />
+              <button type="button" class="mini-btn" onclick="navigator.clipboard.writeText(document.getElementById('sf-share-url').value).then(()=>showToast('Copied','good'))">Copy</button>
+            </div>
+            <div style="font-size:11.5px;color:var(--faint);margin-top:6px;line-height:1.5">Share on SMS / WhatsApp / business card. Customers tap → skip workshop picker → type plate → see status. Fallback hash URL if path routing isn't set up: <span style="font-family:'Courier New',monospace;color:var(--dim)">${escapeHtml(hashUrl)}</span></div>
+          </div>`;
+        })()}
 
         <div style="margin-top:12px;text-align:right"><button class="add-btn" onclick="saveWorkshopInfo()">Save workshop info</button></div>
       </div>
@@ -8568,6 +8713,8 @@ window.saveWorkshopInfo = async function() {
   D.settings.email         = document.getElementById('sf-email').value.trim();
   D.settings.phone         = document.getElementById('sf-phone').value.trim();
   D.settings.address       = document.getElementById('sf-addr').value.trim();
+  D.settings.state         = document.getElementById('sf-state').value.trim();
+  D.settings.city          = document.getElementById('sf-city').value.trim();
   D.settings.gstin         = document.getElementById('sf-gst').value.trim();
   D.settings.currency      = document.getElementById('sf-cur').value.trim() || '₹';
   D.settings.tax_pct       = Number(document.getElementById('sf-tax').value) || 0;
@@ -8579,7 +8726,19 @@ window.saveWorkshopInfo = async function() {
   D.settings.bank_swift    = document.getElementById('sf-bank-swift').value.trim();
   D.settings.bank_terms    = document.getElementById('sf-bank-terms').value.trim() || 'WIRE';
   await wsSaveSettings();
+  // Mirror name + location to the ROOT users/{uid} doc so the public Track
+  // Repair page (which reads only the root doc) sees the latest values.
+  if (currentUser) {
+    try {
+      await fbDb.collection('users').doc(currentUser.uid).set({
+        workshop_name: D.settings.workshop_name || '',
+        state:         D.settings.state || '',
+        city:          D.settings.city  || ''
+      }, { merge: true });
+    } catch (e) { console.warn('[saveWorkshopInfo] root mirror failed:', e); }
+  }
   showToast('Workshop info saved', 'good');
+  await renderSettings(true);   // refresh so the share-link reflects any name change
 };
 
 // ─── Departments (used on bookings + job cards) ──────────────────
