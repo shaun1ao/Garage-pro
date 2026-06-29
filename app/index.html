@@ -549,6 +549,24 @@ input[list]{background:var(--bg2)}
   </div>
 </div>
 
+<!-- ═══════════════ SUBSCRIPTION REQUIRED (no active plan) ═══════════════ -->
+<div class="overlay" id="overlayNoSub" style="display:none">
+  <div class="auth-card" style="max-width:480px;text-align:center">
+    <div class="a-logo" style="background:linear-gradient(135deg,#ff7a18,#ff5252)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <h2>Subscription required</h2>
+    <div class="a-sub" id="noSubReason" style="margin-bottom:18px">Your Garage Pro subscription isn't active. Activate a plan to use the app.</div>
+    <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--dim);line-height:1.6;text-align:left;margin-bottom:18px">
+      Signed in as <b style="color:var(--txt)" id="noSubEmail">—</b><br>
+      Plan status: <b style="color:var(--red)" id="noSubStatus">Inactive</b>
+    </div>
+    <a class="btn full-btn" href="https://garagepro.me/#pricing" target="_blank" rel="noopener" style="text-decoration:none;display:block">Get a subscription →</a>
+    <button type="button" class="btn full-btn" style="margin-top:10px;background:transparent;color:var(--dim);border:1px solid var(--brd2)" onclick="_recheckSub()">I've subscribed — re-check</button>
+    <div class="auth-hint">Already paid? It can take a minute to sync. Click re-check, or <button type="button" class="forgot" style="display:inline" onclick="doSignOut()">sign out</button> and back in.</div>
+  </div>
+</div>
+
 <!-- ═══════════════ FIRST-RUN SETUP (Google sign-in landed without a workshop yet) ═══════════════ -->
 <div class="overlay" id="overlayNoWorkshop" style="display:none">
   <div class="auth-card" style="max-width:520px">
@@ -681,6 +699,11 @@ input[list]{background:var(--bg2)}
     </button>
     <div class="tab-title" id="hdrTabTitle">Dashboard</div>
     <div class="header-spacer"></div>
+    <button class="hdr-lang" id="hdrLangBtn" title="Switch language / भाषा बदलें" onclick="gpToggleLang()" style="background:none;border:1px solid var(--brd2);border-radius:7px;cursor:pointer;color:var(--dim);padding:5px 10px;margin-right:8px;font-family:var(--fd);font-weight:700;font-size:12.5px">हि</button>
+    <button class="hdr-bell" id="hdrBell" title="Notifications" onclick="switchTab('notifications')" style="position:relative;background:none;border:0;cursor:pointer;color:var(--dim);padding:6px;margin-right:6px;display:inline-flex;align-items:center">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+      <span id="hdrBellBadge" style="display:none;position:absolute;top:0;right:0;min-width:16px;height:16px;padding:0 4px;border-radius:100px;background:var(--red);color:#fff;font-size:10px;font-weight:800;line-height:16px;text-align:center"></span>
+    </button>
     <div class="sync-pill" id="syncPill" title="Workshop data sync status">
       <span class="sync-dot"></span>
       <span id="syncLabel">Synced</span>
@@ -1417,6 +1440,87 @@ async function checkLimit(kind, currentCount, extra = 1) {
 window.currentSub = currentSub;
 window.checkLimit = checkLimit;
 
+// ── SUBSCRIPTION GATE ──────────────────────────────────────────────────────
+// Returns true only when the signed-in workshop (or its chain parent) has an
+// active, non-expired plan. Reads the live Firestore user doc each call so a
+// cancelled/expired sub locks the app on the next boot or re-check — not
+// cached. Branch accounts (chain_parent_uid set) inherit the parent's plan.
+async function _subscriptionActive() {
+  try {
+    // Re-read fresh in case the cached userProfile is stale
+    let prof = userProfile;
+    if (!prof) {
+      const d = await fbDb.collection('users').doc(currentUser.uid).get();
+      prof = d.exists ? d.data() : null;
+      userProfile = prof;
+    }
+    if (!prof) return false;
+    // Branch → check the chain parent's subscription
+    if (prof.chain_parent_uid && !prof.subscription) {
+      try {
+        const pd = await fbDb.collection('users').doc(prof.chain_parent_uid).get();
+        const ps = pd.exists ? pd.data().subscription : null;
+        return _subDocActive(ps);
+      } catch (_) { return false; }
+    }
+    return _subDocActive(prof.subscription);
+  } catch (e) {
+    console.warn('[subgate] check failed:', e);
+    // Fail CLOSED — no verified active sub means no access.
+    return false;
+  }
+}
+function _subDocActive(s) {
+  if (!s) return false;
+  const exp = s.expiry?.toDate ? s.expiry.toDate() : (s.expiry ? new Date(s.expiry) : null);
+  return (s.status === 'active') && (!exp || exp.getTime() > Date.now());
+}
+
+function _showNoSub() {
+  const emailEl  = document.getElementById('noSubEmail');
+  const statusEl = document.getElementById('noSubStatus');
+  const reasonEl = document.getElementById('noSubReason');
+  if (emailEl)  emailEl.textContent  = currentUser?.email || '—';
+  const s = userProfile?.subscription;
+  if (statusEl) {
+    const exp = s?.expiry?.toDate ? s.expiry.toDate() : (s?.expiry ? new Date(s.expiry) : null);
+    if (!s)                         statusEl.textContent = 'No plan';
+    else if (s.status !== 'active') statusEl.textContent = (s.status || 'inactive');
+    else if (exp && exp < new Date())statusEl.textContent = 'Expired ' + exp.toLocaleDateString('en-IN');
+    else                            statusEl.textContent = 'Inactive';
+  }
+  if (reasonEl) {
+    reasonEl.textContent = userProfile?.subscription
+      ? 'Your plan is inactive or expired. Renew to keep using Garage Pro.'
+      : 'No active Garage Pro plan found for this account. Pick a plan to get started.';
+  }
+  showOnly('overlayNoSub');
+}
+
+// "I've subscribed — re-check" button. Re-reads the user doc and re-boots if
+// the plan is now active.
+window._recheckSub = async function() {
+  showOnly('overlayLoading');
+  try {
+    const d = await fbDb.collection('users').doc(currentUser.uid).get();
+    userProfile = d.exists ? d.data() : null;
+  } catch (_) {}
+  if (await _subscriptionActive()) {
+    // Re-run the normal boot path
+    if (!userProfile || !userProfile.workshop_name) { showOnly('overlayNoWorkshop'); _prefillWizard(); return; }
+    await loadAllData(true);
+    if (!D.mechanics.length) { showOnly('overlayNoWorkshop'); _prefillWizard(); return; }
+    const cached = sessionStorage.getItem('gp_worker:' + currentUser.uid);
+    if (cached) { try { currentWorker = JSON.parse(cached); } catch(_) {} }
+    if (!currentWorker || !D.mechanics.find(w => w.id === currentWorker.id)) { showPinpad(); return; }
+    enterApp();
+  } else {
+    _showNoSub();
+    showToast('Still no active plan on this account.', 'bad');
+  }
+};
+window._subscriptionActive = _subscriptionActive;
+
 // ══════════════════════════════════════════
 //  HELPERS
 // ══════════════════════════════════════════
@@ -1427,7 +1531,7 @@ async function sha256(str) {
 }
 
 function showOnly(overlayId) {
-  ['overlayLoading','overlaySignin','overlayNoWorkshop','overlayPinpad'].forEach(id => {
+  ['overlayLoading','overlaySignin','overlayNoWorkshop','overlayPinpad','overlayNoSub'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = (id === overlayId) ? 'flex' : 'none';
   });
@@ -1455,9 +1559,21 @@ fbAuth.onAuthStateChanged(async (user) => {
 
   try {
     await loadUserProfile();
+    // ── SUBSCRIPTION GATE ───────────────────────────────────────────────
+    // Block the app entirely unless the workshop has an active plan. Read
+    // straight from the Firestore user doc (server data, not localStorage)
+    // so it can't be faked by editing browser storage. Branch accounts
+    // inherit their chain parent's subscription. The matching Firestore
+    // rule (firestore.rules) also denies data reads/writes without an
+    // active sub — so even bypassing this JS gate gets you an empty app.
+    if (!(await _subscriptionActive())) {
+      _showNoSub();
+      return;
+    }
     // No workshop set up yet → first-run setup
     if (!userProfile || !userProfile.workshop_name) {
       showOnly('overlayNoWorkshop');
+      _prefillWizard();   // auto-fill garage name + owner name from signup data
       return;
     }
     // Workshop exists → check if a worker session is already cached on this device
@@ -1470,6 +1586,7 @@ fbAuth.onAuthStateChanged(async (user) => {
     // Need at least one worker to log in. If no workers exist yet, set up an owner.
     if (!D.mechanics.length) {
       showOnly('overlayNoWorkshop');
+      _prefillWizard();
       return;
     }
     if (!currentWorker || !D.mechanics.find(w => w.id === currentWorker.id)) {
@@ -1488,6 +1605,23 @@ async function loadUserProfile() {
   const doc = await fbDb.collection('users').doc(currentUser.uid).get();
   userProfile = doc.exists ? doc.data() : null;
 }
+
+// Prefill the first-run wizard's garage name + owner name from whatever the
+// marketing-site signup already captured (the user doc carries workshop_name /
+// garageName / company, and Firebase Auth has the display name). Saves the
+// owner re-typing what they entered at checkout.
+function _prefillWizard() {
+  try {
+    const p = userProfile || {};
+    const garage = p.workshop_name || p.garageName || p.garage || p.company_name || p.companyName || '';
+    const ownerName = p.name || p.owner_name || currentUser?.displayName || '';
+    const gEl = document.getElementById('fs-garage');
+    const nEl = document.getElementById('fs-name');
+    if (gEl && garage && !gEl.value)    gEl.value = garage;
+    if (nEl && ownerName && !nEl.value) nEl.value = ownerName;
+  } catch (e) { console.warn('[wizard prefill]', e); }
+}
+window._prefillWizard = _prefillWizard;
 
 // ══════════════════════════════════════════
 //  AUTH FORM HANDLERS
@@ -1905,6 +2039,7 @@ function enterApp() {
   renderHeader();
   renderSidebarVisibility();
   switchTab(currentTab);
+  applyLang();   // apply saved language preference to the nav
   // Beginning-of-day briefing — once per day, per worker, fired the first
   // time they sign in. Notifies service advisors with today's appointment
   // count so they can prepare. No-op for non-advisor roles.
@@ -5646,6 +5781,9 @@ window.openJobForm = function(id) {
     id:       j.id,    // <-- stamp the id so photo upload knows which job to attach to
     parts:    (j.parts   || []).map(p => ({ name: p.name || '', hsn: p.hsn || '', qty: Number(p.qty || 1), unit_price: Number(p.unit_price || 0), disc_pct: Number(p.disc_pct || 0) })),
     charges:  (j.service_charges || []).map(c => ({ name: c.name || '', amount: Number(c.amount || 0) })),
+    // Estimation-only lines — quote/planning, NEVER deducted from inventory.
+    est_parts:    (j.est_parts    || []).map(p => ({ name: p.name || '', qty: Number(p.qty || 1), price: Number(p.price || 0), source: p.source || 'manual' })),
+    est_services: (j.est_services || []).map(s => ({ name: s.name || '', price: Number(s.price || 0) })),
     mechanics: startMechs,
     photos:   [],      // populated async after the form renders (see _jobLoadPhotos)
     is_insurance:        !!j.is_insurance,
@@ -5702,6 +5840,39 @@ window.openJobForm = function(id) {
       <div class="f-row r1">
         <div class="f-grp"><label>Labour notes</label>
           <textarea id="jf-labour" placeholder="What's been done, what's pending, parts needed…">${escapeHtml(j.labour_notes || '')}</textarea></div>
+      </div>
+
+      <!-- ── Collapsible: ESTIMATION PARTS (quote only — never deducts inventory) ── -->
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+        <details ${(_editingJob.est_parts.length || _editingJob.est_services.length) ? 'open' : ''}>
+          <summary style="cursor:pointer;font-family:var(--fd);font-weight:700;font-size:14px;color:var(--blue,#639fff);list-style:none;display:flex;align-items:center;gap:8px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="15" height="15"><path d="M9 18l6-6-6-6"/></svg>
+            Estimation parts <span style="font-weight:500;color:var(--faint);font-size:12px">(quote only — not deducted from inventory)</span>
+          </summary>
+          <div style="margin-top:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.22);border-radius:10px">
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+              <button type="button" class="mini-btn" onclick="_jobAddEstFromInventory()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>From inventory</button>
+              <button type="button" class="mini-btn" onclick="_jobAddEstFromApproved()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>From approved request</button>
+            </div>
+            <div id="jf-estparts-rows"></div>
+          </div>
+        </details>
+      </div>
+
+      <!-- ── Collapsible: ESTIMATED SERVICE ── -->
+      <div style="margin-top:14px">
+        <details ${_editingJob.est_services.length ? 'open' : ''}>
+          <summary style="cursor:pointer;font-family:var(--fd);font-weight:700;font-size:14px;color:var(--blue,#639fff);list-style:none;display:flex;align-items:center;gap:8px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="15" height="15"><path d="M9 18l6-6-6-6"/></svg>
+            Estimated service <span style="font-weight:500;color:var(--faint);font-size:12px">(quote only)</span>
+          </summary>
+          <div style="margin-top:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.22);border-radius:10px">
+            <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+              <button type="button" class="mini-btn" onclick="_jobAddEstService()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>Add service</button>
+            </div>
+            <div id="jf-estsvc-rows"></div>
+          </div>
+        </details>
       </div>
 
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
@@ -5777,7 +5948,7 @@ window.openJobForm = function(id) {
     saveLabel: 'Save job',
     onSave: () => saveJob(j.id)
   });
-  setTimeout(() => { _drawJobRows(); _drawMechanicChips(); _jobLoadPhotos(j.id); }, 0);
+  setTimeout(() => { _drawJobRows(); _drawEstRows(); _drawMechanicChips(); _jobLoadPhotos(j.id); }, 0);
 };
 
 window._toggleInsurance = function() {
@@ -5863,6 +6034,140 @@ window._jobApplyBulkDiscount = function() {
   _drawJobRows();
   showToast(`Applied ${v}% to ${_editingJob.parts.length} part${_editingJob.parts.length === 1 ? '' : 's'}`, 'good');
 };
+
+// ── ESTIMATION PARTS / SERVICES — quote lines, never touch inventory ──────────
+// Add an estimation part from inventory. Copies name + sell price, but does NOT
+// flag it for deduction (no inventory_id used in the inventory diff). Only items
+// that HAVE a sell price (an estimate) are pickable.
+window._jobAddEstFromInventory = function() {
+  const priced = (D.inventory || []).filter(i => Number(i.sell_price || 0) > 0);
+  if (!priced.length) return customAlert('No inventory items have a sell price set. Add prices in the Inventory tab — only priced parts can be estimated.', { title: 'No priced parts' });
+  _openSubModal({
+    title: 'Add estimation part from inventory',
+    bodyHtml: `
+      <input id="_estQ" type="text" placeholder="Search priced inventory…" autofocus style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px;margin-bottom:10px" />
+      <div id="_estList" style="max-height:46vh;overflow:auto"></div>
+      <div style="font-size:11.5px;color:var(--faint);margin-top:8px">Estimation only — picking a part here does NOT reduce your stock. It's a quote line.</div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>`
+  });
+  const cur = D.settings?.currency || '₹';
+  const render = (q) => {
+    q = (q || '').toLowerCase().trim();
+    let list = priced.slice();
+    if (q) list = list.filter(i => (i.name||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
+    list.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    const wrap = document.getElementById('_estList');
+    if (!list.length) { wrap.innerHTML = `<div style="padding:24px;color:var(--faint);text-align:center;font-size:13px">No priced items match.</div>`; return; }
+    wrap.innerHTML = list.map(i => `<button type="button" data-eid="${escapeHtml(i.id || i.name)}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid var(--brd2);background:var(--surf);cursor:pointer;color:var(--txt);font-family:var(--fb)">
+      <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(i.name)}</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(i.category || '—')} · ${Number(i.qty||0)} in stock</div></div>
+      <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:var(--teal)">${cur}${Number(i.sell_price||0).toLocaleString('en-IN')}</div>
+    </button>`).join('');
+    wrap.querySelectorAll('[data-eid]').forEach(btn => btn.onclick = () => {
+      const item = priced.find(x => (x.id||x.name) === btn.dataset.eid);
+      if (!item) return;
+      _editingJob.est_parts.push({ name: item.name, qty: 1, price: Number(item.sell_price||0), source: 'inventory' });
+      closeSubModal(); _drawEstRows();
+    });
+  };
+  setTimeout(() => { const inp = document.getElementById('_estQ'); if (inp) inp.addEventListener('input', () => render(inp.value)); render(''); }, 0);
+};
+
+// Add estimation parts from APPROVED parts-request items that carry a price.
+// Pulls every priced + Approved/Ordered/Received item across all requests for
+// this job's plate (or all requests if none plate-matched).
+window._jobAddEstFromApproved = function() {
+  const j = D.jobs.find(x => x.id === _editingJob?.id);
+  const plate = (j?.plate || '').toUpperCase().replace(/\s+/g,'');
+  const candidates = [];
+  for (const r of (D.parts_requests || [])) {
+    const items = (typeof _prRequestItems === 'function') ? _prRequestItems(r) : (r.items || []);
+    for (const it of items) {
+      const priced = it.price != null && Number(it.price) > 0;
+      const approved = ['Approved','Ordered','Received'].includes(it.status);
+      if (priced && approved) {
+        candidates.push({ name: it.name, qty: Number(it.qty||1), price: Number(it.price), plate: r.plate || '' });
+      }
+    }
+  }
+  if (!candidates.length) return customAlert('No approved + priced parts found. The Parts dept needs to set a price and approve items first (Parts tab → Manage → Save estimate).', { title: 'No approved estimates' });
+  // Plate-matched first
+  candidates.sort((a,b) => {
+    const am = (a.plate||'').toUpperCase().replace(/\s+/g,'') === plate ? 0 : 1;
+    const bm = (b.plate||'').toUpperCase().replace(/\s+/g,'') === plate ? 0 : 1;
+    return am - bm || a.name.localeCompare(b.name);
+  });
+  const cur = D.settings?.currency || '₹';
+  _openSubModal({
+    title: 'Add from approved parts requests',
+    bodyHtml: `<div style="max-height:48vh;overflow:auto">${candidates.map((c,i) => `<button type="button" data-ci="${i}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid var(--brd2);background:var(--surf);cursor:pointer;color:var(--txt);font-family:var(--fb)">
+      <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(c.name)} <span style="color:var(--faint);font-weight:500">× ${c.qty}</span></div>${c.plate ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">for ${escapeHtml(c.plate)}${(c.plate||'').toUpperCase().replace(/\\s+/g,'')===plate?' · this car':''}</div>` : ''}</div>
+      <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:var(--teal)">${cur}${c.price.toLocaleString('en-IN')}</div>
+    </button>`).join('')}</div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>`
+  });
+  setTimeout(() => {
+    document.querySelectorAll('#gpSubModalBody [data-ci]').forEach(btn => btn.onclick = () => {
+      const c = candidates[Number(btn.dataset.ci)];
+      if (!c) return;
+      _editingJob.est_parts.push({ name: c.name, qty: c.qty, price: c.price, source: 'approved-request' });
+      closeSubModal(); _drawEstRows();
+    });
+  }, 0);
+};
+
+window._jobAddEstService = function() { _editingJob.est_services.push({ name: '', price: 0 }); _drawEstRows(); };
+window._jobRemoveEstPart = function(i) { _editingJob.est_parts.splice(i,1); _drawEstRows(); };
+window._jobRemoveEstService = function(i) { _editingJob.est_services.splice(i,1); _drawEstRows(); };
+
+// Render both estimation tables + a combined estimate total.
+function _drawEstRows() {
+  const cur = D.settings?.currency || '₹';
+  const pWrap = document.getElementById('jf-estparts-rows');
+  if (pWrap) {
+    pWrap.innerHTML = _editingJob.est_parts.length
+      ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:520px">
+          <thead><tr><th>Part</th><th style="width:80px">Qty</th><th style="width:120px">Price (₹)</th><th style="width:90px">Source</th><th style="width:110px;text-align:right">Line</th><th style="width:32px"></th></tr></thead>
+          <tbody>${_editingJob.est_parts.map((p,i) => `<tr>
+            <td><input type="text" data-ep="${i}" data-f="name" value="${escapeHtml(p.name)}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="1" step="1" data-ep="${i}" data-f="qty" value="${escapeHtml(String(p.qty))}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="1" data-ep="${i}" data-f="price" value="${escapeHtml(String(p.price))}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td style="font-size:11px;color:var(--faint)">${escapeHtml(p.source === 'inventory' ? 'Stock' : p.source === 'approved-request' ? 'Approved' : 'Manual')}</td>
+            <td style="text-align:right;font-family:'Courier New',monospace;font-size:12.5px">${(Number(p.qty||1)*Number(p.price||0)).toLocaleString('en-IN')}</td>
+            <td><button type="button" class="mini-btn danger" onclick="_jobRemoveEstPart(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>
+          </tr>`).join('')}</tbody></table></div>`
+      : '<div style="padding:12px;color:var(--faint);text-align:center;font-size:12.5px">No estimation parts. Add from inventory or an approved request.</div>';
+    pWrap.querySelectorAll('input[data-ep]').forEach(inp => inp.addEventListener('input', ev => {
+      const i = Number(ev.target.dataset.ep), f = ev.target.dataset.f;
+      _editingJob.est_parts[i][f] = f === 'name' ? ev.target.value : (Number(ev.target.value)||0);
+      _updateEstTotal();
+    }));
+  }
+  const sWrap = document.getElementById('jf-estsvc-rows');
+  if (sWrap) {
+    sWrap.innerHTML = _editingJob.est_services.length
+      ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:380px">
+          <thead><tr><th>Service</th><th style="width:140px">Price (₹)</th><th style="width:32px"></th></tr></thead>
+          <tbody>${_editingJob.est_services.map((s,i) => `<tr>
+            <td><input type="text" data-es="${i}" data-f="name" value="${escapeHtml(s.name)}" placeholder="Wheel alignment, paint…" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="1" data-es="${i}" data-f="price" value="${escapeHtml(String(s.price))}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><button type="button" class="mini-btn danger" onclick="_jobRemoveEstService(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>
+          </tr>`).join('')}</tbody></table></div>`
+      : '<div style="padding:12px;color:var(--faint);text-align:center;font-size:12.5px">No estimated services. Click "Add service".</div>';
+    sWrap.querySelectorAll('input[data-es]').forEach(inp => inp.addEventListener('input', ev => {
+      const i = Number(ev.target.dataset.es), f = ev.target.dataset.f;
+      _editingJob.est_services[i][f] = f === 'name' ? ev.target.value : (Number(ev.target.value)||0);
+      _updateEstTotal();
+    }));
+  }
+  _updateEstTotal();
+}
+function _updateEstTotal() {
+  const cur = D.settings?.currency || '₹';
+  const pt = (_editingJob.est_parts || []).reduce((s,p) => s + Number(p.qty||1)*Number(p.price||0), 0);
+  const st = (_editingJob.est_services || []).reduce((s,x) => s + Number(x.price||0), 0);
+  const el = document.getElementById('jf-est-total');
+  if (el) el.textContent = `${cur}${(pt+st).toLocaleString('en-IN')}`;
+}
 
 // Updates the small "Parts subtotal" footer line under the parts table
 function _updateJobPartsFooter() {
@@ -6162,6 +6467,11 @@ async function saveJob(id) {
                         }));
   j.service_charges = (_editingJob?.charges || []).filter(c => (c.name || '').trim())
                         .map(c => ({ name: c.name.trim(), amount: Number(c.amount || 0) }));
+  // Estimation lines — saved as-is, NEVER touch the inventory diff below.
+  j.est_parts    = (_editingJob?.est_parts    || []).filter(p => (p.name || '').trim())
+                     .map(p => ({ name: p.name.trim(), qty: Math.max(1, Number(p.qty || 1)), price: Number(p.price || 0), source: p.source || 'manual' }));
+  j.est_services = (_editingJob?.est_services || []).filter(s => (s.name || '').trim())
+                     .map(s => ({ name: s.name.trim(), price: Number(s.price || 0) }));
 
   // ── Inventory diff: deduct net usage (or refund removed parts) ──
   // Every job part must already exist in inventory (the picker enforces this on
@@ -6969,6 +7279,48 @@ const TAB_TITLES = {
   invoices:'Invoices', reports:'Reports', timesheets:'Timesheets', notifications:'Notifications', audit:'Audit Log', settings:'Settings'
 };
 
+// ── Hindi labels for the worker-facing navigation. Keyed by tab id so it's
+// robust (no fragile text matching). The toggle swaps the sidebar nav text +
+// page title. Stored per device in localStorage('gp_lang').
+const TAB_TITLES_HI = {
+  dashboard:'डैशबोर्ड', bookings:'अपॉइंटमेंट', checkin:'चेक-इन', jobs:'जॉब कार्ड',
+  bays:'बे', queue:'कतार', customers:'ग्राहक',
+  workers:'कर्मचारी', inventory:'इन्वेंटरी', parts:'पुर्जे',
+  invoices:'चालान', reports:'रिपोर्ट', timesheets:'टाइमशीट', notifications:'सूचनाएं', audit:'ऑडिट लॉग', settings:'सेटिंग्स',
+  _newbk: 'नया अपॉइंटमेंट'
+};
+function gpLang() { return localStorage.getItem('gp_lang') === 'hi' ? 'hi' : 'en'; }
+window.gpToggleLang = function() {
+  localStorage.setItem('gp_lang', gpLang() === 'hi' ? 'en' : 'hi');
+  applyLang();
+  showToast(gpLang() === 'hi' ? 'भाषा: हिन्दी' : 'Language: English', 'good');
+};
+// Relabel the sidebar nav buttons + current page title to the chosen language.
+function applyLang() {
+  const hi = gpLang() === 'hi';
+  document.querySelectorAll('.sidebar .snav[data-tab]').forEach(btn => {
+    const tab = btn.dataset.tab;
+    const label = hi ? (TAB_TITLES_HI[tab] || TAB_TITLES[tab]) : (tab === '_newbk' ? 'New Appointment' : TAB_TITLES[tab]);
+    if (!label) return;
+    // The button has an SVG icon + a text node; replace only the trailing text.
+    const nodes = Array.from(btn.childNodes);
+    const textNode = nodes.reverse().find(n => n.nodeType === 3 && n.textContent.trim());
+    if (textNode) textNode.textContent = ' ' + label;
+    else btn.appendChild(document.createTextNode(' ' + label));
+    // Preserve any badge pill
+  });
+  // Page title
+  const ht = document.getElementById('hdrTabTitle');
+  if (ht && typeof currentTab === 'string') {
+    ht.textContent = hi ? (TAB_TITLES_HI[currentTab] || TAB_TITLES[currentTab] || currentTab) : (TAB_TITLES[currentTab] || currentTab);
+  }
+  // Toggle button label
+  const tb = document.getElementById('hdrLangBtn');
+  if (tb) tb.textContent = hi ? 'EN' : 'हि';
+  _renderNotifBadge();   // badge may have been wiped by relabel
+}
+window.applyLang = applyLang;
+
 // Override renderHeader for the new layout (workshop name in sidebar, worker pill in sidebar foot)
 window.renderHeader = function() {
   const wsName = userProfile?.workshop_name || 'Workshop';
@@ -7032,7 +7384,7 @@ const _origSwitchTab = window.switchTab;
 window.switchTab = function(tab) {
   _origSwitchTab(tab);
   const ht = document.getElementById('hdrTabTitle');
-  if (ht) ht.textContent = TAB_TITLES[tab] || tab;
+  if (ht) ht.textContent = (gpLang() === 'hi' ? (TAB_TITLES_HI[tab] || TAB_TITLES[tab]) : TAB_TITLES[tab]) || tab;
   if (tab === 'parts')      renderParts();
   if (tab === 'inventory')  renderInventory();
   if (tab === 'timesheets') renderTimesheets();
@@ -8687,6 +9039,18 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
         <div id="sf-em-msg" style="margin-top:8px;font-size:12.5px;min-height:16px;line-height:1.5"></div>
       </div>
 
+      <!-- ── CSV import — bulk customers + vehicles from paper / old system ── -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Import customers from CSV</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px;line-height:1.55">Migrating from paper or another system? Upload a CSV. Recognised columns (any order, case-insensitive): <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--acc2)">name, phone, email, address, plate, make_model, year, colour</code>. One row per vehicle — rows with the same customer name are merged into one customer with multiple vehicles.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="sf-csv-file" accept=".csv,text/csv" style="font-family:var(--fb);font-size:13px;color:var(--txt)" onchange="_csvPreview(event)" />
+          <button class="refresh-btn" onclick="_csvDownloadTemplate()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Download template</button>
+        </div>
+        <div id="sf-csv-preview" style="margin-top:12px"></div>
+        <div id="sf-csv-msg" style="margin-top:8px;font-size:12.5px;min-height:16px"></div>
+      </div>
+
 
       <!-- Danger zone -->
       <div class="card" style="padding:18px;border:1px solid rgba(255,107,107,.3)">
@@ -8739,6 +9103,142 @@ window.saveWorkshopInfo = async function() {
   }
   showToast('Workshop info saved', 'good');
   await renderSettings(true);   // refresh so the share-link reflects any name change
+};
+
+// ─── CSV import (customers + vehicles) ───────────────────────────
+let _csvParsedRows = null;   // staged rows awaiting confirm
+
+// Minimal RFC-4180-ish CSV parser — handles quoted fields, commas, newlines in quotes.
+function _csvParse(text) {
+  const rows = [];
+  let row = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], next = text[i+1];
+    if (inQ) {
+      if (c === '"' && next === '"') { field += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else field += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(x => (x || '').trim()));
+}
+
+// Map a flexible header to our canonical fields
+function _csvColIndex(headers) {
+  const norm = headers.map(h => (h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, ''));
+  const find = (...aliases) => { for (const a of aliases) { const i = norm.indexOf(a); if (i >= 0) return i; } return -1; };
+  return {
+    name:   find('name','customername','customer','fullname'),
+    phone:  find('phone','mobile','mobileno','contact','phonenumber'),
+    email:  find('email','emailaddress'),
+    address:find('address','addr'),
+    plate:  find('plate','platenumber','regno','registration','vehicleno','number'),
+    model:  find('makemodel','model','vehicle','makeandmodel','make'),
+    year:   find('year','modelyear'),
+    colour: find('colour','color')
+  };
+}
+
+window._csvPreview = function(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  const msg = document.getElementById('sf-csv-msg');
+  const prev = document.getElementById('sf-csv-preview');
+  _csvParsedRows = null;
+  if (!file) { prev.innerHTML = ''; return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const rows = _csvParse(String(reader.result || ''));
+      if (rows.length < 2) { msg.style.color = 'var(--red)'; msg.textContent = 'CSV looks empty or has no data rows.'; return; }
+      const cols = _csvColIndex(rows[0]);
+      if (cols.name < 0) { msg.style.color = 'var(--red)'; msg.textContent = 'No "name" column found. The header row must include at least a name column.'; return; }
+      const parsed = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const g = (idx) => idx >= 0 ? (r[idx] || '').trim() : '';
+        const name = g(cols.name);
+        if (!name) continue;
+        parsed.push({
+          name, phone: g(cols.phone), email: g(cols.email), address: g(cols.address),
+          plate: g(cols.plate).toUpperCase(), model: g(cols.model), year: g(cols.year), colour: g(cols.colour)
+        });
+      }
+      if (!parsed.length) { msg.style.color = 'var(--red)'; msg.textContent = 'No rows with a customer name found.'; return; }
+      _csvParsedRows = parsed;
+      // Count distinct customers
+      const custs = new Set(parsed.map(p => p.name.toLowerCase()));
+      const withVeh = parsed.filter(p => p.plate).length;
+      prev.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:12px 14px">
+        <div style="font-size:13px;color:var(--txt);margin-bottom:8px"><b>${custs.size}</b> customer${custs.size===1?'':'s'} · <b>${withVeh}</b> vehicle${withVeh===1?'':'s'} · ${parsed.length} rows</div>
+        <div style="overflow:auto;max-height:200px"><table class="list-tbl" style="min-width:560px"><thead><tr><th>Name</th><th>Phone</th><th>Plate</th><th>Vehicle</th></tr></thead><tbody>${parsed.slice(0,8).map(p => `<tr><td class="k">${escapeHtml(p.name)}</td><td>${escapeHtml(p.phone||'—')}</td><td>${p.plate?`<span class="plate">${escapeHtml(p.plate)}</span>`:'—'}</td><td>${escapeHtml([p.model,p.year,p.colour].filter(Boolean).join(' ')||'—')}</td></tr>`).join('')}</tbody></table></div>
+        ${parsed.length>8?`<div style="font-size:11.5px;color:var(--faint);margin-top:6px">+${parsed.length-8} more rows…</div>`:''}
+        <button class="add-btn" style="margin-top:12px" onclick="_csvImport()">Import ${custs.size} customer${custs.size===1?'':'s'}</button>
+      </div>`;
+      msg.textContent = '';
+    } catch (e) {
+      msg.style.color = 'var(--red)'; msg.textContent = 'Couldn\'t parse CSV: ' + (e.message || e);
+    }
+  };
+  reader.onerror = () => { msg.style.color = 'var(--red)'; msg.textContent = 'Couldn\'t read the file.'; };
+  reader.readAsText(file);
+};
+
+window._csvImport = async function() {
+  if (!_csvParsedRows || !_csvParsedRows.length) return;
+  const msg = document.getElementById('sf-csv-msg');
+  msg.style.color = 'var(--dim)'; msg.textContent = 'Importing…';
+  D.customers = D.customers || [];
+  let added = 0, merged = 0, vehicles = 0;
+  for (const row of _csvParsedRows) {
+    let c = D.customers.find(x => (x.name || '').toLowerCase() === row.name.toLowerCase());
+    if (!c) {
+      c = { id: uid('c'), name: row.name, phone: row.phone, email: row.email, address: row.address, vehicles: [], created_at: nowStr() };
+      D.customers.push(c); added++;
+    } else {
+      // fill blanks only
+      if (row.phone && !c.phone) c.phone = row.phone;
+      if (row.email && !c.email) c.email = row.email;
+      if (row.address && !c.address) c.address = row.address;
+      merged++;
+    }
+    c.vehicles = Array.isArray(c.vehicles) ? c.vehicles : [];
+    if (row.plate) {
+      const exists = c.vehicles.find(v => (v.plate || '').replace(/\s+/g,'').toUpperCase() === row.plate.replace(/\s+/g,'').toUpperCase());
+      if (!exists) {
+        c.vehicles.push({ id: uid('veh'), plate: row.plate, model: row.model, year: row.year, color: row.colour, added_at: nowStr() });
+        vehicles++;
+      }
+    }
+  }
+  try {
+    await wsSave('customers', D.customers);
+    msg.style.color = 'var(--teal)';
+    msg.textContent = `✓ Imported — ${added} new customer${added===1?'':'s'}, ${merged} merged, ${vehicles} vehicle${vehicles===1?'':'s'} added.`;
+    audit('csv-import', `${added} new · ${merged} merged · ${vehicles} vehicles`, {});
+    _csvParsedRows = null;
+    document.getElementById('sf-csv-preview').innerHTML = '';
+    document.getElementById('sf-csv-file').value = '';
+    if (currentTab === 'customers') renderCustomers(true);
+  } catch (e) {
+    msg.style.color = 'var(--red)'; msg.textContent = 'Import failed: ' + (e.message || e);
+  }
+};
+
+window._csvDownloadTemplate = function() {
+  const csv = 'name,phone,email,address,plate,make_model,year,colour\nRajesh Kumar,+91 98765 43210,rajesh@example.in,"12 MG Road, Pune",MH12AB1234,Maruti Swift,2020,White\n';
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'garage-pro-customers-template.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 
 // ─── Departments (used on bookings + job cards) ──────────────────
@@ -11233,20 +11733,28 @@ window.notifReadByMe = notifReadByMe;
 
 // Small badge on the Notifications sidebar entry — refreshed on every render
 function _renderNotifBadge() {
-  const btn = document.querySelector('.sidebar .snav[data-tab="notifications"]');
-  if (!btn) return;
-  let badge = btn.querySelector('.notif-pip');
   const n = unreadNotifCount();
-  if (n > 0) {
-    if (!badge) {
-      badge = document.createElement('span');
-      badge.className = 'notif-pip';
-      badge.style.cssText = 'margin-left:auto;padding:1px 7px;border-radius:100px;background:var(--red);color:#fff;font-size:10.5px;font-weight:800;line-height:1.6';
-      btn.appendChild(badge);
+  // Sidebar pill
+  const btn = document.querySelector('.sidebar .snav[data-tab="notifications"]');
+  if (btn) {
+    let badge = btn.querySelector('.notif-pip');
+    if (n > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'notif-pip';
+        badge.style.cssText = 'margin-left:auto;padding:1px 7px;border-radius:100px;background:var(--red);color:#fff;font-size:10.5px;font-weight:800;line-height:1.6';
+        btn.appendChild(badge);
+      }
+      badge.textContent = n > 99 ? '99+' : String(n);
+    } else if (badge) {
+      badge.remove();
     }
-    badge.textContent = n > 99 ? '99+' : String(n);
-  } else if (badge) {
-    badge.remove();
+  }
+  // Header bell badge
+  const bell = document.getElementById('hdrBellBadge');
+  if (bell) {
+    if (n > 0) { bell.textContent = n > 99 ? '99+' : String(n); bell.style.display = ''; }
+    else        { bell.style.display = 'none'; }
   }
 }
 window._renderNotifBadge = _renderNotifBadge;
@@ -11305,6 +11813,21 @@ async function markMyNotifsRead() {
   }
 }
 window.markMyNotifsRead = markMyNotifsRead;
+
+// Mark a SINGLE notification seen — explicit user action (the per-row button).
+// Notifications no longer auto-clear when the tab opens; the user must mark
+// each one (or use "Mark all read") so nothing is missed.
+window.markNotifSeen = async function(notifId) {
+  if (!currentWorker) return;
+  const n = (D.notifications || []).find(x => x.id === notifId);
+  if (!n) return;
+  if (!notifReadByMe(n, currentWorker)) {
+    n.read_by = (n.read_by || []).concat(currentWorker.id);
+    await wsSave('notifications', D.notifications);
+    _renderNotifBadge();
+    renderNotifications();
+  }
+};
 
 async function renderAudit(force = false) {
   await loadAllData(force);
@@ -11392,13 +11915,17 @@ async function renderNotifications(force = false) {
             ${unread ? '<span style="color:var(--blue);font-weight:700">● NEW · </span>' : ''}
             from <b style="color:var(--dim)">${escapeHtml(n.by || 'system')}</b>${n.by_role ? ` (${escapeHtml(n.by_role)})` : ''} ${escapeHtml(targetLabel)}
           </div>
-          ${_renderNotifAction(n)}
+          <div style="display:flex;gap:6px;align-items:center">
+            ${unread ? `<button class="mini-btn" onclick="markNotifSeen('${escapeHtml(n.id)}')" title="Mark this notification as seen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>Mark seen</button>` : ''}
+            ${_renderNotifAction(n)}
+          </div>
         </div>
       </div>
     </div>`;
   }).join('');
-  // Mark "for me" notifs as read whenever we open the tab so the badge clears
-  markMyNotifsRead().catch(() => {});
+  // NOTE: we deliberately do NOT auto-mark notifications read on tab open.
+  // The user must click "Mark seen" per row, or "Mark all read" — otherwise
+  // important notifications would silently clear just by glancing at the tab.
 }
 window.renderNotifications = renderNotifications;
 
