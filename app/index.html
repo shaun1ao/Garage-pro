@@ -5398,6 +5398,7 @@ window.markJobStatus = async function(jobId, newStatus) {
   }
   renderJobs();
   await wsSave('jobs', D.jobs);
+  publishTracking(j.booking_id);   // push the new status to the public tracker
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -5426,6 +5427,7 @@ window.markRepairDone = async function(jobId) {
   });
   renderJobs();
   await wsSave('jobs', D.jobs);
+  publishTracking(j.booking_id);
 };
 
 // Floor manager signs off after QC (test drive + final inspection). Status → QC Passed.
@@ -5453,6 +5455,7 @@ window.passQC = async function(jobId) {
   });
   renderJobs();
   await wsSave('jobs', D.jobs);
+  publishTracking(j.booking_id);
 };
 
 // Service advisor confirms pickup time + assigns the wash worker. One modal does both.
@@ -5524,6 +5527,7 @@ async function _saveInformClient(jobId) {
   j.status = 'Washing';
   renderJobs();
   await wsSave('jobs', D.jobs);
+  publishTracking(j.booking_id);
 }
 
 // Wash team marks the car ready → Ready for Pickup. From here the existing checkout flow
@@ -5544,6 +5548,7 @@ window.markWashReady = async function(jobId) {
   });
   renderJobs();
   await wsSave('jobs', D.jobs);
+  publishTracking(j.booking_id);
 };
 
 // "Send estimate to client" — Stage 2 final step. Creates a Draft invoice
@@ -5552,8 +5557,13 @@ window.markWashReady = async function(jobId) {
 window.sendJobEstimate = async function(jobId) {
   const j = D.jobs.find(x => x.id === jobId);
   if (!j) return;
-  if (!(j.parts || []).length && !(j.service_charges || []).length) {
-    return customAlert('Add parts or service charges to the job card first so the estimate has something to show.', { title: 'Nothing to estimate' });
+  // The ESTIMATE pulls ONLY from the job card's estimation sections
+  // (est_parts + est_services) — NOT the actual parts-used / charges, which
+  // are for the final bill. This keeps quote and bill cleanly separate.
+  const estParts    = (j.est_parts    || []).filter(p => (p.name || '').trim());
+  const estServices = (j.est_services || []).filter(s => (s.name || '').trim());
+  if (!estParts.length && !estServices.length) {
+    return customAlert('Add Estimation parts or Estimated services on the job card first (the collapsible blue sections). The estimate is built from those — not from "Parts used".', { title: 'Nothing to estimate' });
   }
   // Reuse the invoice flow but force the invoice into Draft so the customer
   // sees it's an estimate and we don't accidentally treat it as billed revenue.
@@ -5563,9 +5573,15 @@ window.sendJobEstimate = async function(jobId) {
     inv.created_at = nowStr();
     inv.created_by = currentWorker?.name || '';
     D.invoices.push(inv);
-  } else {
-    _resyncInvoiceFromJob(inv, j);
   }
+  // Override the lines/charges with the ESTIMATION items (seed/resync used the
+  // actual parts; we replace them here so the estimate reflects the quote).
+  inv.lines = estParts.map(p => ({
+    name: p.name.trim(), hsn: '', qty: Math.max(1, Number(p.qty || 1)),
+    unit_price: Number(p.price || 0), disc_pct: 0
+  }));
+  inv.charges = estServices.map(s => ({ name: s.name.trim(), amount: Number(s.price || 0) }));
+  inv.is_estimate = true;
   inv.status = 'Draft';
   inv.payment_status = 'Outstanding';
   inv.updated_at = nowStr();
@@ -5577,6 +5593,7 @@ window.sendJobEstimate = async function(jobId) {
     wsSave('jobs', D.jobs)
   ]);
   showToast(`Estimate ${inv.number} drafted for ${j.plate}`, 'good');
+  publishTracking(j.booking_id);
   audit('estimate-sent', `${inv.number} · ${j.plate} · ${j.cust_name || '—'}`, { invoice_id: inv.id, job_id: jobId });
   // Trigger 4 — Pricing & availability done → notify service advisor
   notify({
@@ -5774,6 +5791,7 @@ async function _cdSubmit(invId) {
   closeModal();
   renderJobs();
   await Promise.all(writes);
+  publishTracking(j.booking_id);   // estimate approved/rejected → tracker
   // customer_approved customer email — only on approve branches (skip rejects)
   if (counts.approved > 0) {
     sendCustomerNotification('customer_approved', { job: j, invoice: inv });
@@ -6577,6 +6595,7 @@ async function saveJob(id) {
   }
   renderJobs();
   await Promise.all(writes);
+  publishTracking(j.booking_id);   // push any status/detail change to the public tracker
 }
 
 // Pull the parts/charges/mechanics/insurance from `j` into the existing invoice `inv`.
@@ -11823,8 +11842,15 @@ function _renderNotifAction(n) {
       <button class="mini-btn" onclick="openJobForm('${escapeHtml(jid)}')">Open job</button>
     </div>`;
   }
-  // Parts-related kinds → parts tab (optionally jumping into a request detail)
-  if (/^part-|^parts-/.test(kind)) {
+  // part-estimate lands on the requesting WORKER → their Request Parts tab
+  // (workers can't see the approver-only Manage Requests tab).
+  if (kind === 'part-estimate') {
+    return `<button class="mini-btn" onclick="switchTab('request_parts')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="3"/></svg>View estimate</button>`;
+  }
+  // part-request lands on APPROVERS → Manage Requests tab, jumping into the
+  // request detail if we have its id. (parts-ready etc. target the mechanic and
+  // fall through to "Open job" below.)
+  if (kind === 'part-request') {
     const onclickJs = pid
       ? `switchTab('parts'); setTimeout(()=>_openPartReqDetail(${JSON.stringify(pid)}), 200)`
       : `switchTab('parts')`;
