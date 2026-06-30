@@ -772,9 +772,13 @@ input[list]{background:var(--bg2)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
           Inventory
         </button>
+        <button class="snav" data-tab="request_parts" onclick="switchTab('request_parts')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a2 2 0 0 1 2 2v2h-10V4a2 2 0 0 1 2-2z"/><path d="M5 6h14l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+          Request Parts
+        </button>
         <button class="snav" data-tab="parts" onclick="switchTab('parts')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-          Parts
+          Manage Requests
         </button>
 
         <div class="section-label">Management</div>
@@ -985,20 +989,27 @@ input[list]{background:var(--bg2)}
         </div>
         <div id="qTableWrap"></div>
       </div>
-      <div class="tab-panel" id="tab-parts">
+      <!-- WORKER VIEW — request parts + see own request statuses -->
+      <div class="tab-panel" id="tab-request_parts">
         <div class="page-head">
-          <div><h2>Parts</h2><div class="dash-meta"><span class="live-dot"></span><span id="prCrumb">—</span></div></div>
+          <div><h2>Request Parts</h2><div class="dash-meta"><span class="live-dot"></span><span id="rpCrumb">—</span></div></div>
           <div style="display:flex;gap:8px">
-            <button class="refresh-btn" onclick="renderParts(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="refresh-btn" onclick="renderRequestParts(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
             <button class="add-btn" onclick="openRequestPartForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Request a part</button>
           </div>
         </div>
-        <div class="toolbar">
-          <!-- Mine / All toggle — non-approvers default to "Mine"; approvers default to "All" -->
-          <div style="display:inline-flex;gap:0;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;overflow:hidden">
-            <button id="prScopeMineBtn" class="refresh-btn" style="border-radius:0;border:0;background:var(--acc);color:#170f05" onclick="_prSetScope('mine')">My requests</button>
-            <button id="prScopeAllBtn"  class="refresh-btn" style="border-radius:0;border:0;background:transparent" onclick="_prSetScope('all')">All requests</button>
+        <div id="rpTableWrap"></div>
+      </div>
+
+      <!-- APPROVER VIEW — manage all requests (approve / price / order / receive) -->
+      <div class="tab-panel" id="tab-parts">
+        <div class="page-head">
+          <div><h2>Manage Requests</h2><div class="dash-meta"><span class="live-dot"></span><span id="prCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderParts(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
           </div>
+        </div>
+        <div class="toolbar">
           <input type="text" id="prSearch" placeholder="Search part, plate, requester…" oninput="renderParts()" />
           <select id="prStatus" onchange="renderParts()">
             <option value="">All statuses</option>
@@ -2106,14 +2117,14 @@ function renderHeader() {
 // Defaults if the workshop hasn't customised role permissions yet.
 // Owner always sees everything regardless of what's stored.
 const DEFAULT_ROLE_PERMS = {
-  owner:         ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','invoices','reports','timesheets','notifications','audit','settings'],
-  manager:       ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','parts','invoices','reports','timesheets','notifications','audit'],
-  floor_manager: ['dashboard','checkin','jobs','queue','customers','bays','inventory','parts','notifications','timesheets'],
-  // Parts department — owns the parts-request workflow (approve / order / fulfil → stocks the item) and inventory.
-  parts_dept:    ['dashboard','inventory','parts','notifications','timesheets'],
+  owner:         ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','timesheets','notifications','audit','settings'],
+  manager:       ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','timesheets','notifications','audit'],
+  floor_manager: ['dashboard','checkin','jobs','queue','customers','bays','inventory','request_parts','parts','notifications','timesheets'],
+  // Parts department — owns the manage/approve side (approve / price / order / fulfil → stocks the item) plus can request.
+  parts_dept:    ['dashboard','inventory','request_parts','parts','notifications','timesheets'],
   receptionist:  ['dashboard','bookings','checkin','queue','customers','invoices','notifications','timesheets'],
-  // Mechanics can REQUEST parts (read+write same tab) but the approve buttons are role-gated inside.
-  mechanic:      ['dashboard','checkin','jobs','queue','bays','inventory','parts','notifications','timesheets']
+  // Mechanics can REQUEST parts only — they don't get the Manage Requests tab.
+  mechanic:      ['dashboard','checkin','jobs','queue','bays','inventory','request_parts','notifications','timesheets']
 };
 const ADMIN_ROLES = ['owner','manager'];
 
@@ -2622,8 +2633,14 @@ async function renderDashboard(force = false) {
   const today = todayStr();
 
   // ── Stats ──────────────────────────────────────────────
-  const expected = D.bookings.filter(b => (b.date === today) && (b.status === 'Scheduled' || !b.status));
-  const inShop   = D.bookings.filter(b => b.status === 'Arrived');
+  // "On site" = Arrived OR has an active job card (same rule as Check-in board)
+  const _activeJobBkIds = new Set((D.jobs || [])
+    .filter(j => !['Delivered','Cancelled','Returned to Advisor'].includes(j.status || ''))
+    .map(j => j.booking_id).filter(Boolean));
+  const expected = D.bookings.filter(b => (b.date === today) && (b.status === 'Scheduled' || !b.status)
+                                          && b.status !== 'Arrived' && !_activeJobBkIds.has(b.id));
+  const inShop   = D.bookings.filter(b => b.status !== 'Delivered' && b.status !== 'Cancelled'
+                                          && (b.status === 'Arrived' || _activeJobBkIds.has(b.id)));
   const baysFree = D.bays.filter(b => (b.status || '').toLowerCase() === 'available');
   const baysAll  = D.bays.length;
   const activeJobs = D.jobs.filter(j => !['Delivered','Cancelled'].includes(j.status));
@@ -3959,7 +3976,17 @@ async function _spinJobCardFromBooking(bookingId, opts = {}) {
   };
   D.jobs = D.jobs || [];
   D.jobs.push(newJob);
-  await wsSave('jobs', D.jobs);
+  // Opening a job card means the car is physically in the workshop — mark the
+  // booking Arrived (if it isn't already past that) so it shows on the
+  // check-in "in workshop" board and the floor sees it on site.
+  const writes = [wsSave('jobs', D.jobs)];
+  if (b.status !== 'Arrived' && b.status !== 'Delivered' && b.status !== 'Cancelled') {
+    b.status = 'Arrived';
+    if (!b.checked_in_at) b.checked_in_at = nowStr();
+    b.updated_at = nowStr();
+    writes.push(wsSave('bookings', D.bookings));
+  }
+  await Promise.all(writes);
   publishTracking(b.id);
   audit('job-create', `${newJob.plate} · ${newJob.type || 'Service'}${floorManager ? ' → FM ' + floorManager : ''}`, { job_id: newJob.id, booking_id: bookingId });
   // Notify the picked floor manager (if any), else broadcast to all FMs
@@ -4777,13 +4804,26 @@ async function renderCheckin(force = false) {
   if (di && !di.value) di.value = todayStr();
   const date = di.value || todayStr();
 
-  // Awaiting arrival: today's Scheduled bookings (or walk-ins not yet checked in)
+  // A car counts as "in the workshop" when it's Arrived OR has an active job
+  // card (status not Delivered/Cancelled and an open job exists). Creating a
+  // job card means the car is physically here being worked on — so it should
+  // appear on site even if the explicit check-in step was skipped.
+  const _activeJobBookingIds = new Set(
+    (D.jobs || [])
+      .filter(j => !['Delivered','Cancelled','Returned to Advisor'].includes(j.status || ''))
+      .map(j => j.booking_id)
+      .filter(Boolean)
+  );
+  const _inWorkshopP = (b) => b.status !== 'Delivered' && b.status !== 'Cancelled'
+                            && (b.status === 'Arrived' || _activeJobBookingIds.has(b.id));
+
+  // Awaiting arrival: today's Scheduled bookings not yet on site (no active job)
   const awaiting = D.bookings
-    .filter(b => (b.status === 'Scheduled' || !b.status) && b.date === date)
+    .filter(b => (b.status === 'Scheduled' || !b.status) && b.date === date && !_inWorkshopP(b))
     .sort((a,b) => (a.time||'').localeCompare(b.time||''));
-  // Currently in workshop: Arrived (any date — they stay until checkout)
+  // Currently in workshop: Arrived OR has an active job card (any date)
   const inWorkshop = D.bookings
-    .filter(b => b.status === 'Arrived')
+    .filter(_inWorkshopP)
     // Order by actual check-in time (earliest first) so the floor sees who's
     // been waiting longest at the top. Falls back to the scheduled time, then
     // bay name for the rare row without either.
@@ -5036,6 +5076,7 @@ async function doCheckout(bookingId) {
   closeModal();
   showToast(`${b.plate} delivered`, 'good');
   audit('checkout', `${b.plate} (${b.cust_name || '—'}) · ${pay}${cost ? ' · ₹' + cost : ''}`, { booking_id: b.id });
+  publishTracking(b.id);   // push Delivered to the public tracker
   renderCheckin();
   await Promise.all(writes);
 
@@ -5852,7 +5893,7 @@ window.openJobForm = function(id) {
           <div style="margin-top:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.22);border-radius:10px">
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px;flex-wrap:wrap">
               <button type="button" class="mini-btn" onclick="_jobAddEstFromInventory()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>From inventory</button>
-              <button type="button" class="mini-btn" onclick="_jobAddEstFromApproved()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>From approved request</button>
+              <button type="button" class="mini-btn" onclick="_jobAddEstFromApproved()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>From priced request</button>
             </div>
             <div id="jf-estparts-rows"></div>
           </div>
@@ -6082,14 +6123,15 @@ window._jobAddEstFromApproved = function() {
   for (const r of (D.parts_requests || [])) {
     const items = (typeof _prRequestItems === 'function') ? _prRequestItems(r) : (r.items || []);
     for (const it of items) {
+      // Any item that has an estimated price — approval NOT required. Decline
+      // is the only thing we skip (no point estimating a rejected part).
       const priced = it.price != null && Number(it.price) > 0;
-      const approved = ['Approved','Ordered','Received'].includes(it.status);
-      if (priced && approved) {
+      if (priced && it.status !== 'Declined') {
         candidates.push({ name: it.name, qty: Number(it.qty||1), price: Number(it.price), plate: r.plate || '' });
       }
     }
   }
-  if (!candidates.length) return customAlert('No approved + priced parts found. The Parts dept needs to set a price and approve items first (Parts tab → Manage → Save estimate).', { title: 'No approved estimates' });
+  if (!candidates.length) return customAlert('No priced parts-request items found. Set a price on a request first: Parts tab → Manage → type a price → Save estimate.', { title: 'No priced estimates' });
   // Plate-matched first
   candidates.sort((a,b) => {
     const am = (a.plate||'').toUpperCase().replace(/\s+/g,'') === plate ? 0 : 1;
@@ -6098,7 +6140,7 @@ window._jobAddEstFromApproved = function() {
   });
   const cur = D.settings?.currency || '₹';
   _openSubModal({
-    title: 'Add from approved parts requests',
+    title: 'Add from priced parts requests',
     bodyHtml: `<div style="max-height:48vh;overflow:auto">${candidates.map((c,i) => `<button type="button" data-ci="${i}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid var(--brd2);background:var(--surf);cursor:pointer;color:var(--txt);font-family:var(--fb)">
       <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(c.name)} <span style="color:var(--faint);font-weight:500">× ${c.qty}</span></div>${c.plate ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">for ${escapeHtml(c.plate)}${(c.plate||'').toUpperCase().replace(/\\s+/g,'')===plate?' · this car':''}</div>` : ''}</div>
       <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:var(--teal)">${cur}${c.price.toLocaleString('en-IN')}</div>
@@ -7275,7 +7317,7 @@ async function saveWorker(id) {
 const TAB_TITLES = {
   dashboard:'Dashboard', bookings:'Appointments', checkin:'Check-in', jobs:'Job Cards',
   bays:'Bays', queue:'Queue', customers:'Customers',
-  workers:'Workers', inventory:'Inventory', parts:'Parts',
+  workers:'Workers', inventory:'Inventory', request_parts:'Request Parts', parts:'Manage Requests',
   invoices:'Invoices', reports:'Reports', timesheets:'Timesheets', notifications:'Notifications', audit:'Audit Log', settings:'Settings'
 };
 
@@ -7285,7 +7327,7 @@ const TAB_TITLES = {
 const TAB_TITLES_HI = {
   dashboard:'डैशबोर्ड', bookings:'अपॉइंटमेंट', checkin:'चेक-इन', jobs:'जॉब कार्ड',
   bays:'बे', queue:'कतार', customers:'ग्राहक',
-  workers:'कर्मचारी', inventory:'इन्वेंटरी', parts:'पुर्जे',
+  workers:'कर्मचारी', inventory:'इन्वेंटरी', request_parts:'पुर्जे मांगें', parts:'अनुरोध प्रबंधन',
   invoices:'चालान', reports:'रिपोर्ट', timesheets:'टाइमशीट', notifications:'सूचनाएं', audit:'ऑडिट लॉग', settings:'सेटिंग्स',
   _newbk: 'नया अपॉइंटमेंट'
 };
@@ -7391,7 +7433,7 @@ window.switchTab = function(tab) {
   if (tab === 'settings')   renderSettings();
   if (tab === 'bays')          renderBays();
   if (tab === 'queue')         renderQueue();
-  if (tab === 'request_parts') { switchTab('parts'); return; }   // merged into Parts
+  if (tab === 'request_parts') renderRequestParts();
   if (tab === 'invoices')      renderInvoices();
   if (tab === 'reports')       renderReports();
   if (tab === 'audit')         renderAudit();
@@ -8078,19 +8120,11 @@ window._prSetScope = function(scope) {
   renderParts();
 };
 
+// Manage Requests (approver view) — ALWAYS shows every request. Workers use
+// the separate Request Parts tab for their own.
 async function renderParts(force = false) {
   await loadAllData(force);
-  // Default scope based on role — approvers see All, workers see Mine.
-  if (_prScope === null) _prScope = canApproveParts() ? 'all' : 'mine';
-  // Re-apply toggle styling each render — pure DOM, no re-render (was looping).
-  _prStyleScopeButtons();
   let list = D.parts_requests.slice();
-  // Scope filter — Mine = requests I created
-  if (_prScope === 'mine') {
-    const myId = currentWorker?.id || '';
-    const myName = currentWorker?.name || '';
-    list = list.filter(r => r.requested_by_id === myId || r.requested_by === myName);
-  }
   const q = (document.getElementById('prSearch')?.value || '').toLowerCase().trim();
   const st = (document.getElementById('prStatus')?.value || '');
   if (q) list = list.filter(r =>
@@ -8103,7 +8137,7 @@ async function renderParts(force = false) {
   document.getElementById('prCrumb').textContent = `${D.parts_requests.length} total · ${D.parts_requests.filter(r => (r.status||'Pending') === 'Pending').length} pending`;
   const tbl = document.getElementById('prTableWrap');
   if (!list.length) {
-    tbl.innerHTML = `<table class="list-tbl"><tr><td class="empty">${D.parts_requests.length === 0 ? 'No part requests yet. Click "Request a part" above to start one.' : (_prScope === 'mine' ? 'You haven\'t made any requests yet. Switch to All requests to see other workers\'.' : 'No requests match your filters.')}</td></tr></table>`;
+    tbl.innerHTML = `<table class="list-tbl"><tr><td class="empty">${D.parts_requests.length === 0 ? 'No part requests yet. Workers submit them from the Request Parts tab.' : 'No requests match your filters.'}</td></tr></table>`;
     return;
   }
   tbl.innerHTML = `<table class="list-tbl">
@@ -8326,19 +8360,25 @@ async function renderRequestParts(force = false) {
     wrap.innerHTML = `<div class="placeholder"><h3>No requests yet</h3><p>Click <b>Request a part</b> above to ask your manager to order one. You'll see the status update here when they act on it.</p></div>`;
     return;
   }
+  const cur = D.settings?.currency || '₹';
   wrap.innerHTML = `<table class="list-tbl">
     <thead><tr>
       <th>Requested</th><th>Part</th><th>Qty</th><th>For job</th>
-      <th>Urgency</th><th>Status</th><th style="text-align:right">Actions</th>
+      <th>Urgency</th><th>Estimate</th><th>Status</th><th style="text-align:right">Actions</th>
     </tr></thead>
     <tbody>${mine.map(r => {
       const s = r.status || 'Pending';
+      // Sum of any prices the parts dept set on this request's items
+      const its = _prRequestItems(r);
+      const estTotal = its.reduce((sum, it) => sum + (it.price != null ? Number(it.price) * Number(it.qty||1) : 0), 0);
+      const anyPriced = its.some(it => it.price != null);
       return `<tr>
         <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((r.requested_at||'').slice(0,16))}</td>
         <td class="k">${_prItemsCell(r)}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
         <td>${escapeHtml(String(r.qty || 1))}</td>
         <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>` : '—'}</td>
         <td>${escapeHtml(r.urgency || 'Normal')}</td>
+        <td>${anyPriced ? `<b style="color:var(--teal)">${cur}${estTotal.toLocaleString('en-IN')}</b>` : '<span style="color:var(--faint);font-size:12px">—</span>'}</td>
         <td>${statusPill(s)}</td>
         <td><div class="row-act">
           ${s === 'Pending' ? `<button class="mini-btn danger" onclick="deletePartRequest('${escapeHtml(r.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Cancel</button>` : '<span style="color:var(--faint);font-size:12px">—</span>'}
@@ -8555,13 +8595,17 @@ function _prRequestItems(r) {
       name:    it.name || '',
       qty:     Number(it.qty || 1),
       status:  it.status || r.status || 'Pending',
-      stocked: !!it.stocked
+      stocked: !!it.stocked,
+      // Preserve the estimated price — was being stripped here, which wiped
+      // every saved estimate on the next normalize pass.
+      price:   (it.price == null || it.price === '') ? null : Number(it.price)
     }));
   }
   if (r.part_name) {
     return [{
       id:      'legacy', name: r.part_name, qty: Number(r.qty || 1),
-      status:  r.status || 'Pending', stocked: !!r.stocked
+      status:  r.status || 'Pending', stocked: !!r.stocked,
+      price:   (r.price == null || r.price === '') ? null : Number(r.price)
     }];
   }
   return [];
@@ -8749,7 +8793,8 @@ const ALL_TABS = [
   { id:'workers',     label:'Workers' },
   { id:'bays',        label:'Bays' },
   { id:'inventory',   label:'Inventory' },
-  { id:'parts',         label:'Parts' },
+  { id:'request_parts', label:'Request Parts' },
+  { id:'parts',         label:'Manage Requests' },
   { id:'invoices',      label:'Invoices' },
   { id:'reports',     label:'Reports' },
   { id:'timesheets',  label:'Timesheets' },
