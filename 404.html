@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Garage Pro</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0e14;color:#e7ecf3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif}
+  .wrap{height:100%;display:grid;place-items:center;text-align:center;padding:24px}
+  .dot{width:40px;height:40px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#ff7a18;animation:spin .8s linear infinite;margin:0 auto 16px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  a{color:#ff9a45}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <div class="dot"></div>
+    <div id="msg">Loading…</div>
+    <noscript><p>Enable JavaScript, or go to <a href="/">garagepro.me</a>.</p></noscript>
+  </div>
+</div>
+<script>
+/*
+  GitHub Pages serves this file for ANY path it can't find. We use it as a
+  client-side router so clean URLs like /track/<workshop-slug> work even though
+  GitHub Pages has no server-side rewrites.
+
+  /track/<slug>  ->  /#track/<slug>   (the marketing page reads #track/<slug>
+                                        and jumps straight to that workshop)
+  anything else  ->  /                 (home)
+*/
+(function () {
+  var path = window.location.pathname || '';
+  var search = window.location.search || '';
+  var hash = window.location.hash || '';
+
+  // Strip a possible repo-name prefix if this is a project page (not needed for
+  // a custom domain at the root, but harmless).
+  var m = path.match(/\/track\/([^\/?#]+)/i);
+  if (m) {
+    var slug = m[1];
+    // Preserve any extra hash the visitor may have had
+    var extra = hash && hash.indexOf('#track/') !== 0 ? '' : '';
+    window.location.replace('/#track/' + slug + search);
+    return;
+  }
+  // Unknown path -> send home
+  window.location.replace('/');
+})();
+</script>
+</body>
+</html>
