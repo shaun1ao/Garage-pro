@@ -6137,8 +6137,21 @@ window._jobAddEstFromInventory = function() {
 window._jobAddEstFromApproved = function() {
   const j = D.jobs.find(x => x.id === _editingJob?.id);
   const plate = (j?.plate || '').toUpperCase().replace(/\s+/g,'');
+  // A parts request that's linked to a specific car/job can ONLY be used on
+  // THAT car's job card. A request with no car attached (general stock) stays
+  // usable on any job. This stops one car's approved estimate parts leaking
+  // into another car's estimate.
+  const _linkedToThisJob = (r) => {
+    const rPlate = (r.plate || '').toUpperCase().replace(/\s+/g,'');
+    if (!r.job_id && !rPlate) return true;            // general request → anywhere
+    if (r.job_id && j && r.job_id === j.id) return true;   // same job
+    if (r.booking_id && j && r.booking_id === j.booking_id) return true; // same booking
+    if (rPlate && rPlate === plate) return true;      // same car by plate
+    return false;
+  };
   const candidates = [];
   for (const r of (D.parts_requests || [])) {
+    if (!_linkedToThisJob(r)) continue;
     const items = (typeof _prRequestItems === 'function') ? _prRequestItems(r) : (r.items || []);
     for (const it of items) {
       // Any item that has an estimated price — approval NOT required. Decline
@@ -6149,13 +6162,8 @@ window._jobAddEstFromApproved = function() {
       }
     }
   }
-  if (!candidates.length) return customAlert('No priced parts-request items found. Set a price on a request first: Parts tab → Manage → type a price → Save estimate.', { title: 'No priced estimates' });
-  // Plate-matched first
-  candidates.sort((a,b) => {
-    const am = (a.plate||'').toUpperCase().replace(/\s+/g,'') === plate ? 0 : 1;
-    const bm = (b.plate||'').toUpperCase().replace(/\s+/g,'') === plate ? 0 : 1;
-    return am - bm || a.name.localeCompare(b.name);
-  });
+  if (!candidates.length) return customAlert('No priced parts requests for this car. Either none have a price yet (Parts → Manage → type a price → Save estimate), or the priced ones are linked to a different vehicle.', { title: 'No priced estimates for this car' });
+  candidates.sort((a,b) => a.name.localeCompare(b.name));
   const cur = D.settings?.currency || '₹';
   _openSubModal({
     title: 'Add from priced parts requests',
@@ -10881,6 +10889,8 @@ function _insuranceHTMLFromJob(j, opts) {
   .toolbar{position:fixed;top:12px;right:12px;display:flex;gap:6px;z-index:10}
   .toolbar button{font-family:inherit;font-size:12px;font-weight:700;padding:8px 14px;border-radius:6px;border:0;cursor:pointer;background:#0a0f1a;color:#fff}
   .toolbar button.ghost{background:#fff;color:#0a0f1a;border:1px solid #0a0f1a}
+  /* Zero page margin → drops Chrome/Edge auto header+footer (incl. about:blank). */
+  @page { size: auto; margin: 0mm; }
   @media print { .toolbar{display:none} body{padding:24px 30px} .photo img{height:140px} }
 </style></head>
 <body>
@@ -11152,6 +11162,10 @@ function _invoiceHTMLFromRecord(inv, opts) {
   .photo-grid .cap{padding:5px 7px;font-size:9.5px;color:#3b424f;border-top:1px solid #eee}
 
   hr{border:0;border-top:1px solid #c9d1da;margin:20px 0}
+  /* Zero the page margin so Chrome/Edge drop their auto header+footer
+     (date on the left, "about:blank" URL on the right). Content spacing is
+     handled by body padding instead. */
+  @page { size: auto; margin: 0mm; }
   @media print { body{padding:22px 28px} .no-print{display:none} }
 </style></head><body>
 
