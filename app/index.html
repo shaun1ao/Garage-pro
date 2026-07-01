@@ -4747,7 +4747,8 @@ window.emailBookingCustomer = async function(bookingId) {
   if (!b.cust_email) return showToast('No customer email on this booking', 'bad');
   const s = D.settings || {};
   if (!s.email_enabled) return customAlert('Customer emails are disabled. Open Settings → Customer email notifications and enable them first.', { title: 'Emails disabled' });
-  if (!s.email_appscript_url) return customAlert('Apps Script Web App URL isn\'t set yet. Open Settings → Customer email notifications to paste it in.', { title: 'Email relay not configured' });
+  const _emCfg = (s.emailjs_public_key && s.emailjs_service_id && s.emailjs_template_id) || s.email_appscript_url;
+  if (!_emCfg) return customAlert('Email isn\'t set up yet. Open Settings → Customer email notifications and add your EmailJS keys (recommended).', { title: 'Email not configured' });
   // Build the picker — checkboxes off, user picks ONE event then Send
   const choices = EMAIL_EVENTS.map(e => `<label style="display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--brd2);border-radius:8px;background:var(--bg2);cursor:pointer">
     <input type="radio" name="em-pick" value="${escapeHtml(e.id)}" style="width:16px;height:16px;cursor:pointer" />
@@ -5941,6 +5942,7 @@ window.openJobForm = function(id) {
             <span style="font-size:12px;color:var(--faint)">Bulk discount %</span>
             <input id="jf-bulkdisc" type="number" min="0" max="100" step="0.5" placeholder="0" style="width:70px;padding:6px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" />
             <button type="button" class="mini-btn warn" onclick="_jobApplyBulkDiscount()" title="Apply this discount % to every part row">Apply to all</button>
+            <button type="button" class="mini-btn" onclick="_jobScanPart()" title="Scan a part barcode to add it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h3M18 15v6M21 18h-3"/></svg>Scan</button>
             <button type="button" class="mini-btn" onclick="_jobAddPart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add part</button>
           </div>
         </div>
@@ -6083,6 +6085,23 @@ window._jobAddPart = function() {
     if (inp) inp.addEventListener('input', () => render(inp.value));
     render('');
   }, 0);
+};
+
+// Scan a barcode from inside the job card → add the matching inventory part.
+window._jobScanPart = function() {
+  openScanner('job-part', (code) => {
+    const norm = (code || '').trim().toUpperCase();
+    const item = (D.inventory || []).find(p => (p.barcode || '').toUpperCase() === norm);
+    if (!item) {
+      return customAlert(`No inventory part has the barcode "${code}". Add it in the Inventory tab first (or use "Add part" to type it in).`, { title: 'Part not found' });
+    }
+    _editingJob.parts = _editingJob.parts || [];
+    const existing = _editingJob.parts.find(p => (p.name || '').toLowerCase() === (item.name || '').toLowerCase());
+    if (existing) existing.qty = Math.max(1, Number(existing.qty || 1)) + 1;
+    else _editingJob.parts.push({ name: item.name, hsn: item.hsn || '', qty: 1, unit_price: Number(item.sell_price || 0), disc_pct: 0, inventory_id: item.id || '' });
+    if (typeof _drawJobRows === 'function') _drawJobRows();
+    showToast(`${item.name} added`, 'good');
+  }, 'Scan a part barcode');
 };
 
 // Apply the bulk discount % to every parts row in one go.
@@ -9001,9 +9020,40 @@ async function renderSettings(force = false) {
           <span style="font-family:var(--fd);font-weight:700;font-size:14px">Enable customer emails</span>
         </label>
 
-        <div class="f-row" style="grid-template-columns:2fr 1fr">
-          <div class="f-grp"><label>Apps Script Web App URL <span class="req">*</span></label><input id="sf-em-url" type="url" value="${escapeHtml(s.email_appscript_url || '')}" placeholder="https://script.google.com/macros/s/AKfy.../exec" autocomplete="off" /></div>
-          <div class="f-grp"><label>From name (displayed)</label><input id="sf-em-from" type="text" value="${escapeHtml(s.email_from_name || s.workshop_name || '')}" placeholder="Speed Auto Care" /></div>
+        <!-- EmailJS — RECOMMENDED. Real delivery confirmation, free tier. -->
+        <div style="padding:12px 14px;background:rgba(32,227,178,.06);border:1px solid rgba(32,227,178,.30);border-radius:10px;margin-bottom:12px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--teal,#20e3b2);margin-bottom:4px">✓ EmailJS (recommended — confirms delivery)</div>
+          <div style="font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.5">The reliable option. It tells you if an email actually sent (the Apps Script method can't). Free 200 emails/month. Connect your own Gmail.</div>
+          <div class="f-row r3">
+            <div class="f-grp"><label>Public Key</label><input id="sf-ejs-key" type="text" value="${escapeHtml(s.emailjs_public_key || '')}" placeholder="Vx...xyz" autocomplete="off" /></div>
+            <div class="f-grp"><label>Service ID</label><input id="sf-ejs-svc" type="text" value="${escapeHtml(s.emailjs_service_id || '')}" placeholder="service_xxx" autocomplete="off" /></div>
+            <div class="f-grp"><label>Template ID</label><input id="sf-ejs-tpl" type="text" value="${escapeHtml(s.emailjs_template_id || '')}" placeholder="template_xxx" autocomplete="off" /></div>
+          </div>
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--acc2)">How to set up EmailJS (~5 min)</summary>
+            <ol style="margin:10px 0 4px 18px;font-size:12px;color:var(--dim);line-height:1.7">
+              <li>Sign up free at <a href="https://www.emailjs.com" target="_blank" rel="noopener" style="color:var(--acc2)">emailjs.com</a>.</li>
+              <li><b>Email Services → Add New Service → Gmail</b> → connect your Gmail. Copy the <b>Service ID</b>.</li>
+              <li><b>Email Templates → Create New Template.</b> Set the fields to use these variables exactly:
+                <br>• To Email: <code>{{to_email}}</code> &nbsp; • Subject: <code>{{subject}}</code> &nbsp; • From Name: <code>{{from_name}}</code> &nbsp; • Reply To: <code>{{reply_to}}</code>
+                <br>• Content: switch the template body to <b>Code/HTML</b> mode and put just <code>{{{html_body}}}</code> (triple braces). Save. Copy the <b>Template ID</b>.</li>
+              <li><b>Account → General</b> → copy your <b>Public Key</b>.</li>
+              <li>Paste all three above, tick Enable, hit <b>Send test</b>.</li>
+            </ol>
+          </details>
+        </div>
+
+        <details style="margin-bottom:12px">
+          <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--faint)">Or use Google Apps Script instead (advanced — no delivery confirmation)</summary>
+          <div class="f-row" style="grid-template-columns:2fr 1fr;margin-top:10px">
+            <div class="f-grp"><label>Apps Script Web App URL</label><input id="sf-em-url" type="url" value="${escapeHtml(s.email_appscript_url || '')}" placeholder="https://script.google.com/macros/s/AKfy.../exec" autocomplete="off" /></div>
+            <div class="f-grp"></div>
+          </div>
+          <div style="font-size:11.5px;color:var(--acc2);margin-top:4px">Note: the Apps Script method can't confirm delivery — if an email doesn't arrive there's no error. Prefer EmailJS above.</div>
+        </details>
+
+        <div class="f-row" style="grid-template-columns:1fr">
+          <div class="f-grp"><label>From name (displayed on emails)</label><input id="sf-em-from" type="text" value="${escapeHtml(s.email_from_name || s.workshop_name || '')}" placeholder="Speed Auto Care" /></div>
         </div>
         <details style="margin-top:8px;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:8px">
           <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--acc2)">How to get this URL (one-time, ~4 minutes)</summary>
@@ -9360,27 +9410,26 @@ window._removeDepartment = async function(name) {
 window.saveEmailSettings = async function() {
   D.settings = D.settings || {};
   D.settings.email_enabled       = !!document.getElementById('sf-em-on').checked;
-  D.settings.email_appscript_url = document.getElementById('sf-em-url').value.trim();
-  D.settings.email_from_name     = document.getElementById('sf-em-from').value.trim();
+  D.settings.email_appscript_url = (document.getElementById('sf-em-url')?.value || '').trim();
+  D.settings.emailjs_public_key  = (document.getElementById('sf-ejs-key')?.value || '').trim();
+  D.settings.emailjs_service_id  = (document.getElementById('sf-ejs-svc')?.value || '').trim();
+  D.settings.emailjs_template_id = (document.getElementById('sf-ejs-tpl')?.value || '').trim();
+  D.settings.email_from_name     = (document.getElementById('sf-em-from')?.value || '').trim();
   D.settings.email_template      = (document.querySelector('input[name="sf-em-tpl"]:checked')?.value) || 'classic';
-  D.settings.cancellation_policy = document.getElementById('sf-em-policy').value.trim();
-  // Drop any old SMTP credentials from the previous (Cloud Function) flow.
-  // They're no longer used and shouldn't sit in Firestore as dead config.
+  D.settings.cancellation_policy = (document.getElementById('sf-em-policy')?.value || '').trim();
   delete D.settings.email_smtp_user;
   delete D.settings.email_smtp_pass;
-  // Collect each trigger toggle
   const triggers = {};
   document.querySelectorAll('input[data-em-trig]').forEach(el => { triggers[el.dataset.emTrig] = !!el.checked; });
   D.settings.email_triggers = triggers;
-  // Validation when emails are enabled
+  // Validation when emails are enabled — need EITHER EmailJS (all 3) OR Apps Script URL
   const msg = document.getElementById('sf-em-msg');
   msg.style.color = 'var(--red)';
-  if (D.settings.email_enabled) {
-    if (!D.settings.email_appscript_url) { msg.textContent = 'Paste the Apps Script Web App URL above.'; return; }
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(D.settings.email_appscript_url)) {
-      msg.textContent = 'That doesn\'t look like an Apps Script URL — it should start with https://script.google.com/macros/s/… and end with /exec.';
-      return;
-    }
+  const hasEjs = D.settings.emailjs_public_key && D.settings.emailjs_service_id && D.settings.emailjs_template_id;
+  const hasScript = /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(D.settings.email_appscript_url);
+  if (D.settings.email_enabled && !hasEjs && !hasScript) {
+    msg.textContent = 'Add your EmailJS keys (all three) — or an Apps Script URL — before enabling emails.';
+    return;
   }
   await wsSaveSettings();
   msg.style.color = 'var(--teal)';
@@ -9470,9 +9519,19 @@ window._closeEmailPreview = function() {
 //   3. The script reached the LATEST deployed version (the JSONP block exists in the new code)
 //   4. MailApp permission was granted (getRemainingDailyQuota throws otherwise)
 window._testAppsScriptConnection = function() {
-  const url = (document.getElementById('sf-em-url')?.value || (D.settings||{}).email_appscript_url || '').trim();
   const msg = document.getElementById('sf-em-msg');
-  if (!url) { msg.style.color='var(--red)'; msg.textContent='Paste your Apps Script URL above first.'; return; }
+  // If EmailJS is configured, there's no separate "connection test" — the
+  // Send test button gives real success/error. Point the user there.
+  const key = (document.getElementById('sf-ejs-key')?.value || '').trim();
+  const svc = (document.getElementById('sf-ejs-svc')?.value || '').trim();
+  const tpl = (document.getElementById('sf-ejs-tpl')?.value || '').trim();
+  if (key && svc && tpl) {
+    msg.style.color = 'var(--dim)';
+    msg.innerHTML = 'Using EmailJS — just type your address in the test box and hit <b>Send test</b>. It reports the exact result (success or the precise error).';
+    return;
+  }
+  const url = (document.getElementById('sf-em-url')?.value || (D.settings||{}).email_appscript_url || '').trim();
+  if (!url) { msg.style.color='var(--red)'; msg.textContent='Add EmailJS keys (recommended) or an Apps Script URL first.'; return; }
   if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(url)) {
     msg.style.color='var(--red)'; msg.textContent='That URL doesn\'t look like an Apps Script Web App URL (must end in /exec).'; return;
   }
@@ -10073,6 +10132,8 @@ window._walkInFromVehicleQR = function(customerId, vehicleId) {
 function _renderScanResult(code, part, booking) {
   const box = document.getElementById('scanResult');
   if (part) {
+    // If a job card is open, offer to add this part straight onto it.
+    const jobOpen = !!(_editingJob && _editingJob.id && document.getElementById('gpModal')?.classList.contains('open'));
     box.innerHTML = `
       <div class="r-icon good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M20 6 9 17l-5-5"/></svg></div>
       <h4>Part found · ${escapeHtml(part.name || '—')}</h4>
@@ -10080,7 +10141,8 @@ function _renderScanResult(code, part, booking) {
       <code class="r-code">${escapeHtml(code)}</code>
       <div class="r-acts">
         <button class="fbtn fbtn-cancel" onclick="closeScanner()">Close</button>
-        <button class="fbtn fbtn-save" onclick="closeScanner();switchTab('inventory')">Open in Inventory</button>
+        ${jobOpen ? `<button class="fbtn fbtn-save" onclick="_scanAddPartToJob('${escapeHtml(part.id || part.name)}')">Add to job card</button>` : ''}
+        <button class="fbtn ${jobOpen ? 'fbtn-cancel' : 'fbtn-save'}" onclick="closeScanner();switchTab('inventory')">Open in Inventory</button>
       </div>`;
   } else if (booking) {
     box.innerHTML = `
@@ -10098,11 +10160,11 @@ function _renderScanResult(code, part, booking) {
     box.innerHTML = `
       <div class="r-icon unknown"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
       <h4>Unknown code</h4>
-      <div class="r-meta">No matching part or vehicle found in this workshop.</div>
+      <div class="r-meta">No part or vehicle matches this code yet. Add it as a new inventory item?</div>
       <code class="r-code">${escapeHtml(code)}</code>
       <div class="r-acts">
         <button class="fbtn fbtn-cancel" onclick="_resumeScanning()">Scan another</button>
-        <button class="fbtn fbtn-save" onclick="closeScanner()">Close</button>
+        <button class="fbtn fbtn-save" onclick="_scanAddNewInventory('${escapeHtml(code).replace(/'/g,"\\'")}')">Add to inventory</button>
       </div>`;
   }
   box.classList.add('open');
@@ -10111,6 +10173,32 @@ function _renderScanResult(code, part, booking) {
 window._resumeScanning = function() {
   document.getElementById('scanResult').classList.remove('open');
   _startScannerCamera();
+};
+
+// Scanned a known part while a job card is open → add it to the job's parts.
+window._scanAddPartToJob = function(itemKey) {
+  const item = (D.inventory || []).find(x => (x.id || x.name) === itemKey);
+  if (!item) { showToast('Part not found', 'bad'); return; }
+  if (!_editingJob) { showToast('Open a job card first', 'bad'); return; }
+  _editingJob.parts = _editingJob.parts || [];
+  // Merge if already on the job — bump qty instead of duplicating
+  const existing = _editingJob.parts.find(p => (p.name || '').toLowerCase() === (item.name || '').toLowerCase());
+  if (existing) existing.qty = Math.max(1, Number(existing.qty || 1)) + 1;
+  else _editingJob.parts.push({ name: item.name, hsn: item.hsn || '', qty: 1, unit_price: Number(item.sell_price || 0), disc_pct: 0, inventory_id: item.id || '' });
+  closeScanner();
+  if (typeof _drawJobRows === 'function') _drawJobRows();
+  showToast(`${item.name} added to job card`, 'good');
+};
+
+// Scanned an unknown barcode → open the Add-Inventory form pre-filled with it.
+window._scanAddNewInventory = function(code) {
+  closeScanner();
+  switchTab('inventory');
+  setTimeout(() => {
+    openInventoryForm();
+    // Pre-fill the barcode field once the form modal renders
+    setTimeout(() => { const bar = document.getElementById('if-bar'); if (bar) { bar.value = code; const nm = document.getElementById('if-name'); if (nm) nm.focus(); } }, 60);
+  }, 120);
 };
 
 // Esc key closes the scanner
@@ -11679,11 +11767,51 @@ window.sendCustomerNotification = sendCustomerNotification;
 //   the request goes through and Apps Script processes it. The iframe's `load`
 //   event tells us the round-trip completed.
 async function _smtpSend({ to, subject, html, fromName }) {
-  const url = (D.settings || {}).email_appscript_url;
-  if (!url) throw new Error('No Apps Script URL configured. Open Settings → Customer email notifications and paste the Web app URL.');
+  const s = D.settings || {};
+  const replyTo = s.email || s.workshop_email || '';
+  // ── Preferred path: EmailJS REST API ──────────────────────────────────────
+  // EmailJS is CORS-enabled and returns a REAL success/error response, unlike
+  // the Apps Script iframe (which is opaque — we can never tell if it worked).
+  // If the three EmailJS fields are set, use it.
+  if (s.emailjs_public_key && s.emailjs_service_id && s.emailjs_template_id) {
+    const body = {
+      service_id:  s.emailjs_service_id,
+      template_id: s.emailjs_template_id,
+      user_id:     s.emailjs_public_key,
+      template_params: {
+        to_email:  to,
+        subject:   subject,
+        html_body: html,
+        from_name: fromName || s.email_from_name || s.workshop_name || 'Garage Pro',
+        reply_to:  replyTo
+      }
+    };
+    let resp;
+    try {
+      resp = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    } catch (e) {
+      throw new Error('Network error reaching EmailJS: ' + (e?.message || e));
+    }
+    if (resp.ok) return { ok: true };
+    // EmailJS returns a plain-text error we CAN read (real feedback)
+    const txt = (await resp.text().catch(() => '')) || ('HTTP ' + resp.status);
+    let hint = txt;
+    if (/Public Key is invalid|user_id/i.test(txt))     hint = 'EmailJS Public Key is wrong.';
+    else if (/service_id|service ID/i.test(txt))         hint = 'EmailJS Service ID is wrong.';
+    else if (/template_id|template ID/i.test(txt))       hint = 'EmailJS Template ID is wrong.';
+    else if (/Gmail_API|insufficient|scopes|reconnect/i.test(txt)) hint = 'EmailJS Gmail connection needs reconnecting in the EmailJS dashboard.';
+    throw new Error('EmailJS rejected the email: ' + hint);
+  }
+
+  // ── Fallback path: Google Apps Script relay (opaque — no real feedback) ────
+  const url = s.email_appscript_url;
+  if (!url) throw new Error('Email not set up. In Settings → Customer email notifications, add EmailJS keys (recommended — gives real delivery confirmation) or an Apps Script URL.');
   if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(url))
     throw new Error('That doesn\'t look like an Apps Script Web App URL. It should end with /exec.');
-  const replyTo = (D.settings || {}).email || (D.settings || {}).workshop_email || '';
   const payload = JSON.stringify({ to, subject, html, body: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), fromName, replyTo });
 
   return new Promise((resolve, reject) => {
