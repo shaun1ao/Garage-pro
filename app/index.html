@@ -7370,44 +7370,174 @@ const TAB_TITLES = {
 // ── Hindi labels for the worker-facing navigation. Keyed by tab id so it's
 // robust (no fragile text matching). The toggle swaps the sidebar nav text +
 // page title. Stored per device in localStorage('gp_lang').
-const TAB_TITLES_HI = {
-  dashboard:'डैशबोर्ड', bookings:'अपॉइंटमेंट', checkin:'चेक-इन', jobs:'जॉब कार्ड',
-  bays:'बे', queue:'कतार', customers:'ग्राहक',
-  workers:'कर्मचारी', inventory:'इन्वेंटरी', request_parts:'पुर्जे मांगें', parts:'अनुरोध प्रबंधन',
-  invoices:'चालान', reports:'रिपोर्ट', timesheets:'टाइमशीट', notifications:'सूचनाएं', audit:'ऑडिट लॉग', settings:'सेटिंग्स',
-  _newbk: 'नया अपॉइंटमेंट'
-};
+// ══════════════════════════════════════════════════════════════════════════
+//  HINDI / ENGLISH — whole-app translation
+//  DOM-level engine: after any render, a MutationObserver translates every
+//  text node + placeholder/title against a curated EN→HI dictionary. Dynamic
+//  values (names, plates, numbers) have no dictionary entry so they pass
+//  through unchanged (correct — you don't translate a name). Original English
+//  is stashed on each node so switching back restores it exactly.
+// ══════════════════════════════════════════════════════════════════════════
 function gpLang() { return localStorage.getItem('gp_lang') === 'hi' ? 'hi' : 'en'; }
+
+const I18N_HI = {
+  // ── Nav / tabs ──
+  'Dashboard':'डैशबोर्ड','Appointments':'अपॉइंटमेंट','New Appointment':'नया अपॉइंटमेंट','New appointment':'नया अपॉइंटमेंट',
+  'Check-in':'चेक-इन','Check in':'चेक इन','Job Cards':'जॉब कार्ड','Bays':'बे','Queue':'कतार','Customers':'ग्राहक',
+  'Workers':'कर्मचारी','Inventory':'इन्वेंटरी','Request Parts':'पुर्जे मांगें','Manage Requests':'अनुरोध प्रबंधन',
+  'Invoices':'चालान','Reports':'रिपोर्ट','Timesheets':'टाइमशीट','Notifications':'सूचनाएं','Audit Log':'ऑडिट लॉग','Settings':'सेटिंग्स',
+  'Operations':'संचालन','Management':'प्रबंधन','System':'सिस्टम',
+  // ── Common buttons / actions ──
+  'Save':'सहेजें','Save changes':'बदलाव सहेजें','Save job':'जॉब सहेजें','Cancel':'रद्द करें','Close':'बंद करें','Delete':'हटाएं',
+  'Edit':'संपादित करें','Add':'जोड़ें','Add item':'आइटम जोड़ें','Add part':'पुर्जा जोड़ें','Add charge':'शुल्क जोड़ें','Add service':'सेवा जोड़ें',
+  'Add vehicle':'वाहन जोड़ें','Add role':'भूमिका जोड़ें','Add department':'विभाग जोड़ें','Remove':'हटाएं','Refresh':'रीफ्रेश','Clear':'साफ़ करें',
+  'Search':'खोजें','Print':'प्रिंट','Download':'डाउनलोड','Upload':'अपलोड','Send':'भेजें','Send test':'टेस्ट भेजें','Preview':'पूर्वावलोकन',
+  'View':'देखें','Open':'खोलें','Manage':'प्रबंधित करें','Apply to all':'सभी पर लागू करें','Mark seen':'देखा हुआ चिह्नित करें',
+  'Mark all read':'सभी पढ़ा चिह्नित करें','Assign':'नियुक्त करें','Approve':'स्वीकृत करें','Decline':'अस्वीकार करें','Scan':'स्कैन करें',
+  'Check out':'चेक आउट','Create job card':'जॉब कार्ड बनाएं','Save & create job card':'सहेजें और जॉब कार्ड बनाएं',
+  'Request a part':'पुर्जा मांगें','New customer':'नया ग्राहक','New worker':'नया कर्मचारी','Add worker':'कर्मचारी जोड़ें',
+  'Sign out':'साइन आउट','Sign in':'साइन इन','Continue':'जारी रखें','Skip for now':'अभी के लिए छोड़ें','Done':'हो गया',
+  'Copy':'कॉपी','Generate insurance PDF':'बीमा PDF बनाएं','Save estimate & notify worker':'अनुमान सहेजें और कर्मचारी को सूचित करें',
+  // ── Statuses ──
+  'Scheduled':'निर्धारित','Arrived':'पहुंचा','Delivered':'सुपुर्द','Cancelled':'रद्द','Pending':'लंबित','Approved':'स्वीकृत',
+  'Declined':'अस्वीकृत','Ordered':'ऑर्डर किया','Received':'प्राप्त','In Progress':'प्रगति पर','Awaiting Assignment':'नियुक्ति प्रतीक्षित',
+  'Technician Assigned':'तकनीशियन नियुक्त','Inspected':'निरीक्षण किया','Estimate Sent':'अनुमान भेजा','Estimate Approved':'अनुमान स्वीकृत',
+  'Awaiting QC':'QC प्रतीक्षित','QC Passed':'QC पास','Client Informed':'ग्राहक सूचित','Washing':'धुलाई','Ready for Pickup':'पिकअप के लिए तैयार',
+  'Paid':'भुगतान','Outstanding':'बकाया','Partial':'आंशिक','All statuses':'सभी स्थिति','Draft':'ड्राफ्ट','Issued':'जारी',
+  // ── Section headers / labels ──
+  'Customer details':'ग्राहक विवरण','CUSTOMER DETAILS':'ग्राहक विवरण','Vehicle details':'वाहन विवरण','VEHICLE DETAILS':'वाहन विवरण',
+  'CUSTOMER CONCERNS':'ग्राहक शिकायतें','APPOINTMENT TIME':'अपॉइंटमेंट समय','Parts used':'उपयोग किए पुर्जे','Service charges':'सेवा शुल्क',
+  'Estimation parts':'अनुमान पुर्जे','Estimated service':'अनुमानित सेवा','Photos':'तस्वीरें','Labour notes':'श्रम टिप्पणी',
+  'Mechanics assigned':'नियुक्त मैकेनिक','Workshop info':'वर्कशॉप जानकारी','Branding':'ब्रांडिंग','Departments':'विभाग',
+  'Role permissions':'भूमिका अनुमतियां','Danger zone':'खतरा क्षेत्र','Bank transfer details':'बैंक ट्रांसफर विवरण',
+  'Customer email notifications':'ग्राहक ईमेल सूचनाएं','Import customers from CSV':'CSV से ग्राहक आयात करें','Order Summary':'ऑर्डर सारांश',
+  'Full name':'पूरा नाम','Name':'नाम','Phone':'फ़ोन','Email':'ईमेल','Address':'पता','Notes':'टिप्पणी','Notes / remarks':'टिप्पणी / नोट',
+  'Date':'तारीख','Time':'समय','From':'से','To':'तक','Status':'स्थिति','Department':'विभाग','Service':'सेवा','Service type':'सेवा प्रकार',
+  'Mechanic':'मैकेनिक','Plate':'नंबर प्लेट','Plate number':'नंबर प्लेट','Vehicle':'वाहन','Make & model':'मेक और मॉडल','Year':'वर्ष',
+  'Colour':'रंग','Fuel type':'ईंधन प्रकार','City':'शहर','State':'राज्य','Pincode':'पिनकोड','Qty':'मात्रा','Quantity':'मात्रा',
+  'Price':'कीमत','Amount':'राशि','Total':'कुल','Unit':'यूनिट','Category':'श्रेणी','Supplier':'सप्लायर','Urgency':'तात्कालिकता',
+  'Requested':'अनुरोधित','Requested by':'द्वारा अनुरोधित','Estimate':'अनुमान','Cost estimate (₹)':'लागत अनुमान (₹)',
+  'Workshop name':'वर्कशॉप नाम','Contact email':'संपर्क ईमेल','Customer name':'ग्राहक नाम','Mobile No':'मोबाइल नंबर','Company name':'कंपनी नाम',
+  'For job':'जॉब के लिए','Actions':'कार्य','By':'द्वारा','Items':'आइटम','Item':'आइटम','Result':'परिणाम','results':'परिणाम',
+  // ── Filters / misc ──
+  'All departments':'सभी विभाग','All categories':'सभी श्रेणी','All':'सभी','Low stock':'कम स्टॉक','Out of stock':'स्टॉक खत्म',
+  'My requests':'मेरे अनुरोध','All requests':'सभी अनुरोध','In workshop':'वर्कशॉप में','Awaiting arrival':'आगमन प्रतीक्षित',
+  'Today':'आज','This week':'इस सप्ताह','This month':'इस महीने','Individual':'व्यक्तिगत','Corporate / Fleet':'कॉर्पोरेट / फ्लीट',
+  'Enable customer emails':'ग्राहक ईमेल सक्षम करें','Revenue':'राजस्व','Today\'s Jobs':'आज के जॉब','On site':'साइट पर','Bays Free':'खाली बे',
+  // ── Common short phrases ──
+  'No results':'कोई परिणाम नहीं','Loading…':'लोड हो रहा है…','Saved':'सहेजा गया','Admin only':'केवल एडमिन','Coming soon':'जल्द आ रहा है'
+};
+
+// Normalise for lookup: collapse internal whitespace, trim.
+const _i18nNorm = (s) => s.replace(/\s+/g, ' ').trim();
+// Prebuild a normalised dictionary for robust matching.
+const _I18N_HI_N = {}; for (const k in I18N_HI) _I18N_HI_N[_i18nNorm(k)] = I18N_HI[k];
+
+const _I18N_SKIP_TAGS = new Set(['SCRIPT','STYLE','CODE','PRE','TEXTAREA','IFRAME','NOSCRIPT','SVG','PATH']);
+function _i18nSkip(el) {
+  while (el) {
+    if (el.nodeType === 1) {
+      if (_I18N_SKIP_TAGS.has(el.tagName)) return true;
+      if (el.dataset && el.dataset.noi18n != null) return true;
+    }
+    el = el.parentNode;
+  }
+  return false;
+}
+
+// Translate a single text node (EN→HI). Stashes original on `_en`.
+function _i18nTextNode(tn) {
+  const raw = tn.nodeValue;
+  const key = _i18nNorm(raw);
+  if (!key) return;
+  const hi = _I18N_HI_N[key];
+  if (!hi) return;
+  if (tn._en == null) tn._en = raw;
+  // preserve leading/trailing whitespace of the original
+  const lead = raw.match(/^\s*/)[0], trail = raw.match(/\s*$/)[0];
+  tn.nodeValue = lead + hi + trail;
+}
+// Translate placeholder/title attributes on an element.
+function _i18nAttrs(el) {
+  ['placeholder','title'].forEach(attr => {
+    if (!el.hasAttribute || !el.hasAttribute(attr)) return;
+    const v = el.getAttribute(attr);
+    const hi = _I18N_HI_N[_i18nNorm(v)];
+    if (!hi) return;
+    const bk = 'i18nEn' + attr;
+    if (el.dataset[bk] == null) el.dataset[bk] = v;
+    el.setAttribute(attr, hi);
+  });
+}
+// Walk a subtree and translate everything.
+function _i18nTranslate(root) {
+  if (!root || _i18nSkip(root.parentNode || root)) return;
+  if (root.nodeType === 3) { _i18nTextNode(root); return; }
+  if (root.nodeType !== 1) return;
+  if (_I18N_SKIP_TAGS.has(root.tagName)) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+    acceptNode(n) {
+      if (n.nodeType === 1 && _I18N_SKIP_TAGS.has(n.tagName)) return NodeFilter.FILTER_REJECT;
+      if (n.nodeType === 1 && n.dataset && n.dataset.noi18n != null) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  let n = root.nodeType === 1 ? walker.currentNode : null;
+  // handle the root element's own attrs
+  if (root.nodeType === 1) _i18nAttrs(root);
+  while ((n = walker.nextNode())) {
+    if (n.nodeType === 3) _i18nTextNode(n);
+    else if (n.nodeType === 1) _i18nAttrs(n);
+  }
+}
+// Restore English across the whole body from the stashed originals.
+function _i18nRestore() {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let n; while ((n = walker.nextNode())) { if (n._en != null) { n.nodeValue = n._en; } }
+  // Restore placeholder/title from the stashed dataset backups.
+  document.querySelectorAll('[data-i18n-enplaceholder]').forEach(el => el.setAttribute('placeholder', el.dataset.i18nEnplaceholder));
+  document.querySelectorAll('[data-i18n-entitle]').forEach(el => el.setAttribute('title', el.dataset.i18nEntitle));
+}
+
+let _i18nObserver = null;
+let _i18nPending = false;
+function _i18nStartObserver() {
+  if (_i18nObserver) return;
+  _i18nObserver = new MutationObserver(muts => {
+    if (gpLang() !== 'hi') return;
+    // Batch to next frame to avoid thrashing on big table renders.
+    if (_i18nPending) return;
+    _i18nPending = true;
+    requestAnimationFrame(() => {
+      _i18nPending = false;
+      for (const m of muts) {
+        m.addedNodes && m.addedNodes.forEach(node => {
+          try { _i18nTranslate(node); } catch (_) {}
+        });
+      }
+    });
+  });
+  _i18nObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+// Public: apply the current language to the whole app.
+function applyLang() {
+  const tb = document.getElementById('hdrLangBtn');
+  if (tb) tb.textContent = gpLang() === 'hi' ? 'EN' : 'हि';
+  if (gpLang() === 'hi') {
+    _i18nStartObserver();
+    try { _i18nTranslate(document.body); } catch (_) {}
+  } else {
+    try { _i18nRestore(); } catch (_) {}
+  }
+}
+window.applyLang = applyLang;
+
 window.gpToggleLang = function() {
   localStorage.setItem('gp_lang', gpLang() === 'hi' ? 'en' : 'hi');
   applyLang();
   showToast(gpLang() === 'hi' ? 'भाषा: हिन्दी' : 'Language: English', 'good');
 };
-// Relabel the sidebar nav buttons + current page title to the chosen language.
-function applyLang() {
-  const hi = gpLang() === 'hi';
-  document.querySelectorAll('.sidebar .snav[data-tab]').forEach(btn => {
-    const tab = btn.dataset.tab;
-    const label = hi ? (TAB_TITLES_HI[tab] || TAB_TITLES[tab]) : (tab === '_newbk' ? 'New Appointment' : TAB_TITLES[tab]);
-    if (!label) return;
-    // The button has an SVG icon + a text node; replace only the trailing text.
-    const nodes = Array.from(btn.childNodes);
-    const textNode = nodes.reverse().find(n => n.nodeType === 3 && n.textContent.trim());
-    if (textNode) textNode.textContent = ' ' + label;
-    else btn.appendChild(document.createTextNode(' ' + label));
-    // Preserve any badge pill
-  });
-  // Page title
-  const ht = document.getElementById('hdrTabTitle');
-  if (ht && typeof currentTab === 'string') {
-    ht.textContent = hi ? (TAB_TITLES_HI[currentTab] || TAB_TITLES[currentTab] || currentTab) : (TAB_TITLES[currentTab] || currentTab);
-  }
-  // Toggle button label
-  const tb = document.getElementById('hdrLangBtn');
-  if (tb) tb.textContent = hi ? 'EN' : 'हि';
-  _renderNotifBadge();   // badge may have been wiped by relabel
-}
-window.applyLang = applyLang;
 
 // Override renderHeader for the new layout (workshop name in sidebar, worker pill in sidebar foot)
 window.renderHeader = function() {
@@ -7472,7 +7602,8 @@ const _origSwitchTab = window.switchTab;
 window.switchTab = function(tab) {
   _origSwitchTab(tab);
   const ht = document.getElementById('hdrTabTitle');
-  if (ht) ht.textContent = (gpLang() === 'hi' ? (TAB_TITLES_HI[tab] || TAB_TITLES[tab]) : TAB_TITLES[tab]) || tab;
+  // Always set English; the i18n engine translates it if Hindi is active.
+  if (ht) { ht.textContent = TAB_TITLES[tab] || tab; if (gpLang() === 'hi') { try { _i18nTranslate(ht); } catch(_){} } }
   if (tab === 'parts')      renderParts();
   if (tab === 'inventory')  renderInventory();
   if (tab === 'timesheets') renderTimesheets();
