@@ -594,6 +594,25 @@ input[list]{background:var(--bg2)}
           <label>Owner PIN (4 digits)</label>
           <input id="fs-pin" name="fs-pin-x" type="text" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" placeholder="e.g. 1234" required autocomplete="off" />
         </div>
+
+        <details style="margin:4px 0 2px;border:1px solid var(--brd2);border-radius:10px;background:var(--bg2);overflow:hidden">
+          <summary style="cursor:pointer;padding:11px 13px;font-size:13px;font-weight:700;color:var(--dim);list-style:none;display:flex;align-items:center;gap:8px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="14" height="14"><path d="M9 18l6-6-6-6"/></svg>
+            Business details <span style="font-weight:500;color:var(--faint)">(optional — used on invoices &amp; the tracker; you can add these later in Settings)</span>
+          </summary>
+          <div style="padding:4px 13px 13px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div><label>Phone</label><input id="fs-phone" type="text" placeholder="+91 …" autocomplete="off" /></div>
+              <div><label>Contact email</label><input id="fs-email" type="email" placeholder="service@yourshop.in" autocomplete="off" /></div>
+              <div><label>City</label><input id="fs-city" type="text" placeholder="Pune" autocomplete="off" /></div>
+              <div><label>State</label><input id="fs-state" type="text" placeholder="Maharashtra" autocomplete="off" /></div>
+              <div><label>GSTIN</label><input id="fs-gstin" type="text" placeholder="27ABCDE1234F1Z5" autocomplete="off" /></div>
+              <div><label>Currency</label><input id="fs-currency" type="text" value="₹" maxlength="3" autocomplete="off" /></div>
+            </div>
+            <div style="margin-top:8px"><label>Address</label><textarea id="fs-addr" rows="2" placeholder="Street, area, PIN" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);font-family:var(--fb);font-size:14px;resize:vertical"></textarea></div>
+          </div>
+        </details>
+
         <div class="a-err" id="fs-err"></div>
         <button type="submit" class="btn full-btn">Continue → Bays</button>
       </form>
@@ -627,6 +646,9 @@ input[list]{background:var(--bg2)}
         <div><label style="display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase">Role</label>
           <select id="setupWkRole" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
             <option value="mechanic">Mechanic</option>
+            <option value="floor_manager">Floor manager</option>
+            <option value="service_advisor">Service advisor</option>
+            <option value="parts_dept">Parts department</option>
             <option value="receptionist">Receptionist</option>
             <option value="manager">Manager</option>
           </select></div>
@@ -1765,10 +1787,20 @@ window.doFirstSetup = async function(e) {
   const pin    = document.getElementById('fs-pin').value.trim();
   const err    = document.getElementById('fs-err'); err.textContent = '';
   if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
+  const gv = (id) => (document.getElementById(id)?.value || '').trim();
+  const details = {
+    phone:    gv('fs-phone'),
+    email:    gv('fs-email'),
+    city:     gv('fs-city'),
+    state:    gv('fs-state'),
+    gstin:    gv('fs-gstin'),
+    currency: gv('fs-currency') || '₹',
+    address:  gv('fs-addr')
+  };
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true; btn.textContent = 'Setting up…';
   try {
-    await provisionNewWorkshop(currentUser.uid, garage, name, pin, currentUser.email);
+    await provisionNewWorkshop(currentUser.uid, garage, name, pin, currentUser.email, details);
     await loadUserProfile();
     await loadAllData(true);
     // Reset wizard buffers + advance to bays. Pre-seed bays with one sensible default
@@ -1888,12 +1920,15 @@ window._wizFinish = function() {
   showPinpad();
 };
 
-async function provisionNewWorkshop(uid, garage, ownerName, pin, email) {
-  // 1) Workshop profile at users/{uid}
+async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details = {}) {
+  // 1) Workshop profile at users/{uid}. Mirror state/city here too — the public
+  //    Track Repair page reads them from this (public-read) root doc.
   await fbDb.collection('users').doc(uid).set({
     uid, email,
     name:           ownerName,
     workshop_name:  garage,
+    ...(details.state ? { state: details.state } : {}),
+    ...(details.city  ? { city:  details.city }  : {}),
     createdAt:      firebase.firestore.FieldValue.serverTimestamp(),
     settings_done:  false
   }, { merge: true });
@@ -1911,11 +1946,18 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email) {
     }],
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   });
-  // 3) Initial settings doc — empty but present so other tabs don't 404
+  // 3) Initial settings doc — seeded with whatever business details the owner
+  //    entered in the wizard (all optional; editable later in Settings).
   await fbDb.collection('users').doc(uid).collection('settings').doc('data').set({
     items: [{
       workshop_name: garage,
-      address: '', phone: '', gstin: '',
+      address:  details.address  || '',
+      phone:    details.phone    || '',
+      email:    details.email    || '',
+      city:     details.city     || '',
+      state:    details.state    || '',
+      gstin:    details.gstin    || '',
+      currency: details.currency || '₹',
       bay_types: [], services: []
     }],
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -2121,6 +2163,8 @@ const DEFAULT_ROLE_PERMS = {
   owner:         ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','timesheets','notifications','audit','settings'],
   manager:       ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','timesheets','notifications','audit'],
   floor_manager: ['dashboard','checkin','jobs','queue','customers','bays','inventory','request_parts','parts','notifications','timesheets'],
+  // Service advisor — owns customer-facing intake, job cards, estimates, QC hand-off and invoices.
+  service_advisor: ['dashboard','bookings','checkin','jobs','queue','customers','bays','invoices','notifications','timesheets'],
   // Parts department — owns the manage/approve side (approve / price / order / fulfil → stocks the item) plus can request.
   parts_dept:    ['dashboard','inventory','request_parts','parts','notifications','timesheets'],
   receptionist:  ['dashboard','bookings','checkin','queue','customers','invoices','notifications','timesheets'],
@@ -3914,10 +3958,35 @@ window.openCreateJobCardForm = function(bookingId) {
           </select>
           <div style="font-size:11.5px;color:var(--faint);margin-top:6px">${fmList.length ? 'They get a notification and assign a mechanic.' : 'No floor managers configured. Add one in Workers tab — job will still be created.'}</div>
         </div>
+
+        <div class="f-row" style="margin-top:14px">
+          <div class="f-grp"><label>Assign mechanic <span style="color:var(--faint);font-weight:500;font-size:11px">(optional)</span></label>
+            <select id="cjc-mech">
+              <option value="">— Let the floor manager assign —</option>
+              ${(D.mechanics || []).filter(m => m.active !== false).map(m => `<option value="${escapeHtml(m.name || '')}">${escapeHtml(m.name || '—')}${m.role ? ` (${escapeHtml(m.role)})` : ''}</option>`).join('')}
+            </select>
+          </div>
+          <div class="f-grp"><label>Assign a bay <span style="color:var(--faint);font-weight:500;font-size:11px">(optional)</span></label>
+            <select id="cjc-bay">
+              <option value="">— Queue (no bay) —</option>
+              ${(() => {
+                const freeBays = (D.bays || []).filter(x => _bayState(x) === 'available');
+                const cur = existing.bay_id ? (D.bays || []).find(x => x.id === existing.bay_id) : null;
+                return []
+                  .concat(cur ? [`<option value="${escapeHtml(cur.id)}" selected>${escapeHtml((cur.type || '') + ' · Bay ' + (cur.num || '') + ' (current)')}</option>`] : [])
+                  .concat(freeBays.filter(x => x.id !== cur?.id).map(x => `<option value="${escapeHtml(x.id)}">${escapeHtml((x.type || '') + ' · Bay ' + (x.num || ''))}</option>`))
+                  .join('');
+              })()}
+            </select>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:var(--faint);margin-top:2px">Pick a mechanic to assign the job straight to them (they're notified), and a bay to move the car onto the floor now. Leave both blank to route through the floor manager.</div>
       `,
       saveLabel: 'Create job card',
       onSave: async () => {
         const fmName = (document.getElementById('cjc-fm')?.value || '').trim();
+        const mechName = (document.getElementById('cjc-mech')?.value || '').trim();
+        const bayId = (document.getElementById('cjc-bay')?.value || '').trim();
         // Persist any new complaints onto the booking before we spin the job
         if (_cjcExtraComplaints.length) {
           const b = D.bookings.find(x => x.id === bookingId);
@@ -3927,7 +3996,7 @@ window.openCreateJobCardForm = function(bookingId) {
             await wsSave('bookings', D.bookings);
           }
         }
-        await _spinJobCardFromBooking(bookingId, { floorManager: fmName });
+        await _spinJobCardFromBooking(bookingId, { floorManager: fmName, mechanic: mechName, bayId });
         _cjcExtraComplaints = [];
       }
     });
@@ -3957,6 +4026,8 @@ async function _spinJobCardFromBooking(bookingId, opts = {}) {
   if (!b) return;
   if ((D.jobs || []).some(j => j.booking_id === bookingId)) return;
   const floorManager = (opts.floorManager || '').trim();
+  const mechanic     = (opts.mechanic || '').trim();
+  const bayId        = (opts.bayId || '').trim();
   const newJob = {
     id: uid('job'),
     booking_id:    b.id,
@@ -3965,12 +4036,14 @@ async function _spinJobCardFromBooking(bookingId, opts = {}) {
     type:          b.service || '',
     department:    b.department || departments()[0] || 'Mechanical',
     floor_manager: floorManager,
-    mechanic:      '',     // mechanic assignment now happens via the FM (or quick-assign popup)
-    mechanics:     [],
+    // A mechanic can be assigned right here at creation; otherwise it's left to
+    // the floor manager (via the quick-assign popup).
+    mechanic:      mechanic,
+    mechanics:     mechanic ? [mechanic] : [],
     parts:         [],
     service_charges: [],
     complaints:    (b.complaints || []).slice(),
-    status:        'Awaiting Assignment',
+    status:        mechanic ? 'Technician Assigned' : 'Awaiting Assignment',
     created_at:    nowStr(),
     updated_at:    nowStr(),
     odometer_in:   Number(b.odometer_in || 0)
@@ -3981,17 +4054,48 @@ async function _spinJobCardFromBooking(bookingId, opts = {}) {
   // booking Arrived (if it isn't already past that) so it shows on the
   // check-in "in workshop" board and the floor sees it on site.
   const writes = [wsSave('jobs', D.jobs)];
+  let bookingDirty = false;
   if (b.status !== 'Arrived' && b.status !== 'Delivered' && b.status !== 'Cancelled') {
     b.status = 'Arrived';
     if (!b.checked_in_at) b.checked_in_at = nowStr();
     b.updated_at = nowStr();
-    writes.push(wsSave('bookings', D.bookings));
+    bookingDirty = true;
   }
+  // Move the car onto a bay now, if one was picked (mirrors the quick-assign
+  // logic — frees any prior bay, takes the new one).
+  let bayName = '';
+  if (bayId) {
+    const bay = (D.bays || []).find(x => x.id === bayId);
+    if (bay && _bayState(bay) !== 'maintenance' && (_bayState(bay) !== 'occupied' || bay.booking_id === b.id)) {
+      const prevBayId = b.bay_id || '';
+      if (prevBayId && prevBayId !== bayId) {
+        const oldBay = (D.bays || []).find(x => x.id === prevBayId);
+        if (oldBay) { oldBay.status = 'available'; oldBay.booking_id = null; oldBay.plate = ''; }
+      }
+      bay.status = 'occupied'; bay.booking_id = b.id; bay.plate = b.plate;
+      b.bay_id = bay.id; b.bay_name = (bay.type || '') + ' · Bay ' + (bay.num || ''); b.bay_num = bay.num || '';
+      b.updated_at = nowStr();
+      bayName = b.bay_name;
+      bookingDirty = true;
+      writes.push(wsSave('bays', D.bays));
+    }
+  }
+  if (bookingDirty) writes.push(wsSave('bookings', D.bookings));
   await Promise.all(writes);
   publishTracking(b.id);
-  audit('job-create', `${newJob.plate} · ${newJob.type || 'Service'}${floorManager ? ' → FM ' + floorManager : ''}`, { job_id: newJob.id, booking_id: bookingId });
-  // Notify the picked floor manager (if any), else broadcast to all FMs
-  if (floorManager) {
+  audit('job-create', `${newJob.plate} · ${newJob.type || 'Service'}${mechanic ? ' → ' + mechanic : (floorManager ? ' → FM ' + floorManager : '')}${bayName ? ' · ' + bayName : ''}`, { job_id: newJob.id, booking_id: bookingId });
+  // Notification logic follows what was actually assigned:
+  //   • mechanic picked  → notify that mechanic directly (job is theirs now)
+  //   • FM picked, no mech → ask that FM to assign a mechanic
+  //   • neither          → broadcast "needs a technician" to all floor managers
+  if (mechanic) {
+    notify({
+      kind:    'job-assigned',
+      message: `${newJob.plate} (${newJob.cust_name || 'customer'}) — ${newJob.type || 'service'} assigned to you${bayName ? ' · ' + bayName : ''}`,
+      target:  { worker_name: mechanic },
+      job_id:  newJob.id
+    });
+  } else if (floorManager) {
     notify({
       kind:    'job-needs-assignment',
       message: `New job card for ${newJob.plate} (${newJob.cust_name || 'customer'}) — assign a mechanic`,
@@ -4006,7 +4110,7 @@ async function _spinJobCardFromBooking(bookingId, opts = {}) {
       job_id:  newJob.id
     });
   }
-  showToast(`Job card created for ${newJob.plate}${floorManager ? ' · ' + floorManager + ' (FM) notified' : ''}`, 'good');
+  showToast(`Job card created for ${newJob.plate}${mechanic ? ' · ' + mechanic + ' notified' : (floorManager ? ' · ' + floorManager + ' (FM) notified' : '')}${bayName ? ' · ' + bayName : ''}`, 'good');
   // If the user is on the Bookings/Appointments tab, re-render so the
   // "Create job card" button flips to "Job created"
   if (currentTab === 'bookings')    renderBookings(true);
@@ -5194,7 +5298,9 @@ async function renderJobs(force = false) {
                             ? `<button class="mini-btn good" onclick="markWashReady('${escapeHtml(j.id)}')" title="Washing done — car ready for pickup">Ready for pickup</button>`
                             : status === 'Ready for Pickup'
                               ? `<button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>`
-                              : ''}`;
+                              : status === 'Returned to Advisor'
+                                ? `<button class="mini-btn good" onclick="_billReturnedJob('${escapeHtml(j.id)}')" title="Bill an inspection / diagnostic charge if required, then invoice">Create invoice</button>`
+                                : ''}`;
       return `<tr>
       <td>${escapeHtml((j.created_at || '').slice(0,10) || '—')}</td>
       <td><span class="plate">${escapeHtml(j.plate || '—')}</span>${insBadge}</td>
@@ -5367,12 +5473,16 @@ window.markJobStatus = async function(jobId, newStatus) {
       job_id: jobId
     });
   }
-  // Trigger — Start repair (Estimate Approved → In Progress) — repair carried out
+  // Trigger — Start repair (Estimate Approved → In Progress) — repair carried out.
+  // Notify the assigned mechanic; if none is assigned yet, fall back to the
+  // floor manager so the "begin work" cue is never lost into thin air.
   if (newStatus === 'In Progress') {
     notify({
       kind: 'parts-ready',
-      message: `${j.plate} cleared to start repair — collect approved parts and begin work`,
-      target: { worker_name: j.mechanic },
+      message: j.mechanic
+        ? `${j.plate} cleared to start repair — collect approved parts and begin work`
+        : `${j.plate} cleared to start repair but has no mechanic assigned — assign one to begin work`,
+      target: j.mechanic ? { worker_name: j.mechanic } : { role: 'floor_manager' },
       job_id: jobId
     });
   }
@@ -5607,7 +5717,7 @@ window.sendJobEstimate = async function(jobId) {
   const photos = await loadJobPhotos(jobId);
   const html = _invoiceHTMLFromRecord(inv, { photos });
   const w = window.open('', '_blank');
-  if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+  _openDocInWindow(w, html);
   renderJobs();
   // estimate_ready customer email — fire-and-forget
   sendCustomerNotification('estimate_ready', { job: j, invoice: inv });
@@ -7398,13 +7508,13 @@ window._printVehicleQR = function(plate, qrText) {
   const dataUrl = _grabQRDataUrl();
   if (!dataUrl) return showToast('QR not ready yet', 'bad');
   const w = window.open('', '_blank');
-  w.document.write(`<!doctype html><html><head><title>QR — ${plate}</title>
-    <style>body{font-family:system-ui,sans-serif;text-align:center;padding:30px}
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>QR — ${plate}</title>
+    <style>@page{size:auto;margin:0mm}body{font-family:system-ui,sans-serif;text-align:center;padding:30px}
     img{width:280px;height:280px;border:1px solid #eee;padding:14px;background:#fff}
     h1{font-size:22px;margin:18px 0 4px}.code{font-family:Courier New,monospace;color:#666;font-size:13px}
     </style></head><body><img src="${dataUrl}"><h1>${plate}</h1><div class="code">${qrText}</div>
-    <script>setTimeout(()=>{window.print();},250)<\/script></body></html>`);
-  w.document.close();
+    <script>setTimeout(()=>{window.print();},350)<\/script></body></html>`;
+  _openDocInWindow(w, html);
 };
 
 async function saveCustomer(id) {
@@ -7653,7 +7763,10 @@ async function renderWorkers(force = false) {
 }
 window.renderWorkers = renderWorkers;
 
-const ROLE_OPTS = ['owner','manager','floor_manager','parts_dept','receptionist','mechanic'];
+const ROLE_OPTS = ['owner','manager','floor_manager','service_advisor','parts_dept','receptionist','mechanic'];
+// Human-friendly labels (some role ids are snake_case).
+const ROLE_LABELS = { owner:'Owner', manager:'Manager', floor_manager:'Floor manager', service_advisor:'Service advisor', parts_dept:'Parts department', receptionist:'Receptionist', mechanic:'Mechanic' };
+function roleLabel(r) { return ROLE_LABELS[r] || (String(r || '').charAt(0).toUpperCase() + String(r || '').slice(1)); }
 
 window.openWorkerForm = function(id) {
   const w = id ? (D.mechanics.find(x => x.id === id) || {}) : {};
@@ -7668,7 +7781,7 @@ window.openWorkerForm = function(id) {
       <div class="f-row">
         <div class="f-grp"><label>Role <span class="req">*</span></label>
           <select id="wf-role">
-            ${ROLE_OPTS.map(r => `<option value="${r}" ${(w.role || 'mechanic') === r ? 'selected' : ''}>${r.charAt(0).toUpperCase() + r.slice(1)}</option>`).join('')}
+            ${ROLE_OPTS.map(r => `<option value="${r}" ${(w.role || 'mechanic') === r ? 'selected' : ''}>${roleLabel(r)}</option>`).join('')}
           </select></div>
         <div class="f-grp"><label>Username (for worker sign-in)</label><input id="wf-user" type="text" value="${escapeHtml(w.username || '')}" placeholder="e.g. raj" autocomplete="off" /></div>
       </div>
@@ -11318,6 +11431,24 @@ window._invoiceFillFromCustomer = function() {
   set('if-cphone', c.phone);
 };
 
+// Load a fully-built HTML document into an already-open tab via a Blob URL.
+// Writing HTML into a window.open('') tab leaves its URL as "about:blank",
+// which Safari (and Chrome with headers on) prints in the page footer. A Blob
+// URL gives the tab a real URL, so the footer no longer says "about:blank".
+// Combined with `@page { margin: 0 }` in each doc, Chrome/Edge drop the footer
+// entirely. Falls back to document.write if Blob URLs aren't available.
+function _openDocInWindow(w, html) {
+  if (!w) return;
+  try {
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    w.location.href = url;
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
+  } catch (e) {
+    try { w.document.open(); w.document.write(html); w.document.close(); } catch (_) {}
+  }
+}
+window._openDocInWindow = _openDocInWindow;
+
 window.viewInvoice = async function(id) {
   // CRITICAL: open the new tab SYNCHRONOUSLY in the click handler. If we
   // await anything first, Safari/Chrome treat the eventual window.open as
@@ -11341,7 +11472,7 @@ window.viewInvoice = async function(id) {
     if (!inv) { w.close(); return showToast('Invoice not found', 'bad'); }
     const photos = inv.job_id ? await loadJobPhotos(inv.job_id) : [];
     const html = _invoiceHTMLFromRecord(inv, { photos });
-    w.document.open(); w.document.write(html); w.document.close();
+    _openDocInWindow(w, html);
   } catch (e) {
     try { w.close(); } catch(_){}
     showToast('Couldn\'t open invoice: ' + (e?.message || e), 'bad');
@@ -11380,7 +11511,7 @@ window.viewInsuranceDoc = async function(jobId) {
     }
     const photos = await loadJobPhotos(jobId);
     const html = _insuranceHTMLFromJob(jWork, { photos });
-    w.document.open(); w.document.write(html); w.document.close();
+    _openDocInWindow(w, html);
     audit('insurance-doc-view', `${jWork.plate || '—'} · ${jWork.insurer_name || 'insurer'} · ${jWork.claim_number || 'no claim no.'}`, { job_id: jobId });
   } catch (e) {
     try { w.close(); } catch(_){}
@@ -11980,6 +12111,38 @@ function _invoiceHTMLFromRecord(inv, opts) {
 //   1) seed an invoice from the job
 //   2) save it to D.invoices
 //   3) open the print window from the saved record
+// Bill a car that was returned to the advisor after the customer declined the
+// repair. Lets the advisor add an inspection / diagnostic charge (or nothing)
+// and then generates the invoice — reviving the cancelled estimate invoice.
+window._billReturnedJob = function(jobId) {
+  const j = (D.jobs || []).find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  const cur = D.settings?.currency || '₹';
+  openModal({
+    title: `Invoice · ${j.plate || '—'}`,
+    body: `
+      <div style="color:var(--dim);font-size:13px;line-height:1.55;margin-bottom:14px">
+        The customer declined the repair. Add an inspection / diagnostic charge if you're billing for the assessment, then generate the invoice. Leave the amount at 0 to invoice with no charge.
+      </div>
+      <div class="f-grp"><label>Charge description</label>
+        <input id="brj-desc" type="text" value="Inspection / diagnostic charge" /></div>
+      <div class="f-grp"><label>Amount (${escapeHtml(cur)})</label>
+        <input id="brj-amt" type="number" min="0" step="1" value="0" /></div>`,
+    saveLabel: 'Create invoice',
+    onSave: async () => {
+      const desc = (document.getElementById('brj-desc')?.value || '').trim();
+      const amt  = Number(document.getElementById('brj-amt')?.value || 0);
+      if (amt > 0 && desc) {
+        j.service_charges = (j.service_charges || []).concat([{ name: desc, amount: amt }]);
+        j.updated_at = nowStr();
+        await wsSave('jobs', D.jobs);
+      }
+      closeModal();
+      await generateInvoice(jobId);
+    }
+  });
+};
+
 window.generateInvoice = async function(jobId) {
   const j = D.jobs.find(x => x.id === jobId);
   if (!j) return showToast('Job not found', 'bad');
@@ -11997,6 +12160,9 @@ window.generateInvoice = async function(jobId) {
     // job card shows up on the invoice. (The user explicitly clicked Invoice, so they
     // want the current state — manual invoice edits are still possible via Edit.)
     _resyncInvoiceFromJob(inv, j);
+    // An explicit click to invoice a job whose estimate was cancelled (e.g. a
+    // returned-to-advisor car being billed for diagnostics) should revive it.
+    if (inv.status === 'Cancelled') inv.status = 'Issued';
   }
   inv.updated_at = nowStr();
   const b = D.bookings.find(x => x.id === j.booking_id);
@@ -12008,7 +12174,7 @@ window.generateInvoice = async function(jobId) {
   const html = _invoiceHTMLFromRecord(inv, { photos });
   const w = window.open('', '_blank');
   if (!w) { await Promise.all(writes); return customAlert('Browser blocked the new tab. Allow pop-ups for this site to print invoices.', { title: 'Pop-up blocked' }); }
-  w.document.open(); w.document.write(html); w.document.close();
+  _openDocInWindow(w, html);
   audit(isNew ? 'invoice-create' : 'invoice-refresh', `${inv.number} · ${inv.customer?.name || '—'} · ${j.plate || '—'}`, { invoice_id: inv.id, job_id: j.id });
   await Promise.all(writes);
   // invoice_ready customer email — only on NEW invoices (re-printing an existing
@@ -12590,6 +12756,24 @@ window.markNotifSeen = async function(notifId) {
   }
 };
 
+// Escalate / hand off any notification to the service advisor. Re-fires it as a
+// fresh notification targeting the service_advisor role, carrying the original
+// message + job/booking context so the advisor can pick it up.
+window.forwardNotifToAdvisor = function(notifId) {
+  const n = (D.notifications || []).find(x => x.id === notifId);
+  if (!n) return showToast('Notification not found', 'bad');
+  notify({
+    kind: 'forwarded-to-advisor',
+    message: `${n.message} — forwarded to you by ${currentWorker?.name || 'a colleague'}`,
+    target: { role: 'service_advisor' },
+    job_id: n.job_id || '',
+    booking_id: n.booking_id || '',
+    meta: n.meta || null
+  });
+  audit('notif-forward', `"${(n.kind || '').replace(/-/g, ' ')}" → service advisor`, { job_id: n.job_id || '' });
+  showToast('Forwarded to the service advisor', 'good');
+};
+
 async function renderAudit(force = false) {
   await loadAllData(force);
   const list = (D.audit || []).slice();
@@ -12679,6 +12863,7 @@ async function renderNotifications(force = false) {
           <div style="display:flex;gap:6px;align-items:center">
             ${unread ? `<button class="mini-btn" onclick="markNotifSeen('${escapeHtml(n.id)}')" title="Mark this notification as seen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>Mark seen</button>` : ''}
             ${_renderNotifAction(n)}
+            ${(n.kind !== 'estimate-response' && !(n.target && (n.target.role === 'service_advisor' || (n.target.roles || []).includes('service_advisor')))) ? `<button class="mini-btn" onclick="forwardNotifToAdvisor('${escapeHtml(n.id)}')" title="Forward this notification to the service advisor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Advisor</button>` : ''}
           </div>
         </div>
       </div>
