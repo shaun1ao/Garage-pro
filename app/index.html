@@ -1562,6 +1562,7 @@ fbAuth.onAuthStateChanged(async (user) => {
   }
   currentUser = user;
   subscribeLiveCollections();   // start pushing remote writes into D in real time
+  subscribeApprovalResponses(); // watch shared estimate links for customer decisions
   // One-shot backfill of public_status mirror for existing bookings. Defers so
   // D.bookings is hydrated by loadAllData first.
   setTimeout(() => backfillPublicTracking(), 4000);
@@ -5176,9 +5177,9 @@ async function renderJobs(force = false) {
           : status === 'Technician Assigned'
             ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Inspected')" title="Vehicle inspected, spares listed">Mark inspected</button>`
             : status === 'Inspected'
-              ? `<button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(j.id)}')" title="Generate estimate & send to client">Send estimate</button>`
+              ? `<button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(j.id)}')" title="Generate estimate & send to client">Send estimate</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>`
               : status === 'Estimate Sent'
-                ? `<button class="mini-btn warn" onclick="openClientDecision('${escapeHtml(j.id)}')" title="Capture client's per-line decision (approve / reject)">Client decision</button>`
+                ? `<button class="mini-btn warn" onclick="openClientDecision('${escapeHtml(j.id)}')" title="Capture client's per-line decision (approve / reject)">Client decision</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>`
                 : (status === 'Estimate Approved' || status === 'Estimate Approved (Partial)')
                   ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','In Progress')" title="Parts readied, technician notified">Start repair</button>`
                   : status === 'Rejected — Reassembly'
@@ -5801,6 +5802,358 @@ async function _cdSubmit(invId) {
 window._cdSubmit = _cdSubmit;
 window.openClientDecision = window.openClientDecision;   // re-export
 window._cdTally = _cdTally;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CUSTOMER SELF-SERVICE ESTIMATE APPROVAL (shareable link)
+//  Instead of phoning the customer and waiting for a call back, the advisor
+//  publishes the estimate (line items + prices + worn-part photos) to a doc
+//  keyed by an unguessable token and shares
+//     garagepro.me/approve.html?w=<uid>&t=<token>
+//  The customer opens it (no login), taps Approve / Reject per item, and the
+//  decision flows straight back into this app — auto-advancing the job and
+//  notifying the parts dept, exactly like the in-app "Client decision" flow.
+// ══════════════════════════════════════════════════════════════════════════
+
+function _apprToken() {
+  try {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '');
+  } catch (_) {}
+  return (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 28);
+}
+
+// Public site base (approve.html lives at the site root, the app at /app/…)
+function _apprSiteBase() {
+  const o = location.origin;
+  return (o && /^https?:/i.test(o)) ? o : 'https://garagepro.me';
+}
+
+// Normalise a phone into wa.me digits (defaults to +91 for a bare 10-digit no.)
+function _waDigits(raw) {
+  let d = String(raw || '').replace(/[^\d]/g, '');
+  if (!d) return '';
+  if (d.length === 10) d = '91' + d;          // bare Indian mobile
+  else if (d.length === 11 && d[0] === '0') d = '91' + d.slice(1);
+  return d;
+}
+
+// Build the self-contained approval payload from a job's estimate + an invoice.
+// Photos are embedded as data URLs (the customer can't read the sub-gated
+// job_photos collection), capped so we stay well under Firestore's 1 MiB doc.
+async function _apprBuildDoc(j, inv, token) {
+  const taxPct = Number(inv.tax_pct || 0);
+  const lines = (inv.lines || []).map(l => {
+    const taxable = Math.max(0, (Number(l.unit_price || 0) * Number(l.qty || 1)) * (1 - (Number(l.disc_pct || 0)) / 100));
+    return {
+      name: l.name || '', qty: Number(l.qty || 1),
+      amount: Math.round(taxable * (1 + taxPct / 100))
+    };
+  });
+  const charges = (inv.charges || []).map(c => ({ name: c.name || '', amount: Math.round(Number(c.amount || 0)) }));
+
+  // Attach up to 4 job photos, size-guarded to keep the doc small enough.
+  let photos = [];
+  try {
+    const all = await loadJobPhotos(j.id);
+    let budget = 700 * 1024;   // ~0.7 MiB of image data
+    for (const p of all) {
+      const data = p.data || '';
+      if (!data) continue;
+      if (data.length > budget) continue;
+      photos.push({ id: p.id, data, caption: p.caption || p.label || '' });
+      budget -= data.length;
+      if (photos.length >= 4) break;
+    }
+  } catch (_) {}
+
+  const b = (D.bookings || []).find(x => x.id === j.booking_id) || {};
+  const s = D.settings || {};
+  const total = lines.reduce((a, l) => a + l.amount, 0) + charges.reduce((a, c) => a + c.amount, 0);
+
+  return {
+    token,
+    job_id: j.id,
+    invoice_id: inv.id,
+    invoice_no: inv.number || '',
+    workshop_name: s.workshop_name || userProfile?.workshop_name || 'Workshop',
+    workshop_phone: s.phone || '',
+    currency: s.currency || '₹',
+    cust_name: j.cust_name || b.cust_name || '',
+    plate: j.plate || b.plate || '',
+    veh_desc: [b.veh_make, b.veh_model, b.veh_year].filter(Boolean).join(' '),
+    lines,
+    charges,
+    photos,
+    total,
+    status: 'pending',
+    decisions: {},
+    customer_note: '',
+    created_at: nowStr(),
+    responded_at: '',
+    processed: false
+  };
+}
+
+// Advisor action — publish/refresh the link and show the share sheet.
+window.shareEstimateLink = async function(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const estParts    = (j.est_parts    || []).filter(p => (p.name || '').trim());
+  const estServices = (j.est_services || []).filter(s => (s.name || '').trim());
+  if (!estParts.length && !estServices.length) {
+    return customAlert('Add Estimation parts or Estimated services on the job card first (the collapsible blue sections). The approval link is built from those.', { title: 'Nothing to approve yet' });
+  }
+  // Reuse / create the estimate invoice, exactly like sendJobEstimate.
+  let inv = (D.invoices || []).find(x => x.job_id === jobId);
+  if (!inv) {
+    inv = _seedInvoiceFromJob(jobId);
+    inv.created_at = nowStr();
+    inv.created_by = currentWorker?.name || '';
+    D.invoices.push(inv);
+  }
+  inv.lines = estParts.map(p => ({
+    name: p.name.trim(), hsn: '', qty: Math.max(1, Number(p.qty || 1)),
+    unit_price: Number(p.price || 0), disc_pct: 0, approval: 'pending'
+  }));
+  inv.charges = estServices.map(s => ({ name: s.name.trim(), amount: Number(s.price || 0), approval: 'pending' }));
+  inv.is_estimate = true;
+  inv.status = 'Draft';
+  inv.payment_status = 'Outstanding';
+  inv.updated_at = nowStr();
+
+  // Fresh token each publish so an old shared link can't be reused after
+  // re-pricing. Store it on the invoice so we can find the response later.
+  const token = _apprToken();
+  inv.approval_token = token;
+
+  if ((j.status || '') === 'Inspected' || !j.estimate_sent_at) {
+    j.status = 'Estimate Sent';
+    j.estimate_sent_at = nowStr();
+  }
+  j.approval_token = token;
+  // Remember who sent the link — this is the "nominated" person the customer's
+  // response comes back to first (falls back to the service_advisor role).
+  j.estimate_sent_by    = currentWorker?.name || j.estimate_sent_by || '';
+  j.estimate_sent_by_id = currentWorker?.id   || j.estimate_sent_by_id || '';
+  j.updated_at = nowStr();
+
+  let doc;
+  try {
+    doc = await _apprBuildDoc(j, inv, token);
+    await wsCol('estimate_approvals').doc(token).set(doc);
+  } catch (e) {
+    console.error('[shareEstimateLink]', e);
+    return customAlert('Could not publish the approval link: ' + (e.message || e), { title: 'Publish failed' });
+  }
+  await Promise.all([wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)]);
+  publishTracking(j.booking_id);
+  audit('estimate-link-shared', `${inv.number || ''} · ${j.plate} · ${j.cust_name || '—'}`, { invoice_id: inv.id, job_id: jobId });
+  renderJobs();
+  _apprShareModal(doc);
+};
+
+function _apprShareModal(doc) {
+  const url  = `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(currentUser.uid)}&t=${encodeURIComponent(doc.token)}`;
+  const b    = (D.bookings || []).find(x => x.id === doc.job_id) || {};
+  const phone = _waDigits(b.cust_phone || doc.workshop_phone);
+  const fmt  = (n) => `${doc.currency}${Number(n || 0).toLocaleString('en-IN')}`;
+  const msg  = `Hi${doc.cust_name ? ' ' + doc.cust_name : ''}, your estimate for ${doc.plate || 'your vehicle'} (${fmt(doc.total)}) is ready. Please review & approve here: ${url}`;
+  const waHref = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+                       : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  openModal({
+    title: `Approval link · ${doc.plate || '—'}`,
+    body: `
+      <div style="color:var(--dim);font-size:13px;line-height:1.55;margin-bottom:14px">
+        Share this with the customer. They can review every line item${doc.photos.length ? ' and photos' : ''} and tap
+        <b style="color:var(--teal)">Approve</b> / <b style="color:var(--red)">Reject</b> — no login. Their decision lands back
+        here automatically and advances the job.
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <input id="apprShareUrl" readonly value="${escapeHtml(url)}" style="flex:1;min-width:240px;padding:10px 12px;border-radius:8px;border:1px solid var(--brd2);background:var(--surf);color:var(--acc2);font-family:'Courier New',monospace;font-size:12.5px" onclick="this.select()" />
+        <button type="button" class="mini-btn" onclick="navigator.clipboard.writeText(document.getElementById('apprShareUrl').value).then(()=>showToast('Link copied','good'))">Copy</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="${waHref}" target="_blank" rel="noopener" class="mini-btn good" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px">💬 Send on WhatsApp</a>
+        <button type="button" class="mini-btn" onclick="window.open('${escapeHtml(url)}','_blank')">Preview as customer</button>
+      </div>
+      <div style="margin-top:14px;padding:11px 13px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;font-size:12px;color:var(--faint)">
+        Estimate total <b style="color:var(--txt)">${fmt(doc.total)}</b> · ${doc.lines.length} part(s) · ${doc.charges.length} service(s)${doc.photos.length ? ` · ${doc.photos.length} photo(s)` : ''}
+      </div>`,
+    saveLabel: 'Done',
+    onSave: () => {}
+  });
+}
+
+// ─── Watch for customer responses on the shared links ───────────────────────
+let _apprUnsub = null;
+const _apprSeen = new Set();   // tokens this device already applied this session
+
+function subscribeApprovalResponses() {
+  if (_apprUnsub) { try { _apprUnsub(); } catch (_) {} _apprUnsub = null; }
+  if (!currentUser) return;
+  try {
+    _apprUnsub = wsCol('estimate_approvals').onSnapshot(snap => {
+      snap.docChanges().forEach(chg => {
+        if (chg.type === 'removed') return;
+        const d = chg.doc.data() || {};
+        if (!d.responded_at || d.processed) return;
+        if (_apprSeen.has(d.token)) return;
+        _apprSeen.add(d.token);
+        _claimAndApplyApproval(chg.doc.ref, d).catch(e => {
+          console.warn('[appr apply]', e);
+          _apprSeen.delete(d.token);   // let a retry happen
+        });
+      });
+    }, err => console.warn('[appr sub]', err));
+  } catch (e) { console.warn('[appr sub init]', e); }
+}
+window.subscribeApprovalResponses = subscribeApprovalResponses;
+
+// Claim the response in a transaction so exactly one device processes it,
+// then apply the customer's per-line decision to the invoice + job.
+async function _claimAndApplyApproval(ref, data) {
+  const won = await fbDb.runTransaction(async tx => {
+    const cur = await tx.get(ref);
+    if (!cur.exists) return false;
+    const c = cur.data() || {};
+    if (c.processed || !c.responded_at) return false;
+    tx.update(ref, { processed: true, processed_at: nowStr() });
+    return true;
+  });
+  if (!won) return;
+  _applyCustomerDecision(data);
+}
+
+function _applyCustomerDecision(appr) {
+  const inv = (D.invoices || []).find(x => x.id === appr.invoice_id)
+           || (D.invoices || []).find(x => x.job_id === appr.job_id);
+  const j   = (D.jobs || []).find(x => x.id === appr.job_id);
+  if (!inv || !j) { console.warn('[appr] no matching invoice/job for', appr.token); return; }
+
+  const dec = appr.decisions || {};
+  (inv.lines   || []).forEach((l, i) => { l.approval = dec['line:' + i]   || 'rejected'; });
+  (inv.charges || []).forEach((c, i) => { c.approval = dec['charge:' + i] || 'rejected'; });
+
+  const counts = _cdTally(inv);
+  inv.client_decision_at = nowStr();
+  inv.client_decision_by = 'Customer (link)';
+  const who = appr.cust_name || j.cust_name || 'Customer';
+
+  const rejectedAll = counts.approved === 0;
+  if (rejectedAll) {
+    j.status = 'Rejected — Reassembly';
+    j.visit_outcome = 'rejected';
+    j.visit_summary = { estimate_total: _invoiceTotals(inv).roundOff, complaints: (j.complaints || []).map(c => c.text), decided_at: nowStr(), decided_by: 'Customer (link)' };
+    j.updated_at = nowStr();
+    inv.status = 'Cancelled';
+    audit('client-decision-reject', `${inv.number || ''} · ${j.plate} — customer rejected via link`, { invoice_id: inv.id, job_id: j.id });
+  } else {
+    j.status = counts.rejected > 0 ? 'Estimate Approved (Partial)' : 'Estimate Approved';
+    j.visit_outcome = counts.rejected > 0 ? 'approved_partial' : 'approved_full';
+    j.estimate_approved_at = nowStr();
+    j.visit_summary = { estimate_total: _invoiceTotals(inv).roundOff, approved_count: counts.approved, rejected_count: counts.rejected, decided_at: nowStr(), decided_by: 'Customer (link)' };
+    j.updated_at = nowStr();
+    inv.status = 'Issued';
+    inv.payment_status = inv.payment_status || 'Outstanding';
+    audit('client-decision-approve', `${inv.number || ''} · ${j.plate} — customer approved ${counts.approved} via link`, { invoice_id: inv.id, job_id: j.id });
+  }
+  // Stash the decision on the job so the advisor can forward it downstream.
+  j.last_customer_decision = {
+    status: rejectedAll ? 'rejected' : (counts.rejected ? 'partial' : 'approved'),
+    approved: counts.approved, rejected: counts.rejected, invoice_id: inv.id,
+    note: appr.customer_note || '', by: who, at: nowStr(), forwarded: false
+  };
+  // The customer's response goes to the NOMINEE first (whoever sent the link),
+  // falling back to the service_advisor role. They review it and then forward
+  // it on to the floor manager + assigned worker(s) via the Forward button.
+  const summary = rejectedAll
+    ? `${who} rejected the entire estimate for ${j.plate}.`
+    : `${who} approved ${counts.approved} item(s)${counts.rejected ? ', rejected ' + counts.rejected : ''} for ${j.plate}.`;
+  const nominee = j.estimate_sent_by_id ? { worker_id: j.estimate_sent_by_id }
+                : (j.estimate_sent_by ? { worker_name: j.estimate_sent_by } : { role: 'service_advisor' });
+  notify({
+    kind: 'estimate-response',
+    message: `${summary}${appr.customer_note ? ` Note: "${appr.customer_note}"` : ''} Review & forward to the floor manager and technician.`,
+    target: nominee,
+    job_id: j.id,
+    meta: { approved: counts.approved, rejected: counts.rejected, status: j.last_customer_decision.status }
+  });
+  Promise.all([wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)])
+    .then(() => { publishTracking(j.booking_id); if (typeof renderJobs === 'function') renderJobs(); })
+    .catch(e => console.warn('[appr save]', e));
+  showToast(`${who} responded to the estimate for ${j.plate}`, 'good');
+}
+
+// Advisor forwards the customer's decision on to the floor manager + the
+// assigned worker(s) (and the parts dept when work was approved). Opens a
+// small picker so the nominee controls exactly who gets pinged.
+window.forwardEstimateDecision = function(jobId) {
+  const j = (D.jobs || []).find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  const d = j.last_customer_decision;
+  if (!d) return customAlert('There is no customer decision on this job to forward yet.', { title: 'Nothing to forward' });
+  const workers = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
+  const approved = d.status !== 'rejected';
+  const pill = d.status === 'rejected'
+    ? `<span style="color:var(--red);font-weight:700">Rejected</span>`
+    : `<span style="color:var(--teal);font-weight:700">Approved ${d.approved}${d.rejected ? ` · rejected ${d.rejected}` : ''}</span>`;
+  openModal({
+    title: `Forward decision · ${j.plate}`,
+    body: `
+      <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);margin-bottom:16px;line-height:1.55">
+        <b style="color:var(--txt)">${escapeHtml(j.plate || '—')}</b> · ${escapeHtml(j.cust_name || '—')} — ${pill}
+        ${d.note ? `<div style="margin-top:6px;font-style:italic">“${escapeHtml(d.note)}”</div>` : ''}
+      </div>
+      <div style="font-family:var(--fd);font-weight:700;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:9px">Send this to</div>
+      <label style="display:flex;align-items:center;gap:9px;padding:9px 0;cursor:pointer"><input type="checkbox" id="fw-fm" checked /> Floor manager</label>
+      ${workers.length
+        ? workers.map((w, i) => `<label style="display:flex;align-items:center;gap:9px;padding:9px 0;cursor:pointer"><input type="checkbox" class="fw-worker" value="${escapeHtml(w)}" checked /> ${escapeHtml(w)} <span style="color:var(--faint);font-size:11.5px">· technician</span></label>`).join('')
+        : `<div style="padding:9px 0;color:var(--acc2);font-size:12.5px">No technician assigned yet — the floor manager will assign one.</div>`}
+      ${approved ? `<label style="display:flex;align-items:center;gap:9px;padding:9px 0;cursor:pointer"><input type="checkbox" id="fw-parts" checked /> Parts department <span style="color:var(--faint);font-size:11.5px">· forward approved parts</span></label>` : ''}
+      <div class="f-grp" style="margin-top:12px"><label>Add a note (optional)</label><textarea id="fw-msg" placeholder="e.g. Start with the brakes, customer picking up at 5pm"></textarea></div>
+    `,
+    saveLabel: 'Forward',
+    onSave: () => _applyForward(jobId)
+  });
+};
+
+function _applyForward(jobId) {
+  const j = (D.jobs || []).find(x => x.id === jobId);
+  if (!j) throw new Error('Job not found');
+  const d = j.last_customer_decision || {};
+  const fm    = document.getElementById('fw-fm')?.checked;
+  const parts = document.getElementById('fw-parts')?.checked;
+  const workerNames = [...document.querySelectorAll('.fw-worker:checked')].map(x => x.value);
+  const extra = (document.getElementById('fw-msg')?.value || '').trim();
+  const rejected = d.status === 'rejected';
+  const base = rejected
+    ? `${j.plate} (${j.cust_name || 'customer'}) — customer rejected the estimate. Reassemble and release without repair.`
+    : `${j.plate} (${j.cust_name || 'customer'}) — customer approved ${d.approved} item(s)${d.rejected ? `, rejected ${d.rejected}` : ''}. Proceed with the approved work.`;
+  const by = currentWorker?.name || 'advisor';
+  const msg = `${base}${extra ? ` — ${extra}` : ''} (forwarded by ${by})`;
+  let sent = 0;
+  if (fm) {
+    notify({ kind: rejected ? 'client-rejected' : 'client-approved', message: msg, target: { role: 'floor_manager' }, job_id: jobId });
+    sent++;
+  }
+  workerNames.forEach(w => {
+    notify({ kind: 'estimate-forwarded', message: msg, target: { worker_name: w }, job_id: jobId });
+    sent++;
+  });
+  if (parts && !rejected) {
+    notify({ kind: 'client-approved', message: `${j.plate} — forward the approved parts so the technician can collect them.${extra ? ` (${extra})` : ''}`, target: { role: 'parts_dept' }, job_id: jobId });
+    sent++;
+  }
+  if (!sent) { showToast('Pick at least one recipient', 'bad'); throw new Error('No recipients'); }
+  d.forwarded = true;
+  d.forwarded_at = nowStr();
+  d.forwarded_by = by;
+  j.updated_at = nowStr();
+  wsSave('jobs', D.jobs).catch(e => console.warn('[forward save]', e));
+  audit('estimate-forwarded', `${j.plate} — forwarded to ${sent} recipient(s) by ${by}`, { job_id: jobId });
+  closeModal();
+  showToast(`Forwarded to ${sent} recipient${sent === 1 ? '' : 's'}`, 'good');
+  if (currentTab === 'notifications') renderNotifications();
+}
 
 // Status progression maps to the two-stage workshop flow.
 //   STAGE 1 (Car inward): Awaiting Assignment (job card finalised, floor manager needs to assign a tech)
@@ -12107,6 +12460,14 @@ function _renderNotifAction(n) {
   // car-arrived → check-in tab (advisor runs intake there)
   if (kind === 'car-arrived' && bid) {
     return `<button class="mini-btn" onclick="switchTab('checkin')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Open check-in</button>`;
+  }
+  // estimate-response → the nominee (advisor) reviews the customer's decision
+  // and forwards it on to the floor manager + assigned worker(s).
+  if (kind === 'estimate-response' && jid) {
+    return `<div style="display:flex;gap:6px">
+      <button class="mini-btn good" onclick="forwardEstimateDecision('${escapeHtml(jid)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Forward</button>
+      <button class="mini-btn" onclick="openJobForm('${escapeHtml(jid)}')">Open job</button>
+    </div>`;
   }
   // job-needs-assignment → quick-assign popup (floor manager flow)
   if (kind === 'job-needs-assignment' && jid) {
