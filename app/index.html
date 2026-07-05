@@ -1649,10 +1649,17 @@ function _prefillWizard() {
     const p = userProfile || {};
     const garage = p.workshop_name || p.garageName || p.garage || p.company_name || p.companyName || '';
     const ownerName = p.name || p.owner_name || currentUser?.displayName || '';
-    const gEl = document.getElementById('fs-garage');
-    const nEl = document.getElementById('fs-name');
-    if (gEl && garage && !gEl.value)    gEl.value = garage;
-    if (nEl && ownerName && !nEl.value) nEl.value = ownerName;
+    const set = (id, val) => { const el = document.getElementById(id); if (el && val && !el.value) el.value = val; };
+    set('fs-garage', garage);
+    set('fs-name',   ownerName);
+    // Auto-fill the optional business details from anything the signup / auth
+    // account already knows — the owner shouldn't retype what we have.
+    set('fs-email',   p.email || currentUser?.email || '');
+    set('fs-phone',   p.phone || p.contact_phone || '');
+    set('fs-city',    p.city || '');
+    set('fs-state',   p.state || '');
+    set('fs-gstin',   p.gstin || p.gst || '');
+    set('fs-addr',    p.address || '');
   } catch (e) { console.warn('[wizard prefill]', e); }
 }
 window._prefillWizard = _prefillWizard;
@@ -5281,7 +5288,7 @@ async function renderJobs(force = false) {
           : status === 'Technician Assigned'
             ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Inspected')" title="Vehicle inspected, spares listed">Mark inspected</button>`
             : status === 'Inspected'
-              ? `<button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(j.id)}')" title="Generate estimate & send to client">Send estimate</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>`
+              ? `${canApproveParts() ? `<button class="mini-btn warn" onclick="_markPricingComplete('${escapeHtml(j.id)}')" title="Parts priced & availability checked — tell the service advisor the estimate is ready to send">Parts priced</button>` : ''}<button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(j.id)}')" title="Generate estimate & send to client">Send estimate</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>`
               : status === 'Estimate Sent'
                 ? `<button class="mini-btn warn" onclick="openClientDecision('${escapeHtml(j.id)}')" title="Capture client's per-line decision (approve / reject)">Client decision</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>`
                 : (status === 'Estimate Approved' || status === 'Estimate Approved (Partial)')
@@ -5661,6 +5668,25 @@ window.markWashReady = async function(jobId) {
   renderJobs();
   await wsSave('jobs', D.jobs);
   publishTracking(j.booking_id);
+};
+
+// Stage 2 — Parts department signals that pricing + availability are done, so
+// the service advisor knows the estimate is ready to send to the client.
+// (Workflow trigger: "Pricing complete → Service Advisor → Send estimate".)
+window._markPricingComplete = function(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  j.priced_at = nowStr();
+  j.priced_by = currentWorker?.name || '';
+  wsSave('jobs', D.jobs).catch(e => console.warn('[priced]', e));
+  notify({
+    kind: 'pricing-complete',
+    message: `${j.plate} (${j.cust_name || 'customer'}) — parts priced & availability checked. Ready to send the estimate to the client.`,
+    target: { role: 'service_advisor' },
+    job_id: jobId
+  });
+  audit('pricing-complete', `${j.plate} — parts priced, advisor notified`, { job_id: jobId });
+  showToast('Service advisor notified — estimate ready to send', 'good');
 };
 
 // "Send estimate to client" — Stage 2 final step. Creates a Draft invoice
@@ -9667,10 +9693,11 @@ async function renderSettings(force = false) {
           <span style="font-family:var(--fd);font-weight:700;font-size:14px">Enable customer emails</span>
         </label>
 
-        <!-- EmailJS — RECOMMENDED. Real delivery confirmation, free tier. -->
-        <div style="padding:12px 14px;background:rgba(32,227,178,.06);border:1px solid rgba(32,227,178,.30);border-radius:10px;margin-bottom:12px">
-          <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--teal,#20e3b2);margin-bottom:4px">✓ EmailJS (recommended — confirms delivery)</div>
-          <div style="font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.5">The reliable option. It tells you if an email actually sent (the Apps Script method can't). Free 200 emails/month. Connect your own Gmail.</div>
+        <!-- EmailJS — alternative. Also confirms delivery; capped at 200/mo free. -->
+        <details style="padding:0;margin-bottom:12px">
+          <summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--teal,#20e3b2);padding:10px 0">Prefer EmailJS instead? (also free, ~200 emails/month)</summary>
+          <div style="padding:12px 14px;background:rgba(32,227,178,.06);border:1px solid rgba(32,227,178,.30);border-radius:10px;margin-top:6px">
+          <div style="font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.5">Another card-free option that confirms delivery. Free 200 emails/month. Connect your own Gmail via emailjs.com.</div>
           <div class="f-row r3">
             <div class="f-grp"><label>Public Key</label><input id="sf-ejs-key" type="text" value="${escapeHtml(s.emailjs_public_key || '')}" placeholder="Vx...xyz" autocomplete="off" /></div>
             <div class="f-grp"><label>Service ID</label><input id="sf-ejs-svc" type="text" value="${escapeHtml(s.emailjs_service_id || '')}" placeholder="service_xxx" autocomplete="off" /></div>
@@ -9688,16 +9715,15 @@ async function renderSettings(force = false) {
               <li>Paste all three above, tick Enable, hit <b>Send test</b>.</li>
             </ol>
           </details>
-        </div>
-
-        <details style="margin-bottom:12px">
-          <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--faint)">Or use Google Apps Script instead (advanced — no delivery confirmation)</summary>
-          <div class="f-row" style="grid-template-columns:2fr 1fr;margin-top:10px">
-            <div class="f-grp"><label>Apps Script Web App URL</label><input id="sf-em-url" type="url" value="${escapeHtml(s.email_appscript_url || '')}" placeholder="https://script.google.com/macros/s/AKfy.../exec" autocomplete="off" /></div>
-            <div class="f-grp"></div>
           </div>
-          <div style="font-size:11.5px;color:var(--acc2);margin-top:4px">Note: the Apps Script method can't confirm delivery — if an email doesn't arrive there's no error. Prefer EmailJS above.</div>
         </details>
+
+        <div style="padding:12px 14px;background:rgba(99,159,255,.06);border:1px solid rgba(99,159,255,.30);border-radius:10px;margin-bottom:12px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--blue,#639fff);margin-bottom:4px">✓ Google Apps Script — free, no card, no App Password</div>
+          <div style="font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.5">Runs in <i>your own</i> Google account and sends from your Gmail. It now <b>confirms delivery</b> (reports the real success/error). Paste your Web App URL below and follow the one-time setup.</div>
+          <div class="f-grp"><label>Apps Script Web App URL</label><input id="sf-em-url" type="url" value="${escapeHtml(s.email_appscript_url || '')}" placeholder="https://script.google.com/macros/s/AKfy.../exec" autocomplete="off" /></div>
+          <div style="font-size:11.5px;color:var(--acc2);margin-top:6px">⚠ After editing the script you must <b>redeploy it as a NEW version</b> (Deploy → Manage deployments → ✏️ Edit → Version: <b>New version</b> → Deploy) — Apps Script "Save" alone does NOT update the live URL. This is the #1 reason email "stops working".</div>
+        </div>
 
         <div class="f-row" style="grid-template-columns:1fr">
           <div class="f-grp"><label>From name (displayed on emails)</label><input id="sf-em-from" type="text" value="${escapeHtml(s.email_from_name || s.workshop_name || '')}" placeholder="Speed Auto Care" /></div>
@@ -10241,14 +10267,12 @@ window._sendTestEmail = async function() {
   });
   if (res.ok) {
     msg.style.color = 'var(--teal)';
-    // Be explicit: we know the POST was delivered to Apps Script, but Apps
-    // Script's response is CORS-blocked so we can't verify the actual send.
-    // If the inbox stays empty after ~30s, run Test Connection (above) and
-    // check the Executions log inside the Apps Script.
-    msg.innerHTML = '✓ <b>Request sent to your Apps Script.</b> Check the inbox at <b>' + escapeHtml(to) + '</b> in a moment. If nothing arrives, click <b>Test Connection</b> above or open <a href="https://script.google.com" target="_blank" style="color:var(--acc2)">script.google.com</a> → your project → <b>Executions</b> to see what the script did.';
+    // Gmail (via Apps Script or EmailJS) confirmed the send — this is a REAL
+    // success, not a "we hope it worked". The message actually left the outbox.
+    msg.innerHTML = '✓ <b>Sent — and confirmed by Gmail.</b> Check the inbox at <b>' + escapeHtml(to) + '</b> (give it a minute; check spam the first time).';
   } else {
     msg.style.color = 'var(--red)';
-    msg.textContent = 'Test failed: ' + (res.error || res.skipped || 'unknown error');
+    msg.innerHTML = '✗ <b>Not sent:</b> ' + escapeHtml(res.error || res.skipped || 'unknown error');
   }
 };
 
@@ -12507,48 +12531,44 @@ async function _smtpSend({ to, subject, html, fromName }) {
     throw new Error('EmailJS rejected the email: ' + hint);
   }
 
-  // ── Fallback path: Google Apps Script relay (opaque — no real feedback) ────
+  // ── Google Apps Script relay — now with REAL success/error ────────────────
+  // The old version posted through a hidden iframe whose response is
+  // cross-origin-opaque, so it ALWAYS reported "sent" even when Gmail failed —
+  // that's why "email doesn't work but shows no error". The fix: fetch() with a
+  // text/plain body (a "simple" request → no CORS preflight, which Apps Script
+  // can't answer). Apps Script's /exec 302-redirects to
+  // script.googleusercontent.com whose response carries
+  // Access-Control-Allow-Origin: *, so we can actually READ the JSON result.
+  // Requires the updated Apps Script (Settings shows the exact code) that ends
+  // with: return ContentService.createTextOutput(JSON.stringify({ok:true})).
   const url = s.email_appscript_url;
-  if (!url) throw new Error('Email not set up. In Settings → Customer email notifications, add EmailJS keys (recommended — gives real delivery confirmation) or an Apps Script URL.');
+  if (!url) throw new Error('Email isn\'t set up yet. In Settings → Customer email notifications, paste your Google Apps Script Web App URL (or EmailJS keys).');
   if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(url))
-    throw new Error('That doesn\'t look like an Apps Script Web App URL. It should end with /exec.');
-  const payload = JSON.stringify({ to, subject, html, body: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), fromName, replyTo });
-
-  return new Promise((resolve, reject) => {
-    // One reusable hidden iframe per page — Apps Script's response lands here
-    // and stays cross-origin-opaque, but the load event still fires when it's done.
-    let frame = document.getElementById('_emailRelayFrame');
-    if (!frame) {
-      frame = document.createElement('iframe');
-      frame.id   = '_emailRelayFrame';
-      frame.name = '_emailRelayFrame';
-      frame.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
-      document.body.appendChild(frame);
-    }
-    const form = document.createElement('form');
-    form.action  = url;
-    form.method  = 'POST';
-    form.target  = '_emailRelayFrame';
-    form.enctype = 'application/x-www-form-urlencoded';   // simple form post — no CORS preflight
-    form.style.display = 'none';
-    const input = document.createElement('input');
-    input.type  = 'hidden';
-    input.name  = 'payload';
-    input.value = payload;
-    form.appendChild(input);
-    document.body.appendChild(form);
-
-    // 15-second hard timeout — covers slow Gmail / cold-start Apps Script
-    const timeout = setTimeout(() => { cleanup(); reject(new Error('Apps Script timed out after 15s. Check the script URL and your network.')); }, 15000);
-    const onLoad  = () => { clearTimeout(timeout); cleanup(); resolve({ ok: true, opaque: true }); };
-    function cleanup() {
-      frame.removeEventListener('load', onLoad);
-      // Defer form removal one tick so the submit completes cleanly in Safari
-      setTimeout(() => { try { form.remove(); } catch(_){} }, 0);
-    }
-    frame.addEventListener('load', onLoad);
-    form.submit();
-  });
+    throw new Error('That doesn\'t look like an Apps Script Web App URL — it should end with /exec.');
+  const payload = {
+    to, subject, html,
+    body: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    fromName: fromName || s.email_from_name || s.workshop_name || 'Garage Pro',
+    replyTo
+  };
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // simple request → no preflight
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    });
+  } catch (e) {
+    throw new Error('Couldn\'t reach the Apps Script URL: ' + (e?.message || e) + '. Check the URL and that the script is deployed with access "Anyone".');
+  }
+  const text = await resp.text().catch(() => '');
+  let data = null; try { data = JSON.parse(text); } catch (_) {}
+  if (data && data.ok === true)  return { ok: true };
+  if (data && data.ok === false) throw new Error('Gmail rejected it: ' + (data.error || 'unknown error'));
+  // No readable JSON came back → the deployed script is the OLD version that
+  // doesn't return a result (or wasn't redeployed as a NEW version).
+  throw new Error('Your Apps Script didn\'t confirm the send. Copy the latest script from Settings (it must return JSON {ok:true}) and redeploy it as a NEW version.');
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -12676,6 +12696,13 @@ function _renderNotifAction(n) {
   // car-arrived → check-in tab (advisor runs intake there)
   if (kind === 'car-arrived' && bid) {
     return `<button class="mini-btn" onclick="switchTab('checkin')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Open check-in</button>`;
+  }
+  // pricing-complete → advisor sends the estimate straight from the notification
+  if (kind === 'pricing-complete' && jid) {
+    return `<div style="display:flex;gap:6px">
+      <button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(jid)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Send estimate</button>
+      <button class="mini-btn" onclick="openJobForm('${escapeHtml(jid)}')">Open job</button>
+    </div>`;
   }
   // estimate-response → the nominee (advisor) reviews the customer's decision
   // and forwards it on to the floor manager + assigned worker(s).
