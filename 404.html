@@ -26,23 +26,18 @@
   client-side router so clean URLs like /track/<workshop-slug> work even though
   GitHub Pages has no server-side rewrites.
 
-  /track/<slug>  ->  /#track/<slug>   (the marketing page reads #track/<slug>
-                                        and jumps straight to that workshop)
-  anything else  ->  /                 (home)
+  /track/<slug>  ->  /track.html?ws=<slug>   (the standalone tracker page reads
+                                               ?ws= and jumps straight to that workshop)
+  anything else  ->  /                        (home)
 */
 (function () {
   var path = window.location.pathname || '';
-  var search = window.location.search || '';
-  var hash = window.location.hash || '';
 
   // Strip a possible repo-name prefix if this is a project page (not needed for
   // a custom domain at the root, but harmless).
   var m = path.match(/\/track\/([^\/?#]+)/i);
   if (m) {
-    var slug = m[1];
-    // Preserve any extra hash the visitor may have had
-    var extra = hash && hash.indexOf('#track/') !== 0 ? '' : '';
-    window.location.replace('/#track/' + slug + search);
+    window.location.replace('/track.html?ws=' + encodeURIComponent(m[1]));
     return;
   }
   // Unknown path -> send home
