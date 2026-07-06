@@ -877,6 +877,14 @@ input[list]{background:var(--bg2)}
           <div class="section-body"><table class="dtbl" id="tblExpected"></table></div>
         </div>
 
+        <div class="section" id="dashSlaSection" style="display:none">
+          <div class="section-h">
+            <h3 style="color:var(--acc2)">⏱ Attention needed — jobs stuck too long</h3>
+            <span class="meta" id="slaMeta">—</span>
+          </div>
+          <div class="section-body"><table class="dtbl" id="tblStuck"></table></div>
+        </div>
+
         <div class="section">
           <div class="section-h">
             <h3>Cars currently in workshop</h3>
@@ -1403,6 +1411,9 @@ async function publishTracking(bookingId) {
       booking_no:          b.booking_no || '',
       mechanic_first_name: (j?.mechanic || '').split(' ')[0] || '',
       workshop_name:       D.settings?.workshop_name || userProfile?.workshop_name || '',
+      // Pickup gate pass — only exposed while the car is Ready for Pickup and
+      // the toggle is on; blanked at every other status so stale codes vanish.
+      pickup_code: (status === 'Ready for Pickup' && D.settings?.pickup_otp_enabled && j?.pickup_otp) ? j.pickup_otp : '',
       history
     }, { merge: true });
   } catch (e) {
@@ -2105,6 +2116,9 @@ function enterApp() {
   // time they sign in. Notifies service advisors with today's appointment
   // count so they can prepare. No-op for non-advisor roles.
   _maybeFireMorningBriefing();
+  // Workflow extras — stuck-job nudges + end-of-day digest (both wait a beat
+  // for D to hydrate; both are toggleable in Settings → Workflow extras).
+  setTimeout(() => { _checkSlaAlerts(); _maybeFireClosingSummary(); }, 2500);
 }
 
 // Send a "today at a glance" notification on the first login of the day
@@ -2140,6 +2154,120 @@ function _maybeFireMorningBriefing() {
       localStorage.setItem(key, '1');
     } catch (e) { console.warn('[morning-briefing]', e); }
   }, 1200);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  WORKFLOW EXTRAS — stuck-job (SLA) alerts, daily closing summary, pickup OTP
+//  All three are toggleable in Settings → Workflow extras. Defaults:
+//  SLA alerts ON, closing summary ON, pickup OTP OFF.
+// ══════════════════════════════════════════════════════════════════════════
+
+// Instant-save for the Workflow extras toggles (no separate Save button).
+window._wfToggle = async function(key, value) {
+  D.settings = D.settings || {};
+  D.settings[key] = value;
+  try { await wsSaveSettings(); showToast('Saved', 'good'); }
+  catch (e) { showToast('Could not save: ' + (e?.message || e), 'bad'); }
+};
+
+// ── Stuck-job (SLA) engine ─────────────────────────────────────────────────
+// For each ACTIONABLE status: which existing timestamp marks its start, and
+// which role is on the hook to move it. Statuses not listed never alert.
+const _SLA_STAGES = {
+  'Awaiting Assignment': { at: j => j.created_at,            role: 'floor_manager',   ask: 'assign a technician' },
+  'Technician Assigned': { at: j => j.updated_at,            role: 'floor_manager',   ask: 'inspection pending' },
+  'Inspected':           { at: j => j.updated_at,            role: 'parts_dept',      ask: 'price the spares list' },
+  'Estimate Sent':       { at: j => j.estimate_sent_at,      role: 'service_advisor', ask: 'chase the customer for a decision' },
+  'Estimate Approved':   { at: j => j.estimate_approved_at,  role: 'floor_manager',   ask: 'start the repair' },
+  'Estimate Approved (Partial)': { at: j => j.estimate_approved_at, role: 'floor_manager', ask: 'start the repair' },
+  'In Progress':         { at: j => j.updated_at,            role: 'floor_manager',   ask: 'repair running long' },
+  'Awaiting QC':         { at: j => j.repair_done_at,        role: 'floor_manager',   ask: 'run QC / test drive' },
+  'QC Passed':           { at: j => j.qc_passed_at,          role: 'service_advisor', ask: 'inform the client' },
+  'Rejected — Reassembly': { at: j => j.updated_at,          role: 'floor_manager',   ask: 'reassemble the car' },
+  'Washing':             { at: j => j.client_informed_at,    role: 'service_advisor', ask: 'wash pending' },
+  'Ready for Pickup':    { at: j => j.wash_done_at,          role: 'service_advisor', ask: 'car waiting for handover' }
+};
+
+function _slaParseTs(s) {
+  if (!s) return null;
+  const d = new Date(String(s).replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d.getTime();
+}
+function _slaAge(ms) {
+  const h = Math.floor(ms / 3600000);
+  if (h < 1)  return Math.max(1, Math.floor(ms / 60000)) + 'm';
+  if (h < 48) return h + 'h';
+  return Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
+}
+// Returns [{job, stage, sinceMs}] for every active job past the threshold.
+function _slaStuckJobs() {
+  const s = D.settings || {};
+  if (s.sla_alerts_enabled === false) return [];
+  const limitMs = Math.max(1, Number(s.sla_hours || 24)) * 3600000;
+  const now = Date.now();
+  const out = [];
+  for (const j of (D.jobs || [])) {
+    const stage = _SLA_STAGES[j.status || ''];
+    if (!stage) continue;
+    const t = _slaParseTs(stage.at(j)) || _slaParseTs(j.updated_at) || _slaParseTs(j.created_at);
+    if (!t) continue;
+    const age = now - t;
+    if (age >= limitMs) out.push({ job: j, stage, sinceMs: age });
+  }
+  out.sort((a, b) => b.sinceMs - a.sinceMs);
+  return out;
+}
+// Once-a-day nudge per (job, status) to whoever owns that stage.
+function _checkSlaAlerts() {
+  try {
+    if (!currentUser || (D.settings || {}).sla_alerts_enabled === false) return;
+    const today = todayStr();
+    for (const { job: j, stage, sinceMs } of _slaStuckJobs()) {
+      const key = `gp_sla:${currentUser.uid}:${j.id}:${j.status}:${today}`;
+      if (localStorage.getItem(key)) continue;
+      localStorage.setItem(key, '1');
+      notify({
+        kind: 'sla-stuck',
+        message: `${j.plate || 'Job'} has been at "${j.status}" for ${_slaAge(sinceMs)} — ${stage.ask}.`,
+        target: { role: stage.role },
+        job_id: j.id
+      });
+    }
+  } catch (e) { console.warn('[sla]', e); }
+}
+
+// ── Daily closing summary ──────────────────────────────────────────────────
+// Once per day after 17:00, the owner/manager gets an end-of-day digest.
+function _maybeFireClosingSummary() {
+  try {
+    if (!currentUser || !currentWorker) return;
+    const s = D.settings || {};
+    if (s.closing_summary_enabled === false) return;
+    if (new Date().getHours() < 17) return;
+    const today = todayStr();
+    const key = `gp_closing:${currentUser.uid}:${today}`;
+    if (localStorage.getItem(key)) return;
+    const delivered = (D.bookings || []).filter(b => (b.delivered_at || '').slice(0, 10) === today);
+    let revenue = 0;
+    for (const inv of (D.invoices || [])) {
+      if (inv.status === 'Cancelled' || inv.is_estimate) continue;
+      if ((inv.updated_at || inv.created_at || '').slice(0, 10) !== today) continue;
+      try { revenue += Number(_invoiceTotals(inv).roundOff || 0); } catch (_) {}
+    }
+    const activeJobBk = new Set((D.jobs || [])
+      .filter(j => !['Delivered', 'Cancelled', 'Returned to Advisor'].includes(j.status || ''))
+      .map(j => j.booking_id).filter(Boolean));
+    const onFloor = (D.bookings || []).filter(b => b.status !== 'Delivered' && b.status !== 'Cancelled'
+      && (b.status === 'Arrived' || activeJobBk.has(b.id))).length;
+    const pendingEst = (D.jobs || []).filter(j => j.status === 'Estimate Sent').length;
+    const cur = s.currency || '₹';
+    notify({
+      kind: 'closing-summary',
+      message: `End of day: ${delivered.length} car${delivered.length === 1 ? '' : 's'} delivered · ${cur}${revenue.toLocaleString('en-IN')} billed · ${onFloor} still on the floor · ${pendingEst} estimate${pendingEst === 1 ? '' : 's'} awaiting customer approval.`,
+      target: { roles: ['owner', 'manager'] }
+    });
+    localStorage.setItem(key, '1');
+  } catch (e) { console.warn('[closing-summary]', e); }
 }
 
 function renderHeader() {
@@ -2703,6 +2831,31 @@ async function renderDashboard(force = false) {
   document.getElementById('statBaysFree').textContent   = baysAll ? `${baysFree.length} / ${baysAll}` : '0';
   document.getElementById('statActiveJobs').textContent = activeJobs.length;
   document.getElementById('statQueue').textContent      = inQueue;
+
+  // ── Stuck jobs (SLA) panel — hidden when off or nothing is stuck ──────────
+  try {
+    const slaSec = document.getElementById('dashSlaSection');
+    const stuck = _slaStuckJobs();
+    if (slaSec) {
+      if (!stuck.length) {
+        slaSec.style.display = 'none';
+      } else {
+        slaSec.style.display = '';
+        document.getElementById('slaMeta').textContent =
+          `${stuck.length} job${stuck.length === 1 ? '' : 's'} over ${Number((D.settings || {}).sla_hours || 24)}h`;
+        document.getElementById('tblStuck').innerHTML = `<thead><tr>
+          <th>Plate</th><th>Customer</th><th>Status</th><th>Waiting</th><th>Who's on it</th><th style="text-align:right"></th>
+        </tr></thead><tbody>${stuck.map(({ job: j, stage, sinceMs }) => `<tr>
+          <td><span class="plate">${escapeHtml(j.plate || '—')}</span></td>
+          <td class="k">${escapeHtml(j.cust_name || '—')}</td>
+          <td>${statusPill(j.status || '—')}</td>
+          <td style="color:var(--acc2);font-weight:700">${_slaAge(sinceMs)}</td>
+          <td style="color:var(--dim);font-size:12.5px">${escapeHtml(roleLabel(stage.role))} — ${escapeHtml(stage.ask)}</td>
+          <td><div class="row-act"><button class="mini-btn" onclick="switchTab('jobs'); setTimeout(()=>openJobForm('${escapeHtml(j.id)}'),200)">Open job</button></div></td>
+        </tr>`).join('')}</tbody>`;
+      }
+    }
+  } catch (e) { console.warn('[sla panel]', e); }
 
   // ── Expected today table ───────────────────────────────
   document.getElementById('expectedMeta').textContent =
@@ -5132,6 +5285,12 @@ window.openCheckoutForm = function(bookingId) {
             <option value="Waived">Waived</option>
           </select></div>
       </div>
+      ${(D.settings?.pickup_otp_enabled && job?.pickup_otp) ? `
+      <div class="f-grp" style="margin-top:6px">
+        <label>Pickup code <span class="req">*</span> <span style="color:var(--faint);font-weight:500;font-size:11px;margin-left:6px">(the customer sees it on their Track Repair page)</span></label>
+        <input id="co-otp" type="text" inputmode="numeric" maxlength="4" placeholder="4-digit code" autocomplete="off" style="letter-spacing:6px;font-family:'Courier New',monospace;font-weight:700" />
+        ${isAdminRole() ? `<div style="font-size:11.5px;color:var(--faint);margin-top:4px">Owner/manager may leave this blank to override.</div>` : ''}
+      </div>` : ''}
       <div class="f-grp" style="margin-top:6px"><label>Notes (optional)</label>
         <textarea id="co-notes" placeholder="Anything to record about the handover…"></textarea></div>
       <div class="f-err" id="co-err"></div>
@@ -5148,6 +5307,20 @@ async function doCheckout(bookingId) {
   const cost = (document.getElementById('co-cost')?.value || '').trim();
   const pay  = document.getElementById('co-pay')?.value || 'Outstanding';
   const notes= (document.getElementById('co-notes')?.value || '').trim();
+
+  // Pickup gate pass — enforce only when the toggle is on AND this job has a
+  // code (cars marked ready before the toggle was flipped have none to check).
+  // Owner/manager may leave the field blank to override (walk-in edge cases).
+  const jobForOtp = D.jobs.find(j => j.booking_id === b.id);
+  if (D.settings?.pickup_otp_enabled && jobForOtp?.pickup_otp) {
+    const entered = (document.getElementById('co-otp')?.value || '').trim();
+    if (entered !== jobForOtp.pickup_otp) {
+      if (!(isAdminRole() && entered === '')) {
+        throw new Error(entered ? 'Wrong pickup code — ask the customer for the code shown on their Track Repair page.' : 'Enter the customer\'s pickup code.');
+      }
+      audit('checkout-otp-override', `${b.plate} — released without pickup code by ${currentWorker?.name || '—'}`, { booking_id: b.id });
+    }
+  }
   const writes = [];
 
   // Free the bay (remember its type so we can promote the right queue entry)
@@ -5657,7 +5830,13 @@ window.markWashReady = async function(jobId) {
   j.status = 'Ready for Pickup';
   j.wash_done_at = nowStr();
   j.updated_at = nowStr();
-  showToast(`${j.plate} ready for pickup`, 'good');
+  // Pickup gate pass (Settings → Workflow extras, default OFF). Generate a
+  // 4-digit code the customer sees on their Track Repair page; checkout asks
+  // for it. When the toggle is off, no code exists and checkout asks nothing.
+  if ((D.settings || {}).pickup_otp_enabled) {
+    j.pickup_otp = String(Math.floor(1000 + Math.random() * 9000));
+  }
+  showToast(`${j.plate} ready for pickup${j.pickup_otp ? ' · pickup code ' + j.pickup_otp : ''}`, 'good');
   audit('wash-done', `${j.plate} — washed/detailed, ready for handover`, { job_id: jobId });
   notify({
     kind: 'ready-for-pickup',
@@ -9675,6 +9854,32 @@ async function renderSettings(force = false) {
         <h3 style="margin:0 0 6px">Worker access</h3>
         <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Manage workers and their roles from the <b>Workers</b> tab. Their role here drives sidebar access.</div>
         <button class="refresh-btn" onclick="switchTab('workers')">Open Workers tab →</button>
+      </div>
+
+      <!-- Workflow extras — SLA alerts, closing summary, pickup OTP -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Workflow extras</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Optional automations. Changes save instantly.</div>
+
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:12px">
+          <input type="checkbox" id="sf-wf-sla" ${s.sla_alerts_enabled !== false ? 'checked' : ''} onchange="_wfToggle('sla_alerts_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
+          <span><b style="font-family:var(--fd);font-size:14px">Stuck-job alerts</b><br>
+          <span style="font-size:12.5px;color:var(--dim)">Show an "Attention needed" panel on the dashboard and nudge the responsible person when a job sits too long in one status.</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;font-size:12px;color:var(--dim)">Threshold
+            <input type="number" id="sf-wf-slahrs" min="1" max="168" value="${escapeHtml(String(s.sla_hours || 24))}" onchange="_wfToggle('sla_hours', Math.max(1, Number(this.value)||24))" style="width:60px;padding:4px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:12.5px" /> hours</span></span>
+        </label>
+
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:12px">
+          <input type="checkbox" id="sf-wf-closing" ${s.closing_summary_enabled !== false ? 'checked' : ''} onchange="_wfToggle('closing_summary_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
+          <span><b style="font-family:var(--fd);font-size:14px">Daily closing summary</b><br>
+          <span style="font-size:12.5px;color:var(--dim)">After 5 pm, the owner/manager gets a once-a-day digest: cars delivered, revenue billed, cars still on the floor, estimates awaiting approval.</span></span>
+        </label>
+
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+          <input type="checkbox" id="sf-wf-otp" ${s.pickup_otp_enabled ? 'checked' : ''} onchange="_wfToggle('pickup_otp_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
+          <span><b style="font-family:var(--fd);font-size:14px">Pickup code (gate pass)</b><br>
+          <span style="font-size:12.5px;color:var(--dim)">When a car goes <b>Ready for Pickup</b>, a 4-digit code is generated and shown on the customer's Track Repair page. Checkout asks for that code, so the car is only released to the right person. Off = no codes, nothing extra at checkout.</span></span>
+        </label>
       </div>
 
 
