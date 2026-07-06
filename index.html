@@ -1599,7 +1599,7 @@ html,body{max-width:100%;overflow-x:hidden}
       <a href="#how">How it works</a>
       <a href="#screens">Preview</a>
       <a href="#pricing">Pricing</a>
-      <a href="#track" style="color:var(--acc2);font-weight:600">Track repair</a>
+      <a href="track.html" style="color:var(--acc2);font-weight:600">Track repair</a>
       <a href="#faq">FAQ</a>
       <a href="app/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Open app</a>
     </nav>
@@ -1636,18 +1636,18 @@ html,body{max-width:100%;overflow-x:hidden}
       <div class="mock-bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="title">Garage Pro — Live Floor</span></div>
       <div class="mock-body">
         <div class="mock-row">
-          <div class="mstat"><div class="k">Today's Jobs</div><div class="v">18</div></div>
-          <div class="mstat"><div class="k">Revenue</div><div class="v a">₹42,750</div></div>
-          <div class="mstat"><div class="k">Bays Free</div><div class="v t">2 / 6</div></div>
+          <div class="mstat"><div class="k">Expected today</div><div class="v">4</div></div>
+          <div class="mstat"><div class="k">In workshop</div><div class="v a">6</div></div>
+          <div class="mstat"><div class="k">Bays free</div><div class="v t">2 / 6</div></div>
         </div>
         <div class="bays">
-          <div class="bay"><div class="lbl">Bay 1</div><div class="car">MH12 AB</div><span class="pill busy">Servicing</span><div class="prog"><i style="width:65%"></i></div></div>
-          <div class="bay"><div class="lbl">Bay 2</div><div class="car">DL8C XF</div><span class="pill done">Ready</span><div class="prog"><i style="width:100%"></i></div></div>
-          <div class="bay"><div class="lbl">Bay 3</div><div class="car">KA01 MJ</div><span class="pill busy">Diagnosis</span><div class="prog"><i style="width:30%"></i></div></div>
+          <div class="bay"><div class="lbl">Bay 1</div><div class="car">MH12 AB</div><span class="pill busy">In Progress</span><div class="prog"><i style="width:65%"></i></div></div>
+          <div class="bay"><div class="lbl">Bay 2</div><div class="car">DL8C XF</div><span class="pill done">Ready for Pickup</span><div class="prog"><i style="width:100%"></i></div></div>
+          <div class="bay"><div class="lbl">Bay 3</div><div class="car">KA01 MJ</div><span class="pill busy">Estimate Sent</span><div class="prog"><i style="width:30%"></i></div></div>
           <div class="bay"><div class="lbl">Bay 4</div><div class="car">Open</div><span class="pill free">Free</span><div class="prog"><i style="width:0%"></i></div></div>
         </div>
       </div>
-      <div class="float-card"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><div class="t1">Invoice sent</div><div class="t2">GST · ₹8,240 · Suresh M.</div></div></div>
+      <div class="float-card"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><div class="t1">Estimate approved</div><div class="t2">₹8,240 · Suresh M. · via customer link</div></div></div>
     </div>
   </div>
 </section>
@@ -1835,10 +1835,10 @@ html,body{max-width:100%;overflow-x:hidden}
           <div class="app-header">Dashboard &mdash; Wednesday 13 May 2026</div>
           <div class="app-stats">
             <div class="app-stat"><div class="asn asn-blue">0</div><div class="asl">Expected today</div></div>
-            <div class="app-stat"><div class="asn asn-olive">14</div><div class="asl">Cars in workshop</div></div>
-            <div class="app-stat"><div class="asn asn-green">67</div><div class="asl">Available bays</div></div>
+            <div class="app-stat"><div class="asn asn-olive">5</div><div class="asl">In workshop</div></div>
+            <div class="app-stat"><div class="asn asn-green">2 / 6</div><div class="asl">Bays free</div></div>
             <div class="app-stat"><div class="asn asn-purple">5</div><div class="asl">Active jobs</div></div>
-            <div class="app-stat"><div class="asn asn-gray">0</div><div class="asl">In queue</div></div>
+            <div class="app-stat"><div class="asn asn-gray">1</div><div class="asl">In queue</div></div>
           </div>
           <div class="app-section">
             <div class="app-sh">Expected today</div>
@@ -1853,8 +1853,8 @@ html,body{max-width:100%;overflow-x:hidden}
                 <span class="app-cbay">&nbsp;&mdash;&nbsp;Mechanical bay &middot; Bay 1</span>
                 <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
                 <div class="app-btns">
-                  <button class="app-abtn app-abtn-edit">⇒ Edit booking</button>
-                  <button class="app-abtn app-abtn-inv">&#128196; Create invoice</button>
+                  <button class="app-abtn app-abtn-edit">⇒ Open</button>
+                  <button class="app-abtn app-abtn-inv">&#128196; Invoice</button>
                   <button class="app-abtn app-abtn-out">&#9632; Check out</button>
                 </div>
               </div>
@@ -1862,10 +1862,10 @@ html,body{max-width:100%;overflow-x:hidden}
                 <span class="app-plate">DL01 CD 5678</span>
                 <span class="app-cname">PRIYA PATEL</span>
                 <span class="app-cbay">&nbsp;&mdash;&nbsp;Paint bay &middot; Bay 1</span>
-                <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
+                <span class="app-status inp"><span class="app-sdot"></span>Estimate Sent</span>
                 <div class="app-btns">
-                  <button class="app-abtn app-abtn-edit">⇒ Edit booking</button>
-                  <button class="app-abtn app-abtn-inv">&#128196; Create invoice</button>
+                  <button class="app-abtn app-abtn-edit">⇒ Open</button>
+                  <button class="app-abtn app-abtn-inv">&#128196; Invoice</button>
                   <button class="app-abtn app-abtn-out">&#9632; Check out</button>
                 </div>
               </div>
@@ -1873,10 +1873,10 @@ html,body{max-width:100%;overflow-x:hidden}
                 <span class="app-plate">KA05 EF 9012</span>
                 <span class="app-cname">RAVI KUMAR</span>
                 <span class="app-cbay">&nbsp;&mdash;&nbsp;Mechanical bay &middot; Bay 2</span>
-                <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
+                <span class="app-status inp"><span class="app-sdot"></span>Awaiting QC</span>
                 <div class="app-btns">
-                  <button class="app-abtn app-abtn-edit">⇒ Edit booking</button>
-                  <button class="app-abtn app-abtn-inv">&#128196; Create invoice</button>
+                  <button class="app-abtn app-abtn-edit">⇒ Open</button>
+                  <button class="app-abtn app-abtn-inv">&#128196; Invoice</button>
                   <button class="app-abtn app-abtn-out">&#9632; Check out</button>
                 </div>
               </div>
@@ -1884,10 +1884,10 @@ html,body{max-width:100%;overflow-x:hidden}
                 <span class="app-plate">TN09 GH 3456</span>
                 <span class="app-cname">MEERA SINGH</span>
                 <span class="app-cbay">&nbsp;&mdash;&nbsp;2-post lift &middot; Bay 1</span>
-                <span class="app-status inp"><span class="app-sdot"></span>In Progress</span>
+                <span class="app-status inp"><span class="app-sdot"></span>Technician Assigned</span>
                 <div class="app-btns">
-                  <button class="app-abtn app-abtn-edit">⇒ Edit booking</button>
-                  <button class="app-abtn app-abtn-inv">&#128196; Create invoice</button>
+                  <button class="app-abtn app-abtn-edit">⇒ Open</button>
+                  <button class="app-abtn app-abtn-inv">&#128196; Invoice</button>
                   <button class="app-abtn app-abtn-out">&#9632; Check out</button>
                 </div>
               </div>
@@ -1895,10 +1895,10 @@ html,body{max-width:100%;overflow-x:hidden}
                 <span class="app-plate">GJ06 JK 7890</span>
                 <span class="app-cname">VIKRAM MEHTA</span>
                 <span class="app-cbay">&nbsp;&mdash;&nbsp;2-post lift &middot; Bay 2</span>
-                <span class="app-status cmp"><span class="app-sdot"></span>Complete</span>
+                <span class="app-status cmp"><span class="app-sdot"></span>Ready for Pickup</span>
                 <div class="app-btns">
-                  <button class="app-abtn app-abtn-edit">⇒ Edit booking</button>
-                  <button class="app-abtn app-abtn-inv">&#128196; Create invoice</button>
+                  <button class="app-abtn app-abtn-edit">⇒ Open</button>
+                  <button class="app-abtn app-abtn-inv">&#128196; Invoice</button>
                   <button class="app-abtn app-abtn-out">&#9632; Check out</button>
                 </div>
               </div>
@@ -2005,145 +2005,6 @@ html,body{max-width:100%;overflow-x:hidden}
     <div class="quotes" id="quotesGrid"></div>
   </div>
 </section>
-
-<!-- ═══════════════ TRACK REPAIR ═══════════════
-     Public page where a customer enters their workshop + plate and sees the
-     live status of their vehicle. Reads from users/{wsUid}/public_status/
-     {plateNorm} — a minimal, customer-safe mirror (no name/phone/address).
-     ════════════════════════════════════════════════════════════════════════ -->
-<section class="sec" id="track" style="background:linear-gradient(180deg,rgba(255,179,71,0.04) 0%,transparent 100%)">
-  <div class="wrap">
-    <div class="sec-head reveal" style="text-align:center">
-      <div class="eyebrow">Track your repair</div>
-      <h2>See where your car is in real time</h2>
-      <p style="color:var(--dim);max-width:580px;margin:14px auto 0;font-size:15.5px;line-height:1.6">No login. Just pick your workshop and type your plate.</p>
-    </div>
-
-    <div class="track-box reveal" style="max-width:640px;margin:36px auto 0;background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.35)">
-
-      <!-- Step 1: state picker -->
-      <div id="track-step-state">
-        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Which state is your workshop in?</label>
-        <select id="track-state-input" style="width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" onchange="_trackStatePicked()">
-          <option value="">— Pick a state —</option>
-        </select>
-        <div id="track-state-msg" style="margin-top:8px;font-size:12.5px;color:var(--faint);min-height:16px"></div>
-      </div>
-
-      <!-- Step 2: workshop picker (filtered by state) -->
-      <div id="track-step-workshop" style="display:none">
-        <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-          <div style="font-size:13.5px"><span style="color:var(--faint)">State:</span><b id="track-state-name" style="color:var(--text);margin-left:6px"></b></div>
-          <button onclick="trackBack('state')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
-        </div>
-        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Pick your workshop</label>
-        <div style="position:relative">
-          <input id="track-ws-input" type="text" autocomplete="off" placeholder="Start typing your workshop name…" style="width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" />
-          <div id="track-ws-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow-y:auto;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
-        </div>
-        <div id="track-ws-msg" style="margin-top:8px;font-size:12.5px;color:var(--faint);min-height:16px"></div>
-      </div>
-
-      <!-- Step 3: plate OR booking# input -->
-      <div id="track-step-plate" style="display:none">
-        <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-          <div style="font-size:13.5px">
-            <span style="color:var(--faint)">Workshop:</span>
-            <b id="track-ws-name" style="color:var(--text);margin-left:6px"></b>
-          </div>
-          <button onclick="trackBack('workshop')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
-        </div>
-
-        <!-- Mode tabs: plate vs booking number -->
-        <div role="tablist" style="display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
-          <button id="track-tab-plate"   onclick="_trackSwitchMode('plate')"   style="flex:1;padding:11px 14px;background:none;border:0;border-bottom:2px solid var(--acc2);color:var(--acc2);font-family:var(--fd);font-weight:700;font-size:13.5px;cursor:pointer">Search by plate</button>
-          <button id="track-tab-booking" onclick="_trackSwitchMode('booking')" style="flex:1;padding:11px 14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--dim);font-family:var(--fd);font-weight:700;font-size:13.5px;cursor:pointer">Search by booking #</button>
-        </div>
-
-        <!-- Plate mode -->
-        <div id="track-mode-plate">
-          <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">License plate</label>
-          <div style="display:flex;gap:8px">
-            <input id="track-plate-input" type="text" autocomplete="off" placeholder="MH 12 AB 1234" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Courier New',monospace;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase" onkeydown="if(event.key==='Enter')trackLookup('plate')" />
-            <button onclick="trackLookup('plate')" class="btn btn-primary" style="padding:0 22px;font-size:14px">Find my car</button>
-          </div>
-        </div>
-
-        <!-- Booking# mode -->
-        <div id="track-mode-booking" style="display:none">
-          <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Booking number</label>
-          <div style="display:flex;gap:8px">
-            <input id="track-booking-input" type="text" autocomplete="off" placeholder="BK-0042" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Courier New',monospace;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase" onkeydown="if(event.key==='Enter')trackLookup('booking')" />
-            <button onclick="trackLookup('booking')" class="btn btn-primary" style="padding:0 22px;font-size:14px">Find my car</button>
-          </div>
-          <div style="margin-top:6px;font-size:11.5px;color:var(--faint)">The booking number is on the slip your workshop gave you (looks like <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--acc2)">BK-0042</code>).</div>
-        </div>
-
-        <div id="track-lookup-msg" style="margin-top:10px;font-size:12.5px;color:var(--faint);min-height:16px;line-height:1.5"></div>
-      </div>
-
-      <!-- Step 3: status display -->
-      <div id="track-step-status" style="display:none">
-        <div id="track-status-card"></div>
-        <div style="margin-top:20px">
-          <div style="font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Status history
-          </div>
-          <div id="track-history"></div>
-        </div>
-        <div style="margin-top:18px;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">
-          <button onclick="trackBack('state')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer">Track another car</button>
-          <button onclick="trackLookup()" class="btn btn-ghost" style="padding:8px 14px;font-size:13px">Refresh</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<style>
-/* Track Repair — scoped styles. Reuses existing var(--…) tokens. */
-.track-ws-item {
-  display: block; padding: 12px 14px; cursor: pointer;
-  border-bottom: 1px solid var(--border); transition: background .12s;
-  font-family: var(--fb); font-size: 13.5px; color: var(--text);
-}
-.track-ws-item:last-child { border-bottom: 0 }
-.track-ws-item:hover { background: rgba(255,179,71,.08) }
-.track-ws-item .branch-tag {
-  font-size: 10.5px; color: var(--acc2); background: rgba(255,179,71,.14);
-  padding: 2px 8px; border-radius: 100px; margin-left: 6px;
-  font-weight: 700; letter-spacing: .04em;
-}
-.track-status-big {
-  text-align: center; padding: 24px 18px;
-  background: linear-gradient(135deg, rgba(255,179,71,.08), rgba(32,227,178,.04));
-  border: 1px solid var(--border); border-radius: 12px;
-}
-.track-status-big .pill {
-  display: inline-block; padding: 8px 18px; border-radius: 100px;
-  font-family: var(--fd); font-weight: 800; font-size: 16px;
-  letter-spacing: .02em; margin-bottom: 12px;
-}
-.track-status-big .meta {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 14px; margin-top: 16px; padding-top: 16px;
-  border-top: 1px solid var(--border); text-align: left; font-size: 13px;
-}
-.track-status-big .meta b { color: var(--text); display: block; margin-bottom: 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); font-weight: 700 }
-.track-hist-item {
-  display: grid; grid-template-columns: 24px 1fr auto;
-  gap: 12px; padding: 12px 0; align-items: center;
-  border-bottom: 1px solid var(--border); font-size: 13.5px;
-}
-.track-hist-item:last-child { border-bottom: 0 }
-.track-hist-item .dot {
-  width: 10px; height: 10px; border-radius: 50%; background: var(--dim);
-  margin: 0 auto;
-}
-.track-hist-item.is-current .dot { background: var(--acc2); box-shadow: 0 0 0 4px rgba(255,179,71,.22) }
-.track-hist-item .time { color: var(--faint); font-size: 12px; white-space: nowrap }
-</style>
 
 <!-- ═══════════════ FAQ ═══════════════ -->
 <section class="sec how" id="faq">
@@ -7001,383 +6862,12 @@ detectCountry().then(() => {
   renderDemoCta();
 });
 
-// ══════════════════════════════════════════════════════════════════════════
-//  TRACK REPAIR  — public page where customers look up their car's status
-//  Flow: State → Workshop → (Plate OR Booking #)
-//  Reads: users root docs (public) for workshop list, and the privacy-safe
-//  status mirror at users/{wsUid}/public_status/{plateNorm} for lookups.
-// ══════════════════════════════════════════════════════════════════════════
-
-// Canonical Indian state list — mirrors INDIA_STATES in the app so the
-// dropdown order matches what workshop owners chose in their Settings.
-const TRACK_INDIA_STATES = [
-  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa',
-  'Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala',
-  'Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland',
-  'Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura',
-  'Uttar Pradesh','Uttarakhand','West Bengal',
-  'Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu',
-  'Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry'
-];
-
-let _trackAllWorkshops = null;   // cached list of {uid, name, state, isBranch, parent}
-let _trackPickedState  = null;
-let _trackPickedUid    = null;
-let _trackPickedName   = null;
-let _trackLastResult   = null;
-let _trackMode         = 'plate';   // 'plate' | 'booking'
-
-function _trackPlateNorm(p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
-function _trackEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-// Slugify a workshop name into URL-safe form. Lowercase, replace runs of
-// non-alphanumeric with single dash, strip leading/trailing dash. Same logic
-// used in the app's Settings share-link so the URL the workshop owner copies
-// always matches what this page expects.
-function _trackSlugify(s) {
-  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
-}
-
-async function _trackLoadWorkshops() {
-  if (_trackAllWorkshops) return _trackAllWorkshops;
-  if (!fbDb) throw new Error('Site not connected to Firebase yet. Refresh in a moment.');
-  let snap;
-  try { snap = await fbDb.collection('users').get(); }
-  catch (e) {
-    console.error('[track] users list failed:', e);
-    throw new Error('Couldn\'t load workshops: ' + (e.code || e.message));
-  }
-  const list = [];
-  snap.forEach(doc => {
-    const d = doc.data() || {};
-    const name = (d.workshop_name || '').trim();
-    if (!name) return;
-    list.push({
-      uid:      doc.id,
-      name,
-      slug:     _trackSlugify(name),
-      state:    (d.state || '').trim(),
-      city:     (d.city  || '').trim(),
-      isBranch: !!d.branch,
-      parent:   d.chain_parent_name || ''
-    });
-  });
-  list.sort((a, b) => a.name.localeCompare(b.name));
-  _trackAllWorkshops = list;
-  return list;
-}
-
-// Populate the State dropdown with every state that has at least one
-// registered workshop, plus an "Other / state not specified" bucket so
-// workshops that haven't set their state yet remain reachable.
-function _trackBuildStateDropdown() {
-  const sel = document.getElementById('track-state-input');
-  if (!sel || sel._trackBuilt) return;
-  const haveStates = new Set();
-  let haveUnspecified = false;
-  for (const w of (_trackAllWorkshops || [])) {
-    if (w.state) haveStates.add(w.state);
-    else         haveUnspecified = true;
-  }
-  // Show all India states ordered alphabetically; mark ones with no workshops
-  // as disabled so the user doesn't pick an empty bucket by mistake.
-  const opts = [];
-  opts.push(`<option value="">— Pick a state —</option>`);
-  for (const st of TRACK_INDIA_STATES) {
-    const has = haveStates.has(st);
-    opts.push(`<option value="${_trackEsc(st)}" ${has ? '' : 'disabled style="color:#666"'}>${_trackEsc(st)}${has ? '' : ' (no workshops yet)'}</option>`);
-  }
-  if (haveUnspecified) opts.push(`<option value="__unspecified__">Other / state not specified</option>`);
-  sel.innerHTML = opts.join('');
-  sel._trackBuilt = true;
-}
-
-// Filter the cached workshop list by the picked state. "__unspecified__"
-// matches workshops whose owner hasn't set a state yet.
-function _trackWorkshopsForState(state) {
-  if (!_trackAllWorkshops) return [];
-  if (state === '__unspecified__') return _trackAllWorkshops.filter(w => !w.state);
-  return _trackAllWorkshops.filter(w => w.state === state);
-}
-
-function _trackRenderDropdown(matches) {
-  const dd = document.getElementById('track-ws-dropdown');
-  if (!matches.length) {
-    dd.innerHTML = `<div class="track-ws-item" style="color:var(--faint);cursor:default">No workshops match. Check the spelling, or change state.</div>`;
-    dd.style.display = 'block';
-    return;
-  }
-  dd.innerHTML = matches.slice(0, 20).map(w => `<div class="track-ws-item" onclick="_trackPickWorkshop('${_trackEsc(w.uid)}', '${_trackEsc(w.name).replace(/'/g, "\\'")}')">
-    <div>${_trackEsc(w.name)}${w.isBranch ? `<span class="branch-tag">BRANCH${w.parent ? ' OF ' + _trackEsc(w.parent).toUpperCase() : ''}</span>` : ''}</div>
-    ${w.city ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">${_trackEsc(w.city)}</div>` : ''}
-  </div>`).join('');
-  dd.style.display = 'block';
-}
-
-// Bind once. Waits for Firebase, then loads workshop list and builds dropdowns.
-function _trackInit() {
-  const stateSel = document.getElementById('track-state-input');
-  const wsInput  = document.getElementById('track-ws-input');
-  if (!stateSel || stateSel._trackBound) return;
-  stateSel._trackBound = true;
-
-  const stateMsg = document.getElementById('track-state-msg');
-  stateMsg.textContent = 'Loading workshops…';
-  _trackLoadWorkshops().then(list => {
-    _trackBuildStateDropdown();
-    stateMsg.textContent = list.length
-      ? `${list.length} workshop${list.length === 1 ? '' : 's'} across India · pick a state to narrow down`
-      : 'No workshops registered yet';
-  }).catch(e => {
-    stateMsg.style.color = '#ff6b6b';
-    stateMsg.textContent = e.message || String(e);
-  });
-
-  // Workshop-name autocomplete (only active on step 2)
-  wsInput.addEventListener('input', () => {
-    const q = wsInput.value.toLowerCase().trim();
-    const pool = _trackWorkshopsForState(_trackPickedState);
-    if (!q) { _trackRenderDropdown(pool.slice(0, 20)); return; }
-    _trackRenderDropdown(pool.filter(w => w.name.toLowerCase().includes(q)));
-  });
-  wsInput.addEventListener('focus', () => {
-    const q = wsInput.value.toLowerCase().trim();
-    const pool = _trackWorkshopsForState(_trackPickedState);
-    _trackRenderDropdown(q ? pool.filter(w => w.name.toLowerCase().includes(q)) : pool.slice(0, 20));
-  });
-  document.addEventListener('click', (ev) => {
-    if (!ev.target.closest('#track-step-workshop')) {
-      const dd = document.getElementById('track-ws-dropdown');
-      if (dd) dd.style.display = 'none';
-    }
-  });
-}
-
-// Triggered when the State <select> changes — moves to the workshop step.
-window._trackStatePicked = function() {
-  const sel = document.getElementById('track-state-input');
-  const state = sel.value;
-  if (!state) return;
-  _trackPickedState = state;
-  document.getElementById('track-step-state').style.display    = 'none';
-  document.getElementById('track-step-workshop').style.display = 'block';
-  document.getElementById('track-state-name').textContent      = state === '__unspecified__' ? 'Other (not specified)' : state;
-  // Pre-populate workshop dropdown with the full list for this state
-  const pool = _trackWorkshopsForState(state);
-  _trackRenderDropdown(pool.slice(0, 20));
-  const msg = document.getElementById('track-ws-msg');
-  msg.textContent = pool.length
-    ? `${pool.length} workshop${pool.length === 1 ? '' : 's'} in this state`
-    : 'No workshops in this state yet — go back and pick another state.';
-  setTimeout(() => document.getElementById('track-ws-input').focus(), 0);
-};
-
-window._trackPickWorkshop = function(uid, name) {
-  _trackPickedUid  = uid;
-  _trackPickedName = name;
-  document.getElementById('track-step-workshop').style.display = 'none';
-  document.getElementById('track-step-plate').style.display    = 'block';
-  document.getElementById('track-step-status').style.display   = 'none';
-  document.getElementById('track-ws-name').textContent         = name;
-  // Default to whichever mode the user was last on (sticky between lookups)
-  _trackSwitchMode(_trackMode);
-  setTimeout(() => document.getElementById(_trackMode === 'plate' ? 'track-plate-input' : 'track-booking-input').focus(), 0);
-};
-
-// Tab switch between plate-based and booking#-based lookup.
-window._trackSwitchMode = function(mode) {
-  _trackMode = mode;
-  const tabP = document.getElementById('track-tab-plate');
-  const tabB = document.getElementById('track-tab-booking');
-  const onCol = 'var(--acc2)', offCol = 'var(--dim)';
-  tabP.style.borderBottomColor = mode === 'plate'   ? onCol  : 'transparent';
-  tabP.style.color             = mode === 'plate'   ? onCol  : offCol;
-  tabB.style.borderBottomColor = mode === 'booking' ? onCol  : 'transparent';
-  tabB.style.color             = mode === 'booking' ? onCol  : offCol;
-  document.getElementById('track-mode-plate').style.display   = mode === 'plate'   ? 'block' : 'none';
-  document.getElementById('track-mode-booking').style.display = mode === 'booking' ? 'block' : 'none';
-};
-
-// `to` controls which step to land on: 'state' | 'workshop'
-window.trackBack = function(to) {
-  to = to || 'state';
-  document.getElementById('track-step-status').style.display   = 'none';
-  document.getElementById('track-step-plate').style.display    = 'none';
-  document.getElementById('track-step-workshop').style.display = to === 'workshop' ? 'block' : 'none';
-  document.getElementById('track-step-state').style.display    = to === 'state'    ? 'block' : 'none';
-  document.getElementById('track-ws-input').value      = '';
-  document.getElementById('track-plate-input').value   = '';
-  document.getElementById('track-booking-input').value = '';
-  document.getElementById('track-ws-dropdown').style.display = 'none';
-  document.getElementById('track-lookup-msg').textContent    = '';
-  if (to === 'state') {
-    document.getElementById('track-state-input').value = '';
-    _trackPickedState = null;
-    _trackPickedUid   = null;
-    _trackPickedName  = null;
-  }
-  _trackLastResult = null;
-};
-
-// Dispatch to the right query based on _trackMode (or explicit override).
-window.trackLookup = async function(mode) {
-  mode = mode || _trackMode;
-  _trackMode = mode;
-  if (mode === 'booking') return _trackLookupByBooking();
-  return _trackLookupByPlate();
-};
-
-async function _trackLookupByPlate() {
-  const plateRaw  = (document.getElementById('track-plate-input').value || '').trim();
-  const plateNorm = _trackPlateNorm(plateRaw);
-  const msg = document.getElementById('track-lookup-msg');
-  msg.style.color = 'var(--faint)';
-  if (!plateNorm)         { msg.textContent = 'Type your license plate first.'; return; }
-  if (!_trackPickedUid)   { msg.textContent = 'Pick a workshop first.'; return; }
-  msg.textContent = 'Looking up…';
-  try {
-    const snap = await fbDb.collection('users').doc(_trackPickedUid)
-      .collection('public_status').doc(plateNorm).get();
-    if (!snap.exists) {
-      msg.style.color = '#ff6b6b';
-      msg.innerHTML = `Nothing on file for <b>${_trackEsc(plateRaw)}</b> at ${_trackEsc(_trackPickedName)}. Double-check the plate or try the booking-number tab.`;
-      return;
-    }
-    _trackLastResult = snap.data();
-    _trackRenderStatus(_trackLastResult);
-  } catch (e) {
-    msg.style.color = '#ff6b6b';
-    msg.textContent = 'Lookup failed: ' + (e?.message || e);
-  }
-}
-
-async function _trackLookupByBooking() {
-  const bkRaw = (document.getElementById('track-booking-input').value || '').trim().toUpperCase();
-  const msg   = document.getElementById('track-lookup-msg');
-  msg.style.color = 'var(--faint)';
-  if (!bkRaw)             { msg.textContent = 'Type your booking number first.'; return; }
-  if (!_trackPickedUid)   { msg.textContent = 'Pick a workshop first.'; return; }
-  msg.textContent = 'Looking up…';
-  try {
-    const qsnap = await fbDb.collection('users').doc(_trackPickedUid)
-      .collection('public_status')
-      .where('booking_no', '==', bkRaw)
-      .limit(1)
-      .get();
-    if (qsnap.empty) {
-      msg.style.color = '#ff6b6b';
-      msg.innerHTML = `No booking found with number <b>${_trackEsc(bkRaw)}</b> at ${_trackEsc(_trackPickedName)}. The number on your slip should look like <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--acc2)">BK-0042</code>.`;
-      return;
-    }
-    _trackLastResult = qsnap.docs[0].data();
-    _trackRenderStatus(_trackLastResult);
-  } catch (e) {
-    msg.style.color = '#ff6b6b';
-    msg.textContent = 'Lookup failed: ' + (e?.message || e);
-  }
-}
-
-function _trackStatusColor(s) {
-  const t = String(s || '').toLowerCase();
-  if (t.includes('delivered') || t.includes('ready'))     return { bg: 'rgba(32,227,178,.15)', fg: 'var(--teal,#20e3b2)' };
-  if (t.includes('cancel') || t.includes('rejected'))     return { bg: 'rgba(255,107,107,.15)', fg: '#ff6b6b' };
-  if (t.includes('progress') || t.includes('execut'))     return { bg: 'rgba(255,179,71,.18)', fg: 'var(--acc2)' };
-  if (t.includes('approved'))                             return { bg: 'rgba(99,159,255,.15)', fg: 'var(--blue,#639fff)' };
-  return { bg: 'rgba(255,255,255,.07)', fg: 'var(--text)' };
-}
-
-function _trackRenderStatus(data) {
-  document.getElementById('track-step-plate').style.display  = 'none';
-  document.getElementById('track-step-status').style.display = 'block';
-  const c = _trackStatusColor(data.status);
-  const updatedAgo = _trackTimeAgo(data.updated_at);
-  document.getElementById('track-status-card').innerHTML = `<div class="track-status-big">
-    <div class="pill" style="background:${c.bg};color:${c.fg}">${_trackEsc(data.status || '—')}</div>
-    <div style="font-size:13.5px;color:var(--dim);margin-top:4px">Updated ${_trackEsc(updatedAgo)}</div>
-    <div class="meta">
-      <div><b>Vehicle</b>${_trackEsc(data.plate || '—')}</div>
-      ${data.service           ? `<div><b>Service</b>${_trackEsc(data.service)}</div>` : ''}
-      ${data.mechanic_first_name ? `<div><b>Mechanic</b>${_trackEsc(data.mechanic_first_name)}</div>` : ''}
-      ${data.booking_no        ? `<div><b>Booking</b>${_trackEsc(data.booking_no)}</div>` : ''}
-    </div>
-  </div>`;
-  const hist = Array.isArray(data.history) ? data.history.slice().reverse() : [];
-  const histHtml = hist.length
-    ? hist.map((h, i) => `<div class="track-hist-item ${i === 0 ? 'is-current' : ''}">
-        <div class="dot"></div>
-        <div>${_trackEsc(h.status || '—')}</div>
-        <div class="time">${_trackEsc(_trackTimeAgo(h.at))}</div>
-      </div>`).join('')
-    : `<div style="color:var(--faint);font-size:13px;padding:14px;text-align:center;background:var(--bg2);border-radius:8px">No status changes recorded yet.</div>`;
-  document.getElementById('track-history').innerHTML = histHtml;
-}
-
-// "5 minutes ago" / "2 hours ago" / "yesterday" — relative when recent, absolute
-// (date) when old. Falls back to the raw string if parsing fails.
-function _trackTimeAgo(s) {
-  if (!s) return '—';
-  const d = new Date(String(s).replace(' ', 'T'));
-  if (isNaN(d)) return s;
-  const diff = (Date.now() - d.getTime()) / 1000;
-  if (diff < 60)        return 'just now';
-  if (diff < 3600)      return Math.floor(diff / 60) + ' min ago';
-  if (diff < 86400)     return Math.floor(diff / 3600) + ' hr ago';
-  if (diff < 172800)    return 'yesterday';
-  if (diff < 604800)    return Math.floor(diff / 86400) + ' days ago';
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-// Watch for the section to come on-screen / for Firebase to come up, then init
-function _trackWaitForFirebase() {
-  if (fbDb && document.getElementById('track-ws-input')) {
-    _trackInit();
-    // Deep-link: if URL is /track/<slug> OR /#track/<slug>, auto-pick that
-    // workshop and skip the state/workshop pickers. Plate field gets focus
-    // so a customer who scans/clicks the workshop's shareable link is one
-    // tap from typing their plate.
-    _trackAutoPickFromUrl().catch(e => console.warn('[track] autopick failed:', e));
-    return;
-  }
-  setTimeout(_trackWaitForFirebase, 250);
-}
-_trackWaitForFirebase();
-
-// Try to match the current URL to a workshop slug. Supports both:
-//   /track/<slug>           — needs the host to rewrite to index.html
-//   /#track/<slug>          — works on any static host (hash routing)
-async function _trackAutoPickFromUrl() {
-  let slug = '';
-  // Path: /track/<slug>
-  const pm = (location.pathname || '').match(/^\/track\/([^\/?#]+)/i);
-  if (pm) slug = decodeURIComponent(pm[1]);
-  // Hash: #track/<slug>
-  if (!slug) {
-    const hm = (location.hash || '').match(/^#track\/([^\/?#]+)/i);
-    if (hm) slug = decodeURIComponent(hm[1]);
-  }
-  if (!slug) return;
-  // Scroll to the track section so the user sees what's happening
-  const sec = document.getElementById('track');
-  if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  // Wait for the workshop list
-  const list = await _trackLoadWorkshops();
-  const wantSlug = _trackSlugify(slug);
-  const match = list.find(w => w.slug === wantSlug)
-              || list.find(w => w.slug.startsWith(wantSlug))   // partial
-              || list.find(w => _trackSlugify(w.name).includes(wantSlug));
-  if (!match) {
-    const msg = document.getElementById('track-state-msg');
-    if (msg) {
-      msg.style.color = '#ff6b6b';
-      msg.innerHTML = `Workshop <b>${_trackEsc(slug)}</b> not found. Pick from the dropdown below.`;
-    }
-    return;
-  }
-  // Jump straight to step 3 (plate input) bypassing state + workshop pickers.
-  _trackPickedState = match.state || '__unspecified__';
-  _trackPickWorkshop(match.uid, match.name);
-}
+// Track Repair now lives on its own page (track.html). Redirect old links:
+//   /#track          → /track.html      /#track/<slug> → /track.html?ws=<slug>
+(function () {
+  const m = (location.hash || '').match(/^#track(?:\/([^\/?#]+))?/i);
+  if (m) location.replace('track.html' + (m[1] ? '?ws=' + encodeURIComponent(m[1]) : ''));
+})();
 </script>
 
 <!-- Noupe chatbot widget -->
