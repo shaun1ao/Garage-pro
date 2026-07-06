@@ -148,8 +148,9 @@ function render(){
 
     <div class="vehcard">
       ${DATA.plate ? `<span class="plate">${esc(DATA.plate)}</span>` : ''}
-      <div><div style="font-weight:700;font-size:13.5px">${esc(DATA.veh_desc || 'Your vehicle')}</div>
+      <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${esc(DATA.veh_desc || 'Your vehicle')}</div>
       ${DATA.invoice_no ? `<div class="sub">Estimate ${esc(DATA.invoice_no)}</div>` : ''}</div>
+      <button class="btn" style="flex:0 0 auto;width:auto;padding:9px 13px" onclick="viewQuote()">📄 View estimate</button>
     </div>
 
     ${photos.length ? `<div class="photos">${photos.map(p => `<img src="${esc(p.data)}" alt="${esc(p.caption||'')}" onclick="zoom('${esc(p.data)}')" />`).join('')}</div>` : ''}
@@ -175,6 +176,58 @@ function render(){
 }
 
 window.zoom = function(src){ document.getElementById('lbImg').src = src; document.getElementById('lightbox').style.display = 'grid'; };
+
+// Open a printable formal quote built from the approval payload. Loaded via a
+// Blob URL so the tab has a real URL (no "about:blank" in the print footer);
+// the customer can print or save-as-PDF from the browser.
+window.viewQuote = function(){
+  const rows = []
+    .concat((DATA.lines||[]).map(l => ({ name: l.name + (l.qty>1 ? ' × '+l.qty : ''), kind:'Part', amount:l.amount })))
+    .concat((DATA.charges||[]).map(c => ({ name: c.name, kind:'Service / labour', amount:c.amount })));
+  const today = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Estimate ${esc(DATA.invoice_no || '')} · ${esc(DATA.workshop_name || '')}</title>
+  <style>
+    @page{size:auto;margin:0mm}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#111;margin:0;padding:36px 42px;background:#fff}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #111;padding-bottom:16px;margin-bottom:22px}
+    h1{font-size:22px;margin:0}
+    .tag{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#666}
+    .meta{font-size:12.5px;color:#444;line-height:1.7}
+    table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+    th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:#666;border-bottom:2px solid #111;padding:8px 6px}
+    th:last-child,td:last-child{text-align:right}
+    td{padding:9px 6px;border-bottom:1px solid #ddd}
+    .tot td{border-bottom:0;border-top:2px solid #111;font-weight:800;font-size:15px;padding-top:12px}
+    .note{margin-top:26px;font-size:11.5px;color:#666;line-height:1.6}
+    .toolbar{position:fixed;top:12px;right:12px}
+    .toolbar button{font-family:inherit;font-size:12px;font-weight:700;padding:8px 14px;border-radius:6px;border:0;cursor:pointer;background:#111;color:#fff}
+    @media print{.toolbar{display:none}}
+  </style></head><body>
+    <div class="toolbar"><button onclick="window.print()">Print / Save PDF</button></div>
+    <div class="top">
+      <div><div class="tag">Repair estimate</div><h1>${esc(DATA.workshop_name || 'Workshop')}</h1>
+      ${DATA.workshop_phone ? `<div class="meta">${esc(DATA.workshop_phone)}</div>` : ''}</div>
+      <div class="meta" style="text-align:right">
+        ${DATA.invoice_no ? `<b>${esc(DATA.invoice_no)}</b><br>` : ''}${esc(today)}<br>
+        ${DATA.cust_name ? esc(DATA.cust_name) + '<br>' : ''}${esc(DATA.plate || '')}${DATA.veh_desc ? ' · ' + esc(DATA.veh_desc) : ''}
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Item</th><th>Type</th><th>Amount</th></tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.kind)}</td><td>${esc(fmt(r.amount))}</td></tr>`).join('')}
+        <tr class="tot"><td colspan="2">Estimate total</td><td>${esc(fmt(DATA.total))}</td></tr>
+      </tbody>
+    </table>
+    <div class="note">This is an estimate, not a final bill. Only the items you approve will be carried out and billed. Prices include applicable tax.</div>
+  </body></html>`;
+  try {
+    const url = URL.createObjectURL(new Blob([html], { type:'text/html' }));
+    const w = window.open(url, '_blank');
+    setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(_){} }, 60000);
+    if (!w) alert('Your browser blocked the new tab — allow pop-ups to view the estimate.');
+  } catch(e) { alert('Could not open the estimate: ' + e.message); }
+};
 
 window.setDec = function(key, val){
   decisions[key] = decisions[key] === val ? undefined : val;
