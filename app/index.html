@@ -2118,7 +2118,7 @@ function enterApp() {
   _maybeFireMorningBriefing();
   // Workflow extras — stuck-job nudges + end-of-day digest (both wait a beat
   // for D to hydrate; both are toggleable in Settings → Workflow extras).
-  setTimeout(() => { _checkSlaAlerts(); _maybeFireClosingSummary(); }, 2500);
+  setTimeout(() => { _checkSlaAlerts(); _maybeFireClosingSummary(); publishBranchSummary(); }, 2500);
 }
 
 // Send a "today at a glance" notification on the first login of the day
@@ -5180,9 +5180,9 @@ window.openCheckinForm = async function(bookingId) {
           <label>Assign to bay <span class="req">*</span></label>
           <select id="ci-bay">
             ${bayOptions}
-            <option value="__queue__">— Send to queue instead —</option>
+            ${!matching.length ? `<option value="__queue__">— None of the right type free · send to queue —</option>` : ''}
           </select>
-          <span class="hint">${bays.length} ${matching.length ? 'matching ' + (b.bay_type || '') : 'available'} bay${bays.length === 1 ? '' : 's'} · ${occupiedCount} occupied${maintCount ? ` · ${maintCount} in maintenance` : ''}</span>
+          <span class="hint">A bay is required to check a car in.${matching.length ? '' : ' No ' + escapeHtml(b.bay_type || 'suitable') + ' bay is free right now — you can put an available bay to use or queue the car.'} ${bays.length} ${matching.length ? 'matching ' + (b.bay_type || '') : 'available'} bay${bays.length === 1 ? '' : 's'} · ${occupiedCount} occupied${maintCount ? ` · ${maintCount} in maintenance` : ''}</span>
         </div>` : !hasBaysConfigured ? `
         <div style="background:rgba(255,179,71,.10);border:1px solid rgba(255,179,71,.32);border-radius:9px;padding:14px 16px;color:var(--acc2);font-size:13.5px;line-height:1.55;margin-bottom:10px">
           <b>No bays configured yet.</b> Go to the <b>Bays</b> tab and click "Manage bay types" to set up your workshop's bays. For now this car will go to the queue.
@@ -5477,7 +5477,7 @@ async function renderJobs(force = false) {
                           : status === 'Client Informed' || status === 'Washing'
                             ? `<button class="mini-btn good" onclick="markWashReady('${escapeHtml(j.id)}')" title="Washing done — car ready for pickup">Ready for pickup</button>`
                             : status === 'Ready for Pickup'
-                              ? `<button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>`
+                              ? `<button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waReady('${escapeHtml(j.id)}')" title="Tell the customer their car is ready, on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>Notify</button><button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>`
                               : status === 'Returned to Advisor'
                                 ? `<button class="mini-btn good" onclick="_billReturnedJob('${escapeHtml(j.id)}')" title="Bill an inspection / diagnostic charge if required, then invoice">Create invoice</button>`
                                 : ''}`;
@@ -6175,6 +6175,89 @@ function _waDigits(raw) {
   else if (d.length === 11 && d[0] === '0') d = '91' + d.slice(1);
   return d;
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  WHATSAPP — open wa.me with a prefilled message. Works from any device; no
+//  API/business account needed. Used for invoices, "car ready", reminders,
+//  and the estimate approval link.
+// ══════════════════════════════════════════════════════════════════════════
+function _waOpen(phone, message) {
+  const p = _waDigits(phone);
+  const url = (p ? `https://wa.me/${p}` : 'https://wa.me/') + '?text=' + encodeURIComponent(message);
+  const w = window.open(url, '_blank');
+  if (!w) showToast('Allow pop-ups to open WhatsApp', 'bad');
+}
+function _wsSlug(name) {
+  return String(name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+}
+function _wsTrackLink() {
+  const s = D.settings || {};
+  const slug = _wsSlug(s.workshop_name || userProfile?.workshop_name || '');
+  return slug ? `https://garagepro.me/track.html?ws=${slug}` : '';
+}
+function _wsName() { return (D.settings?.workshop_name || userProfile?.workshop_name || 'our workshop'); }
+// Best-effort customer phone from an invoice → its job → booking → customers.
+function _invPhone(inv) {
+  if (inv.customer?.phone) return inv.customer.phone;
+  const j = (D.jobs || []).find(x => x.id === inv.job_id);
+  const bId = inv.booking_id || j?.booking_id;
+  const b = bId ? (D.bookings || []).find(x => x.id === bId) : null;
+  if (b?.cust_phone) return b.cust_phone;
+  const c = (D.customers || []).find(x => (x.name || '').toLowerCase() === (inv.customer?.name || '').toLowerCase());
+  return c?.phone || '';
+}
+function _bookingPhone(bId) {
+  const b = (D.bookings || []).find(x => x.id === bId);
+  if (b?.cust_phone) return b.cust_phone;
+  const c = b ? (D.customers || []).find(x => (x.name || '').toLowerCase() === (b.cust_name || '').toLowerCase()) : null;
+  return c?.phone || '';
+}
+
+// Send an invoice summary on WhatsApp (wa.me can't attach the PDF, so we send
+// the number + total + the workshop's Track link).
+window.waInvoice = function(invId) {
+  const inv = (D.invoices || []).find(x => x.id === invId);
+  if (!inv) return showToast('Invoice not found', 'bad');
+  const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
+  const total = _invoiceTotals(inv).roundOff;
+  const link = _wsTrackLink();
+  const name = inv.customer?.name ? inv.customer.name.split(' ')[0] : 'there';
+  const veh = inv.vehicle?.plate ? ` (${inv.vehicle.plate})` : '';
+  const msg = `Hi ${name}, your invoice ${inv.number || ''} from ${_wsName()}${veh} is ready — total ${cur}${total.toLocaleString('en-IN')}.`
+    + (link ? `\nTrack your vehicle: ${link}` : '')
+    + `\n\nThank you for choosing us!`;
+  audit('wa-invoice', `${inv.number || ''} → ${inv.customer?.name || '—'}`, { invoice_id: inv.id });
+  _waOpen(_invPhone(inv), msg);
+};
+
+// "Your car is ready for pickup" on WhatsApp (includes the pickup code if the
+// gate-pass toggle is on).
+window.waReady = function(jobId) {
+  const j = (D.jobs || []).find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  const name = (j.cust_name || 'there').split(' ')[0];
+  const when = (j.pickup_date || j.pickup_time) ? `\nPickup: ${j.pickup_date || ''} ${j.pickup_time || ''}`.trimEnd() : '';
+  const code = (D.settings?.pickup_otp_enabled && j.pickup_otp) ? `\nYour pickup code: ${j.pickup_otp} (please show it at collection).` : '';
+  const link = _wsTrackLink();
+  const msg = `Hi ${name}, good news — your ${j.plate || 'vehicle'} is ready for pickup at ${_wsName()}! 🚗${when}${code}`
+    + (link ? `\nStatus: ${link}` : '');
+  audit('wa-ready', `${j.plate} → ${j.cust_name || '—'}`, { job_id: j.id });
+  _waOpen(_bookingPhone(j.booking_id) || j.cust_phone, msg);
+};
+
+// Friendly payment reminder for an outstanding invoice.
+window.waPaymentReminder = function(invId) {
+  const inv = (D.invoices || []).find(x => x.id === invId);
+  if (!inv) return showToast('Invoice not found', 'bad');
+  const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
+  const total = _invoiceTotals(inv).roundOff;
+  const bal = inv.payment_status === 'Partial' ? (total - Number(inv.amount_paid || 0)) : total;
+  const name = inv.customer?.name ? inv.customer.name.split(' ')[0] : 'there';
+  const msg = `Hi ${name}, a gentle reminder from ${_wsName()}: ${cur}${Math.max(0, bal).toLocaleString('en-IN')} is pending on invoice ${inv.number || ''}. Kindly clear it at your convenience — thank you!`;
+  audit('wa-reminder', `${inv.number || ''} → ${inv.customer?.name || '—'} · ${cur}${bal}`, { invoice_id: inv.id });
+  _waOpen(_invPhone(inv), msg);
+};
 
 // Build the self-contained approval payload from a job's estimate + an invoice.
 // Photos are embedded as data URLs (the customer can't read the sub-gated
@@ -9927,7 +10010,12 @@ async function renderSettings(force = false) {
           <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--blue,#639fff);margin-bottom:4px">✓ Google Apps Script — free, no card, no App Password</div>
           <div style="font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.5">Runs in <i>your own</i> Google account and sends from your Gmail. It now <b>confirms delivery</b> (reports the real success/error). Paste your Web App URL below and follow the one-time setup.</div>
           <div class="f-grp"><label>Apps Script Web App URL</label><input id="sf-em-url" type="url" value="${escapeHtml(s.email_appscript_url || '')}" placeholder="https://script.google.com/macros/s/AKfy.../exec" autocomplete="off" /></div>
-          <div style="font-size:11.5px;color:var(--acc2);margin-top:6px">⚠ After editing the script you must <b>redeploy it as a NEW version</b> (Deploy → Manage deployments → ✏️ Edit → Version: <b>New version</b> → Deploy) — Apps Script "Save" alone does NOT update the live URL. This is the #1 reason email "stops working".</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button type="button" class="add-btn" onclick="saveEmailSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Save email link</button>
+            <button type="button" class="refresh-btn" onclick="_testAppsScriptConnection()" title="Verify the URL reaches a deployed script"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>Test connection</button>
+            <button type="button" class="refresh-btn" onclick="_sendTestEmailPrompt()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Send test email</button>
+          </div>
+          <div style="font-size:11.5px;color:var(--acc2);margin-top:8px">⚠ After editing the script you must <b>redeploy it as a NEW version</b> (Deploy → Manage deployments → ✏️ Edit → Version: <b>New version</b> → Deploy) — Apps Script "Save" alone does NOT update the live URL. This is the #1 reason email "stops working".</div>
         </div>
 
         <div class="f-row" style="grid-template-columns:1fr">
@@ -10456,6 +10544,21 @@ window._testAppsScriptConnection = function() {
 // Send a test email to whatever address is typed into the test field. Uses
 // the CURRENT form values, not the persisted settings, so the user can iterate
 // without saving first. (Saves the entered creds first so the function can read them.)
+// Send-test triggered from the Apps Script box (no visible input there) —
+// ask for the address, drop it into the shared test field, then reuse the
+// normal send-test path so behaviour + messages stay identical.
+window._sendTestEmailPrompt = async function() {
+  const to = await customPrompt('Send a test email to which address?', {
+    title: 'Send test email', placeholder: 'you@example.com', okLabel: 'Send test'
+  });
+  if (to === null) return;
+  const clean = (to || '').trim();
+  if (!clean) { showToast('Enter an email address', 'bad'); return; }
+  const inp = document.getElementById('sf-em-test');
+  if (inp) inp.value = clean;
+  await _sendTestEmail();
+};
+
 window._sendTestEmail = async function() {
   const msg = document.getElementById('sf-em-msg');
   const to  = document.getElementById('sf-em-test').value.trim();
@@ -11245,6 +11348,7 @@ async function renderInvoices(force = false) {
         <td><div class="row-act">
           <button class="mini-btn good" onclick="viewInvoice('${escapeHtml(inv.id)}')" title="View / print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>
           <button class="mini-btn" onclick="openInvoiceForm('${escapeHtml(inv.id)}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+          <button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waInvoice('${escapeHtml(inv.id)}')" title="Send this invoice to the customer on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm0 1.8a8.1 8.1 0 0 1 5.73 13.83A8.1 8.1 0 0 1 6.9 18.7l-.35-.2-2.93.77.78-2.85-.23-.37A8.1 8.1 0 0 1 12.04 3.8zm4.66 11.44c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg></button>
           <button class="mini-btn danger" onclick="deleteInvoice('${escapeHtml(inv.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
         </div></td>
       </tr>`;
@@ -13111,6 +13215,41 @@ window.renderNotifications = renderNotifications;
 //  REPORTS — revenue, jobs by status, top mechanics, outstanding invoices,
 //            insurance summary, top services, low stock
 // ══════════════════════════════════════════════════════════════════════════
+// A workshop's live snapshot — used both to publish this branch's summary and
+// to show the "HQ" row in the chain roll-up.
+function _branchLiveSummary() {
+  const today = todayStr();
+  let revenue = 0;
+  for (const inv of (D.invoices || [])) {
+    if (inv.status === 'Cancelled' || inv.is_estimate) continue;
+    const d = inv.issue_date || (inv.updated_at || inv.created_at || '').slice(0, 10);
+    if (d !== today) continue;
+    try { revenue += Number(_invoiceTotals(inv).roundOff || 0); } catch (_) {}
+  }
+  const activeBk = new Set((D.jobs || [])
+    .filter(j => !['Delivered', 'Cancelled', 'Returned to Advisor'].includes(j.status || ''))
+    .map(j => j.booking_id).filter(Boolean));
+  return {
+    workshop_name:     D.settings?.workshop_name || userProfile?.workshop_name || '',
+    revenue_today:     Math.round(revenue),
+    cars_on_floor:     (D.bookings || []).filter(b => b.status !== 'Delivered' && b.status !== 'Cancelled' && (b.status === 'Arrived' || activeBk.has(b.id))).length,
+    active_jobs:       (D.jobs || []).filter(j => !['Delivered', 'Cancelled'].includes(j.status || '')).length,
+    pending_approvals: (D.jobs || []).filter(j => j.status === 'Estimate Sent').length
+  };
+}
+
+// Publish this branch's summary onto its own (public-read) root user doc so the
+// chain parent can roll it up. Best-effort; called on app load + after checkout.
+async function publishBranchSummary() {
+  try {
+    if (!currentUser || !fbDb) return;
+    await fbDb.collection('users').doc(currentUser.uid).set({
+      branch_summary: { ..._branchLiveSummary(), updated_at: nowStr() }
+    }, { merge: true });
+  } catch (e) { console.warn('[branch-summary]', e); }
+}
+window.publishBranchSummary = publishBranchSummary;
+
 async function renderReports(force = false) {
   await loadAllData(force);
   const range = document.getElementById('rptRange').value || '30';
@@ -13172,6 +13311,60 @@ async function renderReports(force = false) {
   // Low-stock items
   const lowStock = (D.inventory || []).filter(i => Number(i.qty || 0) <= Number(i.low_stock_threshold || 0) && i.low_stock_threshold).slice(0, 10);
 
+  // ── Parts margin (where cost is known) — bill vs inventory cost_price ──
+  let partsRev = 0, partsCost = 0, partsCostKnown = 0;
+  for (const { inv } of totals) {
+    for (const l of (inv.lines || [])) {
+      const rev = Math.max(0, (Number(l.unit_price || 0) * Number(l.qty || 1)) * (1 - (Number(l.disc_pct || 0)) / 100));
+      partsRev += rev;
+      const item = (D.inventory || []).find(x => (x.name || '').toLowerCase() === (l.name || '').toLowerCase());
+      if (item && Number(item.cost_price || 0) > 0) { partsCost += Number(item.cost_price) * Number(l.qty || 1); partsCostKnown += rev; }
+    }
+  }
+  const partsMargin = partsCostKnown - partsCost;
+  const partsMarginPct = partsCostKnown ? Math.round((partsMargin / partsCostKnown) * 100) : null;
+
+  // ── Repeat-customer rate (all-time, by delivered jobs per customer) ──
+  const custJobs = {};
+  for (const j of (D.jobs || [])) {
+    if (j.status !== 'Delivered') continue;
+    const k = (j.cust_name || '').toLowerCase().trim();
+    if (k) custJobs[k] = (custJobs[k] || 0) + 1;
+  }
+  const totalCust  = Object.keys(custJobs).length;
+  const repeatCust = Object.values(custJobs).filter(n => n >= 2).length;
+  const repeatRate = totalCust ? Math.round((repeatCust / totalCust) * 100) : null;
+
+  // ── Avg turnaround (delivered jobs in range): created → completed ──
+  let turnSum = 0, turnN = 0;
+  for (const j of jobs) {
+    if (j.status !== 'Delivered') continue;
+    const start = _slaParseTs(j.created_at);
+    const end   = _slaParseTs(j.completed_at || j.updated_at);
+    if (start && end && end > start) { turnSum += (end - start); turnN++; }
+  }
+  const avgTurnH = turnN ? (turnSum / turnN / 3600000) : null;
+  const fmtDur = (h) => h == null ? '—' : (h < 48 ? `${Math.round(h)}h` : `${Math.floor(h / 24)}d ${Math.round(h % 24)}h`);
+
+  // ── Bay utilization (live snapshot) ──
+  const totalBays = (D.bays || []).length;
+  const occBays   = (D.bays || []).filter(x => _bayState(x) === 'occupied').length;
+  const bayUtil   = totalBays ? Math.round((occBays / totalBays) * 100) : null;
+
+  // ── Revenue trend — daily buckets across the range (≤30 bars) ──
+  const revByDay = {};
+  for (const { inv, t } of totals) {
+    const d = (inv.issue_date || (inv.created_at || '').slice(0, 10));
+    if (d) revByDay[d] = (revByDay[d] || 0) + t.roundOff;
+  }
+  const trendDays = Math.min(range === 'all' ? 30 : Number(range), 30);
+  const trend = [];
+  for (let i = trendDays - 1; i >= 0; i--) {
+    const dt = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    trend.push({ d: dt, v: revByDay[dt] || 0 });
+  }
+  const trendMax = Math.max(1, ...trend.map(x => x.v));
+
   const cur = D.settings.currency || '₹';
   const inr = (n) => `${cur}${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
   const card = (label, val, color = 'var(--txt)', sub = '') => `
@@ -13181,8 +13374,50 @@ async function renderReports(force = false) {
       ${sub ? `<div style="font-size:12px;color:var(--dim);margin-top:6px">${sub}</div>` : ''}
     </div>`;
 
+  // ── Chain roll-up — only for accounts that own branches. Each branch
+  // publishes its own summary to its (public-read) root doc; we read them here.
+  let chainHtml = '';
+  const branches = Array.isArray(userProfile?.branches) ? userProfile.branches : [];
+  if (branches.length) {
+    const own = _branchLiveSummary();
+    const rows = [{ name: (own.workshop_name || 'This branch') + ' · HQ', s: own, live: true, at: nowStr() }];
+    try {
+      const snaps = await Promise.all(branches.map(br => fbDb.collection('users').doc(br.uid).get().catch(() => null)));
+      snaps.forEach((snap, i) => {
+        const bs = (snap && snap.exists) ? (snap.data().branch_summary || {}) : {};
+        rows.push({ name: branches[i].name || bs.workshop_name || 'Branch', s: bs, live: false, at: bs.updated_at });
+      });
+    } catch (_) {}
+    const sum = (k) => rows.reduce((a, r) => a + Number(r.s?.[k] || 0), 0);
+    chainHtml = `<div class="card" style="padding:18px;margin-bottom:22px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <h3 style="margin:0;font-size:15px">Chain roll-up · ${rows.length} location${rows.length === 1 ? '' : 's'}</h3>
+        <button class="mini-btn" onclick="renderReports(true)">Refresh</button>
+      </div>
+      <div style="color:var(--faint);font-size:12px;margin-bottom:14px">Branch figures come from each branch's last app sync — open a branch to refresh its numbers.</div>
+      <div style="overflow:auto"><table class="list-tbl" style="min-width:640px">
+        <thead><tr><th>Location</th><th style="text-align:right">Revenue today</th><th style="text-align:right">On floor</th><th style="text-align:right">Active jobs</th><th style="text-align:right">Awaiting approval</th><th>Updated</th></tr></thead>
+        <tbody>${rows.map(r => `<tr>
+          <td class="k">${escapeHtml(r.name)}${r.live ? ' <span style="font-size:10px;color:var(--teal)">● live</span>' : ''}</td>
+          <td style="text-align:right;color:var(--teal);font-weight:700">${inr(r.s?.revenue_today || 0)}</td>
+          <td style="text-align:right">${escapeHtml(String(r.s?.cars_on_floor ?? '—'))}</td>
+          <td style="text-align:right">${escapeHtml(String(r.s?.active_jobs ?? '—'))}</td>
+          <td style="text-align:right;${Number(r.s?.pending_approvals || 0) ? 'color:var(--acc2);font-weight:700' : ''}">${escapeHtml(String(r.s?.pending_approvals ?? '—'))}</td>
+          <td style="font-size:11.5px;color:var(--faint);white-space:nowrap">${escapeHtml((r.at || '').slice(0, 16) || '—')}</td>
+        </tr>`).join('')}
+        <tr style="border-top:2px solid var(--brd2)"><td class="k" style="font-weight:800">All locations</td>
+          <td style="text-align:right;color:var(--teal);font-weight:800">${inr(sum('revenue_today'))}</td>
+          <td style="text-align:right;font-weight:800">${sum('cars_on_floor')}</td>
+          <td style="text-align:right;font-weight:800">${sum('active_jobs')}</td>
+          <td style="text-align:right;font-weight:800">${sum('pending_approvals')}</td><td></td></tr>
+        </tbody>
+      </table></div>
+    </div>`;
+  }
+
   document.getElementById('rptCrumb').textContent = `${range === 'all' ? 'All time' : 'Last ' + range + ' days'} · ${invs.length} invoice${invs.length === 1 ? '' : 's'} issued`;
   document.getElementById('rptBody').innerHTML = `
+    ${chainHtml}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px">
       ${card('Revenue billed', inr(revenue), 'var(--teal)')}
       ${card('Paid', inr(paid + partialPaid), 'var(--teal)', partialPaid ? `incl. ${inr(partialPaid)} partial` : '')}
@@ -13191,6 +13426,24 @@ async function renderReports(force = false) {
       ${card('Appointments', bookings.length, 'var(--blue)')}
       ${card('Insurance jobs', insJobs.length, 'var(--acc2)', insApproved ? `${inr(insApproved)} approved` : '')}
       ${card('Estimate conversion', cTotal ? `${cRate}%` : '—', cRate >= 75 ? 'var(--teal)' : cRate >= 50 ? 'var(--acc2)' : 'var(--red)', cTotal ? `${cFull + cPartial}/${cTotal} approved · ${inr(cValue)} quoted` : 'No estimates with a client decision yet')}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px">
+      ${card('Parts margin', partsMarginPct == null ? '—' : `${partsMarginPct}%`, partsMarginPct == null ? 'var(--faint)' : partsMarginPct >= 25 ? 'var(--teal)' : 'var(--acc2)', partsMarginPct == null ? 'Set cost price on inventory to track' : `${inr(partsMargin)} on ${inr(partsCostKnown)} of priced parts`)}
+      ${card('Repeat customers', repeatRate == null ? '—' : `${repeatRate}%`, repeatRate == null ? 'var(--faint)' : repeatRate >= 30 ? 'var(--teal)' : 'var(--acc2)', totalCust ? `${repeatCust} of ${totalCust} customers came back` : 'No delivered jobs yet')}
+      ${card('Avg turnaround', fmtDur(avgTurnH), 'var(--blue)', turnN ? `across ${turnN} delivered job${turnN === 1 ? '' : 's'}` : 'No completed jobs in range')}
+      ${card('Bay utilization', bayUtil == null ? '—' : `${bayUtil}%`, bayUtil == null ? 'var(--faint)' : bayUtil >= 80 ? 'var(--red)' : 'var(--teal)', totalBays ? `${occBays} of ${totalBays} bays in use now` : 'No bays configured')}
+    </div>
+
+    <div class="card" style="padding:18px;margin-bottom:18px">
+      <h3 style="margin:0 0 4px;font-size:15px">Revenue trend</h3>
+      <div style="color:var(--faint);font-size:12px;margin-bottom:16px">Daily billed revenue · last ${trendDays} days · peak ${inr(trendMax)}</div>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:120px">
+        ${trend.map(x => `<div title="${escapeHtml(x.d)} · ${inr(x.v)}" style="flex:1;min-width:0;height:${Math.max(2, Math.round((x.v / trendMax) * 116))}px;border-radius:4px 4px 0 0;background:${x.v ? 'linear-gradient(180deg,var(--acc2),rgba(255,122,24,.35))' : 'var(--brd)'};transition:opacity .15s;cursor:default" onmouseover="this.style.opacity=.7" onmouseout="this.style.opacity=1"></div>`).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);margin-top:8px">
+        <span>${escapeHtml(trend[0]?.d || '')}</span><span>Today</span>
+      </div>
     </div>
 
     ${cTotal ? `<div class="card" style="padding:18px;margin-bottom:18px">
@@ -13234,7 +13487,7 @@ async function renderReports(force = false) {
             <td class="k" style="font-family:'Courier New',monospace;font-size:12.5px">${escapeHtml(x.inv.number)}</td>
             <td>${escapeHtml(x.inv.customer?.name || '—')}</td>
             <td style="text-align:right;color:var(--red);font-weight:700">${inr(x.balance)}</td>
-            <td><button class="mini-btn" onclick="viewInvoice('${escapeHtml(x.inv.id)}')">View</button></td>
+            <td style="white-space:nowrap"><button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waPaymentReminder('${escapeHtml(x.inv.id)}')" title="Send a payment reminder on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg></button><button class="mini-btn" onclick="viewInvoice('${escapeHtml(x.inv.id)}')">View</button></td>
           </tr>`).join('')}</tbody>
         </table>` : `<div style="color:var(--faint);font-size:13px">No outstanding invoices — nice work.</div>`}
       </div>
