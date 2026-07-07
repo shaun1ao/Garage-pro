@@ -4030,6 +4030,10 @@ function _bookingFormHTML(b) {
   return `
     <datalist id="dlCustomers">${D.customers.map(c => `<option value="${escapeHtml(c.name || '')}">`).join('')}</datalist>
     <datalist id="dlMechanics">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
+    <div style="display:flex;align-items:center;gap:10px;background:rgba(32,227,178,.06);border:1px solid rgba(32,227,178,.28);border-radius:10px;padding:10px 14px;margin-bottom:14px">
+      <div style="flex:1;font-size:12.5px;color:var(--dim);line-height:1.45">Returning customer with a Garage&nbsp;Pro QR? Scan it to auto-fill the car &amp; owner — works even if it was issued at another workshop.</div>
+      <button type="button" class="mini-btn good" style="white-space:nowrap" onclick="_scanIntoBooking()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h3M18 15v6M21 18h-3"/></svg>Scan QR</button>
+    </div>
     ${vehiclePane}
     ${customerPane}
     ${concernsPane}
@@ -7730,7 +7734,11 @@ window._showVehicleQR = async function(idx) {
 // Shared QR-rendering core — used by both the in-form button (_showVehicleQR)
 // and the global plate-keyed entry point (showQRForPlate).
 async function _showQRFromVehicle(v) {
-  const qrText = 'GPV-' + v.id;
+  // Portable QR: encode the plate (GPV-<plateNorm>) so any workshop can resolve
+  // it via the shared vehicle registry. Falls back to the local id if no plate.
+  const qrText = v.plate ? 'GPV-' + _plateNorm(v.plate) : 'GPV-' + v.id;
+  // Make sure this car is in the shared registry so other shops can look it up.
+  try { const owner = D.customers.find(c => (c.vehicles || []).some(x => x.id === v.id)); if (v.plate) _registryUpsert(v, owner); } catch (_) {}
   _openSubModal({
     title: `${v.plate} — vehicle QR`,
     bodyHtml: `
@@ -7822,6 +7830,9 @@ async function saveCustomer(id) {
   if (idx >= 0) D.customers[idx] = { ...D.customers[idx], ...patch };
   else          D.customers.push({ id: uid('c'), ...patch, created_at: nowStr() });
   await wsSave('customers', D.customers);
+  // Publish this customer's vehicles to the shared registry so their QR/plate
+  // resolves at any workshop.
+  _registrySyncCustomer(idx >= 0 ? D.customers[idx] : D.customers[D.customers.length - 1]);
   closeModal();
   showToast(id ? 'Customer updated' : 'Customer added', 'good');
   await renderCustomers(true);
@@ -7835,6 +7846,57 @@ function findVehicleByQRId(vehId) {
   }
   return null;
 }
+// New portable QRs encode the plate (GPV-<plateNorm>) so they work across
+// workshops. Match a local vehicle by normalised plate.
+function _findVehicleByPlateNorm(pn) {
+  for (const c of D.customers) {
+    const v = (c.vehicles || []).find(x => _plateNorm(x.plate) === pn);
+    if (v) return { customer: c, vehicle: v };
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  SHARED VEHICLE REGISTRY — a public, cross-workshop card keyed by plate.
+//  Every workshop upserts the vehicles it services here, so a QR (or plate)
+//  from ANY workshop resolves to the car + owner details at any other. This is
+//  what makes one QR portable across the whole Garage Pro network.
+//  Firestore: vehicle_registry/{plateNorm}  (public read+write).
+// ══════════════════════════════════════════════════════════════════════════
+async function _registryUpsert(veh, cust) {
+  try {
+    if (!fbDb || !veh || !veh.plate) return;
+    const pn = _plateNorm(veh.plate);
+    if (!pn) return;
+    await fbDb.collection('vehicle_registry').doc(pn).set({
+      plate:         veh.plate,
+      plate_norm:    pn,
+      make:          veh.make  || veh.veh_make  || '',
+      model:         veh.model || veh.veh_model || '',
+      year:          veh.year  || veh.veh_year  || '',
+      color:         veh.color || veh.colour    || '',
+      owner_name:    cust?.name    || '',
+      owner_phone:   cust?.phone   || '',
+      owner_email:   cust?.email   || '',
+      owner_address: cust?.address || '',
+      workshop_name: D.settings?.workshop_name || userProfile?.workshop_name || '',
+      updated_at:    nowStr()
+    }, { merge: true });
+  } catch (e) { console.warn('[registry upsert]', e); }
+}
+async function _registryLookup(pn) {
+  try {
+    if (!fbDb || !pn) return null;
+    const snap = await fbDb.collection('vehicle_registry').doc(pn).get();
+    return snap.exists ? (snap.data() || null) : null;
+  } catch (e) { console.warn('[registry lookup]', e); return null; }
+}
+// Push every vehicle on a customer into the shared registry (best-effort).
+function _registrySyncCustomer(cust) {
+  if (!cust) return;
+  for (const v of (cust.vehicles || [])) { if (v && v.plate) _registryUpsert(v, cust); }
+}
+window._registryLookup = _registryLookup;
 
 window.deleteCustomer = async function(id) {
   const c = D.customers.find(x => x.id === id);
@@ -10044,7 +10106,7 @@ async function renderSettings(force = false) {
   } catch (err) { return out({ok:false, error:String(err)}); }
 }
 // doGet supports JSONP so Garage Pro can verify the URL works — POST responses
-// are CORS-blocked, but a <script src="...?callback=foo"> tag isn't.
+// are CORS-blocked, but a &lt;script src="...?callback=foo"&gt; tag isn't.
 function doGet(e) {
   const cb = e && e.parameter && e.parameter.callback;
   const payload = { ok: true, message: 'Email relay alive', quota: MailApp.getRemainingDailyQuota() };
@@ -11040,14 +11102,16 @@ async function _onScanDecoded(code) {
   _stopScannerCamera();
   await loadAllData(false);
 
-  // ── GPV-{vehicleId} → customer vehicle QR (from the customer card) ──
+  // ── GPV-{key} → customer vehicle QR ──────────────────────────────────────
+  //   key = <plateNorm> for new portable QRs, or <localVehicleId> for old ones.
   if (/^GPV-/i.test(code.trim())) {
-    const vehId = code.trim().slice(4);
-    const found = findVehicleByQRId(vehId);
-    if (found) {
-      _renderVehicleQRResult(code, found.customer, found.vehicle);
-      return;
-    }
+    const key = code.trim().slice(4);
+    // 1) local vehicle by id (old QRs)  2) local by plate (new QRs, same shop)
+    const found = findVehicleByQRId(key) || _findVehicleByPlateNorm(key);
+    if (found) { _renderVehicleQRResult(code, found.customer, found.vehicle); return; }
+    // 3) another shop's QR → shared vehicle registry (portable across workshops)
+    const reg = await _registryLookup(key);
+    if (reg) { _renderRegistryResult(code, reg); return; }
     _renderScanResult(code, null, null);  // unknown vehicle QR
     return;
   }
@@ -11085,6 +11149,85 @@ function _renderVehicleQRResult(code, customer, vehicle) {
     </div>`;
   box.classList.add('open');
 }
+
+// A QR from ANOTHER workshop resolved via the shared registry — show the car +
+// owner and let this workshop start a walk-in pre-filled with all of it.
+function _renderRegistryResult(code, reg) {
+  const box = document.getElementById('scanResult');
+  const pn = reg.plate_norm || code.trim().slice(4);
+  box.innerHTML = `
+    <div class="r-icon good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/></svg></div>
+    <h4>${escapeHtml(reg.plate || '—')} — ${escapeHtml(reg.owner_name || 'Customer')}</h4>
+    <div class="r-meta">${[reg.make, reg.model, reg.year].filter(Boolean).map(escapeHtml).join(' · ') || 'Vehicle'}${reg.color ? ' · ' + escapeHtml(reg.color) : ''}${reg.owner_phone ? '<br>📞 ' + escapeHtml(reg.owner_phone) : ''}</div>
+    <div style="font-size:11.5px;color:var(--teal);margin:2px 0 8px">↔ From the shared vehicle registry${reg.workshop_name ? ' · first seen at ' + escapeHtml(reg.workshop_name) : ''}</div>
+    <code class="r-code">${escapeHtml(code)}</code>
+    <div class="r-acts">
+      <button class="fbtn fbtn-cancel" onclick="closeScanner()">Close</button>
+      <button class="fbtn fbtn-save" onclick="closeScanner();_walkInFromRegistry('${escapeHtml(pn)}')">Start walk-in with these details</button>
+    </div>`;
+  box.classList.add('open');
+}
+
+// Open a pre-filled walk-in from a shared-registry vehicle (no local record).
+window._walkInFromRegistry = async function(pn) {
+  const reg = await _registryLookup(pn);
+  if (!reg) return showToast('No record found for this QR', 'bad');
+  const b = {
+    date: todayStr(), time: toTime(), _walkin: true,
+    plate:      reg.plate      || '',
+    cust_name:  reg.owner_name  || '',
+    cust_phone: reg.owner_phone || '',
+    cust_email: reg.owner_email || '',
+    veh_make:   reg.make  || '',
+    veh_model:  reg.model || '',
+    veh_year:   reg.year  || '',
+    colour:     reg.color || ''
+  };
+  openModal({ title: `Walk-in · ${reg.plate || ''}`, body: _bookingFormHTML(b), saveLabel: 'Create + check in', onSave: () => saveWalkin() });
+  showToast('Loaded from the vehicle registry', 'good');
+};
+
+// ── In-form "Scan QR" autofill (works for local records + registry hits) ──
+function _setBookingField(id, val) { const el = document.getElementById(id); if (el && val != null) el.value = val; }
+function _setBookingPlate(plate) {
+  const p = String(plate || '');
+  const state = p.slice(0, 2).toUpperCase();
+  const ss = document.getElementById('bf-plate-state');
+  if (ss && [...ss.options].some(o => o.value === state)) ss.value = state;
+  _setBookingField('bf-plate-suffix', p.slice(2).trim().toUpperCase());
+}
+function _fillBookingFromVehicle(cust, veh) {
+  _setBookingPlate(veh.plate);
+  _setBookingField('bf-make',   veh.make  || veh.veh_make  || '');
+  _setBookingField('bf-model',  veh.model || veh.veh_model || '');
+  _setBookingField('bf-year',   veh.year  || veh.veh_year  || '');
+  _setBookingField('bf-colour', veh.color || veh.colour    || '');
+  _setBookingField('bf-cust',   cust?.name  || '');
+  _setBookingField('bf-phone',  cust?.phone || '');
+  _setBookingField('bf-email',  cust?.email || '');
+  showToast('Autofilled from ' + (veh.plate || 'vehicle'), 'good');
+}
+function _fillBookingFromRegistry(reg) {
+  _setBookingPlate(reg.plate);
+  _setBookingField('bf-make',   reg.make  || '');
+  _setBookingField('bf-model',  reg.model || '');
+  _setBookingField('bf-year',   reg.year  || '');
+  _setBookingField('bf-colour', reg.color || '');
+  _setBookingField('bf-cust',   reg.owner_name  || '');
+  _setBookingField('bf-phone',  reg.owner_phone || '');
+  _setBookingField('bf-email',  reg.owner_email || '');
+}
+window._scanIntoBooking = function() {
+  openScanner('booking', async (code) => {
+    const raw = code.trim();
+    const key = /^GPV-/i.test(raw) ? raw.slice(4) : _plateNorm(raw);
+    const found = findVehicleByQRId(key) || _findVehicleByPlateNorm(key);
+    if (found) { _fillBookingFromVehicle(found.customer, found.vehicle); return; }
+    const reg = await _registryLookup(key);
+    if (reg) { _fillBookingFromRegistry(reg); showToast('Autofilled from the shared registry', 'good'); return; }
+    showToast('No vehicle found for that QR / plate', 'bad');
+  }, "Scan the customer's vehicle QR");
+};
 
 // Open the walk-in flow pre-filled from a scanned vehicle QR
 window._walkInFromVehicleQR = function(customerId, vehicleId) {
