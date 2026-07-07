@@ -720,7 +720,11 @@ input[list]{background:var(--bg2)}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <div class="tab-title" id="hdrTabTitle">Dashboard</div>
-    <div class="header-spacer"></div>
+    <div class="header-spacer" style="position:relative;max-width:440px;margin:0 14px">
+      <input id="gpSearch" type="text" autocomplete="off" placeholder="Search plate, customer, invoice, booking…" oninput="_gpSearch(this.value)" onfocus="_gpSearch(this.value)" onkeydown="if(event.key==='Escape')_gpSearchClose()" style="width:100%;padding:8px 12px 8px 34px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:13.5px;outline:none" />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--faint);pointer-events:none"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <div id="gpSearchResults" style="display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surf);border:1px solid var(--brd2);border-radius:10px;max-height:66vh;overflow-y:auto;z-index:80;box-shadow:0 18px 50px -18px rgba(0,0,0,.85)"></div>
+    </div>
     <button class="hdr-lang" id="hdrLangBtn" title="Switch language / भाषा बदलें" onclick="gpToggleLang()" style="background:none;border:1px solid var(--brd2);border-radius:7px;cursor:pointer;color:var(--dim);padding:5px 10px;margin-right:8px;font-family:var(--fd);font-weight:700;font-size:12.5px">हि</button>
     <button class="hdr-bell" id="hdrBell" title="Notifications" onclick="switchTab('notifications')" style="position:relative;background:none;border:0;cursor:pointer;color:var(--dim);padding:6px;margin-right:6px;display:inline-flex;align-items:center">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
@@ -1147,6 +1151,8 @@ input[list]{background:var(--bg2)}
           <input type="text" id="invSearch" placeholder="Search invoice no, plate, customer…" oninput="renderInvoices()" />
           <select id="invStatus" onchange="renderInvoices()">
             <option value="">All statuses</option>
+            <option value="__estimate__">Estimates only</option>
+            <option value="__final__">Final invoices only</option>
             <option value="Draft">Draft</option>
             <option value="Issued">Issued</option>
             <option value="Paid">Paid</option>
@@ -2269,6 +2275,68 @@ function _maybeFireClosingSummary() {
     localStorage.setItem(key, '1');
   } catch (e) { console.warn('[closing-summary]', e); }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  GLOBAL QUICK-SEARCH — one header box → jump to any job / appointment /
+//  customer / invoice by plate, name, phone, invoice# or booking#.
+// ══════════════════════════════════════════════════════════════════════════
+let _gpLastResults = [];
+window._gpSearch = function(qRaw) {
+  const box = document.getElementById('gpSearchResults');
+  if (!box) return;
+  const q = (qRaw || '').trim().toLowerCase();
+  if (!q) { box.style.display = 'none'; box.innerHTML = ''; _gpLastResults = []; return; }
+  const has = (s) => String(s || '').toLowerCase().includes(q);
+  const qp = _plateNorm(q);
+  const plateHit = (p) => qp && _plateNorm(p).includes(qp);
+  const res = [];
+  for (const j of (D.jobs || [])) {
+    if (has(j.plate) || has(j.cust_name) || has(j.type) || plateHit(j.plate))
+      res.push({ kind: 'Job', id: j.id, label: `${j.plate || '—'} · ${j.cust_name || '—'}`, sub: `Job card · ${j.status || ''}` });
+  }
+  for (const b of (D.bookings || [])) {
+    if (has(b.plate) || has(b.cust_name) || has(b.booking_no) || plateHit(b.plate))
+      res.push({ kind: 'Appointment', id: b.id, label: `${b.plate || '—'} · ${b.cust_name || '—'}`, sub: `Appointment${b.booking_no ? ' · ' + b.booking_no : ''} · ${b.status || 'Scheduled'}` });
+  }
+  for (const c of (D.customers || [])) {
+    const plates = (c.vehicles || []).map(v => v.plate).filter(Boolean).join(' ');
+    if (has(c.name) || has(c.phone) || has(plates))
+      res.push({ kind: 'Customer', id: c.id, name: c.name || '', label: c.name || '—', sub: `Customer${c.phone ? ' · ' + c.phone : ''}${plates ? ' · ' + plates : ''}` });
+  }
+  for (const inv of (D.invoices || [])) {
+    if (has(inv.number) || has(inv.customer?.name) || has(inv.vehicle?.plate) || plateHit(inv.vehicle?.plate))
+      res.push({ kind: 'Invoice', id: inv.id, label: `${inv.number || '—'} · ${inv.customer?.name || '—'}`, sub: `${inv.is_estimate ? 'Estimate' : 'Invoice'}${inv.vehicle?.plate ? ' · ' + inv.vehicle.plate : ''}` });
+  }
+  _gpLastResults = res.slice(0, 30);
+  const tint = { Job: 'var(--acc2)', Appointment: 'var(--blue)', Customer: 'var(--teal)', Invoice: 'var(--acc2)' };
+  box.innerHTML = _gpLastResults.length
+    ? _gpLastResults.map((r, i) => `<div onclick="_gpSearchGo(${i})" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:10px" onmouseover="this.style.background='rgba(255,255,255,.04)'" onmouseout="this.style.background='none'">
+        <span style="font-size:9px;font-weight:800;letter-spacing:.04em;color:${tint[r.kind]};background:rgba(255,255,255,.06);padding:2px 7px;border-radius:100px;flex:none">${r.kind.toUpperCase()}</span>
+        <div style="min-width:0"><div style="font-size:13.5px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.label)}</div>
+        <div style="font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.sub)}</div></div>
+      </div>`).join('')
+    : `<div style="padding:16px;color:var(--faint);font-size:13px">No matches for “${escapeHtml(q)}”</div>`;
+  box.style.display = 'block';
+};
+window._gpSearchGo = function(i) {
+  const r = _gpLastResults[i];
+  if (!r) return;
+  _gpSearchClose();
+  if (r.kind === 'Job')              { switchTab('jobs');      setTimeout(() => openJobForm(r.id), 220); }
+  else if (r.kind === 'Appointment') { switchTab('bookings');  setTimeout(() => openBookingForm(r.id), 220); }
+  else if (r.kind === 'Invoice')     { viewInvoice(r.id); }
+  else if (r.kind === 'Customer')    { switchTab('customers'); setTimeout(() => { const el = document.getElementById('cuSearch'); if (el) { el.value = r.name || ''; renderCustomers(); } }, 220); }
+};
+window._gpSearchClose = function() {
+  const box = document.getElementById('gpSearchResults'); if (box) box.style.display = 'none';
+  const inp = document.getElementById('gpSearch'); if (inp) inp.value = '';
+  _gpLastResults = [];
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#gpSearch') && !e.target.closest('#gpSearchResults')) {
+    const box = document.getElementById('gpSearchResults'); if (box) box.style.display = 'none';
+  }
+});
 
 function renderHeader() {
   document.getElementById('wsName').textContent = userProfile?.workshop_name || 'Workshop';
@@ -6638,6 +6706,11 @@ window.openJobForm = function(id) {
     surveyor_name:       j.surveyor_name || '',
     insurance_notes:     j.insurance_notes || ''
   };
+  // Estimation phase → show ONLY the estimation parts/services; hide the actual
+  // "Parts used" + "Service charges" until the repair is actually running. Keeps
+  // the card focused on the quote while it's still being priced/approved.
+  const _ESTIMATION_STATUSES = ['Awaiting Assignment','Awaiting Approval','Technician Assigned','Inspected','Estimate Sent','Estimate Approved','Estimate Approved (Partial)'];
+  const _jobShowActual = !_ESTIMATION_STATUSES.includes(j.status || 'Awaiting Assignment');
   openModal({
     title: `Job card · ${j.plate || j.id}`,
     body: `
@@ -6680,6 +6753,17 @@ window.openJobForm = function(id) {
         </div>`;
       })()}
 
+      <!-- Customer's note left on the estimate approval link (approve.html) -->
+      ${(() => {
+        const d = j.last_customer_decision;
+        if (!d || !(d.note || '').trim()) return '';
+        const when = d.at ? ' · ' + escapeHtml((d.at || '').slice(0, 16)) : '';
+        return `<div style="margin:14px 0;padding:12px 14px;background:rgba(255,179,71,.06);border:1px solid rgba(255,179,71,.32);border-radius:9px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--acc2);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">💬 Note from the customer${when}</div>
+          <div style="color:var(--txt);font-size:13.5px;line-height:1.55;font-style:italic">“${escapeHtml(d.note)}”</div>
+        </div>`;
+      })()}
+
       <div class="f-row r1">
         <div class="f-grp"><label>Labour notes</label>
           <textarea id="jf-labour" placeholder="What's been done, what's pending, parts needed…">${escapeHtml(j.labour_notes || '')}</textarea></div>
@@ -6718,7 +6802,8 @@ window.openJobForm = function(id) {
         </details>
       </div>
 
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+      ${_jobShowActual ? '' : `<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd);font-size:12.5px;color:var(--faint);line-height:1.5">🧾 <b style="color:var(--dim)">Parts used &amp; service charges</b> appear here once the repair starts (approve the estimate → <b>Start repair</b>). While it's still an estimate, only the blue estimation sections above apply.</div>`}
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)${_jobShowActual ? '' : ';display:none'}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
           <div style="font-family:var(--fd);font-weight:700;font-size:14px">Parts used</div>
           <div style="display:flex;gap:8px;align-items:center">
@@ -6732,7 +6817,7 @@ window.openJobForm = function(id) {
         <div id="jf-parts-rows"></div>
       </div>
 
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)${_jobShowActual ? '' : ';display:none'}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div style="font-family:var(--fd);font-weight:700;font-size:14px">Service charges</div>
           <button type="button" class="mini-btn" onclick="_jobAddCharge()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add charge</button>
@@ -11463,10 +11548,13 @@ async function renderInvoices(force = false) {
     (i.number || '').toLowerCase().includes(q) ||
     (i.vehicle?.plate || '').toLowerCase().includes(q) ||
     (i.customer?.name || '').toLowerCase().includes(q));
-  if (st) list = list.filter(i => (i.status || 'Draft') === st);
+  if (st === '__estimate__')   list = list.filter(i => !!i.is_estimate);
+  else if (st === '__final__') list = list.filter(i => !i.is_estimate);
+  else if (st)                 list = list.filter(i => (i.status || 'Draft') === st);
   list.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  const estCount = all.filter(i => i.is_estimate).length;
   document.getElementById('invCrumb').textContent =
-    `${all.length} invoice${all.length === 1 ? '' : 's'} on file`;
+    `${all.length} on file · ${estCount} estimate${estCount === 1 ? '' : 's'} · ${all.length - estCount} final`;
   document.getElementById('invCount').textContent = list.length;
   const wrap = document.getElementById('invTableWrap');
   if (!list.length) {
@@ -11481,14 +11569,18 @@ async function renderInvoices(force = false) {
     <tbody>${list.map(inv => {
       const total = _invoiceTotals(inv).roundOff;
       const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
+      const typeBadge = inv.is_estimate
+        ? `<span style="font-size:9.5px;font-weight:800;letter-spacing:.05em;padding:2px 7px;border-radius:100px;background:rgba(99,159,255,.16);color:var(--blue);margin-left:6px;vertical-align:middle">ESTIMATE</span>`
+        : `<span style="font-size:9.5px;font-weight:800;letter-spacing:.05em;padding:2px 7px;border-radius:100px;background:rgba(32,227,178,.14);color:var(--teal);margin-left:6px;vertical-align:middle">FINAL</span>`;
       return `<tr>
-        <td class="k">${escapeHtml(inv.number || '—')}</td>
+        <td class="k">${escapeHtml(inv.number || '—')}${typeBadge}</td>
         <td style="white-space:nowrap;font-size:12.5px;color:var(--faint)">${escapeHtml((inv.issue_date || (inv.created_at || '').slice(0, 10)))}</td>
         <td>${escapeHtml(inv.customer?.name || '—')}</td>
         <td>${inv.vehicle?.plate ? `<span class="plate">${escapeHtml(inv.vehicle.plate)}</span>` : '—'}</td>
-        <td class="k" style="white-space:nowrap">${escapeHtml(cur)} ${total.toLocaleString('en-IN')}</td>
+        <td class="k" style="white-space:nowrap">${escapeHtml(cur)} ${total.toLocaleString('en-IN')}${!inv.is_estimate ? (inv.payment_status === 'Paid' ? ' <span style="font-size:9px;font-weight:800;color:var(--teal)">● PAID</span>' : inv.payment_status === 'Partial' ? ' <span style="font-size:9px;font-weight:800;color:var(--acc2)">● PARTIAL</span>' : ' <span style="font-size:9px;font-weight:800;color:var(--red)">● DUE</span>') : ''}</td>
         <td>${statusPill(inv.status || 'Draft')}</td>
         <td><div class="row-act">
+          ${(!inv.is_estimate && inv.status !== 'Cancelled' && inv.payment_status !== 'Paid') ? `<button class="mini-btn" style="border-color:rgba(32,227,178,.5);color:var(--teal)" onclick="_quickMarkPaid('${escapeHtml(inv.id)}')" title="Mark this invoice fully paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M20 6 9 17l-5-5"/></svg>Paid</button>` : ''}
           <button class="mini-btn good" onclick="viewInvoice('${escapeHtml(inv.id)}')" title="View / print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>
           <button class="mini-btn" onclick="openInvoiceForm('${escapeHtml(inv.id)}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
           <button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waInvoice('${escapeHtml(inv.id)}')" title="Send this invoice to the customer on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm0 1.8a8.1 8.1 0 0 1 5.73 13.83A8.1 8.1 0 0 1 6.9 18.7l-.35-.2-2.93.77.78-2.85-.23-.37A8.1 8.1 0 0 1 12.04 3.8zm4.66 11.44c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg></button>
@@ -11499,6 +11591,27 @@ async function renderInvoices(force = false) {
   </table>`;
 }
 window.renderInvoices = renderInvoices;
+
+// One-tap: mark an invoice fully paid (records amount + timestamp, mirrors the
+// payment status onto the linked booking).
+window._quickMarkPaid = async function(invId) {
+  const inv = (D.invoices || []).find(x => x.id === invId);
+  if (!inv) return showToast('Invoice not found', 'bad');
+  const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
+  const total = _invoiceTotals(inv).roundOff;
+  inv.payment_status = 'Paid';
+  inv.amount_paid = total;
+  inv.paid_at = nowStr();
+  if ((inv.status || 'Draft') === 'Draft') inv.status = 'Issued';
+  inv.updated_at = nowStr();
+  const writes = [wsSave('invoices', D.invoices)];
+  const b = inv.booking_id ? (D.bookings || []).find(x => x.id === inv.booking_id) : null;
+  if (b) { b.payment_status = 'Paid'; writes.push(wsSave('bookings', D.bookings)); }
+  audit('invoice-paid', `${inv.number || ''} · ${cur}${total.toLocaleString('en-IN')}`, { invoice_id: inv.id });
+  showToast(`${inv.number || 'Invoice'} marked paid — ${cur}${total.toLocaleString('en-IN')}`, 'good');
+  renderInvoices();
+  await Promise.all(writes);
+};
 
 // Pure-math totals from an invoice record. Mirrors buildInvoiceData but operates
 // on a saved invoice (which carries unit_price + tax_pct inline, so the numbers
