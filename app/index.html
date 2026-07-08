@@ -7960,18 +7960,39 @@ window._printVehicleQR = function(plate, qrText) {
 };
 
 async function saveCustomer(id) {
-  const name  = document.getElementById('cf-name').value.trim();
-  const phone = document.getElementById('cf-phone').value.trim();
-  const email = document.getElementById('cf-email').value.trim();
-  const addr  = document.getElementById('cf-addr').value.trim();
-  const notes = document.getElementById('cf-notes').value.trim();
+  const name       = document.getElementById('cf-name').value.trim();
+  const phone      = document.getElementById('cf-phone').value.trim();
+  const phone2     = document.getElementById('cf-phone2').value.trim();
+  const email      = document.getElementById('cf-email').value.trim();
+  const driverName = document.getElementById('cf-driver').value.trim();
+  const dob        = document.getElementById('cf-dob').value.trim();
+  const addr1      = document.getElementById('cf-addr1').value.trim();
+  const addr2      = document.getElementById('cf-addr2').value.trim();
+  const city       = document.getElementById('cf-city').value.trim();
+  const state      = document.getElementById('cf-state').value.trim();
+  const pincode    = document.getElementById('cf-pin').value.trim();
+  const notes      = document.getElementById('cf-notes').value.trim();
+  const custType   = (document.getElementById('cf-type')?.value || 'individual').trim();
+  const companyName= document.getElementById('cf-company')?.value.trim() || '';
+  const gstin      = document.getElementById('cf-gstin')?.value.trim() || '';
+  const refNo      = document.getElementById('cf-refno')?.value.trim() || '';
   if (!name) throw new Error('Name is required');
   await loadAllData(true);
   // Check for duplicate name when creating new
   if (!id && D.customers.find(c => (c.name || '').toLowerCase() === name.toLowerCase())) {
     throw new Error('A customer with that name already exists');
   }
-  const patch = { name, phone, email, address: addr, notes, vehicles: _editingVehicles.slice(), updated_at: nowStr() };
+  // `address` is kept as a legacy joined string — anything still reading
+  // c.address directly (registry upsert, CSV import, older display code)
+  // keeps working; the granular fields are the source of truth going forward.
+  const address = _customerFullAddress({ addr1, addr2, city, state, pincode });
+  const patch = {
+    name, phone, phone2, email, notes, address,
+    driver_name: driverName, dob,
+    addr1, addr2, city, state, pincode,
+    customer_type: custType, company_name: companyName, gstin, ref_no: refNo,
+    vehicles: _editingVehicles.slice(), updated_at: nowStr()
+  };
   const idx = id ? D.customers.findIndex(c => c.id === id) : -1;
   if (idx >= 0) D.customers[idx] = { ...D.customers[idx], ...patch };
   else          D.customers.push({ id: uid('c'), ...patch, created_at: nowStr() });
@@ -9177,7 +9198,11 @@ async function renderInventory(force = false) {
 window.renderInventory = renderInventory;
 function isLowStock(i) {
   const q = Number(i.qty) || 0;
-  const lo = Number(i.low_stock) || 0;
+  // low_stock_threshold is the canonical field name (matches the job-card
+  // parts picker, the auto-seed-from-received-request path, and the Reports
+  // low-stock card). `low_stock` was a stray alias used only by this form —
+  // fall back to it so any item saved before this fix still reads correctly.
+  const lo = Number(i.low_stock_threshold ?? i.low_stock) || 0;
   return lo > 0 && q <= lo;
 }
 
@@ -9196,7 +9221,7 @@ window.openInventoryForm = function(id) {
       <div class="f-row r3">
         <div class="f-grp"><label>Quantity</label><input id="if-qty" type="number" min="0" step="1" value="${escapeHtml(String(i.qty || 0))}" /></div>
         <div class="f-grp"><label>Unit</label><input id="if-unit" type="text" value="${escapeHtml(i.unit || 'pcs')}" placeholder="pcs, ltrs, kg" /></div>
-        <div class="f-grp"><label>Low-stock threshold</label><input id="if-lo" type="number" min="0" step="1" value="${escapeHtml(String(i.low_stock || 0))}" /></div>
+        <div class="f-grp"><label>Low-stock threshold</label><input id="if-lo" type="number" min="0" step="1" value="${escapeHtml(String(i.low_stock_threshold ?? i.low_stock ?? 0))}" /></div>
       </div>
       <div class="f-row r3">
         <div class="f-grp"><label>Sell price (₹)</label><input id="if-sell" type="number" min="0" step="0.01" value="${escapeHtml(String(i.sell_price || ''))}" /></div>
@@ -9234,7 +9259,7 @@ async function saveInventory(id) {
     category:   document.getElementById('if-cat').value.trim(),
     qty:        Number(document.getElementById('if-qty').value) || 0,
     unit:       document.getElementById('if-unit').value.trim() || 'pcs',
-    low_stock:  Number(document.getElementById('if-lo').value) || 0,
+    low_stock_threshold: Number(document.getElementById('if-lo').value) || 0,
     sell_price: Number(document.getElementById('if-sell').value) || 0,
     cost_price: Number(document.getElementById('if-cost').value) || 0,
     hsn:        document.getElementById('if-hsn').value.trim(),
