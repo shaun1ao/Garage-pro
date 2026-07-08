@@ -9663,6 +9663,16 @@ function _openPartReqDetail(reqId) {
     const priceBlock = (priceVal || costVal)
       ? `<div style="font-size:11.5px;color:var(--dim);margin-top:4px">${costVal ? `Cost: <b style="color:var(--txt)">₹${escapeHtml(costVal)}</b>` : ''}${costVal && priceVal ? ' · ' : ''}${priceVal ? `MRP: <b style="color:var(--txt)">₹${escapeHtml(priceVal)}</b>` : ''}</div>`
       : '';
+    // Quick estimate-price box — separate from the Ordered/Received pipeline
+    // above. Lets the parts dept price an item and push it straight onto the
+    // linked job's estimate in one click, without committing to ordering yet.
+    const estimateBox = (isApprover && it.status !== 'Received' && it.status !== 'Cancelled')
+      ? `<div style="display:flex;gap:6px;align-items:center;margin-top:8px">
+           <span style="font-size:11px;color:var(--faint)">Estimate price ₹</span>
+           <input type="number" min="0" step="1" value="${escapeHtml(priceVal)}" id="pr-est-${escapeHtml(it.id)}" placeholder="0" style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:12.5px" />
+           <button type="button" class="mini-btn good" onclick="_prAddToEstimate('${escapeHtml(reqId)}','${escapeHtml(it.id)}')">Add to estimate</button>
+         </div>`
+      : '';
     return `
       <div style="display:flex;align-items:flex-start;gap:12px;padding:11px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:7px">
         <div style="flex:1;min-width:0">
@@ -9670,6 +9680,7 @@ function _openPartReqDetail(reqId) {
           <div style="margin-top:3px"><span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:100px;background:${tint.bg};color:${tint.fg}">${(it.status || 'PENDING').toUpperCase()}</span></div>
           ${priceBlock}
           ${it.location ? `<div style="font-size:11.5px;color:var(--dim);margin-top:2px">📍 ${escapeHtml(it.location)}</div>` : ''}
+          ${estimateBox}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${buttons}</div>
       </div>`;
@@ -9732,6 +9743,39 @@ window._prConfirmOrdered = async function(reqId, itemId) {
   }
   await setPartStatus(reqId, 'Ordered', itemId, { cost_price: cost, price: mrp });
   closeSubModal();
+};
+
+// Quick, one-click pricing — separate from the Ordered/Received procurement
+// pipeline above. The parts dept types an estimate price and this saves it on
+// the item AND, if the request is linked to a job, pushes it straight onto
+// that job's Estimate section immediately (no need to mark it Ordered first,
+// no separate "From priced request" pull needed on the job card).
+window._prAddToEstimate = async function(reqId, itemId) {
+  if (!canApproveParts()) return showToast('Only the Parts department can set prices', 'bad');
+  const r = D.parts_requests.find(x => x.id === reqId);
+  if (!r) return showToast('Request not found', 'bad');
+  const inp = document.getElementById('pr-est-' + itemId);
+  const n = Number(inp?.value);
+  if (!inp || !Number.isFinite(n) || n <= 0) return showToast('Enter a price greater than 0', 'bad');
+  r.items = _prRequestItems(r);
+  const it = r.items.find(x => x.id === itemId);
+  if (!it) return showToast('Item not found', 'bad');
+  it.price = n;
+  r.updated_at = nowStr();
+  const writes = [wsSave('parts_requests', D.parts_requests)];
+  const job = r.job_id ? (D.jobs || []).find(x => x.id === r.job_id) : null;
+  if (job && _prAutoAddToJobEstimate(r, it)) writes.push(wsSave('jobs', D.jobs));
+  await Promise.all(writes);
+  audit('part-estimate-set', `${it.name} · ₹${n}${r.plate ? ' · ' + r.plate : ''}`, { request_id: reqId, item_id: itemId });
+  showToast(
+    job ? `Added to ${job.plate || 'the'} job's estimate` : (r.job_id ? 'Price saved — linked job not found' : 'Price saved (this request isn\'t linked to a job)'),
+    'good'
+  );
+  await _refreshActivePartsView();
+  if (document.getElementById('gpSubModal')?.classList.contains('open') &&
+      document.querySelector('#gpSubModalBody [data-prid]')?.dataset?.prid === reqId) {
+    _openPartReqDetail(reqId);
+  }
 };
 
 // Prompt for shelf/storage location (required) + supplier/barcode (optional),
