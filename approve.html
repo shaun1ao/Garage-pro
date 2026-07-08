@@ -166,6 +166,7 @@ function render(){
     </div>
 
     <div class="totrow"><span style="color:var(--dim)">Estimate total</span><span class="amt">${fmt(DATA.total)}</span></div>
+    <div style="font-size:12px;color:var(--dim);text-align:right;margin-top:-6px;margin-bottom:14px">All prices are exclusive of GST/VAT/Tax unless otherwise stated.</div>
 
     <textarea class="note" id="note" placeholder="Anything you'd like to tell the workshop? (optional)"></textarea>
 
@@ -219,7 +220,7 @@ window.viewQuote = function(){
         <tr class="tot"><td colspan="2">Estimate total</td><td>${esc(fmt(DATA.total))}</td></tr>
       </tbody>
     </table>
-    <div class="note">This is an estimate, not a final bill. Only the items you approve will be carried out and billed. Prices include applicable tax.</div>
+    <div class="note">This is an estimate, not a final bill. Only the items you approve will be carried out and billed. All prices are exclusive of GST/VAT/Tax unless otherwise stated.</div>
   </body></html>`;
   try {
     const url = URL.createObjectURL(new Blob([html], { type:'text/html' }));
