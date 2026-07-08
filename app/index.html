@@ -1095,7 +1095,6 @@ input[list]{background:var(--bg2)}
             <option value="out">Out of stock</option>
             <option value="in">In stock</option>
           </select>
-          <button class="refresh-btn" onclick="_scanShelfFilterInventory()" title="Scan a shelf label to see everything stored there"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h6v6M15 18h.01M18 15v.01"/></svg>Scan shelf</button>
           <button class="refresh-btn" onclick="document.getElementById('ivSearch').value='';document.getElementById('ivCat').value='';document.getElementById('ivStock').value='';renderInventory()">Clear</button>
           <span class="pill"><b id="ivCount">0</b>&nbsp;items</span>
         </div>
@@ -9449,17 +9448,6 @@ function _renderVehiclePartsLookup(plateNorm) {
   </div>`;
 }
 
-// Scan a shelf label in the Inventory tab → set the search box to that
-// shelf's name so the existing location-match filter shows everything on it.
-window._scanShelfFilterInventory = function() {
-  openScanner('shelf-location', (code) => {
-    const shelf = _shelfByCode(code);
-    if (!shelf) return customAlert(`"${code}" isn't a known shelf label.`, { title: 'Shelf not found' });
-    const inp = document.getElementById('ivSearch');
-    if (inp) { inp.value = shelf.name; renderInventory(); }
-    showToast(`Showing items on ${shelf.name}`, 'good');
-  }, 'Scan a shelf label');
-};
 
 window.openInventoryForm = function(id) {
   if (!canApproveParts()) return showToast('Only Parts department / Owner can manage inventory', 'bad');
@@ -9484,12 +9472,8 @@ window.openInventoryForm = function(id) {
         <div class="f-grp"><label>Cost price (₹)</label><input id="if-cost" type="number" min="0" step="0.01" value="${escapeHtml(String(i.cost_price || ''))}" /></div>
         <div class="f-grp"><label>HSN / SAC</label><input id="if-hsn" type="text" value="${escapeHtml(i.hsn || '')}" placeholder="e.g. 87082900" /></div>
       </div>
-      <datalist id="dlShelfLoc">${shelfLocations().map(s => `<option value="${escapeHtml(s.name)}">`).join('')}</datalist>
       <div class="f-row">
-        <div class="f-grp"><label>Storage location</label>
-          <div style="display:flex;gap:8px"><input list="dlShelfLoc" id="if-loc" type="text" value="${escapeHtml(i.location || '')}" placeholder="Rack 3, Bin B" style="flex:1" />
-          <button type="button" class="mini-btn" onclick="_scanShelfIntoField('if-loc')" title="Scan a shelf label to fill this in" style="padding:11px 14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h6v6M15 18h.01M18 15v.01"/></svg>Scan</button></div>
-        </div>
+        <div class="f-grp"><label>Storage location</label><input id="if-loc" type="text" value="${escapeHtml(i.location || '')}" placeholder="Rack 3, Bin B" /></div>
         <div class="f-grp"><label>Supplier</label><input id="if-sup" type="text" value="${escapeHtml(i.supplier || '')}" placeholder="Bosch India Pvt Ltd" /></div>
       </div>
       <div class="f-row r1">
@@ -9509,17 +9493,6 @@ window._scanIntoInventoryField = function() {
     if (inp) { inp.value = code; inp.focus(); }
     showToast(`Barcode ${code} filled in`, 'good');
   }, 'Scan to fill barcode');
-};
-// Scan a shelf label (SHELF-<code>) and fill its name into any location field.
-// Shared by the Inventory form and the Receive-parts prompt.
-window._scanShelfIntoField = function(fieldId) {
-  openScanner('shelf-location', (code) => {
-    const shelf = _shelfByCode(code);
-    const inp = document.getElementById(fieldId);
-    if (!shelf) return customAlert(`"${code}" isn't a known shelf label. Add it in Settings → Shelf locations first, or type the location manually.`, { title: 'Shelf not found' });
-    if (inp) { inp.value = shelf.name; inp.focus(); }
-    showToast(`${shelf.name} filled in`, 'good');
-  }, 'Scan a shelf label');
 };
 async function saveInventory(id) {
   if (!canApproveParts()) throw new Error('Only Parts department / Owner can manage inventory');
@@ -9774,11 +9747,8 @@ window._prMarkReceived = async function(reqId, itemId) {
   _openSubModal({
     title: `Receive · ${it.name}`,
     bodyHtml: `
-      <datalist id="dlShelfLocRecv">${shelfLocations().map(s => `<option value="${escapeHtml(s.name)}">`).join('')}</datalist>
       <div class="f-grp"><label>Shelf / storage location <span class="req">*</span></label>
-        <div style="display:flex;gap:8px"><input list="dlShelfLocRecv" id="pr-loc" type="text" placeholder="Rack 3, Bin B" autofocus style="flex:1" />
-        <button type="button" class="mini-btn" onclick="_scanShelfIntoField('pr-loc')" title="Scan a shelf label to fill this in" style="padding:11px 14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h6v6M15 18h.01M18 15v.01"/></svg>Scan</button></div>
-      </div>
+        <input id="pr-loc" type="text" placeholder="Rack 3, Bin B" autofocus /></div>
       <div class="f-row">
         <div class="f-grp"><label>Supplier (optional)</label><input id="pr-sup" type="text" placeholder="Bosch India Pvt Ltd" /></div>
         <div class="f-grp"><label>Barcode (optional)</label>
@@ -10146,7 +10116,12 @@ function _prRequestItems(r) {
       // Preserve the estimated price — was being stripped here, which wiped
       // every saved estimate on the next normalize pass.
       price:      (it.price == null || it.price === '') ? null : Number(it.price),
-      cost_price: (it.cost_price == null || it.cost_price === '') ? null : Number(it.cost_price)
+      cost_price: (it.cost_price == null || it.cost_price === '') ? null : Number(it.cost_price),
+      // Same story for the shelf location/supplier/barcode captured at
+      // Received — these were being silently dropped on every re-normalize
+      // (e.g. setPartStatus reassigns r.items = _prRequestItems(r) at its
+      // very first line), which erased them right after being set.
+      location: it.location || '', supplier: it.supplier || '', barcode: it.barcode || ''
     }));
   }
   if (r.part_name) {
@@ -10154,7 +10129,8 @@ function _prRequestItems(r) {
       id:      'legacy', name: r.part_name, qty: Number(r.qty || 1),
       status:  _prMigrateStatus(r.status), stocked: !!r.stocked,
       price:      (r.price == null || r.price === '') ? null : Number(r.price),
-      cost_price: (r.cost_price == null || r.cost_price === '') ? null : Number(r.cost_price)
+      cost_price: (r.cost_price == null || r.cost_price === '') ? null : Number(r.cost_price),
+      location: r.location || '', supplier: r.supplier || '', barcode: r.barcode || ''
     }];
   }
   return [];
@@ -10496,28 +10472,6 @@ async function renderSettings(force = false) {
           <button class="refresh-btn" onclick="_addServiceType()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add service type</button>
         </div>
         <div id="sf-svctype-msg" style="margin-top:8px;font-size:12.5px;min-height:14px"></div>
-      </div>
-
-      <!-- ──────────────────────────────────────────────────────────────────
-           Shelf locations — named storage spots with a printable barcode.
-           Scanning a shelf's barcode (in Inventory or when receiving parts)
-           auto-fills that location, or shows everything stored there.
-           ────────────────────────────────────────────────────────────── -->
-      <div class="card" style="padding:18px">
-        <h3 style="margin:0 0 6px">Shelf locations</h3>
-        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Name your storage spots (racks, bins, shelves) and print a barcode for each. Scan a shelf's barcode when receiving a part to fill in its location instantly, or scan it in Inventory to see everything stored there.</div>
-        <div id="sf-shelf-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-          ${(D.settings?.shelf_locations || []).map(s => `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px">
-            <div style="flex:1"><b style="font-size:13.5px">${escapeHtml(s.name)}</b> <span style="color:var(--faint);font-size:11.5px;font-family:'Courier New',monospace">${escapeHtml(s.code)}</span></div>
-            <button type="button" class="mini-btn" onclick="_showShelfQR('${escapeHtml(s.id)}')">Print label</button>
-            <button type="button" class="mini-btn danger" onclick="_removeShelfLocation('${escapeHtml(s.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
-          </div>`).join('') || `<div style="padding:12px;color:var(--faint);text-align:center;font-size:12.5px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px">No shelf locations yet.</div>`}
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="text" id="sf-shelf-new" placeholder="e.g. Rack 3, Bin B" style="flex:1;min-width:200px;padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb)" onkeydown="if(event.key==='Enter'){event.preventDefault();_addShelfLocation();}" />
-          <button class="refresh-btn" onclick="_addShelfLocation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add location</button>
-        </div>
-        <div id="sf-shelf-msg" style="margin-top:8px;font-size:12.5px;min-height:14px"></div>
       </div>
 
       <!-- Role permissions -->
@@ -11068,98 +11022,6 @@ window._removeServiceType = async function(name) {
   await wsSaveSettings();
   showToast('Removed "' + name + '"', 'good');
   _renderServiceTypesList();
-};
-
-// ══════════════════════════════════════════════════════════════════════════
-//  SHELF LOCATIONS — named storage spots with a printable barcode. Scanning
-//  a shelf's code (format SHELF-<code>) auto-fills the location field when
-//  receiving parts, or filters Inventory to everything stored there.
-// ══════════════════════════════════════════════════════════════════════════
-function shelfLocations() { return (D.settings && D.settings.shelf_locations) || []; }
-window.shelfLocations = shelfLocations;
-function _shelfByCode(code) {
-  const norm = (code || '').trim().toUpperCase().replace(/^SHELF-/, '');
-  return shelfLocations().find(s => s.code === norm) || null;
-}
-window._shelfByCode = _shelfByCode;
-
-window._addShelfLocation = async function() {
-  const input = document.getElementById('sf-shelf-new');
-  const msg   = document.getElementById('sf-shelf-msg');
-  const name  = (input?.value || '').trim();
-  msg.style.color = 'var(--red)';
-  if (!name)            { msg.textContent = 'Name the shelf location first.'; return; }
-  if (name.length > 40) { msg.textContent = 'Keep the name under 40 characters.'; return; }
-  const current = shelfLocations();
-  if (current.some(s => s.name.toLowerCase() === name.toLowerCase())) {
-    msg.textContent = '"' + name + '" already exists.'; return;
-  }
-  D.settings = D.settings || {};
-  // Short, scan-friendly code — sequential so labels stay compact.
-  const code = 'SH' + String(current.length + 1).padStart(3, '0');
-  D.settings.shelf_locations = [...current, { id: uid('shelf'), name, code }];
-  await wsSaveSettings();
-  showToast('Added "' + name + '"', 'good');
-  msg.textContent = '';
-  await renderSettings(true);
-};
-
-window._removeShelfLocation = async function(id) {
-  if (!(await customConfirm('Remove this shelf location? Inventory items already using it keep the text label — you just won\'t be able to scan/reselect it.', { title: 'Remove shelf location', okLabel: 'Remove' }))) return;
-  D.settings = D.settings || {};
-  D.settings.shelf_locations = shelfLocations().filter(s => s.id !== id);
-  await wsSaveSettings();
-  showToast('Removed', 'good');
-  await renderSettings(true);
-};
-
-// Printable barcode label for one shelf location — same QR flow as vehicle
-// stickers, encoding SHELF-<code> so the scanner can tell it apart from a
-// part barcode or a vehicle QR.
-window._showShelfQR = async function(id) {
-  const s = shelfLocations().find(x => x.id === id);
-  if (!s) return showToast('Shelf location not found', 'bad');
-  const qrText = 'SHELF-' + s.code;
-  _openSubModal({
-    title: `${s.name} — shelf label`,
-    bodyHtml: `
-      <div style="text-align:center;padding:6px 0">
-        <div style="background:#fff;display:inline-block;padding:18px;border-radius:14px;box-shadow:0 8px 24px -6px rgba(0,0,0,.6)">
-          <div id="shelfQrTarget" style="display:inline-block;min-width:220px;min-height:220px"></div>
-          <div style="margin-top:14px;font-family:'Courier New',monospace;font-size:13px;color:#1a1a1a;font-weight:700">${escapeHtml(s.name)}</div>
-          <div style="margin-top:2px;font-family:'Courier New',monospace;font-size:11px;color:#6b7888">${escapeHtml(qrText)}</div>
-        </div>
-        <div id="shelfQrStatus" style="margin-top:12px;font-size:12.5px;color:var(--faint)">Loading QR library…</div>
-        <div style="margin-top:8px;font-size:13px;color:var(--dim);line-height:1.5">Stick this on the shelf/rack/bin. Scan it while receiving parts to fill in the location, or in Inventory to see everything stored here.</div>
-      </div>`,
-    footHtml: `<div style="flex:1"></div>
-      <button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>
-      <button class="fbtn fbtn-save" id="shelfQrPrintBtn" disabled>Print</button>`
-  });
-  try {
-    await ensureQR();
-    const target = document.getElementById('shelfQrTarget');
-    target.innerHTML = '';
-    new QRCode(target, { text: qrText, width: 220, height: 220, colorDark: '#0a0e14', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
-    document.getElementById('shelfQrStatus').textContent = 'Ready — print and stick it on the shelf.';
-    const printBtn = document.getElementById('shelfQrPrintBtn');
-    printBtn.disabled = false;
-    printBtn.onclick = () => {
-      const canvas = target.querySelector('canvas');
-      const dataUrl = canvas ? canvas.toDataURL('image/png') : (target.querySelector('img') || {}).src;
-      if (!dataUrl) return showToast('QR not ready yet', 'bad');
-      const w = window.open('', '_blank');
-      if (!w) return showToast('Allow pop-ups to print', 'bad');
-      _openDocInWindow(w, `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(s.name)}</title>
-        <style>@page{size:auto;margin:10mm}body{font-family:-apple-system,sans-serif;text-align:center;padding:20px}img{width:220px;height:220px}
-        .name{font-size:16px;font-weight:800;margin-top:12px}.code{font-family:'Courier New',monospace;font-size:12px;color:#555;margin-top:2px}</style>
-        </head><body><img src="${dataUrl}"/><div class="name">${escapeHtml(s.name)}</div><div class="code">${escapeHtml(qrText)}</div>
-        <script>setTimeout(()=>{window.print();},350)<\/script></body></html>`);
-    };
-  } catch (e) {
-    console.error('Shelf QR load failed:', e);
-    document.getElementById('shelfQrStatus').innerHTML = `<span style="color:var(--red)">Couldn't load QR library — check your internet connection and try again.</span>`;
-  }
 };
 
 // ─── Customer-email settings ─────────────────────────────────────
