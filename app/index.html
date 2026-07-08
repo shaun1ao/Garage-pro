@@ -760,6 +760,11 @@ input[list]{background:var(--bg2)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
           Notifications
         </button>
+        <button class="snav" data-tab="chat" onclick="switchTab('chat')" style="position:relative">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Chat
+          <span id="chatNavBadge" style="display:none;margin-left:auto;background:var(--red,#ff6b6b);color:#fff;font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:100px"></span>
+        </button>
         <button class="snav" data-tab="_newbk" onclick="switchTab('bookings'); setTimeout(()=>openBookingForm(),200)">
           <svg class="snav-icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           New Appointment
@@ -767,10 +772,6 @@ input[list]{background:var(--bg2)}
         <button class="snav" data-tab="bookings" onclick="switchTab('bookings')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h6"/></svg>
           Appointments
-        </button>
-        <button class="snav" data-tab="checkin" onclick="switchTab('checkin')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          Check-in
         </button>
         <button class="snav" data-tab="jobs" onclick="switchTab('jobs')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
@@ -904,6 +905,7 @@ input[list]{background:var(--bg2)}
           <div><h2>Appointments</h2><div class="dash-meta"><span class="live-dot"></span><span id="bkCrumb">—</span></div></div>
           <div style="display:flex;gap:8px">
             <button class="refresh-btn" onclick="renderBookings(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+            <button class="add-btn" onclick="openWalkin()" style="background:var(--teal,#20e3b2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Walk-in</button>
             <button class="add-btn" onclick="openBookingForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New appointment</button>
           </div>
         </div>
@@ -927,28 +929,6 @@ input[list]{background:var(--bg2)}
         </div>
         <div id="bkTableWrap"></div>
         <div id="bkCalendarWrap" style="display:none"></div>
-      </div>
-      <div class="tab-panel" id="tab-checkin">
-        <div class="page-head">
-          <div><h2>Check-in</h2><div class="dash-meta"><span class="live-dot"></span><span id="ciCrumb">—</span></div></div>
-          <div style="display:flex;gap:8px">
-            <button class="refresh-btn" onclick="renderCheckin(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
-            <button class="add-btn" onclick="openWalkin()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Walk-in</button>
-          </div>
-        </div>
-        <div class="toolbar">
-          <input type="date" id="ciDate" onchange="renderCheckin()" />
-          <span class="pill">Awaiting arrival: <b id="ciAwaitCount">0</b></span>
-          <span class="pill">In workshop: <b id="ciInCount">0</b></span>
-        </div>
-        <div class="section">
-          <div class="section-h"><h3>Awaiting arrival</h3><span class="meta" id="ciAwaitMeta"></span></div>
-          <div class="section-body"><div id="ciAwaitWrap"></div></div>
-        </div>
-        <div class="section">
-          <div class="section-h"><h3>Currently in workshop</h3><span class="meta" id="ciInMeta"></span></div>
-          <div class="section-body"><div id="ciInWrap"></div></div>
-        </div>
       </div>
       <div class="tab-panel" id="tab-jobs">
         <div class="page-head">
@@ -1103,11 +1083,11 @@ input[list]{background:var(--bg2)}
           <div><h2>Inventory</h2><div class="dash-meta"><span class="live-dot"></span><span id="ivCrumb">—</span></div></div>
           <div style="display:flex;gap:8px">
             <button class="refresh-btn" onclick="renderInventory(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
-            <button class="add-btn" onclick="openInventoryForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add item</button>
+            <button id="ivAddBtn" class="add-btn" onclick="openInventoryForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add item</button>
           </div>
         </div>
         <div class="toolbar">
-          <input type="text" id="ivSearch" placeholder="Search name, category, supplier, barcode…" oninput="renderInventory()" />
+          <input type="text" id="ivSearch" placeholder="Search name, category, supplier, barcode, or a plate number…" oninput="renderInventory()" />
           <select id="ivCat" onchange="renderInventory()"><option value="">All categories</option></select>
           <select id="ivStock" onchange="renderInventory()">
             <option value="">Any stock</option>
@@ -1115,9 +1095,11 @@ input[list]{background:var(--bg2)}
             <option value="out">Out of stock</option>
             <option value="in">In stock</option>
           </select>
+          <button class="refresh-btn" onclick="_scanShelfFilterInventory()" title="Scan a shelf label to see everything stored there"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h6v6M15 18h.01M18 15v.01"/></svg>Scan shelf</button>
           <button class="refresh-btn" onclick="document.getElementById('ivSearch').value='';document.getElementById('ivCat').value='';document.getElementById('ivStock').value='';renderInventory()">Clear</button>
           <span class="pill"><b id="ivCount">0</b>&nbsp;items</span>
         </div>
+        <div id="ivVehicleParts"></div>
         <div id="ivTableWrap"></div>
       </div>
       <div class="tab-panel" id="tab-timesheets">
@@ -1194,6 +1176,26 @@ input[list]{background:var(--bg2)}
           </select>
         </div>
         <div id="ntList"></div>
+      </div>
+      <div class="tab-panel" id="tab-chat">
+        <div class="page-head">
+          <div><h2>Chat</h2><div class="dash-meta"><span class="live-dot"></span><span id="chatCrumb">—</span></div></div>
+        </div>
+        <div style="display:flex;gap:14px;height:min(70vh,640px);min-height:420px">
+          <div style="width:260px;flex:none;border:1px solid var(--brd);border-radius:12px;overflow:auto;background:var(--surf)">
+            <div id="chatContactList"></div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;border:1px solid var(--brd);border-radius:12px;overflow:hidden;background:var(--surf)">
+            <div id="chatThreadHeader" style="padding:12px 16px;border-bottom:1px solid var(--brd);font-family:var(--fd);font-weight:700;font-size:14px;color:var(--faint)">Pick someone to message</div>
+            <div id="chatThreadBody" style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:8px"></div>
+            <div id="chatInputWrap" style="display:none;padding:10px;border-top:1px solid var(--brd);gap:8px">
+              <div style="display:flex;gap:8px">
+                <input type="text" id="chatInput" placeholder="Type a message…" style="flex:1;padding:11px 14px;border-radius:100px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" onkeydown="if(event.key==='Enter'){event.preventDefault();_chatSend();}" />
+                <button class="add-btn" style="border-radius:100px;padding:11px 18px" onclick="_chatSend()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="tab-panel" id="tab-audit">
         <div class="page-head">
@@ -1374,6 +1376,18 @@ function departments() {
   return list.filter(s => String(s || '').trim());
 }
 window.departments = departments;
+
+// Legacy flat fallback — used for any department that hasn't been given its
+// own custom service types yet in Settings.
+const _LEGACY_SERVICES = ['Oil change','Brake job','Tyre change','Diagnosis','General service','Paint job','Other','Body & Paint','Insurance Claim','Inspection'];
+// Service types are scoped per department (Settings → Service types), e.g.
+// Service Department → Minor/Major Service, Body Shop → Dent Repair/Paint.
+function serviceTypesFor(dept) {
+  const map = (D.settings && D.settings.service_types) || {};
+  const list = map[dept];
+  return (Array.isArray(list) && list.length) ? list : _LEGACY_SERVICES;
+}
+window.serviceTypesFor = serviceTypesFor;
 
 // ──────────────────────────────────────────────────────────────────────────
 //  PUBLIC TRACKING MIRROR
@@ -2419,17 +2433,24 @@ function renderHeader() {
 // ══════════════════════════════════════════
 // Defaults if the workshop hasn't customised role permissions yet.
 // Owner always sees everything regardless of what's stored.
+// Check-in is no longer a standalone tab — it's an action on the Appointments
+// row (openCheckinForm) — so 'checkin' is gone from every role's tab list.
+// 'chat' (basic internal messaging) is available to every role — it's just
+// text between staff, no financial/customer data, so no gating needed.
 const DEFAULT_ROLE_PERMS = {
-  owner:         ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','timesheets','notifications','audit','settings'],
-  manager:       ['dashboard','bookings','checkin','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','timesheets','notifications','audit'],
-  floor_manager: ['dashboard','checkin','jobs','queue','customers','bays','inventory','request_parts','parts','notifications','timesheets'],
+  owner:         ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','timesheets','notifications','chat','audit','settings'],
+  manager:       ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','timesheets','notifications','chat','audit'],
+  floor_manager: ['dashboard','bookings','jobs','queue','customers','bays','inventory','request_parts','parts','notifications','chat','timesheets'],
   // Service advisor — owns customer-facing intake, job cards, estimates, QC hand-off and invoices.
-  service_advisor: ['dashboard','bookings','checkin','jobs','queue','customers','bays','invoices','notifications','timesheets'],
+  // 'parts' (Manage Requests) added so the Service Advisor can see requests
+  // they're now notified about — it renders read-only for them (ordering /
+  // receiving stays Parts department + owner/manager only, see canApproveParts()).
+  service_advisor: ['dashboard','bookings','jobs','queue','customers','bays','invoices','parts','notifications','chat','timesheets'],
   // Parts department — owns the manage/approve side (approve / price / order / fulfil → stocks the item) plus can request.
-  parts_dept:    ['dashboard','inventory','request_parts','parts','notifications','timesheets'],
-  receptionist:  ['dashboard','bookings','checkin','queue','customers','invoices','notifications','timesheets'],
+  parts_dept:    ['dashboard','inventory','request_parts','parts','notifications','chat','timesheets'],
+  receptionist:  ['dashboard','bookings','queue','customers','invoices','notifications','chat','timesheets'],
   // Mechanics can REQUEST parts only — they don't get the Manage Requests tab.
-  mechanic:      ['dashboard','checkin','jobs','queue','bays','inventory','request_parts','notifications','timesheets']
+  mechanic:      ['dashboard','bookings','jobs','queue','bays','inventory','request_parts','notifications','chat','timesheets']
 };
 const ADMIN_ROLES = ['owner','manager'];
 
@@ -2478,7 +2499,7 @@ function renderSidebarVisibility() {
   });
   // If the active tab is no longer allowed, jump to dashboard (or first allowed)
   if (currentTab && !canSee(currentTab)) {
-    const fallback = ['dashboard','checkin','jobs','timesheets'].find(t => canSee(t)) || 'dashboard';
+    const fallback = ['dashboard','bookings','jobs','timesheets'].find(t => canSee(t)) || 'dashboard';
     if (fallback !== currentTab) switchTab(fallback);
   }
 }
@@ -2492,7 +2513,6 @@ window.switchTab = function(tab) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
   if (tab === 'dashboard') renderDashboard();
   if (tab === 'bookings')  renderBookings();
-  if (tab === 'checkin')   renderCheckin();
   if (tab === 'jobs')      renderJobs();
   if (tab === 'customers') renderCustomers();
   if (tab === 'workers')   renderWorkers();
@@ -2755,14 +2775,15 @@ async function loadAllData(force = false) {
   // live subscriptions, not polling.
   if (!force && D.loadedAt && (Date.now() - D.loadedAt < 30000)) return;
   _loadingPromise = (async () => {
-    const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, invoices, audit, vehicleDBArr, notifications, settingsArr] =
+    const [bookings, bays, jobs, queue, customers, mechanics, inventory, timesheets, parts_requests, invoices, audit, vehicleDBArr, notifications, settingsArr, chatMessages] =
       await Promise.all([
         wsLoad('bookings'), wsLoad('bays'),     wsLoad('jobs'),
         wsLoad('queue'),    wsLoad('customers'),wsLoad('mechanics'),
         wsLoad('inventory'),wsLoad('timesheets'),wsLoad('parts_requests'),
         wsLoad('invoices'), wsLoad('audit'),    wsLoad('vehicleDB'),
         wsLoad('notifications'),
-        wsLoad('settings')
+        wsLoad('settings'),
+        wsLoad('chat_messages')
       ]);
     // vehicleDB is a single object wrapped as { db: {...} } inside the items array
     D.vehicleDB      = (vehicleDBArr && vehicleDBArr[0] && vehicleDBArr[0].db) || null;
@@ -2779,6 +2800,7 @@ async function loadAllData(force = false) {
     D.invoices       = invoices       || [];
     D.audit          = audit          || [];
     D.settings       = (settingsArr && settingsArr[0]) || {};
+    D.chat_messages  = chatMessages   || [];
     D.loadedAt       = Date.now();
   })();
   try { await _loadingPromise; }
@@ -2800,7 +2822,8 @@ let _liveSubs = [];          // active unsubscribe handles
 let _renderCoalesce = null;  // debounce timer
 const LIVE_COLLECTIONS = [
   'bookings','bays','jobs','queue','customers','mechanics','inventory',
-  'timesheets','parts_requests','invoices','audit','notifications','settings','vehicleDB'
+  'timesheets','parts_requests','invoices','audit','notifications','settings','vehicleDB',
+  'chat_messages'
 ];
 
 function subscribeLiveCollections() {
@@ -2846,7 +2869,6 @@ function _coalesceRerender() {
       const t = currentTab;
       if      (t === 'dashboard')     renderDashboard && renderDashboard();
       else if (t === 'bookings')      renderBookings && renderBookings();
-      else if (t === 'checkin')       renderCheckin && renderCheckin();
       else if (t === 'jobs')          renderJobs && renderJobs();
       else if (t === 'queue')         renderQueue && renderQueue();
       else if (t === 'customers')     renderCustomers && renderCustomers();
@@ -2860,6 +2882,9 @@ function _coalesceRerender() {
       else if (t === 'notifications') renderNotifications && renderNotifications();
       else if (t === 'audit')         renderAudit && renderAudit();
       else if (t === 'settings')      renderSettings && renderSettings();
+      else if (t === 'chat')          renderChat && renderChat();
+      // Chat badge should update no matter which tab is open
+      if (typeof _renderChatBadge === 'function') _renderChatBadge();
     } catch (e) { console.warn('[live rerender]', e); }
   }, 250);
 }
@@ -2992,14 +3017,14 @@ async function renderDashboard(force = false) {
     // sort by time ascending
     expected.sort((a,b) => (a.time||'').localeCompare(b.time||''));
     tExp.innerHTML = `<thead><tr>
-      <th>Time</th><th>Plate</th><th>Customer</th><th>Service</th><th>Bay type</th><th>Mechanic</th>
+      <th>Time</th><th>Plate</th><th>Customer</th><th>Service</th><th>Bay type</th><th>Floor manager</th>
     </tr></thead><tbody>${expected.map(b => `<tr>
       <td class="k">${escapeHtml(b.time || '—')}</td>
       <td><span class="plate">${escapeHtml(b.plate || '—')}</span></td>
       <td class="k">${escapeHtml(b.cust_name || '—')}</td>
       <td>${escapeHtml(b.service || '—')}</td>
       <td>${escapeHtml(b.bay_type || '—')}</td>
-      <td>${escapeHtml(b.mechanic || '—')}</td>
+      <td>${escapeHtml(b.floor_manager || '—')}</td>
     </tr>`).join('')}</tbody>`;
   }
 
@@ -3022,17 +3047,17 @@ async function renderDashboard(force = false) {
         <td class="k">${escapeHtml(b.cust_name || '—')}</td>
         <td>${escapeHtml(b.bay_name || (b.bay_type ? b.bay_type + ' · ' + (b.bay_num || '') : '—'))}</td>
         <td>${statusPill(jstatus)}</td>
-        <td>${escapeHtml(b.mechanic || job?.mechanic || '—')}</td>
+        <td>${escapeHtml(job?.mechanic || b.floor_manager || '—')}</td>
         <td><div class="row-act">
           <button class="mini-btn" onclick="_dashGoToBooking('${escapeHtml(b.id)}')" title="Edit this appointment">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 12h18M15 5l7 7-7 7"/></svg>Open
           </button>
-          <button class="mini-btn good" onclick="_dashInvoice('${escapeHtml(b.id)}')" title="Generate / open invoice for this booking">
+          ${isServiceAdvisorRole() ? `<button class="mini-btn good" onclick="_dashInvoice('${escapeHtml(b.id)}')" title="Generate / open invoice for this booking">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Invoice
           </button>
           <button class="mini-btn danger" onclick="_dashCheckout('${escapeHtml(b.id)}')" title="Check vehicle out">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Check out
-          </button>
+          </button>` : ''}
         </div></td>
       </tr>`;
     }).join('')}</tbody>`;
@@ -3045,12 +3070,13 @@ window._dashGoToBooking = function(bookingId) {
   setTimeout(() => openBookingForm(bookingId), 200);
 };
 window._dashCheckout = function(bookingId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can check out vehicles', 'bad');
   const b = D.bookings.find(x => x.id === bookingId);
   if (!b) return showToast('Appointment not found', 'bad');
   if (b.status !== 'Arrived') {
     return showToast('Car must be checked in before it can be checked out', 'bad');
   }
-  switchTab('checkin');
+  switchTab('bookings');
   setTimeout(() => openCheckoutForm(bookingId), 200);
 };
 window._dashInvoice = async function(bookingId) {
@@ -3788,7 +3814,7 @@ async function renderBookings(force = false) {
   wrap.innerHTML = `<table class="list-tbl">
     <thead><tr>
       <th>Appt #</th><th>Date</th><th>Time</th><th>Plate</th><th>Customer</th>
-      <th>Service</th><th>Mechanic</th><th>Status</th><th style="text-align:right">Actions</th>
+      <th>Service</th><th>Floor manager</th><th>Status</th><th style="text-align:right">Actions</th>
     </tr></thead>
     <tbody>${list.map(b => {
       const status = b.status || 'Scheduled';
@@ -3802,9 +3828,10 @@ async function renderBookings(force = false) {
         <td><span class="plate">${escapeHtml(b.plate || '—')}</span></td>
         <td class="k">${escapeHtml(b.cust_name || '—')}</td>
         <td>${escapeHtml(b.service || '—')}</td>
-        <td>${escapeHtml(b.mechanic || '—')}</td>
+        <td>${escapeHtml(b.floor_manager || '—')}</td>
         <td>${statusPill(status)}</td>
         <td><div class="row-act">
+          ${status === 'Scheduled' ? `<button class="mini-btn good" onclick="openCheckinForm('${escapeHtml(b.id)}')" title="Check in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Check in</button>` : ''}
           <button class="mini-btn" onclick="openBookingForm('${escapeHtml(b.id)}')" title="Edit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit
           </button>
@@ -3815,6 +3842,7 @@ async function renderBookings(force = false) {
                 : '')}
           ${b.cust_email ? `<button class="mini-btn" onclick="emailBookingCustomer('${escapeHtml(b.id)}')" title="Email ${escapeHtml(b.cust_email)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email</button>` : ''}
           ${canCancel ? `<button class="mini-btn danger" onclick="cancelBooking('${escapeHtml(b.id)}')" title="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Cancel</button>` : ''}
+          ${isAdminRole() ? `<button class="mini-btn danger" onclick="deleteBooking('${escapeHtml(b.id)}')" title="Delete permanently"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>` : ''}
         </div></td>
       </tr>`;
     }).join('')}</tbody>
@@ -3929,12 +3957,23 @@ function _bkRenderCalendar() {
 // without losing focus.
 let _editingBooking = null;
 
+// Department changed on the appointment form → repopulate Service type with
+// that department's custom list (Settings → Service types).
+window._bookingServiceTypesRefresh = function() {
+  const deptSel = document.getElementById('bf-dept');
+  const svcSel  = document.getElementById('bf-service');
+  if (!deptSel || !svcSel) return;
+  const current = svcSel.value;
+  const list = serviceTypesFor(deptSel.value);
+  svcSel.innerHTML = list.map(s => `<option value="${escapeHtml(s)}" ${s === current ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+};
+
 function _bookingFormHTML(b) {
   const bayTypes = (D.settings.bay_defs || [])
     .map(t => typeof t === 'string' ? t : (t.name || ''))
     .filter(Boolean);
-  const services = (D.settings.services && D.settings.services.length)
-    ? D.settings.services : ['Oil change','Brake job','Tyre change','Diagnosis','General service','Paint job','Other','Body & Paint','Insurance Claim','Inspection'];
+  const currentDept = b.department || departments()[0];
+  const services = serviceTypesFor(currentDept);
   const today = todayStr();
   // Try to split an existing plate "TS09 AB 1234" → state code "TS" + rest "09 AB 1234"
   const platePrefix = b.plate_state || (b.plate || '').slice(0, 2).toUpperCase();
@@ -4006,8 +4045,8 @@ function _bookingFormHTML(b) {
     </div>
     <div class="f-row r3">
       <div class="f-grp"><label>Department <span class="req">*</span></label>
-        <select id="bf-dept">
-          ${departments().map(d => `<option value="${escapeHtml(d)}" ${(b.department || departments()[0]) === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
+        <select id="bf-dept" onchange="_bookingServiceTypesRefresh()">
+          ${departments().map(d => `<option value="${escapeHtml(d)}" ${currentDept === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
         </select>
         <span class="hint" style="display:block;font-size:11px;color:var(--faint);margin-top:4px">Used to route the job to the right floor manager</span>
       </div>
@@ -4026,8 +4065,8 @@ function _bookingFormHTML(b) {
       <div class="f-grp"></div><div class="f-grp"></div>
     </div>
     <div class="f-row r3">
-      <div class="f-grp"><label>Mechanic</label>
-        <input list="dlMechanics" id="bf-mech" type="text" value="${escapeHtml(b.mechanic || '')}" placeholder="Unassigned" /></div>
+      <div class="f-grp"><label>Floor manager</label>
+        <input list="dlFloorManagers" id="bf-floor-manager" type="text" value="${escapeHtml(b.floor_manager || '')}" placeholder="Unassigned" /></div>
       <div class="f-grp"><label>Estimated delivery <span class="req">*</span></label>
         <input id="bf-delivery" type="date" value="${escapeHtml(b.estimated_delivery || '')}" /></div>
       <div class="f-grp"></div>
@@ -4155,6 +4194,7 @@ function _bookingFormHTML(b) {
   return `
     <datalist id="dlCustomers">${D.customers.map(c => `<option value="${escapeHtml(c.name || '')}">`).join('')}</datalist>
     <datalist id="dlMechanics">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
+    <datalist id="dlFloorManagers">${D.mechanics.filter(m => (m.role || '').toLowerCase() === 'floor_manager').map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
     <div style="display:flex;align-items:center;gap:10px;background:rgba(32,227,178,.06);border:1px solid rgba(32,227,178,.28);border-radius:10px;padding:10px 14px;margin-bottom:14px">
       <div style="flex:1;font-size:12.5px;color:var(--dim);line-height:1.45">Returning customer with a Garage&nbsp;Pro QR? Scan it to auto-fill the car &amp; owner — works even if it was issued at another workshop.</div>
       <button type="button" class="mini-btn good" style="white-space:nowrap" onclick="_scanIntoBooking()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h3M18 15v6M21 18h-3"/></svg>Scan QR</button>
@@ -4964,7 +5004,7 @@ async function saveBooking(id) {
 
   // Service + scheduling
   const service     = v('bf-service');
-  const mech        = v('bf-mech');
+  const floorManager = v('bf-floor-manager');
   const date        = v('bf-date');
   const time        = v('bf-time');         // start time (kept as `time` for back-compat)
   const timeEnd     = v('bf-time-end');     // end time — new
@@ -5044,7 +5084,7 @@ async function saveBooking(id) {
     vin, engine_no: engineNo, colour, fuel_type: fuelType, in_house: inHouse,
     service_advisor: advisor, department,
     // Service + scheduling — keep `time` for back-compat (= time_start)
-    service, mechanic: mech, date, time, time_start: time, time_end: timeEnd,
+    service, floor_manager: floorManager, date, time, time_start: time, time_end: timeEnd,
     cost_estimate: cost ? Number(cost) : 0,
     estimated_delivery: delivery,
     notes,
@@ -5185,6 +5225,31 @@ window.cancelBooking = async function(id) {
   }
   showToast('Appointment cancelled', 'good');
   audit('cancel-booking', `${b.plate || b.id} (${b.cust_name || '—'})`, { booking_id: b.id });
+  renderBookings();
+  await Promise.all(writes);
+};
+
+// Permanently removes the appointment record (unlike Cancel, which just marks
+// status — this deletes it). Owner/manager only; warns if a job card already
+// exists so history isn't silently orphaned.
+window.deleteBooking = async function(id) {
+  if (!isAdminRole()) return showToast('Only owner/manager can delete appointments', 'bad');
+  const b = D.bookings.find(x => x.id === id);
+  if (!b) return showToast('Appointment not found', 'bad');
+  const hasJob = (D.jobs || []).some(j => j.booking_id === id);
+  const warn = hasJob
+    ? `${b.plate || 'This appointment'} has a job card linked to it. The job card and its history will be kept, but this appointment record will be gone for good. Delete anyway?`
+    : `Permanently delete the appointment for ${b.plate || 'this vehicle'}? This cannot be undone.`;
+  if (!(await customConfirm(warn, { title: 'Delete appointment', okLabel: 'Delete' }))) return;
+  const writes = [];
+  if (b.bay_id) {
+    const bay = D.bays.find(x => x.id === b.bay_id);
+    if (bay) { bay.status = 'available'; bay.booking_id = null; bay.plate = ''; writes.push(wsSave('bays', D.bays)); }
+  }
+  D.bookings = D.bookings.filter(x => x.id !== id);
+  writes.unshift(wsSave('bookings', D.bookings));
+  showToast('Appointment deleted', 'good');
+  audit('delete-booking', `${b.plate || id} (${b.cust_name || '—'})`, { booking_id: id });
   renderBookings();
   await Promise.all(writes);
 };
@@ -5390,6 +5455,7 @@ async function doCheckin(bookingId) {
 
 // ── Check-out flow: free bay, mark Delivered, set job to Delivered ──
 window.openCheckoutForm = function(bookingId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can check out vehicles', 'bad');
   const b = D.bookings.find(x => x.id === bookingId);
   if (!b) return showToast('Appointment not found', 'bad');
   const job = D.jobs.find(j => j.booking_id === b.id);
@@ -5430,6 +5496,7 @@ window.openCheckoutForm = function(bookingId) {
 };
 
 async function doCheckout(bookingId) {
+  if (!isServiceAdvisorRole()) throw new Error('Only Service Advisor / Owner can check out vehicles');
   // No pre-load — local D is current.
   const b = D.bookings.find(x => x.id === bookingId);
   if (!b) throw new Error('Appointment not found');
@@ -5584,15 +5651,17 @@ async function renderJobs(force = false) {
       const dept = j.department || _jobDeptFromBooking(j) || 'Mechanical';
       const deptTint = dept === 'Bodyshop' ? 'rgba(255,107,107,.14);color:var(--red)' : dept === 'Both' ? 'rgba(255,179,71,.14);color:var(--acc2)' : 'rgba(99,159,255,.14);color:var(--blue)';
       const status = j.status || 'Awaiting Assignment';
-      // Stage-2 quick actions visible inline so floor managers / techs can advance the job in one click
+      // Stage-2 quick actions visible inline so floor managers / techs can advance the job in one click.
+      // Estimate/inform-client/checkout/invoice actions are Service Advisor (+owner/manager) exclusive.
+      const _isSA = isServiceAdvisorRole();
       const stageBtns = `${status === 'Awaiting Assignment' || status === 'Awaiting Approval'
           ? ''
           : status === 'Technician Assigned'
             ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Inspected')" title="Vehicle inspected, spares listed">Mark inspected</button>`
             : status === 'Inspected'
-              ? `${canApproveParts() ? `<button class="mini-btn warn" onclick="_markPricingComplete('${escapeHtml(j.id)}')" title="Parts priced & availability checked — tell the service advisor the estimate is ready to send">Parts priced</button>` : ''}<button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(j.id)}')" title="Generate estimate & send to client">Send estimate</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>`
+              ? `${canApproveParts() ? `<button class="mini-btn warn" onclick="_markPricingComplete('${escapeHtml(j.id)}')" title="Parts priced & availability checked — tell the service advisor the estimate is ready to send">Parts priced</button>` : ''}${_isSA ? `<button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(j.id)}')" title="Generate estimate & send to client">Send estimate</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>` : ''}`
               : status === 'Estimate Sent'
-                ? `<button class="mini-btn warn" onclick="openClientDecision('${escapeHtml(j.id)}')" title="Capture client's per-line decision (approve / reject)">Client decision</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>`
+                ? `${_isSA ? `<button class="mini-btn warn" onclick="openClientDecision('${escapeHtml(j.id)}')" title="Capture client's per-line decision (approve / reject)">Client decision</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>` : ''}`
                 : (status === 'Estimate Approved' || status === 'Estimate Approved (Partial)')
                   ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','In Progress')" title="Parts readied, technician notified">Start repair</button>`
                   : status === 'Rejected — Reassembly'
@@ -5602,13 +5671,13 @@ async function renderJobs(force = false) {
                       : status === 'Awaiting QC'
                         ? `<button class="mini-btn good" onclick="passQC('${escapeHtml(j.id)}')" title="Test drive + final inspection passed">Pass QC</button>`
                         : status === 'QC Passed'
-                          ? `<button class="mini-btn good" onclick="openInformClient('${escapeHtml(j.id)}')" title="Confirm pickup time + notify wash team">Inform client</button>`
+                          ? `${_isSA ? `<button class="mini-btn good" onclick="openInformClient('${escapeHtml(j.id)}')" title="Confirm pickup time + notify wash team">Inform client</button>` : ''}`
                           : status === 'Client Informed' || status === 'Washing'
                             ? `<button class="mini-btn good" onclick="markWashReady('${escapeHtml(j.id)}')" title="Washing done — car ready for pickup">Ready for pickup</button>`
                             : status === 'Ready for Pickup'
-                              ? `<button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waReady('${escapeHtml(j.id)}')" title="Tell the customer their car is ready, on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>Notify</button><button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>`
+                              ? `<button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waReady('${escapeHtml(j.id)}')" title="Tell the customer their car is ready, on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>Notify</button>${_isSA ? `<button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>` : ''}`
                               : status === 'Returned to Advisor'
-                                ? `<button class="mini-btn good" onclick="_billReturnedJob('${escapeHtml(j.id)}')" title="Bill an inspection / diagnostic charge if required, then invoice">Create invoice</button>`
+                                ? `${_isSA ? `<button class="mini-btn good" onclick="_billReturnedJob('${escapeHtml(j.id)}')" title="Bill an inspection / diagnostic charge if required, then invoice">Create invoice</button>` : ''}`
                                 : ''}`;
       return `<tr>
       <td>${escapeHtml((j.created_at || '').slice(0,10) || '—')}</td>
@@ -5622,7 +5691,7 @@ async function renderJobs(force = false) {
         ${stageBtns}
         <button class="mini-btn" onclick="openJobForm('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
         ${j.plate ? `<button class="mini-btn" onclick="showQRForPlate('${escapeHtml(j.plate)}')" title="View / print this vehicle's QR sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v3M14 21h3M21 17v4"/></svg>QR</button>` : ''}
-        <button class="mini-btn good" onclick="generateInvoice('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Invoice</button>
+        ${_isSA ? `<button class="mini-btn good" onclick="generateInvoice('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Invoice</button>` : ''}
         ${j.is_insurance ? `<button class="mini-btn warn" onclick="viewInsuranceDoc('${escapeHtml(j.id)}')" title="Generate insurance claim PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Claim PDF</button>` : ''}
         <button class="mini-btn danger" onclick="deleteJob('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
       </div></td>
@@ -5756,7 +5825,6 @@ async function _qaApplyAssignment(jobId) {
   publishTracking(j.booking_id);
   await Promise.all(writes);
   if (currentTab === 'jobs')          renderJobs(true);
-  else if (currentTab === 'checkin')  renderCheckin(true);
   else if (currentTab === 'bays')     (typeof renderBays === 'function') && renderBays(true);
   else if (currentTab === 'notifications') renderNotifications();
 }
@@ -5794,6 +5862,14 @@ window.markJobStatus = async function(jobId, newStatus) {
       target: j.mechanic ? { worker_name: j.mechanic } : { role: 'floor_manager' },
       job_id: jobId
     });
+    // Auto-add a standard Consumables charge once work actually starts
+    // (cleaning materials, shop supplies, etc.) — the Service Advisor can
+    // adjust or remove it on the job card before invoicing, same as any
+    // other service charge. Guarded so re-entering In Progress never doubles it.
+    j.charges = j.charges || [];
+    if (!j.charges.some(c => (c.name || '').trim().toLowerCase() === 'workshop consumables')) {
+      j.charges.push({ name: 'Workshop Consumables', amount: Number(D.settings?.consumables_default_amount) || 150 });
+    }
   }
   // Trigger — Mark reassembled / Returned to Advisor
   if (newStatus === 'Returned to Advisor') {
@@ -5881,6 +5957,7 @@ window.passQC = async function(jobId) {
 
 // Service advisor confirms pickup time + assigns the wash worker. One modal does both.
 window.openInformClient = async function(jobId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can inform the customer', 'bad');
   const j = D.jobs.find(x => x.id === jobId);
   if (!j) return;
   // Sensible default pickup: tomorrow morning at 10:00 (workshops can override)
@@ -6001,6 +6078,7 @@ window._markPricingComplete = function(jobId) {
 // from the job's current parts + service charges and opens the print preview
 // for sharing with the customer for approval. Job status flips to "Estimate Sent".
 window.sendJobEstimate = async function(jobId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can create/send estimates', 'bad');
   const j = D.jobs.find(x => x.id === jobId);
   if (!j) return;
   // The ESTIMATE pulls ONLY from the job card's estimation sections
@@ -6064,6 +6142,7 @@ window.sendJobEstimate = async function(jobId) {
 //  Reject branch:  status → Rejected — Reassembly → Returned to Advisor.
 // ══════════════════════════════════════════════════════════════════════════
 window.openClientDecision = async function(jobId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can capture the client decision', 'bad');
   const j = D.jobs.find(x => x.id === jobId);
   if (!j) return;
   // Find the estimate (invoice) that was sent. If none, generate one first.
@@ -6454,6 +6533,7 @@ async function _apprBuildDoc(j, inv, token) {
 
 // Advisor action — publish/refresh the link and show the share sheet.
 window.shareEstimateLink = async function(jobId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can share estimate links', 'bad');
   const j = D.jobs.find(x => x.id === jobId);
   if (!j) return;
   const estParts    = (j.est_parts    || []).filter(p => (p.name || '').trim());
@@ -6772,6 +6852,13 @@ window.openJobForm = function(id) {
   // the card focused on the quote while it's still being priced/approved.
   const _ESTIMATION_STATUSES = ['Awaiting Assignment','Awaiting Approval','Technician Assigned','Inspected','Estimate Sent','Estimate Approved','Estimate Approved (Partial)'];
   const _jobShowActual = !_ESTIMATION_STATUSES.includes(j.status || 'Awaiting Assignment');
+  // Role gating: Service Advisor (+owner/manager) exclusively creates/edits
+  // estimates and labour charges; Parts dept (+owner/manager) exclusively adds
+  // Parts Used; Workers (mechanics) don't see the estimate sections at all.
+  const _canEstimate   = isServiceAdvisorRole();
+  const _canPartsUsed  = canApproveParts();
+  const _canLabour     = isServiceAdvisorRole();
+  const _isMechanicRole = currentRole() === 'mechanic';
   openModal({
     title: `Job card · ${j.plate || j.id}`,
     body: `
@@ -6830,7 +6917,10 @@ window.openJobForm = function(id) {
           <textarea id="jf-labour" placeholder="What's been done, what's pending, parts needed…">${escapeHtml(j.labour_notes || '')}</textarea></div>
       </div>
 
-      <!-- ── Collapsible: ESTIMATION PARTS (quote only — never deducts inventory) ── -->
+      <!-- ── Collapsible: ESTIMATION PARTS (quote only — never deducts inventory) ──
+           Service Advisor (+owner/manager) only creates/edits estimates; workers
+           don't see this section at all. -->
+      ${_isMechanicRole ? '' : `
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
         <details ${(_editingJob.est_parts.length || _editingJob.est_services.length) ? 'open' : ''}>
           <summary style="cursor:pointer;font-family:var(--fd);font-weight:700;font-size:14px;color:var(--blue,#639fff);list-style:none;display:flex;align-items:center;gap:8px">
@@ -6838,10 +6928,10 @@ window.openJobForm = function(id) {
             Estimation parts <span style="font-weight:500;color:var(--faint);font-size:12px">(quote only — not deducted from inventory)</span>
           </summary>
           <div style="margin-top:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.22);border-radius:10px">
-            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            ${_canEstimate ? `<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px;flex-wrap:wrap">
               <button type="button" class="mini-btn" onclick="_jobAddEstFromInventory()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>From inventory</button>
               <button type="button" class="mini-btn" onclick="_jobAddEstFromApproved()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>From priced request</button>
-            </div>
+            </div>` : ''}
             <div id="jf-estparts-rows"></div>
           </div>
         </details>
@@ -6855,25 +6945,26 @@ window.openJobForm = function(id) {
             Estimated service <span style="font-weight:500;color:var(--faint);font-size:12px">(quote only)</span>
           </summary>
           <div style="margin-top:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.22);border-radius:10px">
-            <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+            ${_canEstimate ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
               <button type="button" class="mini-btn" onclick="_jobAddEstService()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>Add service</button>
-            </div>
+            </div>` : ''}
             <div id="jf-estsvc-rows"></div>
           </div>
         </details>
       </div>
+      `}
 
       ${_jobShowActual ? '' : `<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd);font-size:12.5px;color:var(--faint);line-height:1.5">🧾 <b style="color:var(--dim)">Parts used &amp; service charges</b> appear here once the repair starts (approve the estimate → <b>Start repair</b>). While it's still an estimate, only the blue estimation sections above apply.</div>`}
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)${_jobShowActual ? '' : ';display:none'}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
           <div style="font-family:var(--fd);font-weight:700;font-size:14px">Parts used</div>
-          <div style="display:flex;gap:8px;align-items:center">
+          ${_canPartsUsed ? `<div style="display:flex;gap:8px;align-items:center">
             <span style="font-size:12px;color:var(--faint)">Bulk discount %</span>
             <input id="jf-bulkdisc" type="number" min="0" max="100" step="0.5" placeholder="0" style="width:70px;padding:6px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" />
             <button type="button" class="mini-btn warn" onclick="_jobApplyBulkDiscount()" title="Apply this discount % to every part row">Apply to all</button>
             <button type="button" class="mini-btn" onclick="_jobScanPart()" title="Scan a part barcode to add it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h3M18 15v6M21 18h-3"/></svg>Scan</button>
             <button type="button" class="mini-btn" onclick="_jobAddPart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add part</button>
-          </div>
+          </div>` : `<div style="font-size:11.5px;color:var(--faint)">Only Parts department / Owner can add or edit</div>`}
         </div>
         <div id="jf-parts-rows"></div>
       </div>
@@ -6881,7 +6972,7 @@ window.openJobForm = function(id) {
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)${_jobShowActual ? '' : ';display:none'}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div style="font-family:var(--fd);font-weight:700;font-size:14px">Service charges</div>
-          <button type="button" class="mini-btn" onclick="_jobAddCharge()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add charge</button>
+          ${_canLabour ? `<button type="button" class="mini-btn" onclick="_jobAddCharge()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add charge</button>` : `<div style="font-size:11.5px;color:var(--faint)">Only Service Advisor / Owner can add or edit</div>`}
         </div>
         <div id="jf-charges-rows"></div>
       </div>
@@ -6949,18 +7040,23 @@ window._toggleInsurance = function() {
 
 // Add a part to the job — opens a picker so the user can only choose items that
 // are actually in inventory. Stops untracked junk from sneaking onto job cards.
+// Multi-select part picker: tap rows to select/deselect any number, then one
+// "Add N" click commits them all at once — no per-item Add round-trip.
+let _pickPartSelected = new Set();
 window._jobAddPart = function() {
+  if (!canApproveParts()) return showToast('Only Parts department / Owner can add Parts Used', 'bad');
   if (!(D.inventory || []).length) {
     return customAlert('Inventory is empty. Add items via the Inventory tab or fulfil a parts request first.', { title: 'No inventory items yet' });
   }
+  _pickPartSelected = new Set();
   _openSubModal({
-    title: 'Pick a part from inventory',
+    title: 'Pick parts from inventory',
     bodyHtml: `
       <input id="_pickQ" type="text" placeholder="Search by name, category, supplier, HSN…" autofocus
         style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px;margin-bottom:10px" />
       <div id="_pickList" style="max-height:46vh;overflow:auto"></div>
-      <div style="font-size:11.5px;color:var(--faint);margin-top:8px">Only inventory items are pickable. Need a part that's not stocked? Send a parts request — it'll appear here once it's marked fulfilled.</div>`,
-    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>`
+      <div style="font-size:11.5px;color:var(--faint);margin-top:8px">Tap any number of parts, then "Add" below. Need a part that's not stocked? Send a parts request — it'll appear here once it's marked fulfilled.</div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button><button class="fbtn fbtn-save" id="_pickAddBtn" disabled onclick="_jobConfirmAddParts()">Add</button>`
   });
   const render = (q) => {
     q = (q || '').toLowerCase().trim();
@@ -6976,14 +7072,17 @@ window._jobAddPart = function() {
     const wrap = document.getElementById('_pickList');
     if (!list.length) { wrap.innerHTML = `<div style="padding:24px;color:var(--faint);text-align:center;font-size:13px">No inventory items match.</div>`; return; }
     wrap.innerHTML = list.map(i => {
+      const id     = i.id || i.name;
       const onHand = Number(i.qty || 0);
       const low    = onHand <= Number(i.low_stock_threshold || 0);
       const out    = onHand === 0;
       const already= onJob.has((i.name || '').toLowerCase());
+      const picked = _pickPartSelected.has(id);
       const cur    = D.settings?.currency || '₹';
       return `
-        <button type="button" data-itemid="${escapeHtml(i.id || i.name)}" ${out || already ? 'disabled' : ''}
-          style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid var(--brd2);background:${out ? 'var(--bg2)' : 'var(--surf)'};cursor:${out || already ? 'not-allowed' : 'pointer'};color:${out ? 'var(--faint)' : 'var(--txt)'};opacity:${already ? '.55' : '1'};font-family:var(--fb)">
+        <button type="button" data-itemid="${escapeHtml(id)}" ${out || already ? 'disabled' : ''}
+          style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${out ? 'var(--bg2)' : picked ? 'rgba(32,227,178,.10)' : 'var(--surf)'};cursor:${out || already ? 'not-allowed' : 'pointer'};color:${out ? 'var(--faint)' : 'var(--txt)'};opacity:${already ? '.55' : '1'};font-family:var(--fb)">
+            <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'var(--teal,#20e3b2)' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
             <div style="flex:1">
               <div style="font-weight:700;font-size:13.5px">${escapeHtml(i.name)}${already ? ' <span style="color:var(--faint);font-size:11px;font-weight:500">· already on this job</span>' : ''}</div>
               <div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(i.category || '—')}${i.hsn ? ' · HSN ' + escapeHtml(i.hsn) : ''}${i.supplier ? ' · ' + escapeHtml(i.supplier) : ''}</div>
@@ -6997,15 +7096,11 @@ window._jobAddPart = function() {
     wrap.querySelectorAll('[data-itemid]').forEach(btn => {
       btn.onclick = () => {
         if (btn.disabled) return;
-        const item = D.inventory.find(x => (x.id || x.name) === btn.dataset.itemid);
-        if (!item) return;
-        _editingJob.parts.push({
-          name: item.name, hsn: item.hsn || '', qty: 1,
-          unit_price: Number(item.sell_price || 0), disc_pct: 0,
-          inventory_id: item.id || ''
-        });
-        closeSubModal();
-        _drawJobRows();
+        const id = btn.dataset.itemid;
+        if (_pickPartSelected.has(id)) _pickPartSelected.delete(id); else _pickPartSelected.add(id);
+        render(document.getElementById('_pickQ')?.value || '');
+        const addBtn = document.getElementById('_pickAddBtn');
+        if (addBtn) { addBtn.disabled = !_pickPartSelected.size; addBtn.textContent = _pickPartSelected.size ? `Add ${_pickPartSelected.size}` : 'Add'; }
       };
     });
   };
@@ -7015,9 +7110,26 @@ window._jobAddPart = function() {
     render('');
   }, 0);
 };
+window._jobConfirmAddParts = function() {
+  for (const id of _pickPartSelected) {
+    const item = D.inventory.find(x => (x.id || x.name) === id);
+    if (!item) continue;
+    _editingJob.parts.push({
+      name: item.name, hsn: item.hsn || '', qty: 1,
+      unit_price: Number(item.sell_price || 0), disc_pct: 0,
+      inventory_id: item.id || ''
+    });
+  }
+  const n = _pickPartSelected.size;
+  _pickPartSelected = new Set();
+  closeSubModal();
+  _drawJobRows();
+  if (n) showToast(`${n} part${n===1?'':'s'} added`, 'good');
+};
 
 // Scan a barcode from inside the job card → add the matching inventory part.
 window._jobScanPart = function() {
+  if (!canApproveParts()) return showToast('Only Parts department / Owner can add Parts Used', 'bad');
   openScanner('job-part', (code) => {
     const norm = (code || '').trim().toUpperCase();
     const item = (D.inventory || []).find(p => (p.barcode || '').toUpperCase() === norm);
@@ -7035,6 +7147,7 @@ window._jobScanPart = function() {
 
 // Apply the bulk discount % to every parts row in one go.
 window._jobApplyBulkDiscount = function() {
+  if (!canApproveParts()) return showToast('Only Parts department / Owner can edit Parts Used', 'bad');
   const v = Number(document.getElementById('jf-bulkdisc').value);
   if (!Number.isFinite(v) || v < 0 || v > 100) return showToast('Enter a discount between 0 and 100', 'bad');
   _editingJob.parts.forEach(p => { p.disc_pct = v; });
@@ -7046,16 +7159,19 @@ window._jobApplyBulkDiscount = function() {
 // Add an estimation part from inventory. Copies name + sell price, but does NOT
 // flag it for deduction (no inventory_id used in the inventory diff). Only items
 // that HAVE a sell price (an estimate) are pickable.
+let _pickEstInvSelected = new Set();
 window._jobAddEstFromInventory = function() {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can edit estimates', 'bad');
   const priced = (D.inventory || []).filter(i => Number(i.sell_price || 0) > 0);
   if (!priced.length) return customAlert('No inventory items have a sell price set. Add prices in the Inventory tab — only priced parts can be estimated.', { title: 'No priced parts' });
+  _pickEstInvSelected = new Set();
   _openSubModal({
-    title: 'Add estimation part from inventory',
+    title: 'Add estimation parts from inventory',
     bodyHtml: `
       <input id="_estQ" type="text" placeholder="Search priced inventory…" autofocus style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px;margin-bottom:10px" />
       <div id="_estList" style="max-height:46vh;overflow:auto"></div>
-      <div style="font-size:11.5px;color:var(--faint);margin-top:8px">Estimation only — picking a part here does NOT reduce your stock. It's a quote line.</div>`,
-    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>`
+      <div style="font-size:11.5px;color:var(--faint);margin-top:8px">Tap any number of parts, then "Add". Estimation only — this does NOT reduce your stock.</div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button><button class="fbtn fbtn-save" id="_estAddBtn" disabled onclick="_jobConfirmAddEstFromInventory()">Add</button>`
   });
   const cur = D.settings?.currency || '₹';
   const render = (q) => {
@@ -7065,24 +7181,43 @@ window._jobAddEstFromInventory = function() {
     list.sort((a,b) => (a.name||'').localeCompare(b.name||''));
     const wrap = document.getElementById('_estList');
     if (!list.length) { wrap.innerHTML = `<div style="padding:24px;color:var(--faint);text-align:center;font-size:13px">No priced items match.</div>`; return; }
-    wrap.innerHTML = list.map(i => `<button type="button" data-eid="${escapeHtml(i.id || i.name)}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid var(--brd2);background:var(--surf);cursor:pointer;color:var(--txt);font-family:var(--fb)">
+    wrap.innerHTML = list.map(i => {
+      const id = i.id || i.name;
+      const picked = _pickEstInvSelected.has(id);
+      return `<button type="button" data-eid="${escapeHtml(id)}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'rgba(32,227,178,.10)' : 'var(--surf)'};cursor:pointer;color:var(--txt);font-family:var(--fb)">
+      <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'var(--teal,#20e3b2)' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
       <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(i.name)}</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(i.category || '—')} · ${Number(i.qty||0)} in stock</div></div>
       <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:var(--teal)">${cur}${Number(i.sell_price||0).toLocaleString('en-IN')}</div>
-    </button>`).join('');
+    </button>`;
+    }).join('');
     wrap.querySelectorAll('[data-eid]').forEach(btn => btn.onclick = () => {
-      const item = priced.find(x => (x.id||x.name) === btn.dataset.eid);
-      if (!item) return;
-      _editingJob.est_parts.push({ name: item.name, qty: 1, price: Number(item.sell_price||0), source: 'inventory' });
-      closeSubModal(); _drawEstRows();
+      const id = btn.dataset.eid;
+      if (_pickEstInvSelected.has(id)) _pickEstInvSelected.delete(id); else _pickEstInvSelected.add(id);
+      render(document.getElementById('_estQ')?.value || '');
+      const addBtn = document.getElementById('_estAddBtn');
+      if (addBtn) { addBtn.disabled = !_pickEstInvSelected.size; addBtn.textContent = _pickEstInvSelected.size ? `Add ${_pickEstInvSelected.size}` : 'Add'; }
     });
   };
   setTimeout(() => { const inp = document.getElementById('_estQ'); if (inp) inp.addEventListener('input', () => render(inp.value)); render(''); }, 0);
+};
+window._jobConfirmAddEstFromInventory = function() {
+  const priced = (D.inventory || []).filter(i => Number(i.sell_price || 0) > 0);
+  for (const id of _pickEstInvSelected) {
+    const item = priced.find(x => (x.id||x.name) === id);
+    if (!item) continue;
+    _editingJob.est_parts.push({ name: item.name, qty: 1, price: Number(item.sell_price||0), source: 'inventory' });
+  }
+  const n = _pickEstInvSelected.size;
+  _pickEstInvSelected = new Set();
+  closeSubModal(); _drawEstRows();
+  if (n) showToast(`${n} estimation part${n===1?'':'s'} added`, 'good');
 };
 
 // Add estimation parts from APPROVED parts-request items that carry a price.
 // Pulls every priced + Approved/Ordered/Received item across all requests for
 // this job's plate (or all requests if none plate-matched).
 window._jobAddEstFromApproved = function() {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can edit estimates', 'bad');
   const j = D.jobs.find(x => x.id === _editingJob?.id);
   const plate = (j?.plate || '').toUpperCase().replace(/\s+/g,'');
   // A parts request that's linked to a specific car/job can ONLY be used on
@@ -7113,44 +7248,70 @@ window._jobAddEstFromApproved = function() {
   if (!candidates.length) return customAlert('No priced parts requests for this car. Either none have a price yet (Parts → Manage → type a price → Save estimate), or the priced ones are linked to a different vehicle.', { title: 'No priced estimates for this car' });
   candidates.sort((a,b) => a.name.localeCompare(b.name));
   const cur = D.settings?.currency || '₹';
+  window._pickApprovedCandidates = candidates;
+  window._pickApprovedSelected = new Set();
+  const renderApproved = () => {
+    document.getElementById('gpSubModalBody').querySelector('[data-approved-list]').innerHTML =
+      candidates.map((c,i) => {
+        const picked = window._pickApprovedSelected.has(i);
+        return `<button type="button" data-ci="${i}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'rgba(32,227,178,.10)' : 'var(--surf)'};cursor:pointer;color:var(--txt);font-family:var(--fb)">
+        <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'var(--teal,#20e3b2)' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(c.name)} <span style="color:var(--faint);font-weight:500">× ${c.qty}</span></div>${c.plate ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">for ${escapeHtml(c.plate)}${(c.plate||'').toUpperCase().replace(/\s+/g,'')===plate?' · this car':''}</div>` : ''}</div>
+        <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:var(--teal)">${cur}${c.price.toLocaleString('en-IN')}</div>
+      </button>`;
+      }).join('');
+    document.querySelectorAll('#gpSubModalBody [data-ci]').forEach(btn => btn.onclick = () => {
+      const i = Number(btn.dataset.ci);
+      if (window._pickApprovedSelected.has(i)) window._pickApprovedSelected.delete(i); else window._pickApprovedSelected.add(i);
+      renderApproved();
+      const addBtn = document.getElementById('_approvedAddBtn');
+      if (addBtn) { addBtn.disabled = !window._pickApprovedSelected.size; addBtn.textContent = window._pickApprovedSelected.size ? `Add ${window._pickApprovedSelected.size}` : 'Add'; }
+    });
+  };
   _openSubModal({
     title: 'Add from priced parts requests',
-    bodyHtml: `<div style="max-height:48vh;overflow:auto">${candidates.map((c,i) => `<button type="button" data-ci="${i}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid var(--brd2);background:var(--surf);cursor:pointer;color:var(--txt);font-family:var(--fb)">
-      <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(c.name)} <span style="color:var(--faint);font-weight:500">× ${c.qty}</span></div>${c.plate ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">for ${escapeHtml(c.plate)}${(c.plate||'').toUpperCase().replace(/\\s+/g,'')===plate?' · this car':''}</div>` : ''}</div>
-      <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:var(--teal)">${cur}${c.price.toLocaleString('en-IN')}</div>
-    </button>`).join('')}</div>`,
-    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>`
+    bodyHtml: `<div style="font-size:11.5px;color:var(--faint);margin-bottom:8px">Tap any number, then "Add".</div><div data-approved-list style="max-height:46vh;overflow:auto"></div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button><button class="fbtn fbtn-save" id="_approvedAddBtn" disabled onclick="_jobConfirmAddApproved()">Add</button>`
   });
-  setTimeout(() => {
-    document.querySelectorAll('#gpSubModalBody [data-ci]').forEach(btn => btn.onclick = () => {
-      const c = candidates[Number(btn.dataset.ci)];
-      if (!c) return;
-      _editingJob.est_parts.push({ name: c.name, qty: c.qty, price: c.price, source: 'approved-request' });
-      closeSubModal(); _drawEstRows();
-    });
-  }, 0);
+  setTimeout(renderApproved, 0);
+};
+window._jobConfirmAddApproved = function() {
+  const candidates = window._pickApprovedCandidates || [];
+  for (const i of (window._pickApprovedSelected || [])) {
+    const c = candidates[i];
+    if (!c) continue;
+    _editingJob.est_parts.push({ name: c.name, qty: c.qty, price: c.price, source: 'approved-request' });
+  }
+  const n = (window._pickApprovedSelected || new Set()).size;
+  window._pickApprovedSelected = new Set();
+  closeSubModal(); _drawEstRows();
+  if (n) showToast(`${n} estimation part${n===1?'':'s'} added`, 'good');
 };
 
-window._jobAddEstService = function() { _editingJob.est_services.push({ name: '', price: 0 }); _drawEstRows(); };
-window._jobRemoveEstPart = function(i) { _editingJob.est_parts.splice(i,1); _drawEstRows(); };
-window._jobRemoveEstService = function(i) { _editingJob.est_services.splice(i,1); _drawEstRows(); };
+window._jobAddEstService = function() { if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can edit estimates', 'bad'); _editingJob.est_services.push({ name: '', price: 0 }); _drawEstRows(); };
+window._jobRemoveEstPart = function(i) { if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can edit estimates', 'bad'); _editingJob.est_parts.splice(i,1); _drawEstRows(); };
+window._jobRemoveEstService = function(i) { if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can edit estimates', 'bad'); _editingJob.est_services.splice(i,1); _drawEstRows(); };
 
 // Render both estimation tables + a combined estimate total.
 function _drawEstRows() {
   const cur = D.settings?.currency || '₹';
+  // Read-only for anyone but Service Advisor/owner/manager — estimates are
+  // their exclusive domain; others (if the section renders for them at all)
+  // can still see the numbers but can't edit or remove lines.
+  const ro = !isServiceAdvisorRole();
   const pWrap = document.getElementById('jf-estparts-rows');
   if (pWrap) {
     pWrap.innerHTML = _editingJob.est_parts.length
       ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:520px">
           <thead><tr><th>Part</th><th style="width:80px">Qty</th><th style="width:120px">Price (₹)</th><th style="width:90px">Source</th><th style="width:110px;text-align:right">Line</th><th style="width:32px"></th></tr></thead>
-          <tbody>${_editingJob.est_parts.map((p,i) => `<tr>
-            <td><input type="text" data-ep="${i}" data-f="name" value="${escapeHtml(p.name)}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><input type="number" min="1" step="1" data-ep="${i}" data-f="qty" value="${escapeHtml(String(p.qty))}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><input type="number" min="0" step="1" data-ep="${i}" data-f="price" value="${escapeHtml(String(p.price))}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+          <tbody>${_editingJob.est_parts.map((p,i) => { const dis = ro ? 'disabled' : ''; return `<tr>
+            <td><input type="text" data-ep="${i}" data-f="name" value="${escapeHtml(p.name)}" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="1" step="1" data-ep="${i}" data-f="qty" value="${escapeHtml(String(p.qty))}" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="1" data-ep="${i}" data-f="price" value="${escapeHtml(String(p.price))}" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
             <td style="font-size:11px;color:var(--faint)">${escapeHtml(p.source === 'inventory' ? 'Stock' : p.source === 'approved-request' ? 'Approved' : 'Manual')}</td>
             <td style="text-align:right;font-family:'Courier New',monospace;font-size:12.5px">${(Number(p.qty||1)*Number(p.price||0)).toLocaleString('en-IN')}</td>
-            <td><button type="button" class="mini-btn danger" onclick="_jobRemoveEstPart(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>
-          </tr>`).join('')}</tbody></table></div>`
+            <td>${ro ? '' : `<button type="button" class="mini-btn danger" onclick="_jobRemoveEstPart(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`}</td>
+          </tr>`; }).join('')}</tbody></table></div>`
       : '<div style="padding:12px;color:var(--faint);text-align:center;font-size:12.5px">No estimation parts. Add from inventory or an approved request.</div>';
     pWrap.querySelectorAll('input[data-ep]').forEach(inp => inp.addEventListener('input', ev => {
       const i = Number(ev.target.dataset.ep), f = ev.target.dataset.f;
@@ -7163,11 +7324,11 @@ function _drawEstRows() {
     sWrap.innerHTML = _editingJob.est_services.length
       ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:380px">
           <thead><tr><th>Service</th><th style="width:140px">Price (₹)</th><th style="width:32px"></th></tr></thead>
-          <tbody>${_editingJob.est_services.map((s,i) => `<tr>
-            <td><input type="text" data-es="${i}" data-f="name" value="${escapeHtml(s.name)}" placeholder="Wheel alignment, paint…" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><input type="number" min="0" step="1" data-es="${i}" data-f="price" value="${escapeHtml(String(s.price))}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><button type="button" class="mini-btn danger" onclick="_jobRemoveEstService(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td>
-          </tr>`).join('')}</tbody></table></div>`
+          <tbody>${_editingJob.est_services.map((s,i) => { const dis = ro ? 'disabled' : ''; return `<tr>
+            <td><input type="text" data-es="${i}" data-f="name" value="${escapeHtml(s.name)}" placeholder="Wheel alignment, paint…" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="1" data-es="${i}" data-f="price" value="${escapeHtml(String(s.price))}" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td>${ro ? '' : `<button type="button" class="mini-btn danger" onclick="_jobRemoveEstService(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`}</td>
+          </tr>`; }).join('')}</tbody></table></div>`
       : '<div style="padding:12px;color:var(--faint);text-align:center;font-size:12.5px">No estimated services. Click "Add service".</div>';
     sWrap.querySelectorAll('input[data-es]').forEach(inp => inp.addEventListener('input', ev => {
       const i = Number(ev.target.dataset.es), f = ev.target.dataset.f;
@@ -7203,9 +7364,9 @@ function _updateJobPartsFooter() {
   const cur = D.settings.currency || '₹';
   foot.innerHTML = `Parts taxable: <b style="color:var(--txt)">${cur}${taxable.toFixed(2)}</b> · GST: <b style="color:var(--txt)">${cur}${tax.toFixed(2)}</b> · Parts total: <b style="color:var(--teal)">${cur}${(taxable + tax).toFixed(2)}</b>`;
 }
-window._jobAddCharge = function() { _editingJob.charges.push({ name: '', amount: 0 }); _drawJobRows(); };
-window._jobRemovePart   = function(idx) { _editingJob.parts.splice(idx, 1); _drawJobRows(); };
-window._jobRemoveCharge = function(idx) { _editingJob.charges.splice(idx, 1); _drawJobRows(); };
+window._jobAddCharge = function() { if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can add labour charges', 'bad'); _editingJob.charges.push({ name: '', amount: 0 }); _drawJobRows(); };
+window._jobRemovePart   = function(idx) { if (!canApproveParts()) return showToast('Only Parts department / Owner can edit Parts Used', 'bad'); _editingJob.parts.splice(idx, 1); _drawJobRows(); };
+window._jobRemoveCharge = function(idx) { if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can edit labour charges', 'bad'); _editingJob.charges.splice(idx, 1); _drawJobRows(); };
 
 // ─── Multi-worker assignment on a job card ───────────────────────────────
 // ── Job-card photos: load existing, render grid, upload, delete, zoom ──
@@ -7355,6 +7516,11 @@ function _drawMechanicChips() {
 function _drawJobRows() {
   const inv = D.inventory || [];
   const taxPct = Number(D.settings.tax_pct || 0);
+  // Read-only for anyone without edit rights (Parts Used → parts_dept/owner;
+  // Service charges → service advisor/owner) — rows still render so the
+  // assigned tech can see what's on the car, but can't change it.
+  const roParts = !canApproveParts();
+  const roChg   = !isServiceAdvisorRole();
   const partsWrap = document.getElementById('jf-parts-rows');
   if (partsWrap) {
     // Compute per-row taxable + total so the user sees the math live
@@ -7377,15 +7543,15 @@ function _drawJobRows() {
             <th style="width:110px;text-align:right">Taxable</th><th style="width:120px;text-align:right">Total</th>
             <th style="width:36px"></th>
           </tr></thead>
-          <tbody>${_editingJob.parts.map((p, i) => { const m = rowMath(p); return `<tr>
-            <td><input list="dlInvParts" type="text" data-jp="${i}" data-f="name" value="${escapeHtml(p.name)}" placeholder="Brake pad set" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><input type="text" data-jp="${i}" data-f="hsn" value="${escapeHtml(p.hsn || '')}" placeholder="8708" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><input type="number" min="1" step="1" data-jp="${i}" data-f="qty" value="${escapeHtml(String(p.qty))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><input type="number" min="0" step="0.01" data-jp="${i}" data-f="unit_price" value="${escapeHtml(String(p.unit_price))}" placeholder="0" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><input type="number" min="0" max="100" step="0.5" data-jp="${i}" data-f="disc_pct" value="${escapeHtml(String(p.disc_pct || 0))}" placeholder="0" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+          <tbody>${_editingJob.parts.map((p, i) => { const m = rowMath(p); const dis = roParts ? 'disabled' : ''; return `<tr>
+            <td><input list="dlInvParts" type="text" data-jp="${i}" data-f="name" value="${escapeHtml(p.name)}" placeholder="Brake pad set" ${dis} style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="text" data-jp="${i}" data-f="hsn" value="${escapeHtml(p.hsn || '')}" placeholder="8708" ${dis} style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="1" step="1" data-jp="${i}" data-f="qty" value="${escapeHtml(String(p.qty))}" ${dis} style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="0.01" data-jp="${i}" data-f="unit_price" value="${escapeHtml(String(p.unit_price))}" placeholder="0" ${dis} style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" max="100" step="0.5" data-jp="${i}" data-f="disc_pct" value="${escapeHtml(String(p.disc_pct || 0))}" placeholder="0" ${dis} style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
             <td data-mathcell="taxable-${i}" style="text-align:right;font-family:'Courier New',monospace;color:var(--faint);font-size:12.5px">${m.taxable.toFixed(2)}</td>
             <td data-mathcell="total-${i}"   style="text-align:right;font-family:'Courier New',monospace;color:var(--txt);font-weight:600;font-size:12.5px">${m.total.toFixed(2)}</td>
-            <td><button type="button" class="mini-btn danger" onclick="_jobRemovePart(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
+            <td>${roParts ? '' : `<button type="button" class="mini-btn danger" onclick="_jobRemovePart(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`}</td>
           </tr>`; }).join('')}</tbody></table></div>
          <div id="jf-parts-totals" style="text-align:right;font-size:12.5px;color:var(--dim);margin-top:6px;padding-right:46px"></div>`
       : '<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No parts added. Click "Add part" above.</div>';
@@ -7425,11 +7591,11 @@ function _drawJobRows() {
     chgWrap.innerHTML = _editingJob.charges.length
       ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:420px">
           <thead><tr><th>Charge name</th><th style="width:140px">Amount (₹)</th><th style="width:36px"></th></tr></thead>
-          <tbody>${_editingJob.charges.map((c, i) => `<tr>
-            <td><input type="text" data-jc="${i}" data-f="name" value="${escapeHtml(c.name)}" placeholder="Labour, diagnostic fee…" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><input type="number" min="0" step="0.01" data-jc="${i}" data-f="amount" value="${escapeHtml(String(c.amount))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><button type="button" class="mini-btn danger" onclick="_jobRemoveCharge(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
-          </tr>`).join('')}</tbody></table></div>`
+          <tbody>${_editingJob.charges.map((c, i) => { const dis = roChg ? 'disabled' : ''; return `<tr>
+            <td><input type="text" data-jc="${i}" data-f="name" value="${escapeHtml(c.name)}" placeholder="Labour, diagnostic fee…" ${dis} style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="0.01" data-jc="${i}" data-f="amount" value="${escapeHtml(String(c.amount))}" ${dis} style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td>${roChg ? '' : `<button type="button" class="mini-btn danger" onclick="_jobRemoveCharge(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`}</td>
+          </tr>`; }).join('')}</tbody></table></div>`
       : '<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No service charges. Click "Add charge" above.</div>';
     chgWrap.querySelectorAll('input[data-jc]').forEach(inp => inp.addEventListener('input', (ev) => {
       const i = Number(ev.target.dataset.jc);
@@ -8030,6 +8196,9 @@ function _findVehicleByPlateNorm(pn) {
 //  what makes one QR portable across the whole Garage Pro network.
 //  Firestore: vehicle_registry/{plateNorm}  (public read+write).
 // ══════════════════════════════════════════════════════════════════════════
+// Stores EVERY field we hold locally for this vehicle + owner so a scan at
+// ANY workshop (including this one, on a different device) can fully
+// autofill a walk-in/appointment — not just the handful of headline fields.
 async function _registryUpsert(veh, cust) {
   try {
     if (!fbDb || !veh || !veh.plate) return;
@@ -8038,14 +8207,34 @@ async function _registryUpsert(veh, cust) {
     await fbDb.collection('vehicle_registry').doc(pn).set({
       plate:         veh.plate,
       plate_norm:    pn,
+      plate_state:   veh.plate_state || '',
+      plate_suffix:  veh.plate_suffix || '',
       make:          veh.make  || veh.veh_make  || '',
       model:         veh.model || veh.veh_model || '',
       year:          veh.year  || veh.veh_year  || '',
+      variant:       veh.variant || '',
       color:         veh.color || veh.colour    || '',
-      owner_name:    cust?.name    || '',
-      owner_phone:   cust?.phone   || '',
-      owner_email:   cust?.email   || '',
-      owner_address: cust?.address || '',
+      vin:           veh.vin || '',
+      engine_no:     veh.engine_no || '',
+      fuel_type:     veh.fuel_type || '',
+      odometer_in:   veh.odometer_in || '',
+      avg_kms:       veh.avg_kms || '',
+      owner_name:         cust?.name    || '',
+      owner_phone:        cust?.phone   || '',
+      owner_phone2:       cust?.phone2  || '',
+      owner_email:        cust?.email   || '',
+      owner_address:      cust?.address || '',
+      owner_addr1:        cust?.addr1  || '',
+      owner_addr2:        cust?.addr2  || '',
+      owner_city:         cust?.city   || '',
+      owner_state:        cust?.state  || '',
+      owner_pincode:      cust?.pincode|| '',
+      owner_driver_name:  cust?.driver_name || '',
+      owner_dob:          cust?.dob || '',
+      owner_customer_type:cust?.customer_type || '',
+      owner_company_name: cust?.company_name  || '',
+      owner_gstin:        cust?.gstin || '',
+      owner_ref_no:       cust?.ref_no || '',
       workshop_name: D.settings?.workshop_name || userProfile?.workshop_name || '',
       updated_at:    nowStr()
     }, { merge: true });
@@ -8576,6 +8765,7 @@ window.renderHeader = function() {
   _renderSubBadge();
   // Notification pip on the sidebar
   if (typeof _renderNotifBadge === 'function') _renderNotifBadge();
+  if (typeof _renderChatBadge === 'function') _renderChatBadge();
 };
 
 function _renderSubBadge() {
@@ -8626,9 +8816,11 @@ window.switchTab = function(tab) {
   if (tab === 'reports')       renderReports();
   if (tab === 'audit')         renderAudit();
   if (tab === 'notifications') renderNotifications();
+  if (tab === 'chat')          renderChat();
   // Keep the subscription badge usage counts fresh after every nav
   if (typeof _renderSubBadge === 'function') _renderSubBadge();
   if (typeof _renderNotifBadge === 'function') _renderNotifBadge();
+  if (typeof _renderChatBadge === 'function') _renderChatBadge();
   // Auto-close the mobile drawer after picking a tab
   closeSidebar();
 };
@@ -9143,6 +9335,11 @@ window.promoteNextFromQueue = promoteNextFromQueue;
 // ══════════════════════════════════════════
 async function renderInventory(force = false) {
   await loadAllData(force);
+  // Managing inventory (add/edit/delete) is Parts department + owner/manager
+  // only — everyone else with the tab gets a read-only stock list.
+  const _canManageInv = canApproveParts();
+  const ivAddBtn = document.getElementById('ivAddBtn');
+  if (ivAddBtn) ivAddBtn.style.display = _canManageInv ? '' : 'none';
   document.getElementById('ivCrumb').textContent =
     `${D.inventory.length} item${D.inventory.length === 1 ? '' : 's'} · ${D.inventory.filter(i => isLowStock(i)).length} low/out of stock`;
   // Populate category dropdown
@@ -9151,6 +9348,15 @@ async function renderInventory(force = false) {
   const currentCat = catSel.value;
   catSel.innerHTML = '<option value="">All categories</option>' + existingCats.map(c => `<option value="${escapeHtml(c)}" ${c === currentCat ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
   const q = (document.getElementById('ivSearch').value || '').toLowerCase().trim();
+  // Vehicle-registration search: if the query looks like a plate (or partial
+  // plate), show every part tied to that vehicle's job history above the
+  // regular catalog list — pulled from actual parts used, estimated parts,
+  // and parts requests, since inventory items themselves aren't per-vehicle.
+  const vpWrap = document.getElementById('ivVehicleParts');
+  if (vpWrap) {
+    const pn = _plateNorm(q);
+    vpWrap.innerHTML = (pn.length >= 3) ? _renderVehiclePartsLookup(pn) : '';
+  }
   const cat = catSel.value;
   const stockFilter = document.getElementById('ivStock').value;
   let list = D.inventory.slice();
@@ -9188,8 +9394,8 @@ async function renderInventory(force = false) {
         <td>${escapeHtml(i.location || '—')}</td>
         <td style="font-family:'Courier New',monospace;font-size:12.5px;color:var(--faint)">${escapeHtml(i.barcode || '—')}</td>
         <td><div class="row-act">
-          <button class="mini-btn" onclick="openInventoryForm('${escapeHtml(i.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
-          <button class="mini-btn danger" onclick="deleteInventory('${escapeHtml(i.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+          ${_canManageInv ? `<button class="mini-btn" onclick="openInventoryForm('${escapeHtml(i.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+          <button class="mini-btn danger" onclick="deleteInventory('${escapeHtml(i.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>` : `<span style="font-size:11.5px;color:var(--faint)">View only</span>`}
         </div></td>
       </tr>`;
     }).join('')}</tbody>
@@ -9206,7 +9412,57 @@ function isLowStock(i) {
   return lo > 0 && q <= lo;
 }
 
+// Every part ever tied to a vehicle, matched by normalised plate — actual
+// parts used + estimated parts across that vehicle's job history, plus any
+// parts requests logged against it. Inventory items are generic stock, so
+// this is assembled from the records that DO reference a specific vehicle.
+function _renderVehiclePartsLookup(plateNorm) {
+  const matchingJobs = (D.jobs || []).filter(j => _plateNorm(j.plate) && (_plateNorm(j.plate).includes(plateNorm) || plateNorm.includes(_plateNorm(j.plate))));
+  const matchingReqs = (D.parts_requests || []).filter(r => _plateNorm(r.plate) && (_plateNorm(r.plate).includes(plateNorm) || plateNorm.includes(_plateNorm(r.plate))));
+  if (!matchingJobs.length && !matchingReqs.length) {
+    return `<div style="margin:12px 0;padding:12px 14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);font-size:12.5px">No parts on record for a plate matching "${escapeHtml(plateNorm)}".</div>`;
+  }
+  const rows = new Map();   // name -> { qty, kinds:Set, plates:Set }
+  const add = (name, qty, kind, plate) => {
+    if (!name) return;
+    const key = name.toLowerCase();
+    const row = rows.get(key) || { name, qty: 0, kinds: new Set(), plates: new Set() };
+    row.qty += Number(qty || 1);
+    row.kinds.add(kind);
+    if (plate) row.plates.add(plate);
+    rows.set(key, row);
+  };
+  for (const j of matchingJobs) {
+    (j.parts || []).forEach(p => add(p.name, p.qty, 'Used', j.plate));
+    (j.est_parts || []).forEach(p => add(p.name, p.qty, 'Estimated', j.plate));
+  }
+  for (const r of matchingReqs) {
+    (_prRequestItems(r) || []).forEach(it => add(it.name, it.qty, 'Requested', r.plate));
+  }
+  const list = [...rows.values()].sort((a,b) => a.name.localeCompare(b.name));
+  return `<div style="margin:12px 0;padding:14px 16px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.25);border-radius:10px">
+    <div style="font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--blue,#639fff);margin-bottom:8px">🚗 Parts on record for plate(s): ${[...new Set([...matchingJobs, ...matchingReqs].map(x => x.plate).filter(Boolean))].map(p => escapeHtml(p)).join(', ')}</div>
+    <div style="overflow:auto"><table class="list-tbl" style="min-width:420px">
+      <thead><tr><th>Part</th><th style="width:80px">Qty</th><th style="width:160px">Where</th></tr></thead>
+      <tbody>${list.map(r => `<tr><td class="k">${escapeHtml(r.name)}</td><td>${r.qty}</td><td style="font-size:11.5px;color:var(--faint)">${[...r.kinds].join(', ')}</td></tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// Scan a shelf label in the Inventory tab → set the search box to that
+// shelf's name so the existing location-match filter shows everything on it.
+window._scanShelfFilterInventory = function() {
+  openScanner('shelf-location', (code) => {
+    const shelf = _shelfByCode(code);
+    if (!shelf) return customAlert(`"${code}" isn't a known shelf label.`, { title: 'Shelf not found' });
+    const inp = document.getElementById('ivSearch');
+    if (inp) { inp.value = shelf.name; renderInventory(); }
+    showToast(`Showing items on ${shelf.name}`, 'good');
+  }, 'Scan a shelf label');
+};
+
 window.openInventoryForm = function(id) {
+  if (!canApproveParts()) return showToast('Only Parts department / Owner can manage inventory', 'bad');
   const i = id ? (D.inventory.find(x => x.id === id) || {}) : {};
   const isNew = !id;
   const existingCats = [...new Set(D.inventory.map(x => x.category).filter(Boolean))];
@@ -9228,8 +9484,12 @@ window.openInventoryForm = function(id) {
         <div class="f-grp"><label>Cost price (₹)</label><input id="if-cost" type="number" min="0" step="0.01" value="${escapeHtml(String(i.cost_price || ''))}" /></div>
         <div class="f-grp"><label>HSN / SAC</label><input id="if-hsn" type="text" value="${escapeHtml(i.hsn || '')}" placeholder="e.g. 87082900" /></div>
       </div>
+      <datalist id="dlShelfLoc">${shelfLocations().map(s => `<option value="${escapeHtml(s.name)}">`).join('')}</datalist>
       <div class="f-row">
-        <div class="f-grp"><label>Storage location</label><input id="if-loc" type="text" value="${escapeHtml(i.location || '')}" placeholder="Rack 3, Bin B" /></div>
+        <div class="f-grp"><label>Storage location</label>
+          <div style="display:flex;gap:8px"><input list="dlShelfLoc" id="if-loc" type="text" value="${escapeHtml(i.location || '')}" placeholder="Rack 3, Bin B" style="flex:1" />
+          <button type="button" class="mini-btn" onclick="_scanShelfIntoField('if-loc')" title="Scan a shelf label to fill this in" style="padding:11px 14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h6v6M15 18h.01M18 15v.01"/></svg>Scan</button></div>
+        </div>
         <div class="f-grp"><label>Supplier</label><input id="if-sup" type="text" value="${escapeHtml(i.supplier || '')}" placeholder="Bosch India Pvt Ltd" /></div>
       </div>
       <div class="f-row r1">
@@ -9250,7 +9510,19 @@ window._scanIntoInventoryField = function() {
     showToast(`Barcode ${code} filled in`, 'good');
   }, 'Scan to fill barcode');
 };
+// Scan a shelf label (SHELF-<code>) and fill its name into any location field.
+// Shared by the Inventory form and the Receive-parts prompt.
+window._scanShelfIntoField = function(fieldId) {
+  openScanner('shelf-location', (code) => {
+    const shelf = _shelfByCode(code);
+    const inp = document.getElementById(fieldId);
+    if (!shelf) return customAlert(`"${code}" isn't a known shelf label. Add it in Settings → Shelf locations first, or type the location manually.`, { title: 'Shelf not found' });
+    if (inp) { inp.value = shelf.name; inp.focus(); }
+    showToast(`${shelf.name} filled in`, 'good');
+  }, 'Scan a shelf label');
+};
 async function saveInventory(id) {
+  if (!canApproveParts()) throw new Error('Only Parts department / Owner can manage inventory');
   const name = document.getElementById('if-name').value.trim();
   if (!name) throw new Error('Name is required');
   await loadAllData(true);
@@ -9277,6 +9549,7 @@ async function saveInventory(id) {
   await renderInventory(true);
 }
 window.deleteInventory = async function(id) {
+  if (!canApproveParts()) return showToast('Only Parts department / Owner can manage inventory', 'bad');
   const i = D.inventory.find(x => x.id === id);
   if (!i) return;
   if (!(await customConfirm(`Delete "${i.name}" from inventory?`, { title: 'Delete item', okLabel: 'Delete' }))) return;
@@ -9289,7 +9562,11 @@ window.deleteInventory = async function(id) {
 // ══════════════════════════════════════════
 //  PARTS REQUESTS  (role-aware)
 // ══════════════════════════════════════════
-const REQ_STATUSES = ['Pending','Approved','Ordered','Received','Declined'];
+// Approve/Deny gate removed — whatever quantity the worker requests IS the
+// request. Parts dept goes straight Pending → Ordered (cost+MRP required) →
+// Received (shelf location required). 'Cancelled' is an optional escape hatch
+// for a part that's no longer needed, not a mandatory approval step.
+const REQ_STATUSES = ['Pending','Ordered','Received','Cancelled'];
 
 let _prScope = null;   // 'mine' | 'all' — null = pick a sensible default from role
 
@@ -9375,11 +9652,10 @@ async function renderParts(force = false) {
 // Per-status colour mapping for item-status pills
 function _prStatusTint(s) {
   return {
-    Pending:  { bg:'rgba(255,255,255,.06)',   fg:'var(--faint)' },
-    Approved: { bg:'rgba(99,159,255,.16)',    fg:'var(--blue)' },
-    Ordered:  { bg:'rgba(255,179,71,.16)',    fg:'var(--acc2)' },
-    Received: { bg:'rgba(32,227,178,.16)',    fg:'var(--teal)' },
-    Declined: { bg:'rgba(255,107,107,.16)',   fg:'var(--red)' }
+    Pending:   { bg:'rgba(255,255,255,.06)',   fg:'var(--faint)' },
+    Ordered:   { bg:'rgba(255,179,71,.16)',    fg:'var(--acc2)' },
+    Received:  { bg:'rgba(32,227,178,.16)',    fg:'var(--teal)' },
+    Cancelled: { bg:'rgba(255,107,107,.16)',   fg:'var(--red)' }
   }[s] || { bg:'rgba(255,255,255,.06)', fg:'var(--faint)' };
 }
 
@@ -9395,50 +9671,39 @@ function _openPartReqDetail(reqId) {
     const tint = _prStatusTint(it.status || 'Pending');
     const act = (label, status, cls) =>
       `<button class="mini-btn ${cls}" onclick="setPartStatus('${escapeHtml(reqId)}','${status}','${escapeHtml(it.id)}')">${label}</button>`;
-    // Show buttons that make sense for the item's current status (no going backwards)
-    // — but only for approvers. Non-approvers see status only.
+    // No approve/deny gate — whatever qty the worker requested IS the request.
+    // Pending → Ordered (cost+MRP captured first, via _prMarkOrdered) →
+    // Received (shelf location captured first, via _prMarkReceived).
     let buttons = '';
     if (isApprover) {
       buttons = it.status === 'Pending'
-        ? `${act('✓ Approve', 'Approved', 'good')}${act('✕ Decline', 'Declined', 'danger')}`
-        : it.status === 'Approved'
-          ? `${act('📦 Mark ordered', 'Ordered', 'warn')}${act('↶ Pending', 'Pending', '')}`
-          : it.status === 'Ordered'
-            ? `${act('✓ Mark received', 'Received', 'good')}${act('↶ Back to approved', 'Approved', '')}`
-            : it.status === 'Received'
-              ? `<span style="font-size:11px;color:var(--teal);font-weight:700">✓ Stocked to inventory</span>${act('↶ Undo', 'Ordered', '')}`
-              : `${act('↶ Re-open', 'Pending', '')}`;
+        ? `<button class="mini-btn warn" onclick="_prMarkOrdered('${escapeHtml(reqId)}','${escapeHtml(it.id)}')">📦 Mark ordered</button><button class="mini-btn danger" onclick="setPartStatus('${escapeHtml(reqId)}','Cancelled','${escapeHtml(it.id)}')" title="No longer needed">✕ Cancel</button>`
+        : it.status === 'Ordered'
+          ? `<button class="mini-btn good" onclick="_prMarkReceived('${escapeHtml(reqId)}','${escapeHtml(it.id)}')">✓ Mark received</button>${act('↶ Back to pending', 'Pending', '')}`
+          : it.status === 'Received'
+            ? `<span style="font-size:11px;color:var(--teal);font-weight:700">✓ Stocked to inventory</span>${act('↶ Undo', 'Ordered', '')}`
+            : `${act('↶ Re-open', 'Pending', '')}`;
     }
-    // Price field — approver edits, requester sees read-only
+    // Cost/MRP — set once (via _prMarkOrdered) then shown read-only; requester sees them too once ordered.
     const priceVal = (it.price == null || it.price === '') ? '' : String(it.price);
-    const priceBlock = isApprover
-      ? `<div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-           <span style="font-size:11px;color:var(--faint)">Est. price ₹</span>
-           <input type="number" min="0" step="1" value="${escapeHtml(priceVal)}" data-pr-item-price="${escapeHtml(it.id)}" placeholder="0" style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:12.5px" onchange="_prSetItemPrice('${escapeHtml(reqId)}','${escapeHtml(it.id)}', this.value)" />
-         </div>`
-      : (priceVal ? `<div style="font-size:11.5px;color:var(--dim);margin-top:4px">Estimated price: <b style="color:var(--txt)">₹${escapeHtml(priceVal)}</b></div>` : '');
+    const costVal  = (it.cost_price == null || it.cost_price === '') ? '' : String(it.cost_price);
+    const priceBlock = (priceVal || costVal)
+      ? `<div style="font-size:11.5px;color:var(--dim);margin-top:4px">${costVal ? `Cost: <b style="color:var(--txt)">₹${escapeHtml(costVal)}</b>` : ''}${costVal && priceVal ? ' · ' : ''}${priceVal ? `MRP: <b style="color:var(--txt)">₹${escapeHtml(priceVal)}</b>` : ''}</div>`
+      : '';
     return `
       <div style="display:flex;align-items:flex-start;gap:12px;padding:11px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:7px">
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;color:var(--txt);font-size:13.5px">${escapeHtml(it.name)} <span style="font-weight:500;color:var(--faint);font-size:12px">× ${it.qty}</span></div>
           <div style="margin-top:3px"><span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:100px;background:${tint.bg};color:${tint.fg}">${(it.status || 'PENDING').toUpperCase()}</span></div>
           ${priceBlock}
+          ${it.location ? `<div style="font-size:11.5px;color:var(--dim);margin-top:2px">📍 ${escapeHtml(it.location)}</div>` : ''}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${buttons}</div>
       </div>`;
   };
-  // Bulk-action buttons act on EVERY item in one click — only enabled when at least one item is in the right starting state. Approvers only.
-  const pendingCount  = items.filter(it => it.status === 'Pending').length;
-  const approvedCount = items.filter(it => it.status === 'Approved').length;
-  const orderedCount  = items.filter(it => it.status === 'Ordered').length;
-  const bulk = isApprover ? `
-    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:14px">
-      <span style="font-size:11.5px;color:var(--faint);align-self:center;margin-right:auto"><b style="color:var(--txt)">Apply to all</b> · ${items.length} item${items.length === 1 ? '' : 's'}</span>
-      <button class="mini-btn good"   ${pendingCount  ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Approved')">✓ Approve all</button>
-      <button class="mini-btn danger" ${pendingCount  ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Declined')">✕ Decline all</button>
-      <button class="mini-btn warn"   ${approvedCount ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Ordered')">📦 Mark all ordered</button>
-      <button class="mini-btn good"   ${orderedCount  ? '' : 'disabled style="opacity:.4"'} onclick="setPartStatus('${escapeHtml(reqId)}','Received')">✓ Mark all received</button>
-    </div>` : `<div style="padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:14px;font-size:12.5px;color:var(--faint)">Read-only view — only the Parts department can approve, order, or receive.</div>`;
+  const bulk = isApprover
+    ? `<div style="padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:14px;font-size:12.5px;color:var(--faint)">Mark each item ordered (cost + MRP) or received (shelf location) individually below — bulk actions were removed since both steps now need item-specific details.</div>`
+    : `<div style="padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:14px;font-size:12.5px;color:var(--faint)">Read-only view — only the Parts department can order or receive parts.</div>`;
 
   _openSubModal({
     title: `Parts request · ${items.length} item${items.length === 1 ? '' : 's'}${r.plate ? ' · ' + r.plate : ''}`,
@@ -9453,86 +9718,94 @@ function _openPartReqDetail(reqId) {
       </div>
       ${bulk}
       ${items.map(itemRow).join('')}
-      <div style="font-size:11px;color:var(--faint);margin-top:10px;line-height:1.5">Items marked <b>Received</b> are automatically added to inventory (matched by name — existing items get their qty incremented, new names create a fresh inventory record).</div>`,
-    footHtml: `${isApprover ? `<button class="fbtn fbtn-save" onclick="_prSaveEstimate('${escapeHtml(reqId)}')" title="Save the prices you typed and notify the worker">Save estimate &amp; notify worker</button>` : ''}
-      <div style="flex:1"></div>
+      <div style="font-size:11px;color:var(--faint);margin-top:10px;line-height:1.5">Items marked <b>Received</b> are automatically added to inventory (matched by name — existing items get their qty incremented, new names create a fresh inventory record) using the cost/MRP and shelf location you entered.</div>`,
+    footHtml: `<div style="flex:1"></div>
       <button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>`
   });
 }
 window._openPartReqDetail = _openPartReqDetail;
 
-// Harvest every price input currently in the detail modal, persist them, then
-// notify the requesting worker. One button does both — no reliance on the
-// per-input onchange firing (it doesn't if the user never blurs the field).
-window._prSaveEstimate = async function(reqId) {
-  if (!canApproveParts()) return showToast('Only the Parts department can set prices', 'bad');
+// Prompt for Cost Price + MRP (both required), stamp them on the item, then
+// mark it Ordered. Replaces the old Approve/Decline gate — moving to Ordered
+// is now a direct action, but the item can't be ordered until both prices
+// are captured (needed later so estimate pricing auto-populates from stock).
+window._prMarkOrdered = async function(reqId, itemId) {
+  if (!canApproveParts()) return showToast('Only the Parts department can order parts', 'bad');
   const r = D.parts_requests.find(x => x.id === reqId);
   if (!r) return showToast('Request not found', 'bad');
-  r.items = _prRequestItems(r);
-  // Read every visible price box
-  document.querySelectorAll('[data-pr-item-price]').forEach(inp => {
-    const itId = inp.dataset.prItemPrice;
-    const it = r.items.find(x => x.id === itId);
-    if (!it) return;
-    const n = Number(inp.value);
-    it.price = (inp.value === '' || isNaN(n)) ? null : n;
+  const items = _prRequestItems(r);
+  const it = items.find(x => x.id === itemId);
+  if (!it) return showToast('Item not found', 'bad');
+  _openSubModal({
+    title: `Order · ${it.name}`,
+    bodyHtml: `
+      <div style="font-size:13px;color:var(--dim);margin-bottom:12px">Both prices are required before this item can be marked ordered — the MRP is what auto-populates the estimate later.</div>
+      <div class="f-row">
+        <div class="f-grp"><label>Cost price (₹) <span class="req">*</span></label><input id="po-cost" type="number" min="0" step="0.01" autofocus /></div>
+        <div class="f-grp"><label>MRP / Selling price (₹) <span class="req">*</span></label><input id="po-mrp" type="number" min="0" step="0.01" /></div>
+      </div>
+      <div class="f-err" id="po-err"></div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>
+      <button class="fbtn fbtn-save" onclick="_prConfirmOrdered('${escapeHtml(reqId)}','${escapeHtml(itemId)}')">Mark ordered</button>`
   });
-  r.updated_at = nowStr();
-  await wsSave('parts_requests', D.parts_requests);
-  const priced = r.items.filter(it => it.price != null && !isNaN(Number(it.price)));
-  if (!priced.length) {
-    showToast('Prices saved. Add at least one price to notify the worker.', 'good');
+};
+window._prConfirmOrdered = async function(reqId, itemId) {
+  const cost = Number(document.getElementById('po-cost')?.value);
+  const mrp  = Number(document.getElementById('po-mrp')?.value);
+  const err  = document.getElementById('po-err');
+  if (!Number.isFinite(cost) || cost <= 0 || !Number.isFinite(mrp) || mrp <= 0) {
+    if (err) err.textContent = 'Enter both a cost price and an MRP greater than 0.';
     return;
   }
-  const total = priced.reduce((s, it) => s + (Number(it.price) * Number(it.qty || 1)), 0);
-  const lines = priced.map(it => `${it.name} × ${it.qty} @ ₹${Number(it.price).toLocaleString('en-IN')}`).join(' · ');
-  notify({
-    kind:    'part-estimate',
-    message: `Parts estimate for ${r.plate || 'your request'}: ${lines} · Total ₹${total.toLocaleString('en-IN')}`,
-    target:  r.requested_by_id ? { worker_id: r.requested_by_id } : { worker_name: r.requested_by || '' },
-    meta:    { request_id: r.id, estimate_total: total }
-  });
-  audit('part-estimate-sent', `${r.plate || '—'} · ₹${total.toLocaleString('en-IN')} → ${r.requested_by}`, { request_id: r.id });
-  showToast(`Estimate (₹${total.toLocaleString('en-IN')}) saved & sent to ${r.requested_by || 'worker'}`, 'good');
+  await setPartStatus(reqId, 'Ordered', itemId, { cost_price: cost, price: mrp });
   closeSubModal();
 };
 
-// Set the estimated price for a single part item. Approver only. Saves
-// inline so the requester sees the price immediately when they re-open.
-window._prSetItemPrice = async function(reqId, itemId, value) {
-  if (!canApproveParts()) return showToast('Only the Parts department can edit prices', 'bad');
+// Prompt for shelf/storage location (required) + supplier/barcode (optional),
+// then mark Received — which stocks the item into inventory carrying that
+// location/supplier/barcode plus the cost/MRP captured at ordering time.
+window._prMarkReceived = async function(reqId, itemId) {
+  if (!canApproveParts()) return showToast('Only the Parts department can receive parts', 'bad');
   const r = D.parts_requests.find(x => x.id === reqId);
-  if (!r) return;
-  r.items = _prRequestItems(r);
-  const it = r.items.find(x => x.id === itemId);
-  if (!it) return;
-  const n = Number(value);
-  it.price = (value === '' || isNaN(n)) ? null : n;
-  r.updated_at = nowStr();
-  await wsSave('parts_requests', D.parts_requests);
-};
-
-// "Send estimate to worker" — pushes a notification to the requester
-// with the current per-item prices and a running total. No approval involved.
-// Useful when the parts dept wants to confirm cost with the worker before
-// committing to order.
-window._prSendEstimate = async function(reqId) {
-  if (!canApproveParts()) return;
-  const r = D.parts_requests.find(x => x.id === reqId);
-  if (!r) return;
+  if (!r) return showToast('Request not found', 'bad');
   const items = _prRequestItems(r);
-  const priced = items.filter(it => it.price != null && !isNaN(Number(it.price)));
-  if (!priced.length) return customAlert('Add at least one price first.', { title: 'No prices entered' });
-  const total = priced.reduce((s, it) => s + (Number(it.price) * Number(it.qty || 1)), 0);
-  const lines = priced.map(it => `${it.name} × ${it.qty} @ ₹${Number(it.price).toLocaleString('en-IN')}`).join(' · ');
-  notify({
-    kind:    'part-estimate',
-    message: `Parts estimate for ${r.plate || 'your request'}: ${lines} · Total ₹${total.toLocaleString('en-IN')}`,
-    target:  r.requested_by_id ? { worker_id: r.requested_by_id } : { worker_name: r.requested_by || '' },
-    meta:    { request_id: r.id, estimate_total: total }
+  const it = items.find(x => x.id === itemId);
+  if (!it) return showToast('Item not found', 'bad');
+  _openSubModal({
+    title: `Receive · ${it.name}`,
+    bodyHtml: `
+      <datalist id="dlShelfLocRecv">${shelfLocations().map(s => `<option value="${escapeHtml(s.name)}">`).join('')}</datalist>
+      <div class="f-grp"><label>Shelf / storage location <span class="req">*</span></label>
+        <div style="display:flex;gap:8px"><input list="dlShelfLocRecv" id="pr-loc" type="text" placeholder="Rack 3, Bin B" autofocus style="flex:1" />
+        <button type="button" class="mini-btn" onclick="_scanShelfIntoField('pr-loc')" title="Scan a shelf label to fill this in" style="padding:11px 14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h6v6M15 18h.01M18 15v.01"/></svg>Scan</button></div>
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Supplier (optional)</label><input id="pr-sup" type="text" placeholder="Bosch India Pvt Ltd" /></div>
+        <div class="f-grp"><label>Barcode (optional)</label>
+          <div style="display:flex;gap:8px"><input id="pr-bar" type="text" placeholder="Type or scan…" style="flex:1" />
+          <button type="button" class="mini-btn" onclick="_scanIntoReceiveField()" style="padding:11px 14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h6v6M15 18h.01M18 15v.01"/></svg>Scan</button></div>
+        </div>
+      </div>
+      <div class="f-err" id="pr-err"></div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>
+      <button class="fbtn fbtn-save" onclick="_prConfirmReceived('${escapeHtml(reqId)}','${escapeHtml(itemId)}')">Mark received</button>`
   });
-  audit('part-estimate-sent', `${r.plate || '—'} · ₹${total.toLocaleString('en-IN')} → ${r.requested_by}`, { request_id: r.id });
-  showToast('Estimate sent to ' + (r.requested_by || 'worker'), 'good');
+};
+window._scanIntoReceiveField = function() {
+  openScanner('receive-part', (code) => {
+    const inp = document.getElementById('pr-bar');
+    if (inp) { inp.value = code; inp.focus(); }
+    showToast(`Barcode ${code} filled in`, 'good');
+  }, 'Scan to fill barcode');
+};
+window._prConfirmReceived = async function(reqId, itemId) {
+  const loc = (document.getElementById('pr-loc')?.value || '').trim();
+  const sup = (document.getElementById('pr-sup')?.value || '').trim();
+  const bar = (document.getElementById('pr-bar')?.value || '').trim();
+  const err = document.getElementById('pr-err');
+  if (!loc) { if (err) err.textContent = 'Shelf/storage location is required.'; return; }
+  await setPartStatus(reqId, 'Received', itemId, { location: loc, supplier: sup, barcode: bar });
+  closeSubModal();
 };
 
 // ─── Request Parts (worker-only, own only) ─────────────────────────────
@@ -9687,12 +9960,14 @@ async function savePartRequest() {
   closeModal();
   showToast(`Request sent · ${items.length} item${items.length === 1 ? '' : 's'}`, 'good');
   audit('part-request', summary + (job ? ' for ' + job.plate : ''), { request_id: req.id });
-  // Broadcast to everyone who can approve parts (parts_dept + admins). notifFor
-  // widens role-targeted notifs to owner/manager automatically.
+  // Service Advisor + Parts department are notified of every new request —
+  // the requesting WORKER is deliberately not targeted (they'll hear about it
+  // again only when the parts actually arrive). notifFor widens role-targeted
+  // notifs to owner/manager automatically.
   notify({
     kind:    'part-request',
     message: `New parts request from ${currentWorker.name}: ${summary}${job ? ' · ' + job.plate : ''} (${req.urgency || 'Normal'})`,
-    target:  { role: 'parts_dept' },
+    target:  { roles: ['service_advisor', 'parts_dept'] },
     meta:    { request_id: req.id, plate: req.plate, urgency: req.urgency }
   });
   // Save FIRST so Firestore has the new request, THEN refresh the view.
@@ -9715,9 +9990,9 @@ async function savePartRequest() {
 //   3. status === 'Received' triggers inventory writeback for the affected items
 //
 // The request's overall status is recomputed from items via _prRollupStatus().
-window.setPartStatus = async function(reqId, status, itemId) {
+window.setPartStatus = async function(reqId, status, itemId, extra) {
   if (!currentWorker) return showToast('Sign in as a worker first', 'bad');
-  if (!canApproveParts()) return customAlert('Only the Parts department can approve or change part statuses.', { title: 'Parts dept only' });
+  if (!canApproveParts()) return customAlert('Only the Parts department can order or receive parts.', { title: 'Parts dept only' });
   const r = D.parts_requests.find(x => x.id === reqId);
   if (!r) { showToast('Request not found — refresh the page', 'bad'); return; }
   // Normalise the items array onto the request so future writes persist per-item state
@@ -9728,21 +10003,43 @@ window.setPartStatus = async function(reqId, status, itemId) {
   // ── Inventory writeback: any item moving to Received gets stocked (once) ──
   const stockAdds = [];
   const arrived   = [];   // {name, qty} for exactly the items that landed in THIS action
+  let jobsTouched = false;
   for (const it of targets) {
+    // Cost/MRP are captured when marking Ordered (_prMarkOrdered) — stamp them
+    // on the request item so they carry through to the inventory record below.
+    if (status === 'Ordered' && extra) {
+      if (extra.cost_price != null) it.cost_price = extra.cost_price;
+      if (extra.price != null)      it.price      = extra.price;
+      // Now that this part has a price, auto-populate it into the linked
+      // job's Estimate section — no manual "From priced request" pull needed.
+      if (_prAutoAddToJobEstimate(r, it)) jobsTouched = true;
+    }
     if (status === 'Received' && !it.stocked) {
       const name = (it.name || '').trim();
       if (!name) continue;
       const qty = Math.max(1, Number(it.qty || 1));
+      // Shelf location (+ optional supplier/barcode), captured via _prMarkReceived.
+      if (extra?.location) it.location = extra.location;
+      if (extra?.supplier) it.supplier = extra.supplier;
+      if (extra?.barcode)  it.barcode  = extra.barcode;
       const existing = D.inventory.find(x => (x.name || '').toLowerCase() === name.toLowerCase());
       if (existing) {
         existing.qty = Math.max(0, Number(existing.qty || 0)) + qty;
         existing.updated_at = nowStr();
+        // Retain pricing/location captured at ordering/receiving time —
+        // only fills fields the item didn't already have, except location
+        // (the most recent shelving is the authoritative current spot).
+        if (it.cost_price != null && !existing.cost_price) existing.cost_price = it.cost_price;
+        if (it.price != null && !existing.sell_price)      existing.sell_price = it.price;
+        if (it.location) existing.location = it.location;
+        if (it.supplier && !existing.supplier) existing.supplier = it.supplier;
+        if (it.barcode && !existing.barcode)   existing.barcode  = it.barcode;
         stockAdds.push(`${name} +${qty}`);
       } else {
         D.inventory.push({
           id: uid('inv'), name, qty, unit: 'pcs', category: '',
-          sell_price: 0, cost_price: 0, hsn: '',
-          low_stock_threshold: 0, location: '', supplier: '', barcode: '',
+          sell_price: it.price || 0, cost_price: it.cost_price || 0, hsn: '',
+          low_stock_threshold: 0, location: it.location || '', supplier: it.supplier || '', barcode: it.barcode || '',
           created_at: nowStr(), added_via: 'parts-request', source_request_id: r.id
         });
         stockAdds.push(`${name} (new)`);
@@ -9762,31 +10059,38 @@ window.setPartStatus = async function(reqId, status, itemId) {
   const scope = itemId ? '1 item' : `${targets.length} item${targets.length === 1 ? '' : 's'}`;
   showToast(`Marked ${status} on ${scope}${stockMsg}`, 'good');
   audit('part-' + status.toLowerCase(), `${r.summary || r.part_name || '—'} (${scope})${stockMsg}`, { request_id: reqId, item_id: itemId || null });
-  // Tell the worker who raised the request exactly what arrived in THIS batch.
-  // Each Receive action fires its own notification, so a partial delivery pings
-  // once with the parts that came in, and later arrivals ping again for the rest.
-  if (arrived.length && (r.requested_by_id || r.requested_by)) {
+  // Delivered parts notify the Service Advisor + the requesting Worker + the
+  // Floor Manager (not just the requester). Each Receive fires its own
+  // notification, so a partial delivery pings once with what arrived, and
+  // later arrivals ping again for the rest.
+  if (arrived.length) {
+    const list = arrived.map(a => `${a.name} ×${a.qty}`).join(', ');
+    const pending = r.items.filter(it => it.status !== 'Received' && it.status !== 'Cancelled').length;
+    const tail = pending ? ` · ${pending} more still to come` : ' · request now complete';
+    const where = r.plate ? ` for ${r.plate}` : '';
+    // Don't ping the requester if they're also the one who just received it
+    // (e.g. an owner who self-requested and self-fulfilled).
     const isSelf = (r.requested_by_id && r.requested_by_id === currentWorker?.id);
-    if (!isSelf) {
-      const list = arrived.map(a => `${a.name} ×${a.qty}`).join(', ');
-      const pending = r.items.filter(it => it.status !== 'Received' && it.status !== 'Declined').length;
-      const tail = pending ? ` · ${pending} more still to come` : ' · request now complete';
-      const where = r.plate ? ` for ${r.plate}` : '';
-      notify({
-        kind: 'parts-arrived',
-        message: `Parts arrived${where} & added to inventory: ${list}${tail}`,
-        target: r.requested_by_id ? { worker_id: r.requested_by_id } : { worker_name: r.requested_by || '' },
-        job_id: r.job_id || '',
-        booking_id: r.booking_id || '',
-        meta: { request_id: r.id }
-      });
+    const target = { roles: ['service_advisor', 'floor_manager'] };
+    if (!isSelf && (r.requested_by_id || r.requested_by)) {
+      if (r.requested_by_id) target.worker_id = r.requested_by_id;
+      else target.worker_name = r.requested_by || '';
     }
+    notify({
+      kind: 'parts-arrived',
+      message: `Parts arrived${where} & added to inventory: ${list}${tail}`,
+      target,
+      job_id: r.job_id || '',
+      booking_id: r.booking_id || '',
+      meta: { request_id: r.id }
+    });
   }
   // Persist BEFORE refreshing — refresh calls loadAllData(true) which would otherwise
   // overwrite our just-mutated D.parts_requests with the pre-save Firestore snapshot.
   try {
     const writes = [wsSave('parts_requests', D.parts_requests)];
     if (stockAdds.length) writes.push(wsSave('inventory', D.inventory));
+    if (jobsTouched)      writes.push(wsSave('jobs', D.jobs));
     await Promise.all(writes);
   } catch (e) {
     showToast('Couldn\'t save status change: ' + (e?.message || e), 'bad');
@@ -9799,27 +10103,58 @@ window.setPartStatus = async function(reqId, status, itemId) {
   }
 };
 
+// A parts-request item that just got priced (marked Ordered with cost+MRP)
+// auto-populates into its linked job's Estimate section — the advisor no
+// longer has to manually pull it in via "From priced request". No-ops for
+// requests not tied to a job (general stock requests). Returns true if a
+// job's est_parts actually changed, so the caller knows to persist D.jobs.
+function _prAutoAddToJobEstimate(r, it) {
+  if (!r.job_id) return false;
+  const j = (D.jobs || []).find(x => x.id === r.job_id);
+  if (!j) return false;
+  const name = (it.name || '').trim();
+  if (!name || it.price == null) return false;
+  j.est_parts = j.est_parts || [];
+  const existing = j.est_parts.find(p => (p.name || '').trim().toLowerCase() === name.toLowerCase());
+  if (existing) {
+    // Keep whatever qty the advisor may have already adjusted — just sync price.
+    if (existing.price !== Number(it.price)) { existing.price = Number(it.price); return true; }
+    return false;
+  }
+  j.est_parts.push({ name, qty: Number(it.qty || 1), price: Number(it.price), source: 'approved-request' });
+  return true;
+}
+
+// Old saves may still carry 'Approved'/'Declined' from the removed approval
+// gate — fold them onto the new 3-stage flow so old data keeps rendering sanely.
+function _prMigrateStatus(s) {
+  if (s === 'Approved') return 'Pending';
+  if (s === 'Declined') return 'Cancelled';
+  return s || 'Pending';
+}
 // Normalises the legacy single-item parts request shape into the new items[] form.
 // Also stamps a default status + id on each item if missing (older saves only
-// stored name + qty, the new flow tracks Pending/Approved/Declined/Ordered/Received per item).
+// stored name + qty, the current flow tracks Pending/Ordered/Received/Cancelled per item).
 function _prRequestItems(r) {
   if (Array.isArray(r.items) && r.items.length) {
     return r.items.map(it => ({
       id:      it.id || uid('pi'),
       name:    it.name || '',
       qty:     Number(it.qty || 1),
-      status:  it.status || r.status || 'Pending',
+      status:  _prMigrateStatus(it.status || r.status),
       stocked: !!it.stocked,
       // Preserve the estimated price — was being stripped here, which wiped
       // every saved estimate on the next normalize pass.
-      price:   (it.price == null || it.price === '') ? null : Number(it.price)
+      price:      (it.price == null || it.price === '') ? null : Number(it.price),
+      cost_price: (it.cost_price == null || it.cost_price === '') ? null : Number(it.cost_price)
     }));
   }
   if (r.part_name) {
     return [{
       id:      'legacy', name: r.part_name, qty: Number(r.qty || 1),
-      status:  r.status || 'Pending', stocked: !!r.stocked,
-      price:   (r.price == null || r.price === '') ? null : Number(r.price)
+      status:  _prMigrateStatus(r.status), stocked: !!r.stocked,
+      price:      (r.price == null || r.price === '') ? null : Number(r.price),
+      cost_price: (r.cost_price == null || r.cost_price === '') ? null : Number(r.cost_price)
     }];
   }
   return [];
@@ -9828,19 +10163,17 @@ window._prRequestItems = _prRequestItems;
 
 // Derive the OVERALL request status from its items:
 //   - If every item is Received → Received
+//   - If every item is Cancelled → Cancelled
 //   - If at least one Ordered (but not all Received) → Ordered
-//   - If at least one Approved (but no Ordered) → Approved
-//   - If every item is Declined → Declined
-//   - Otherwise → Pending (mixed)
+//   - Otherwise → Pending (mixed / not yet ordered)
 function _prRollupStatus(r) {
   const items = _prRequestItems(r);
   if (!items.length) return r.status || 'Pending';
   const all = (s) => items.every(it => it.status === s);
   const some = (s) => items.some(it => it.status === s);
-  if (all('Received')) return 'Received';
-  if (all('Declined')) return 'Declined';
+  if (all('Received'))  return 'Received';
+  if (all('Cancelled')) return 'Cancelled';
   if (some('Ordered'))  return 'Ordered';
-  if (some('Approved')) return 'Approved';
   return 'Pending';
 }
 window._prRollupStatus = _prRollupStatus;
@@ -10000,7 +10333,6 @@ window._tsClearRange = function() {
 const ALL_TABS = [
   { id:'dashboard',   label:'Dashboard' },
   { id:'bookings',    label:'Appointments' },
-  { id:'checkin',     label:'Check-in' },
   { id:'jobs',        label:'Job Cards' },
   { id:'queue',       label:'Live Queue' },
   { id:'customers',   label:'Customers' },
@@ -10013,6 +10345,7 @@ const ALL_TABS = [
   { id:'reports',     label:'Reports' },
   { id:'timesheets',  label:'Timesheets' },
   { id:'notifications', label:'Notifications' },
+  { id:'chat',        label:'Chat' },
   { id:'audit',       label:'Audit Log' },
   { id:'settings',    label:'Settings' }
 ];
@@ -10026,7 +10359,7 @@ async function renderSettings(force = false) {
   const s = D.settings || {};
   const perms = s.role_perms || {};
   const customRoles = Object.keys(perms).filter(r => !DEFAULT_ROLE_PERMS[r]);
-  const allRoles = ['owner','manager','floor_manager','parts_dept','receptionist','mechanic', ...customRoles];
+  const allRoles = ['owner','manager','floor_manager','service_advisor','parts_dept','receptionist','mechanic', ...customRoles];
   document.getElementById('settingsBody').innerHTML = `
     <div style="display:grid;gap:18px">
 
@@ -10141,6 +10474,50 @@ async function renderSettings(force = false) {
           <button class="refresh-btn" onclick="_addDepartment()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add department</button>
         </div>
         <div id="sf-dept-msg" style="margin-top:8px;font-size:12.5px;min-height:14px"></div>
+      </div>
+
+      <!-- ──────────────────────────────────────────────────────────────────
+           Service types — each department gets its own list (e.g. Service
+           Department → Minor/Major Service, Body Shop → Dent Repair/Paint).
+           Pick a department, then add/remove its types.
+           ────────────────────────────────────────────────────────────── -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Service types</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Each department has its own list of service types, shown in the Service type dropdown on appointments. A department with no custom list yet falls back to a generic default set.</div>
+        <div class="f-grp" style="margin-bottom:12px">
+          <label>Department</label>
+          <select id="sf-svctype-dept" onchange="_renderServiceTypesList()">
+            ${departments().map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('')}
+          </select>
+        </div>
+        <div id="sf-svctype-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="sf-svctype-new" placeholder="New service type (e.g. Minor Service)" style="flex:1;min-width:200px;padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb)" onkeydown="if(event.key==='Enter'){event.preventDefault();_addServiceType();}" />
+          <button class="refresh-btn" onclick="_addServiceType()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add service type</button>
+        </div>
+        <div id="sf-svctype-msg" style="margin-top:8px;font-size:12.5px;min-height:14px"></div>
+      </div>
+
+      <!-- ──────────────────────────────────────────────────────────────────
+           Shelf locations — named storage spots with a printable barcode.
+           Scanning a shelf's barcode (in Inventory or when receiving parts)
+           auto-fills that location, or shows everything stored there.
+           ────────────────────────────────────────────────────────────── -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Shelf locations</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Name your storage spots (racks, bins, shelves) and print a barcode for each. Scan a shelf's barcode when receiving a part to fill in its location instantly, or scan it in Inventory to see everything stored there.</div>
+        <div id="sf-shelf-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+          ${(D.settings?.shelf_locations || []).map(s => `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px">
+            <div style="flex:1"><b style="font-size:13.5px">${escapeHtml(s.name)}</b> <span style="color:var(--faint);font-size:11.5px;font-family:'Courier New',monospace">${escapeHtml(s.code)}</span></div>
+            <button type="button" class="mini-btn" onclick="_showShelfQR('${escapeHtml(s.id)}')">Print label</button>
+            <button type="button" class="mini-btn danger" onclick="_removeShelfLocation('${escapeHtml(s.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+          </div>`).join('') || `<div style="padding:12px;color:var(--faint);text-align:center;font-size:12.5px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px">No shelf locations yet.</div>`}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="sf-shelf-new" placeholder="e.g. Rack 3, Bin B" style="flex:1;min-width:200px;padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb)" onkeydown="if(event.key==='Enter'){event.preventDefault();_addShelfLocation();}" />
+          <button class="refresh-btn" onclick="_addShelfLocation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add location</button>
+        </div>
+        <div id="sf-shelf-msg" style="margin-top:8px;font-size:12.5px;min-height:14px"></div>
       </div>
 
       <!-- Role permissions -->
@@ -10417,6 +10794,7 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
     </div>`;
   // Render the branch list (no-op when the Branches card isn't on screen)
   if (typeof _renderBranchList === 'function') _renderBranchList();
+  _renderServiceTypesList();
 }
 
 window.saveWorkshopInfo = async function() {
@@ -10630,6 +11008,158 @@ window._removeDepartment = async function(name) {
   await wsSaveSettings();
   showToast('Removed "' + name + '"', 'good');
   await renderSettings(true);
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+//  SERVICE TYPES — per-department lists (Settings → Service types). Falls
+//  back to _LEGACY_SERVICES (see serviceTypesFor) for any department that
+//  hasn't been customised yet.
+// ══════════════════════════════════════════════════════════════════════════
+window._renderServiceTypesList = function() {
+  const wrap = document.getElementById('sf-svctype-list');
+  const deptSel = document.getElementById('sf-svctype-dept');
+  if (!wrap || !deptSel) return;
+  const dept = deptSel.value || departments()[0];
+  const list = serviceTypesFor(dept);
+  const isCustom = !!((D.settings?.service_types || {})[dept]?.length);
+  wrap.innerHTML = list.map(s => `<span style="display:inline-flex;align-items:center;gap:6px;padding:7px 11px;background:var(--bg2);border:1px solid var(--brd2);border-radius:100px;font-size:13px;font-weight:600">
+    ${escapeHtml(s)}
+    <button type="button" class="mini-btn danger" title="Remove ${escapeHtml(s)}" style="padding:2px 6px;font-size:10px;line-height:1" onclick="_removeServiceType('${escapeHtml(s).replace(/'/g, "\\'")}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </span>`).join('') + (isCustom ? '' : `<div style="font-size:11.5px;color:var(--faint);width:100%">Showing the generic default list — add a type below to start a custom list for "${escapeHtml(dept)}".</div>`);
+};
+
+window._addServiceType = async function() {
+  const deptSel = document.getElementById('sf-svctype-dept');
+  const input   = document.getElementById('sf-svctype-new');
+  const msg     = document.getElementById('sf-svctype-msg');
+  const dept    = deptSel?.value || departments()[0];
+  const name    = (input?.value || '').trim();
+  msg.style.color = 'var(--red)';
+  if (!name)            { msg.textContent = 'Type a service type name first.'; return; }
+  if (name.length > 40) { msg.textContent = 'Keep the name under 40 characters.'; return; }
+  D.settings = D.settings || {};
+  D.settings.service_types = D.settings.service_types || {};
+  // First customisation for this department starts from the legacy list
+  // (rather than empty) so nothing already in use suddenly disappears.
+  const current = D.settings.service_types[dept]?.length ? D.settings.service_types[dept] : serviceTypesFor(dept).slice();
+  if (current.some(s => s.toLowerCase() === name.toLowerCase())) {
+    msg.textContent = '"' + name + '" already exists for ' + dept + '.'; return;
+  }
+  D.settings.service_types[dept] = [...current, name];
+  await wsSaveSettings();
+  showToast('Added "' + name + '" to ' + dept, 'good');
+  msg.textContent = '';
+  input.value = '';
+  _renderServiceTypesList();
+};
+
+window._removeServiceType = async function(name) {
+  const deptSel = document.getElementById('sf-svctype-dept');
+  const dept = deptSel?.value || departments()[0];
+  const current = serviceTypesFor(dept);
+  if (current.length <= 1) {
+    showToast('Need at least one service type — add another before removing this.', 'bad');
+    return;
+  }
+  if (!(await customConfirm(`Remove "${name}" from ${dept}?`, { title: 'Remove service type', okLabel: 'Remove' }))) return;
+  D.settings = D.settings || {};
+  D.settings.service_types = D.settings.service_types || {};
+  D.settings.service_types[dept] = current.filter(s => s !== name);
+  await wsSaveSettings();
+  showToast('Removed "' + name + '"', 'good');
+  _renderServiceTypesList();
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+//  SHELF LOCATIONS — named storage spots with a printable barcode. Scanning
+//  a shelf's code (format SHELF-<code>) auto-fills the location field when
+//  receiving parts, or filters Inventory to everything stored there.
+// ══════════════════════════════════════════════════════════════════════════
+function shelfLocations() { return (D.settings && D.settings.shelf_locations) || []; }
+window.shelfLocations = shelfLocations;
+function _shelfByCode(code) {
+  const norm = (code || '').trim().toUpperCase().replace(/^SHELF-/, '');
+  return shelfLocations().find(s => s.code === norm) || null;
+}
+window._shelfByCode = _shelfByCode;
+
+window._addShelfLocation = async function() {
+  const input = document.getElementById('sf-shelf-new');
+  const msg   = document.getElementById('sf-shelf-msg');
+  const name  = (input?.value || '').trim();
+  msg.style.color = 'var(--red)';
+  if (!name)            { msg.textContent = 'Name the shelf location first.'; return; }
+  if (name.length > 40) { msg.textContent = 'Keep the name under 40 characters.'; return; }
+  const current = shelfLocations();
+  if (current.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+    msg.textContent = '"' + name + '" already exists.'; return;
+  }
+  D.settings = D.settings || {};
+  // Short, scan-friendly code — sequential so labels stay compact.
+  const code = 'SH' + String(current.length + 1).padStart(3, '0');
+  D.settings.shelf_locations = [...current, { id: uid('shelf'), name, code }];
+  await wsSaveSettings();
+  showToast('Added "' + name + '"', 'good');
+  msg.textContent = '';
+  await renderSettings(true);
+};
+
+window._removeShelfLocation = async function(id) {
+  if (!(await customConfirm('Remove this shelf location? Inventory items already using it keep the text label — you just won\'t be able to scan/reselect it.', { title: 'Remove shelf location', okLabel: 'Remove' }))) return;
+  D.settings = D.settings || {};
+  D.settings.shelf_locations = shelfLocations().filter(s => s.id !== id);
+  await wsSaveSettings();
+  showToast('Removed', 'good');
+  await renderSettings(true);
+};
+
+// Printable barcode label for one shelf location — same QR flow as vehicle
+// stickers, encoding SHELF-<code> so the scanner can tell it apart from a
+// part barcode or a vehicle QR.
+window._showShelfQR = async function(id) {
+  const s = shelfLocations().find(x => x.id === id);
+  if (!s) return showToast('Shelf location not found', 'bad');
+  const qrText = 'SHELF-' + s.code;
+  _openSubModal({
+    title: `${s.name} — shelf label`,
+    bodyHtml: `
+      <div style="text-align:center;padding:6px 0">
+        <div style="background:#fff;display:inline-block;padding:18px;border-radius:14px;box-shadow:0 8px 24px -6px rgba(0,0,0,.6)">
+          <div id="shelfQrTarget" style="display:inline-block;min-width:220px;min-height:220px"></div>
+          <div style="margin-top:14px;font-family:'Courier New',monospace;font-size:13px;color:#1a1a1a;font-weight:700">${escapeHtml(s.name)}</div>
+          <div style="margin-top:2px;font-family:'Courier New',monospace;font-size:11px;color:#6b7888">${escapeHtml(qrText)}</div>
+        </div>
+        <div id="shelfQrStatus" style="margin-top:12px;font-size:12.5px;color:var(--faint)">Loading QR library…</div>
+        <div style="margin-top:8px;font-size:13px;color:var(--dim);line-height:1.5">Stick this on the shelf/rack/bin. Scan it while receiving parts to fill in the location, or in Inventory to see everything stored here.</div>
+      </div>`,
+    footHtml: `<div style="flex:1"></div>
+      <button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>
+      <button class="fbtn fbtn-save" id="shelfQrPrintBtn" disabled>Print</button>`
+  });
+  try {
+    await ensureQR();
+    const target = document.getElementById('shelfQrTarget');
+    target.innerHTML = '';
+    new QRCode(target, { text: qrText, width: 220, height: 220, colorDark: '#0a0e14', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+    document.getElementById('shelfQrStatus').textContent = 'Ready — print and stick it on the shelf.';
+    const printBtn = document.getElementById('shelfQrPrintBtn');
+    printBtn.disabled = false;
+    printBtn.onclick = () => {
+      const canvas = target.querySelector('canvas');
+      const dataUrl = canvas ? canvas.toDataURL('image/png') : (target.querySelector('img') || {}).src;
+      if (!dataUrl) return showToast('QR not ready yet', 'bad');
+      const w = window.open('', '_blank');
+      if (!w) return showToast('Allow pop-ups to print', 'bad');
+      _openDocInWindow(w, `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(s.name)}</title>
+        <style>@page{size:auto;margin:10mm}body{font-family:-apple-system,sans-serif;text-align:center;padding:20px}img{width:220px;height:220px}
+        .name{font-size:16px;font-weight:800;margin-top:12px}.code{font-family:'Courier New',monospace;font-size:12px;color:#555;margin-top:2px}</style>
+        </head><body><img src="${dataUrl}"/><div class="name">${escapeHtml(s.name)}</div><div class="code">${escapeHtml(qrText)}</div>
+        <script>setTimeout(()=>{window.print();},350)<\/script></body></html>`);
+    };
+  } catch (e) {
+    console.error('Shelf QR load failed:', e);
+    document.getElementById('shelfQrStatus').innerHTML = `<span style="color:var(--red)">Couldn't load QR library — check your internet connection and try again.</span>`;
+  }
 };
 
 // ─── Customer-email settings ─────────────────────────────────────
@@ -11372,50 +11902,75 @@ function _renderRegistryResult(code, reg) {
 window._walkInFromRegistry = async function(pn) {
   const reg = await _registryLookup(pn);
   if (!reg) return showToast('No record found for this QR', 'bad');
+  // Seed every field the registry carries — field names here match what
+  // _bookingFormHTML actually reads (cust_*, veh_*, etc.), not the registry's
+  // own owner_*/bare naming, so nothing silently gets dropped on the floor.
   const b = {
     date: todayStr(), time: toTime(), _walkin: true,
-    plate:      reg.plate      || '',
-    cust_name:  reg.owner_name  || '',
-    cust_phone: reg.owner_phone || '',
-    cust_email: reg.owner_email || '',
-    veh_make:   reg.make  || '',
-    veh_model:  reg.model || '',
-    veh_year:   reg.year  || '',
-    colour:     reg.color || ''
+    plate:        reg.plate       || '',
+    plate_state:  reg.plate_state || '',
+    plate_suffix: reg.plate_suffix|| '',
+    cust_name:    reg.owner_name  || '',
+    cust_phone:   reg.owner_phone || '',
+    cust_phone2:  reg.owner_phone2|| '',
+    cust_email:   reg.owner_email || '',
+    cust_addr1:   reg.owner_addr1 || '',
+    cust_addr2:   reg.owner_addr2 || '',
+    cust_city:    reg.owner_city  || '',
+    cust_state:   reg.owner_state || '',
+    cust_pin:     reg.owner_pincode || '',
+    cust_dob:     reg.owner_dob   || '',
+    driver_name:  reg.owner_driver_name  || '',
+    customer_type:reg.owner_customer_type || '',
+    company_name: reg.owner_company_name || '',
+    gstin:        reg.owner_gstin || '',
+    ref_no:       reg.owner_ref_no || '',
+    veh_make:     reg.make    || '',
+    veh_model:    reg.model   || '',
+    veh_year:     reg.year    || '',
+    veh_variant:  reg.variant || '',
+    colour:       reg.color   || '',
+    vin:          reg.vin       || '',
+    engine_no:    reg.engine_no || '',
+    fuel_type:    reg.fuel_type || '',
+    odometer_in:  reg.odometer_in || '',
+    avg_kms:      reg.avg_kms     || ''
   };
   openModal({ title: `Walk-in · ${reg.plate || ''}`, body: _bookingFormHTML(b), saveLabel: 'Create + check in', onSave: () => saveWalkin() });
   showToast('Loaded from the vehicle registry', 'good');
 };
 
 // ── In-form "Scan QR" autofill (works for local records + registry hits) ──
-function _setBookingField(id, val) { const el = document.getElementById(id); if (el && val != null) el.value = val; }
-function _setBookingPlate(plate) {
-  const p = String(plate || '');
-  const state = p.slice(0, 2).toUpperCase();
-  const ss = document.getElementById('bf-plate-state');
-  if (ss && [...ss.options].some(o => o.value === state)) ss.value = state;
-  _setBookingField('bf-plate-suffix', p.slice(2).trim().toUpperCase());
-}
+// Fills EVERY field we have for the vehicle + owner — reuses the same
+// thorough appliers the "type a known plate/name" autofill uses
+// (_bookingApplyCustomerToForm / _applyVehicleToBookingForm), so a QR scan
+// populates exactly as much as manually picking the customer would.
 function _fillBookingFromVehicle(cust, veh) {
-  _setBookingPlate(veh.plate);
-  _setBookingField('bf-make',   veh.make  || veh.veh_make  || '');
-  _setBookingField('bf-model',  veh.model || veh.veh_model || '');
-  _setBookingField('bf-year',   veh.year  || veh.veh_year  || '');
-  _setBookingField('bf-colour', veh.color || veh.colour    || '');
-  _setBookingField('bf-cust',   cust?.name  || '');
-  _setBookingField('bf-phone',  cust?.phone || '');
-  _setBookingField('bf-email',  cust?.email || '');
+  if (cust) { _lastBookingCustomerId = cust.id; _bookingApplyCustomerToForm(cust); }
+  _applyVehicleToBookingForm(veh);
   showToast('Autofilled from ' + (veh.plate || 'vehicle'), 'good');
 }
 function _fillBookingFromRegistry(reg) {
-  _setBookingPlate(reg.plate);
-  _setBookingField('bf-make',   reg.make  || '');
-  _setBookingField('bf-model',  reg.model || '');
-  _setBookingField('bf-year',   reg.year  || '');
-  _setBookingField('bf-colour', reg.color || '');
-  _setBookingField('bf-cust',   reg.owner_name  || '');
-  _setBookingField('bf-phone',  reg.owner_phone || '');
-  _setBookingField('bf-email',  reg.owner_email || '');
+  // Registry fields are prefixed (owner_*) since it's a shared cross-workshop
+  // doc, not a local customer record — adapt to the same shape the appliers
+  // expect, then reuse them so every field the registry carries gets applied.
+  const custAdapter = {
+    name: reg.owner_name || '', phone: reg.owner_phone || '', phone2: reg.owner_phone2 || '',
+    email: reg.owner_email || '', address: reg.owner_address || '',
+    addr1: reg.owner_addr1 || '', addr2: reg.owner_addr2 || '',
+    city: reg.owner_city || '', state: reg.owner_state || '', pincode: reg.owner_pincode || '',
+    driver_name: reg.owner_driver_name || '', dob: reg.owner_dob || '',
+    customer_type: reg.owner_customer_type || '', company_name: reg.owner_company_name || '',
+    gstin: reg.owner_gstin || '', ref_no: reg.owner_ref_no || ''
+  };
+  const vehAdapter = {
+    plate: reg.plate || '', plate_state: reg.plate_state || '', plate_suffix: reg.plate_suffix || '',
+    make: reg.make || '', model: reg.model || '', year: reg.year || '', variant: reg.variant || '',
+    color: reg.color || '', vin: reg.vin || '', engine_no: reg.engine_no || '',
+    fuel_type: reg.fuel_type || '', odometer_in: reg.odometer_in || '', avg_kms: reg.avg_kms || ''
+  };
+  _bookingApplyCustomerToForm(custAdapter);
+  _applyVehicleToBookingForm(vehAdapter);
 }
 window._scanIntoBooking = function() {
   openScanner('booking', async (code) => {
@@ -11773,10 +12328,13 @@ window.openInvoiceForm = function(idOrSeed) {
   if (typeof idOrSeed === 'string' && idOrSeed) {
     inv = (D.invoices || []).find(x => x.id === idOrSeed);
     if (!inv) return showToast('Invoice not found', 'bad');
-  } else if (idOrSeed && typeof idOrSeed === 'object' && idOrSeed.from_job_id) {
-    inv = _seedInvoiceFromJob(idOrSeed.from_job_id);
   } else {
-    inv = _blankInvoice();
+    // Creating a brand-new invoice (from a job or blank) is the "Generate
+    // invoices" action — Service Advisor / owner / manager only. Opening an
+    // EXISTING invoice by id (above) stays open to anyone who can see the tab.
+    if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can generate invoices', 'bad');
+    if (idOrSeed && typeof idOrSeed === 'object' && idOrSeed.from_job_id) inv = _seedInvoiceFromJob(idOrSeed.from_job_id);
+    else inv = _blankInvoice();
   }
   _editingInvoice = JSON.parse(JSON.stringify(inv));   // deep copy for cancel-safe editing
   openModal({
@@ -12819,6 +13377,7 @@ function _invoiceHTMLFromRecord(inv, opts) {
 // repair. Lets the advisor add an inspection / diagnostic charge (or nothing)
 // and then generates the invoice — reviving the cancelled estimate invoice.
 window._billReturnedJob = function(jobId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can generate invoices', 'bad');
   const j = (D.jobs || []).find(x => x.id === jobId);
   if (!j) return showToast('Job not found', 'bad');
   const cur = D.settings?.currency || '₹';
@@ -12848,6 +13407,7 @@ window._billReturnedJob = function(jobId) {
 };
 
 window.generateInvoice = async function(jobId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can generate invoices', 'bad');
   const j = D.jobs.find(x => x.id === jobId);
   if (!j) return showToast('Job not found', 'bad');
   // Reuse the existing invoice for this job if one already exists; otherwise create
@@ -13447,9 +14007,17 @@ function _renderNotifAction(n) {
   const jid  = n.job_id || '';
   const bid  = n.booking_id || (n.meta && n.meta.booking_id) || '';
   const pid  = (n.meta && n.meta.request_id) || (n.meta && n.meta.part_request_id) || '';
-  // car-arrived → check-in tab (advisor runs intake there)
+  // chat-message → Chat tab, opened straight to the sender's thread
+  if (kind === 'chat-message' && n.meta?.from_id) {
+    const fromId = n.meta.from_id;
+    const fromWorker = (D.mechanics || []).find(m => m.id === fromId);
+    const fromName = (fromWorker?.name || n.by || 'them').replace(/'/g, "\\'");
+    return `<button class="mini-btn good" onclick="switchTab('chat'); setTimeout(()=>_chatOpenThread('${escapeHtml(fromId)}','${escapeHtml(fromName)}'),200)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Reply</button>`;
+  }
+  // car-arrived → Appointments tab, opened straight to this booking (check-in
+  // is now an action on the appointment row, not a separate tab)
   if (kind === 'car-arrived' && bid) {
-    return `<button class="mini-btn" onclick="switchTab('checkin')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Open check-in</button>`;
+    return `<button class="mini-btn" onclick="switchTab('bookings'); setTimeout(()=>openCheckinForm('${escapeHtml(bid)}'),200)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Check in</button>`;
   }
   // pricing-complete → advisor sends the estimate straight from the notification
   if (kind === 'pricing-complete' && jid) {
@@ -13655,6 +14223,147 @@ async function renderNotifications(force = false) {
   // important notifications would silently clear just by glancing at the tab.
 }
 window.renderNotifications = renderNotifications;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CHAT — simple internal messaging, WhatsApp-style. Text only, no media.
+//  Direct messages between two workers, stored flat in D.chat_messages:
+//    { id, from_id, from_name, to_id, to_name, text, at, read_by:[] }
+//  A "conversation" is identified by the unordered pair (my id, their id).
+//  Synced live via the same onSnapshot plumbing as every other collection.
+// ══════════════════════════════════════════════════════════════════════════
+let _chatOpenWith = null;   // {id, name} of the contact whose thread is open
+
+function _chatContacts() {
+  const me = currentWorker?.id;
+  return (D.mechanics || []).filter(m => m.id !== me && m.active !== false)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+function _chatThreadWith(contactId) {
+  const me = currentWorker?.id;
+  return (D.chat_messages || [])
+    .filter(m => (m.from_id === me && m.to_id === contactId) || (m.from_id === contactId && m.to_id === me))
+    .sort((a, b) => (a.at || '').localeCompare(b.at || ''));
+}
+function _chatUnreadFrom(contactId) {
+  const me = currentWorker?.id;
+  return (D.chat_messages || []).filter(m => m.from_id === contactId && m.to_id === me && !(m.read_by || []).includes(me)).length;
+}
+function _chatLastMessage(contactId) {
+  const t = _chatThreadWith(contactId);
+  return t.length ? t[t.length - 1] : null;
+}
+function _chatTimeShort(s) {
+  if (!s) return '';
+  const d = new Date(String(s).replace(' ', 'T'));
+  if (isNaN(d)) return '';
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 86400) return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+async function renderChat(force = false) {
+  await loadAllData(force);
+  if (!currentWorker) return;
+  const contacts = _chatContacts();
+  const totalUnread = contacts.reduce((s, c) => s + _chatUnreadFrom(c.id), 0);
+  document.getElementById('chatCrumb').textContent = `${contacts.length} contact${contacts.length===1?'':'s'}${totalUnread ? ` · ${totalUnread} unread` : ''}`;
+  const list = document.getElementById('chatContactList');
+  if (!contacts.length) {
+    list.innerHTML = `<div style="padding:20px 14px;color:var(--faint);font-size:12.5px;text-align:center">No other active workers yet.</div>`;
+  } else {
+    list.innerHTML = contacts.map(c => {
+      const last = _chatLastMessage(c.id);
+      const unread = _chatUnreadFrom(c.id);
+      const active = _chatOpenWith?.id === c.id;
+      return `<div onclick="_chatOpenThread('${escapeHtml(c.id)}','${escapeHtml((c.name||'').replace(/'/g,"\\'"))}')"
+        style="padding:12px 14px;border-bottom:1px solid var(--brd);cursor:pointer;background:${active ? 'rgba(255,179,71,.08)' : 'transparent'};display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:50%;background:var(--bg2);display:grid;place-items:center;font-weight:800;font-size:13px;color:var(--acc2);flex:none">${escapeHtml((c.name||'?').slice(0,1).toUpperCase())}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13.5px;display:flex;justify-content:space-between;gap:6px">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.name || '—')}</span>
+            <span style="font-size:10.5px;color:var(--faint);font-weight:500;flex:none">${escapeHtml(_chatTimeShort(last?.at))}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:6px;align-items:center">
+            <span style="font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${last ? escapeHtml((last.from_id===currentWorker.id?'You: ':'')+last.text) : escapeHtml(c.role ? roleLabel(c.role) : '—')}</span>
+            ${unread ? `<span style="background:var(--teal,#20e3b2);color:#04231c;font-size:10px;font-weight:800;padding:1px 6px;border-radius:100px;flex:none">${unread}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  if (_chatOpenWith) _chatRenderThread();
+  _renderChatBadge();
+}
+window.renderChat = renderChat;
+
+window._chatOpenThread = function(id, name) {
+  _chatOpenWith = { id, name };
+  // Mark every message FROM this contact as read by me
+  const me = currentWorker?.id;
+  let changed = false;
+  (D.chat_messages || []).forEach(m => {
+    if (m.from_id === id && m.to_id === me && !(m.read_by || []).includes(me)) {
+      m.read_by = [...(m.read_by || []), me];
+      changed = true;
+    }
+  });
+  if (changed) wsSave('chat_messages', D.chat_messages).catch(() => {});
+  renderChat();
+};
+
+function _chatRenderThread() {
+  const header = document.getElementById('chatThreadHeader');
+  const body = document.getElementById('chatThreadBody');
+  const inputWrap = document.getElementById('chatInputWrap');
+  if (!header || !body) return;
+  header.textContent = _chatOpenWith.name;
+  inputWrap.style.display = 'block';
+  const msgs = _chatThreadWith(_chatOpenWith.id);
+  if (!msgs.length) {
+    body.innerHTML = `<div style="margin:auto;color:var(--faint);font-size:13px;text-align:center">No messages yet. Say hi 👋</div>`;
+  } else {
+    body.innerHTML = msgs.map(m => {
+      const mine = m.from_id === currentWorker.id;
+      return `<div style="align-self:${mine ? 'flex-end' : 'flex-start'};max-width:72%;background:${mine ? 'var(--acc)' : 'var(--bg2)'};color:${mine ? '#170f05' : 'var(--txt)'};padding:9px 13px;border-radius:14px;${mine ? 'border-bottom-right-radius:3px' : 'border-bottom-left-radius:3px'};font-size:13.5px;line-height:1.4;word-break:break-word">
+        ${escapeHtml(m.text)}
+        <div style="font-size:10px;opacity:.65;margin-top:3px;text-align:right">${escapeHtml((m.at||'').slice(11,16))}</div>
+      </div>`;
+    }).join('');
+  }
+  body.scrollTop = body.scrollHeight;
+}
+
+window._chatSend = async function() {
+  const inp = document.getElementById('chatInput');
+  const text = (inp?.value || '').trim();
+  if (!text || !_chatOpenWith || !currentWorker) return;
+  const msg = {
+    id: uid('msg'),
+    from_id: currentWorker.id, from_name: currentWorker.name,
+    to_id: _chatOpenWith.id, to_name: _chatOpenWith.name,
+    text, at: nowStr(), read_by: [currentWorker.id]
+  };
+  D.chat_messages = D.chat_messages || [];
+  D.chat_messages.push(msg);
+  inp.value = '';
+  _chatRenderThread();
+  await wsSave('chat_messages', D.chat_messages);
+  notify({
+    kind: 'chat-message',
+    message: `${currentWorker.name}: ${text.length > 60 ? text.slice(0,60)+'…' : text}`,
+    target: { worker_id: _chatOpenWith.id },
+    meta: { from_id: currentWorker.id }
+  });
+};
+
+// Total unread across all contacts, shown as a badge on the sidebar nav item.
+window._renderChatBadge = function() {
+  const badge = document.getElementById('chatNavBadge');
+  if (!badge || !currentWorker) return;
+  const n = _chatContacts().reduce((s, c) => s + _chatUnreadFrom(c.id), 0);
+  badge.style.display = n ? 'inline-block' : 'none';
+  badge.textContent = n > 99 ? '99+' : String(n);
+};
 
 // ══════════════════════════════════════════════════════════════════════════
 //  REPORTS — revenue, jobs by status, top mechanics, outstanding invoices,
