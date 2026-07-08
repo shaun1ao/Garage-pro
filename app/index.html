@@ -1386,6 +1386,53 @@ window.departments = departments;
 // ──────────────────────────────────────────────────────────────────────────
 function _plateNorm(p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
+// ──────────────────────────────────────────────────────────────────────────
+//  PICKUP-CODE GATE — the customer must prove who they are (enter the phone or
+//  email on the booking) before the pickup code is revealed on the Track page.
+//  Security model without a backend: the code is NOT put in the public status
+//  doc and NOT sent in the WhatsApp message. Instead it lives in a doc whose ID
+//  is SHA-256(plateNorm | contact). To read it you must already know a contact
+//  linked to the booking — the doc ID itself is the secret. Same normalisation
+//  runs on both the app and track.html so the hashes line up.
+// ──────────────────────────────────────────────────────────────────────────
+function _pickupNormContact(v) {
+  v = String(v || '').trim();
+  if (!v) return '';
+  if (v.indexOf('@') > 0) return v.toLowerCase();      // email
+  const d = v.replace(/\D/g, '');                       // phone → last 10 digits
+  return d.length > 10 ? d.slice(-10) : d;
+}
+async function _pickupGateHash(plateNorm, contact) {
+  const norm = _pickupNormContact(contact);
+  if (!norm || !plateNorm || !(window.crypto && crypto.subtle)) return '';
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plateNorm + '|' + norm));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+// Collect the booking's + linked customer's contacts, then either write the
+// gate docs (when the car is Ready for Pickup and the toggle is on) or delete
+// them (any other state). Cheap: callers only invoke it when it can matter.
+async function _syncPickupGate(b, j, active) {
+  try {
+    if (!currentUser || !fbDb || !b) return;
+    const plateNorm = _plateNorm(b.plate);
+    if (!plateNorm) return;
+    const cust = (D.customers || []).find(c => (c.name || '').toLowerCase() === ((b.cust_name || '').toLowerCase()));
+    const contacts = [];
+    [b.cust_email, b.cust_phone, cust && cust.email, cust && cust.phone].forEach(x => {
+      const n = _pickupNormContact(x);
+      if (n && !contacts.includes(n)) contacts.push(n);
+    });
+    if (!contacts.length) return;
+    const col = fbDb.collection('users').doc(currentUser.uid).collection('pickup_gate');
+    const ids = await Promise.all(contacts.map(c => _pickupGateHash(plateNorm, c)));
+    for (const id of ids) {
+      if (!id) continue;
+      if (active) await col.doc(id).set({ code: j.pickup_otp, plate: b.plate, plate_norm: plateNorm, updated_at: nowStr() });
+      else        await col.doc(id).delete().catch(() => {});
+    }
+  } catch (e) { console.warn('[pickupGate]', e); }
+}
+
 async function publishTracking(bookingId) {
   try {
     if (!currentUser) return;
@@ -1417,11 +1464,21 @@ async function publishTracking(bookingId) {
       booking_no:          b.booking_no || '',
       mechanic_first_name: (j?.mechanic || '').split(' ')[0] || '',
       workshop_name:       D.settings?.workshop_name || userProfile?.workshop_name || '',
-      // Pickup gate pass — only exposed while the car is Ready for Pickup and
-      // the toggle is on; blanked at every other status so stale codes vanish.
-      pickup_code: (status === 'Ready for Pickup' && D.settings?.pickup_otp_enabled && j?.pickup_otp) ? j.pickup_otp : '',
+      // Pickup gate pass — the code is NEVER put here in plaintext (it used to
+      // be, which leaked it to anyone with the link). We only flag that a code
+      // exists; the customer must verify a booking contact on the Track page to
+      // reveal it (see _syncPickupGate / users/{uid}/pickup_gate).
+      pickup_gated: !!(status === 'Ready for Pickup' && D.settings?.pickup_otp_enabled && j?.pickup_otp),
+      pickup_code: '',   // legacy field kept blank so any old plaintext is overwritten
       history
     }, { merge: true });
+    // Write or clear the identity-gated pickup-code docs. Only bother when the
+    // OTP feature is on and we're entering/leaving the Ready-for-Pickup state.
+    const _otpOn = !!(D.settings?.pickup_otp_enabled);
+    const _gateActive = _otpOn && status === 'Ready for Pickup' && j?.pickup_otp;
+    if (_otpOn && (_gateActive || status === 'Delivered' || status === 'Cancelled')) {
+      await _syncPickupGate(b, j, !!_gateActive);
+    }
   } catch (e) {
     console.warn('[publishTracking]', e);
   }
@@ -6310,9 +6367,13 @@ window.waReady = function(jobId) {
   if (!j) return showToast('Job not found', 'bad');
   const name = (j.cust_name || 'there').split(' ')[0];
   const when = (j.pickup_date || j.pickup_time) ? `\nPickup: ${j.pickup_date || ''} ${j.pickup_time || ''}`.trimEnd() : '';
-  const code = (D.settings?.pickup_otp_enabled && j.pickup_otp) ? `\nYour pickup code: ${j.pickup_otp} (please show it at collection).` : '';
   const link = _wsTrackLink();
-  const msg = `Hi ${name}, good news — your ${j.plate || 'vehicle'} is ready for pickup at ${_wsName()}! 🚗${when}${code}`
+  // Security: never send the code in the message. Tell them where to get it —
+  // they'll verify the phone/email on their booking to reveal it on the page.
+  const codeNote = (D.settings?.pickup_otp_enabled && j.pickup_otp)
+    ? `\nFor security, your pickup code isn't sent here. Open your status page below and verify the phone or email on your booking to see it.`
+    : '';
+  const msg = `Hi ${name}, good news — your ${j.plate || 'vehicle'} is ready for pickup at ${_wsName()}! 🚗${when}${codeNote}`
     + (link ? `\nStatus: ${link}` : '');
   audit('wa-ready', `${j.plate} → ${j.cust_name || '—'}`, { job_id: j.id });
   _waOpen(_bookingPhone(j.booking_id) || j.cust_phone, msg);
@@ -10186,6 +10247,21 @@ async function renderSettings(force = false) {
     if (!b.to || !b.subject) return out({ok:false, error:'Missing to/subject'});
     const opts = { htmlBody: b.html || b.body || '', name: b.fromName || 'Workshop' };
     if (b.replyTo) opts.replyTo = b.replyTo;
+    // Inline logo — Gmail strips data: image URLs, so we attach it as an inline
+    // image referenced by cid:gp_logo in the HTML. This makes the logo show up.
+    if (b.logo && b.logo.indexOf('base64,') > -1) {
+      var meta = b.logo.substring(0, b.logo.indexOf(','));
+      var data = b.logo.substring(b.logo.indexOf(',') + 1);
+      var mime = (meta.match(/data:(.*?);/) || [])[1] || 'image/png';
+      opts.inlineImages = { gp_logo: Utilities.newBlob(Utilities.base64Decode(data), mime, 'logo') };
+    }
+    // Invoice PDF — the app sends the invoice as HTML; convert it to a PDF and
+    // attach it so the customer gets a proper downloadable invoice.
+    if (b.invoiceHtml) {
+      var pdf = Utilities.newBlob(b.invoiceHtml, 'text/html', (b.invoiceName || 'Invoice') + '.html')
+                  .getAs('application/pdf').setName((b.invoiceName || 'Invoice') + '.pdf');
+      opts.attachments = [pdf];
+    }
     MailApp.sendEmail(b.to, b.subject, b.body || '', opts);
     return out({ok:true});
   } catch (err) { return out({ok:false, error:String(err)}); }
@@ -10255,9 +10331,21 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
           </div>
         </div>
 
-        <!-- Custom cancellation policy footer -->
+        <!-- Attach invoice PDF -->
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="sf-em-attach" ${s.email_attach_invoice !== false ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer" />
+            <span style="font-family:var(--fd);font-weight:700;font-size:13.5px">Attach the invoice as a PDF</span>
+          </label>
+          <div style="font-size:11.5px;color:var(--faint);margin:6px 0 0 28px;line-height:1.5">When an email is tied to an invoice (invoice-ready, ready-for-pickup, thank-you), the invoice is attached as a downloadable PDF. Works on the Google Apps Script path.</div>
+        </div>
+
+        <!-- Custom footer (on top) + cancellation policy footer -->
         <div style="margin-top:18px">
-          <div class="f-grp"><label>Cancellation policy (shown at the foot of every email)</label>
+          <div class="f-grp"><label>Custom footer (top line — shown above the cancellation policy on every email)</label>
+            <textarea id="sf-em-footer" placeholder="e.g. Thank you for trusting us with your vehicle. Follow us @yourgarage · GSTIN 22ABCDE1234F1Z5">${escapeHtml(s.email_footer_custom || '')}</textarea>
+          </div>
+          <div class="f-grp" style="margin-top:12px"><label>Cancellation policy (shown at the foot of every email)</label>
             <textarea id="sf-em-policy" placeholder="If you need to reschedule, please give us 24 hours' notice…">${escapeHtml(s.cancellation_policy || '')}</textarea>
           </div>
         </div>
@@ -10530,6 +10618,8 @@ window.saveEmailSettings = async function() {
   D.settings.email_from_name     = (document.getElementById('sf-em-from')?.value || '').trim();
   D.settings.email_template      = (document.querySelector('input[name="sf-em-tpl"]:checked')?.value) || 'classic';
   D.settings.cancellation_policy = (document.getElementById('sf-em-policy')?.value || '').trim();
+  D.settings.email_footer_custom = (document.getElementById('sf-em-footer')?.value || '').trim();
+  D.settings.email_attach_invoice = !!document.getElementById('sf-em-attach')?.checked;
   delete D.settings.email_smtp_user;
   delete D.settings.email_smtp_pass;
   const triggers = {};
@@ -10578,7 +10668,7 @@ window._previewEmailTemplate = function(templateId) {
     const sample = _buildEmailData({
       event: 'booking_confirmed',
       to: 'preview@example.com',
-      booking: { cust_name: 'Rajesh Kumar', cust_email: 'preview@example.com', service: 'Full service', date: '2026-07-15', time: '10:30 AM', plate: 'MH 12 AB 1234', notes: 'Bring service history book.' },
+      booking: { cust_name: 'Rajesh Kumar', cust_email: 'preview@example.com', booking_no: 'BK-1234', service: 'Full service', date: '2026-07-15', time: '10:30 AM', plate: 'MH 12 AB 1234', notes: 'Bring service history book.' },
       invoice: { number: 'BK-1234', lines: [{name:'Engine oil change', qty:1, unit_price:1800, disc_pct:0}, {name:'Brake pad set', qty:1, unit_price:3200, disc_pct:5}], charges:[{name:'Labour', amount:1500}], roundOff: 6500 }
     });
     sample.headline = (EMAIL_EVENTS.find(e => e.id === 'booking_confirmed') || {}).headline || 'Preview';
@@ -12833,14 +12923,50 @@ function _buildEmailData(opts) {
     location:        ws.address || '',
     notes:           opts.notes || b?.notes || '',
     plate:           b?.plate || j?.plate || inv?.vehicle?.plate || '',
+    booking_no:      b?.booking_no || b?.booking_ref || j?.booking_no || inv?.booking_no || '',
     invoice_no:      inv?.number || '',
     currency:        ws.currency || '₹',
+    // Deep links surfaced as buttons in every template
+    track_link:      (function(){ try { return _wsTrackLink() || ''; } catch(_) { return ''; } })(),
+    approval_link:   (function(){
+                       const tok = j?.approval_token || inv?.approval_token || '';
+                       try {
+                         if (tok && typeof currentUser !== 'undefined' && currentUser?.uid)
+                           return `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(currentUser.uid)}&t=${encodeURIComponent(tok)}`;
+                       } catch(_) {}
+                       return '';
+                     })(),
     // Receipt-style breakdown — only filled when an invoice is in scope
     items:           inv ? (inv.lines || []).map(l => ({ name: l.name || '', qty: Number(l.qty || 1), amount: Number(l.unit_price || 0) * Number(l.qty || 1) * (1 - Number(l.disc_pct||0)/100) })) : [],
     charges:         inv ? (inv.charges || []) : [],
     total:           inv ? _invoiceTotals(inv).roundOff : 0,
+    custom_footer:   ws.email_footer_custom || '',
     cancellation_policy: ws.cancellation_policy || 'If you need to reschedule, please give us 24 hours\' notice. Thank you.'
   };
+}
+
+// Shared footer block appended to every template: custom footer (optional) on
+// top, then the cancellation policy, then contact line. `align` = 'center'|'left'.
+function _emailFooterBlock(d, align) {
+  const a = align === 'center' ? 'center' : 'left';
+  const bits = [];
+  if (d.custom_footer)       bits.push(`<div style="white-space:pre-line;margin-bottom:10px;color:#3b424f">${_esc(d.custom_footer)}</div>`);
+  if (d.cancellation_policy) bits.push(`<div style="margin-bottom:8px">${_esc(d.cancellation_policy)}</div>`);
+  const contact = [d.workshop_phone ? 'Call ' + _esc(d.workshop_phone) : '', d.workshop_email ? _esc(d.workshop_email) : ''].filter(Boolean).join(' · ');
+  if (contact) bits.push(`<div style="color:#8892a0">${contact}</div>`);
+  return `<div style="text-align:${a};font-size:12.5px;color:#5b6573;line-height:1.6">${bits.join('')}</div>`;
+}
+
+// Call-to-action button block: "Track your repair" + (estimate only) "Review your
+// estimate". Table-based so it renders in Outlook/Gmail. Returns '' when no links.
+function _emailCtaBlock(d) {
+  const btns = [];
+  if (d.event === 'estimate_ready' && d.approval_link)
+    btns.push(`<a href="${_esc(d.approval_link)}" style="display:inline-block;background:#1e7be0;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">Review &amp; approve your estimate</a>`);
+  if (d.track_link)
+    btns.push(`<a href="${_esc(d.track_link)}" style="display:inline-block;background:#0a0f1a;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">Track your repair</a>`);
+  if (!btns.length) return '';
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:8px 0 4px">${btns.join('')}</td></tr></table>`;
 }
 
 // HTML escape helper used in email bodies (separate name so we can swap it later)
@@ -12875,6 +13001,7 @@ function _emailTplClassic(d, evt) {
           <p style="margin:0 0 14px">Hi ${_esc(d.customer_name)},</p>
           <p style="margin:0 0 24px">Here are your details for ${_esc(d.workshop_name)}.</p>
           <h3 style="margin:24px 0 12px;font-size:17px;font-weight:800">Order Summary</h3>
+          ${d.booking_no ? `<p style="margin:6px 0"><b>Booking no.:</b> ${_esc(d.booking_no)}</p>` : ''}
           <p style="margin:6px 0"><b>Service:</b> ${_esc(d.service_name)}</p>
           ${d.plate ? `<p style="margin:6px 0"><b>Vehicle:</b> ${_esc(d.plate)}</p>` : ''}
           ${d.date  ? `<p style="margin:6px 0"><b>Date:</b> ${_esc(d.date)}</p>` : ''}
@@ -12886,9 +13013,9 @@ function _emailTplClassic(d, evt) {
           <p style="margin:0;font-weight:700">${_esc(d.workshop_name)}</p>
           ${d.workshop_url ? `<p style="margin:14px 0 0"><a href="${_esc(d.workshop_url)}" style="color:#1e7be0;text-decoration:underline">${_esc(d.workshop_url)}</a></p>` : ''}
         </td></tr>
-        <tr><td style="border-top:1px solid #e2e6ec;margin-top:24px;padding-top:18px;font-size:12.5px;color:#5b6573;line-height:1.6">
-          ${_esc(d.cancellation_policy)}
-          ${d.workshop_phone ? ` Call us on <b>${_esc(d.workshop_phone)}</b>.` : ''}
+        <tr><td style="padding:22px 0 6px">${_emailCtaBlock(d)}</td></tr>
+        <tr><td style="border-top:1px solid #e2e6ec;padding-top:18px">
+          ${_emailFooterBlock(d, 'left')}
         </td></tr>
       </table>
     </td></tr>
@@ -12926,6 +13053,7 @@ function _emailTplFormal(d, evt) {
         </td></tr>
         <tr><td style="padding:6px 28px 0">
           <h3 style="margin:18px 0 8px;font-size:18px;font-weight:800">I. Booking Details</h3>
+          ${d.booking_no ? `<p style="margin:3px 0"><b>Booking no.:</b> ${_esc(d.booking_no)}</p>` : ''}
           <p style="margin:3px 0"><b>Service:</b> ${_esc(d.service_name)}</p>
           ${d.plate ? `<p style="margin:3px 0"><b>Vehicle:</b> ${_esc(d.plate)}</p>` : ''}
           ${d.date  ? `<p style="margin:3px 0"><b>Date:</b> ${_esc(d.date)}</p>` : ''}
@@ -12939,8 +13067,9 @@ function _emailTplFormal(d, evt) {
           ${d.workshop_phone   ? `<p style="margin:3px 0">${_esc(d.workshop_phone)}</p>` : ''}
           ${d.workshop_email   ? `<p style="margin:3px 0">${_esc(d.workshop_email)}</p>` : ''}
         </td></tr>
-        <tr><td style="padding:24px 28px 32px;border-top:1px solid #eee;margin-top:18px;font-size:12.5px;color:#5b6573;line-height:1.6">
-          ${_esc(d.cancellation_policy)}
+        <tr><td style="padding:18px 28px 4px">${_emailCtaBlock(d)}</td></tr>
+        <tr><td style="padding:20px 28px 32px;border-top:1px solid #eee">
+          ${_emailFooterBlock(d, 'left')}
         </td></tr>
       </table>
     </td></tr>
@@ -12974,7 +13103,7 @@ function _emailTplReceipt(d, evt) {
             <td style="vertical-align:top;width:50%;font-size:13px;color:#1a1a1a">
               <div style="font-weight:800;color:#5b6573;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">When</div>
               ${_esc(d.date)}${d.time ? ' · ' + _esc(d.time) : ''}<br>
-              ${d.plate ? 'Vehicle: ' + _esc(d.plate) : ''}
+              ${d.plate ? 'Vehicle: ' + _esc(d.plate) : ''}${d.booking_no ? `<br>Booking: ${_esc(d.booking_no)}` : ''}
             </td>
           </tr></table>
         </td></tr>
@@ -12997,9 +13126,11 @@ function _emailTplReceipt(d, evt) {
           </div>
         </td></tr>
         `}
+        <tr><td style="padding:18px 0 2px">${_emailCtaBlock(d)}</td></tr>
         <tr><td><hr style="border:0;border-top:1px solid #d8dde3;margin:18px 0"/></td></tr>
         <tr><td align="center" style="font-size:12px;color:#5b6573;line-height:1.6">
-          ${_esc(d.workshop_name)}${d.workshop_phone ? ' · ' + _esc(d.workshop_phone) : ''}${d.workshop_email ? ' · ' + _esc(d.workshop_email) : ''}
+          <div style="font-weight:800;color:#1a1a1a;margin-bottom:6px">${_esc(d.workshop_name)}</div>
+          ${_emailFooterBlock(d, 'center')}
         </td></tr>
       </table>
     </td></tr>
@@ -13030,8 +13161,19 @@ async function sendCustomerNotification(eventId, opts = {}) {
   const data = _buildEmailData({ ...opts, event: eventId, headline: evt.headline });
   if (!data.customer_email) return { ok: false, skipped: 'no-recipient' };
   const { subject, html } = _renderEmailTemplate(s.email_template || 'classic', data);
+  // Attach the invoice as a real PDF when there's an invoice in scope and the
+  // owner hasn't turned attachments off. Built from the same record the Invoices
+  // tab prints; the Apps Script relay converts the HTML to a PDF server-side.
+  let invoiceHtml = '', invoiceName = '';
+  const invForPdf = opts.invoice || (opts.job ? (D.invoices || []).find(x => x.job_id === opts.job.id) : null);
+  if (invForPdf && s.email_attach_invoice !== false) {
+    try {
+      invoiceHtml = _invoiceHTMLFromRecord(invForPdf, {});
+      invoiceName = 'Invoice-' + (invForPdf.number || invForPdf.id || '').toString().replace(/[^\w.-]+/g, '');
+    } catch (e) { console.warn('[email] invoice PDF build failed', e); }
+  }
   try {
-    const res = await _smtpSend({ to: data.customer_email, subject, html, fromName: data.workshop_name });
+    const res = await _smtpSend({ to: data.customer_email, subject, html, fromName: data.workshop_name, logo: data.workshop_logo, invoiceHtml, invoiceName });
     if (res.ok) audit('email-sent', `${eventId} → ${data.customer_email}`, { event: eventId, to: data.customer_email });
     return res;
   } catch (e) {
@@ -13055,9 +13197,19 @@ window.sendCustomerNotification = sendCustomerNotification;
 //   a target iframe. We can't read the response body (cross-origin iframe), but
 //   the request goes through and Apps Script processes it. The iframe's `load`
 //   event tells us the round-trip completed.
-async function _smtpSend({ to, subject, html, fromName }) {
+async function _smtpSend({ to, subject, html, fromName, logo, invoiceHtml, invoiceName }) {
   const s = D.settings || {};
   const replyTo = s.email || s.workshop_email || '';
+  // One automatic retry on transient network failures — the single biggest cause
+  // of "half the emails don't send" is a flaky fetch, not a real rejection.
+  const _postOnce = async (url, init) => {
+    let lastErr;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try { return await fetch(url, init); }
+      catch (e) { lastErr = e; if (attempt === 0) await new Promise(r => setTimeout(r, 900)); }
+    }
+    throw lastErr;
+  };
   // ── Preferred path: EmailJS REST API ──────────────────────────────────────
   // EmailJS is CORS-enabled and returns a REAL success/error response, unlike
   // the Apps Script iframe (which is opaque — we can never tell if it worked).
@@ -13077,7 +13229,7 @@ async function _smtpSend({ to, subject, html, fromName }) {
     };
     let resp;
     try {
-      resp = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      resp = await _postOnce('https://api.emailjs.com/api/v1.0/email/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -13110,15 +13262,27 @@ async function _smtpSend({ to, subject, html, fromName }) {
   if (!url) throw new Error('Email isn\'t set up yet. In Settings → Customer email notifications, paste your Google Apps Script Web App URL (or EmailJS keys).');
   if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(url))
     throw new Error('That doesn\'t look like an Apps Script Web App URL — it should end with /exec.');
+  // Logo fix: email clients (Gmail especially) strip <img src="data:…">. So we
+  // send the logo to the Apps Script as a separate base64 field and rewrite its
+  // <img src> to a cid: reference; the script attaches it as an INLINE image,
+  // which renders reliably. Only swaps when the data-URL logo is actually in the html.
+  let outHtml = html, logoData = '';
+  if (logo && /^data:image\//i.test(logo) && html.indexOf(logo) >= 0) {
+    outHtml = html.split(logo).join('cid:gp_logo');
+    logoData = logo;
+  }
   const payload = {
-    to, subject, html,
-    body: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    to, subject, html: outHtml,
+    body: outHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
     fromName: fromName || s.email_from_name || s.workshop_name || 'Garage Pro',
-    replyTo
+    replyTo,
+    logo: logoData,                    // data URL → inline image (cid:gp_logo)
+    invoiceHtml: invoiceHtml || '',    // Apps Script converts to a PDF attachment
+    invoiceName: invoiceName || 'Invoice'
   };
   let resp;
   try {
-    resp = await fetch(url, {
+    resp = await _postOnce(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // simple request → no preflight
       body: JSON.stringify(payload),
