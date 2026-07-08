@@ -508,6 +508,7 @@ function _trackStatusColor(s) {
 }
 
 function _trackRenderStatus(data) {
+  _trackPickupData = data || {};
   document.getElementById('track-step-plate').style.display  = 'none';
   document.getElementById('track-step-status').style.display = 'block';
   const c = _trackStatusColor(data.status);
@@ -521,12 +522,7 @@ function _trackRenderStatus(data) {
       ${data.mechanic_first_name ? `<div><b>Mechanic</b>${_trackEsc(data.mechanic_first_name)}</div>` : ''}
       ${data.booking_no        ? `<div><b>Booking</b>${_trackEsc(data.booking_no)}</div>` : ''}
     </div>
-    ${(data.pickup_code && data.status === 'Ready for Pickup') ? `
-    <div style="margin-top:16px;padding:14px 16px;background:rgba(32,227,178,.08);border:1px dashed rgba(32,227,178,.5);border-radius:12px;text-align:center">
-      <div style="font-size:12px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Your pickup code</div>
-      <div style="font-family:'Courier New',monospace;font-size:32px;font-weight:800;letter-spacing:10px;color:#20e3b2">${_trackEsc(data.pickup_code)}</div>
-      <div style="font-size:12px;color:var(--dim);margin-top:6px">Show this code at the workshop to collect your vehicle.</div>
-    </div>` : ''}
+    ${_trackPickupSection(data)}
   </div>`;
   const hist = Array.isArray(data.history) ? data.history.slice().reverse() : [];
   const histHtml = hist.length
@@ -537,6 +533,70 @@ function _trackRenderStatus(data) {
       </div>`).join('')
     : `<div style="color:var(--faint);font-size:13px;padding:14px;text-align:center;background:var(--bg2);border-radius:8px">No status changes recorded yet.</div>`;
   document.getElementById('track-history').innerHTML = histHtml;
+}
+
+// ── Pickup code: identity-gated reveal ──────────────────────────────────────
+// The workshop no longer broadcasts the pickup code. It lives in a doc keyed by
+// SHA-256(plateNorm | contact); the customer must enter the phone/email on their
+// booking to derive that key and read it. Same normalisation as the app.
+let _trackPickupData = {};
+function _trackNormContact(v) {
+  v = String(v || '').trim();
+  if (!v) return '';
+  if (v.indexOf('@') > 0) return v.toLowerCase();
+  const d = v.replace(/\D/g, '');
+  return d.length > 10 ? d.slice(-10) : d;
+}
+async function _trackPickupHash(plateNorm, contact) {
+  const n = _trackNormContact(contact);
+  if (!n || !plateNorm || !(window.crypto && crypto.subtle)) return '';
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plateNorm + '|' + n));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function _trackPickupSection(data) {
+  if (data.status !== 'Ready for Pickup') return '';
+  if (data.pickup_gated) {
+    return `<div style="margin-top:16px;padding:14px 16px;background:rgba(32,227,178,.08);border:1px dashed rgba(32,227,178,.5);border-radius:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;text-align:center">Your pickup code</div>
+      <div style="font-size:12.5px;color:var(--dim);margin-bottom:10px;text-align:center">For your security, enter the phone number or email on your booking to reveal it.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        <input id="track-pickup-input" type="text" autocomplete="off" placeholder="Phone or email on the booking" style="flex:1;min-width:190px;padding:11px 13px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:var(--bg2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter'){event.preventDefault();_trackRevealPickup();}" />
+        <button onclick="_trackRevealPickup()" style="padding:11px 20px;border-radius:10px;border:0;background:#20e3b2;color:#04231c;font-weight:800;font-size:14px;cursor:pointer">Show code</button>
+      </div>
+      <div id="track-pickup-result" style="margin-top:12px;text-align:center;font-size:13.5px;color:var(--dim)"></div>
+    </div>`;
+  }
+  // Legacy fallback for an older status doc that still carries a plaintext code.
+  if (data.pickup_code) {
+    return `<div style="margin-top:16px;padding:14px 16px;background:rgba(32,227,178,.08);border:1px dashed rgba(32,227,178,.5);border-radius:12px;text-align:center">
+      <div style="font-size:12px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Your pickup code</div>
+      <div style="font-family:'Courier New',monospace;font-size:32px;font-weight:800;letter-spacing:10px;color:#20e3b2">${_trackEsc(data.pickup_code)}</div>
+      <div style="font-size:12px;color:var(--dim);margin-top:6px">Show this code at the workshop to collect your vehicle.</div>
+    </div>`;
+  }
+  return '';
+}
+async function _trackRevealPickup() {
+  const inp = document.getElementById('track-pickup-input');
+  const out = document.getElementById('track-pickup-result');
+  if (!inp || !out) return;
+  const data = _trackPickupData || {};
+  const v = (inp.value || '').trim();
+  if (!v) { out.innerHTML = '<span style="color:#ff6b6b">Enter the phone or email on your booking.</span>'; return; }
+  if (!(window.crypto && crypto.subtle)) { out.innerHTML = '<span style="color:#ff6b6b">This browser can\'t verify securely — please call the workshop for your code.</span>'; return; }
+  out.textContent = 'Checking…';
+  try {
+    const id = await _trackPickupHash(data.plate_norm || '', v);
+    const snap = await fbDb.collection('users').doc(_trackPickedUid).collection('pickup_gate').doc(id).get();
+    if (id && snap.exists && snap.data().code) {
+      out.innerHTML = `<div style="font-family:'Courier New',monospace;font-size:34px;font-weight:800;letter-spacing:10px;color:#20e3b2">${_trackEsc(snap.data().code)}</div>
+        <div style="font-size:12px;color:var(--dim);margin-top:6px">Show this code at the workshop to collect your vehicle.</div>`;
+    } else {
+      out.innerHTML = '<span style="color:#ff6b6b">That doesn\'t match the phone or email on this booking. Try the other one, or contact the workshop.</span>';
+    }
+  } catch (e) {
+    out.innerHTML = '<span style="color:#ff6b6b">Couldn\'t verify right now — please try again in a moment.</span>';
+  }
 }
 
 // "5 minutes ago" / "2 hours ago" / "yesterday" — relative when recent, absolute
