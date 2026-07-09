@@ -389,6 +389,19 @@ input[list]{background:var(--bg2)}
 .toast.good::before{content:"✓  ";color:var(--teal)}
 .toast.bad::before{content:"✕  ";color:var(--red)}
 
+/* ── WhatsApp status-update prompt banner ── */
+/* Unlike .toast (auto-dismiss, no interaction), this persists until the user
+   acts or dismisses it — sending WhatsApp needs a real click (popup blockers
+   stop window.open() calls that don't trace back to a user gesture), so a
+   background status change can't just silently open a WhatsApp tab. */
+.wa-prompt{position:fixed;bottom:24px;right:24px;max-width:340px;background:var(--surf);border:1px solid rgba(37,211,102,.4);border-radius:12px;padding:14px 16px;z-index:301;box-shadow:0 14px 32px rgba(0,0,0,.6);transform:translateY(12px);opacity:0;pointer-events:none;transition:all .25s}
+.wa-prompt.show{opacity:1;transform:translateY(0);pointer-events:auto}
+.wa-prompt .wap-msg{font-size:13px;color:var(--txt);line-height:1.45;margin-bottom:10px;padding-right:20px}
+.wa-prompt .wap-close{position:absolute;top:10px;right:12px;background:none;border:0;color:var(--faint);cursor:pointer;font-size:16px;line-height:1;padding:2px}
+.wa-prompt .wap-close:hover{color:var(--txt)}
+.wa-prompt .wap-btn{width:100%;padding:9px;border-radius:8px;border:0;font-family:var(--fb);font-weight:700;font-size:12.5px;cursor:pointer;background:#25d366;color:#04230f;display:flex;align-items:center;justify-content:center;gap:6px}
+.wa-prompt .wap-btn:active{transform:scale(.98)}
+
 /* ── responsive ── */
 /* ── Hamburger (only visible on mobile) ── */
 .hamburger{display:none;background:var(--surf);border:1px solid var(--brd2);width:38px;height:38px;border-radius:9px;align-items:center;justify-content:center;cursor:pointer;color:var(--dim);flex:none;margin-right:auto}
@@ -1221,6 +1234,11 @@ input[list]{background:var(--bg2)}
 
 <!-- toast -->
 <div class="toast" id="toast"></div>
+<div class="wa-prompt" id="waPrompt" style="position:fixed">
+  <button type="button" class="wap-close" onclick="_hideWaPrompt()">×</button>
+  <div class="wap-msg" id="waPromptMsg"></div>
+  <button type="button" class="wap-btn" id="waPromptBtn"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>Send WhatsApp update</button>
+</div>
 
 <!-- ═══════════════ BARCODE / QR SCANNER ═══════════════ -->
 <div class="scan-overlay" id="scanOverlay">
@@ -4098,7 +4116,12 @@ function _bookingFormHTML(b) {
       <div class="f-row r3">
         <div class="f-grp"><label>Pincode</label><input id="bf-pin" type="text" inputmode="numeric" maxlength="6" value="${escapeHtml(b.cust_pin || '')}" /></div>
         <div class="f-grp"><label>Birth date</label><input id="bf-dob" type="date" value="${escapeHtml(b.cust_dob || '')}" /></div>
-        <div class="f-grp"></div>
+        <div class="f-grp"><label>Prefers to be contacted by</label>
+          <select id="bf-contact-pref">
+            <option value="whatsapp" ${(b.contact_pref || 'whatsapp') === 'whatsapp' ? 'selected' : ''}>WhatsApp</option>
+            <option value="email" ${b.contact_pref === 'email' ? 'selected' : ''}>Email</option>
+            <option value="both" ${b.contact_pref === 'both' ? 'selected' : ''}>Both</option>
+          </select></div>
       </div>
     </div>`;
 
@@ -4136,7 +4159,13 @@ function _bookingFormHTML(b) {
       </div>
       <div class="f-row r3">
         <div class="f-grp"><label>Pincode</label><input id="bf-cp-pin" type="text" inputmode="numeric" maxlength="6" value="${escapeHtml(b.cust_pin || '')}" /></div>
-        <div class="f-grp"></div><div class="f-grp"></div>
+        <div class="f-grp"><label>Prefers to be contacted by</label>
+          <select id="bf-cp-contact-pref">
+            <option value="whatsapp" ${(b.contact_pref || 'whatsapp') === 'whatsapp' ? 'selected' : ''}>WhatsApp</option>
+            <option value="email" ${b.contact_pref === 'email' ? 'selected' : ''}>Email</option>
+            <option value="both" ${b.contact_pref === 'both' ? 'selected' : ''}>Both</option>
+          </select></div>
+        <div class="f-grp"></div>
       </div>
     </div>`;
 
@@ -4729,6 +4758,15 @@ function _bookingApplyCustomerToForm(c) {
   setIfEmpty('bf-cp-city', c.city);
   setIfEmpty('bf-cp-pin',  c.pincode);
   const cps = document.getElementById('bf-cp-state'); if (cps && !cps.value && c.state) { cps.value = c.state; _bookingSyncStateCode(); _bookingValidateGstin(); }
+  // Known contact preference — only override the field while it's still on
+  // the form's default ('whatsapp'), so it never clobbers something the user
+  // already picked for THIS booking.
+  if (c.contact_pref) {
+    const cpEl = document.getElementById('bf-contact-pref');
+    if (cpEl && cpEl.value === 'whatsapp') cpEl.value = c.contact_pref;
+    const cpCorpEl = document.getElementById('bf-cp-contact-pref');
+    if (cpCorpEl && cpCorpEl.value === 'whatsapp') cpCorpEl.value = c.contact_pref;
+  }
   // Auto-flip to corporate pane if the customer has a GSTIN on file
   if (c.gstin && !document.getElementById('bf-cust-corp')?.style?.display) {
     _bookingSetCustType(c.customer_type || 'corporate');
@@ -4983,6 +5021,7 @@ async function saveBooking(id) {
   const companyName = v('bf-company');
   const gstin       = v('bf-gstin').toUpperCase();
   const refNo       = v('bf-refno');
+  const contactPref = (isCorp ? v('bf-cp-contact-pref') : v('bf-contact-pref')) || 'whatsapp';
 
   // Vehicle fields
   const plateState = v('bf-plate-state').toUpperCase();
@@ -5073,7 +5112,7 @@ async function saveBooking(id) {
     // Customer (legacy fields kept for backward compatibility)
     cust_name: custName, cust_phone: custPhone, cust_phone2: phone2, cust_email: custEmail,
     cust_addr1: custAddr1, cust_addr2: custAddr2, cust_city: custCity, cust_state: custState, cust_pin: custPin,
-    cust_dob: dob, driver_name: driverName,
+    cust_dob: dob, driver_name: driverName, contact_pref: contactPref,
     customer_type: custType,
     company_name: companyName, gstin, ref_no: refNo,
     // Vehicle
@@ -5109,7 +5148,7 @@ async function saveBooking(id) {
   const custBody = {
     name: custName, phone: custPhone, phone2, email: custEmail,
     addr1: custAddr1, addr2: custAddr2, city: custCity, state: custState, pincode: custPin,
-    driver_name: driverName, dob,
+    driver_name: driverName, dob, contact_pref: contactPref,
     customer_type: custType,
     company_name: companyName, gstin: isCorp ? gstin : '', ref_no: refNo,
     updated_at: nowStr()
@@ -5153,9 +5192,10 @@ async function saveBooking(id) {
   // Fire booking_confirmed only on NEW bookings (not edits). Fire-and-forget so
   // a slow Gmail call doesn't block the UI; sendCustomerNotification is a no-op
   // when emails are disabled or the trigger is off.
-  if (!id && custEmail) {
+  if (!id) {
     const savedBk = D.bookings.find(b => b.id === patch.id);
-    sendCustomerNotification('booking_confirmed', { booking: savedBk, to: custEmail });
+    if (custEmail) sendCustomerNotification('booking_confirmed', { booking: savedBk, to: custEmail });
+    notifyWhatsAppForEvent('booking_confirmed', { booking: savedBk });
   }
   // Mirror the latest status to the public tracker so the marketing site's
   // Track Repair page can show "your car is at this stage" to the customer.
@@ -5943,6 +5983,7 @@ window.markJobStatus = async function(jobId, newStatus) {
     : null;
   if (emailEvent) {
     sendCustomerNotification(emailEvent, { job: j });   // fire-and-forget
+    notifyWhatsAppForEvent(emailEvent, { job: j });
   }
   renderJobs();
   await wsSave('jobs', D.jobs);
@@ -6187,6 +6228,7 @@ window.sendJobEstimate = async function(jobId) {
   renderJobs();
   // estimate_ready customer email — fire-and-forget
   sendCustomerNotification('estimate_ready', { job: j, invoice: inv });
+  notifyWhatsAppForEvent('estimate_ready', { job: j, invoice: inv });
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -6375,6 +6417,7 @@ async function _cdSubmit(invId) {
   // customer_approved customer email — only on approve branches (skip rejects)
   if (counts.approved > 0) {
     sendCustomerNotification('customer_approved', { job: j, invoice: inv });
+    notifyWhatsAppForEvent('customer_approved', { job: j, invoice: inv });
   }
 }
 window._cdSubmit = _cdSubmit;
@@ -6477,18 +6520,40 @@ function _bookingPhone(bId) {
   return c?.phone || '';
 }
 
-// Send an invoice summary on WhatsApp (wa.me can't attach the PDF, so we send
-// the number + total + the workshop's Track link).
-window.waInvoice = function(invId) {
+// wa.me links can't attach a file — WhatsApp's deep-link scheme only supports
+// pre-filled text, never a document. The free workaround: publish a public,
+// tokenized read-only copy of the invoice (mirrors the estimate_approvals
+// pattern) and put a tappable link to it in the message instead.
+async function _publishInvoiceView(invId) {
+  const inv = (D.invoices || []).find(x => x.id === invId);
+  if (!inv || !currentUser) return '';
+  const token = _apprToken();
+  const html = _invoiceHTMLFromRecord(inv, {});
+  const doc = {
+    token, invoice_id: inv.id, invoice_no: inv.number || '',
+    workshop_name: (D.settings || {}).workshop_name || 'Garage Pro',
+    plate: inv.vehicle?.plate || '', cust_name: inv.customer?.name || '',
+    html, created_at: nowStr()
+  };
+  await wsCol('invoice_views').doc(token).set(doc);
+  return `${_apprSiteBase()}/invoice.html?w=${encodeURIComponent(currentUser.uid)}&t=${encodeURIComponent(token)}`;
+}
+
+// Send an invoice summary on WhatsApp, with a tappable link to view/download
+// the actual invoice (see _publishInvoiceView — wa.me itself can't attach a PDF).
+window.waInvoice = async function(invId) {
   const inv = (D.invoices || []).find(x => x.id === invId);
   if (!inv) return showToast('Invoice not found', 'bad');
   const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
   const total = _invoiceTotals(inv).roundOff;
-  const link = _wsTrackLink();
   const name = inv.customer?.name ? inv.customer.name.split(' ')[0] : 'there';
   const veh = inv.vehicle?.plate ? ` (${inv.vehicle.plate})` : '';
+  let viewLink = '';
+  try { viewLink = await _publishInvoiceView(invId); }
+  catch (e) { console.warn('[waInvoice] publish failed:', e); }
+  const link = viewLink || _wsTrackLink();
   const msg = `Hi ${name}, your invoice ${inv.number || ''} from ${_wsName()}${veh} is ready — total ${cur}${total.toLocaleString('en-IN')}.`
-    + (link ? `\nTrack your vehicle: ${link}` : '')
+    + (viewLink ? `\nView / download your invoice: ${viewLink}` : (link ? `\nTrack your vehicle: ${link}` : ''))
     + `\n\nThank you for choosing us!`;
   audit('wa-invoice', `${inv.number || ''} → ${inv.customer?.name || '—'}`, { invoice_id: inv.id });
   _waOpen(_invPhone(inv), msg);
@@ -6526,6 +6591,90 @@ window.waPaymentReminder = function(invId) {
   audit('wa-reminder', `${inv.number || ''} → ${inv.customer?.name || '—'} · ${cur}${bal}`, { invoice_id: inv.id });
   _waOpen(_invPhone(inv), msg);
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+//  WHATSAPP STATUS UPDATES — parallel to the EMAIL_EVENTS/sendCustomerNotification
+//  system, but WhatsApp can't be silently auto-sent (wa.me needs a real user
+//  gesture to open — a background status change gets blocked by the popup
+//  blocker). So instead of sending, this shows a persistent prompt banner
+//  ("Send WhatsApp update") that staff taps; only shown when the customer's
+//  contact_pref is whatsapp/both and the workshop hasn't turned the feature off.
+// ══════════════════════════════════════════════════════════════════════════
+
+let _waPromptTimer = null;
+function _showWaPrompt(message, onSend) {
+  const el = document.getElementById('waPrompt');
+  const msgEl = document.getElementById('waPromptMsg');
+  const btn = document.getElementById('waPromptBtn');
+  if (!el || !msgEl || !btn) return;
+  clearTimeout(_waPromptTimer);
+  msgEl.textContent = message;
+  // Fresh handler each time so we don't stack listeners across calls.
+  btn.onclick = () => { try { onSend(); } catch (e) { console.warn('[waPrompt send]', e); } _hideWaPrompt(); };
+  el.classList.add('show');
+  // Auto-dismiss after a while so a missed prompt doesn't sit forever —
+  // long enough that staff has a real chance to notice and act on it.
+  _waPromptTimer = setTimeout(_hideWaPrompt, 20000);
+}
+window._hideWaPrompt = function() {
+  document.getElementById('waPrompt')?.classList.remove('show');
+  clearTimeout(_waPromptTimer);
+};
+
+// Simple WhatsApp text per status event — reuses _buildEmailData so the copy
+// stays consistent with what the email version says. ready_for_pickup and
+// invoice_ready are handled separately (they delegate to the existing
+// waReady/waInvoice, which already carry pickup-OTP notes / the invoice link).
+const WA_EVENT_TEXT = {
+  booking_confirmed: (d) => `Hi ${d.customer_name}, your appointment at ${d.workshop_name} for ${d.plate || 'your vehicle'} is confirmed for ${d.date}${d.time ? ' at ' + d.time : ''}. See you then!${d.track_link ? '\nTrack: ' + d.track_link : ''}`,
+  estimate_ready:    (d) => `Hi ${d.customer_name}, your repair estimate for ${d.plate || 'your vehicle'} is ready.${d.approval_link ? '\nReview & approve here: ' + d.approval_link : ' Please get in touch to review it.'}`,
+  customer_approved: (d) => `Thanks for approving the estimate for ${d.plate || 'your vehicle'}! We're getting started right away.`,
+  work_started:      (d) => `Hi ${d.customer_name}, we've started work on your ${d.plate || 'vehicle'} at ${d.workshop_name}.${d.track_link ? '\nTrack: ' + d.track_link : ''}`,
+  work_complete:     (d) => `Hi ${d.customer_name}, work on your ${d.plate || 'vehicle'} is complete! We'll have it ready for pickup shortly.`,
+  thank_you:         (d) => `Thank you for choosing ${d.workshop_name}, ${d.customer_name}! We hope to see you again.`
+};
+
+// Resolve the phone + contact preference for whatever record we have (booking
+// takes priority since it's the most specific to this visit, then the
+// matched customer record).
+function _waResolveContact(opts) {
+  const j = opts.job || null;
+  const b = opts.booking || (j ? (D.bookings || []).find(x => x.id === j.booking_id) : null) || null;
+  const inv = opts.invoice || null;
+  const custName = b?.cust_name || j?.cust_name || inv?.customer?.name || '';
+  const custRecord = custName ? (D.customers || []).find(c => (c.name || '').toLowerCase() === custName.toLowerCase()) : null;
+  const pref = b?.contact_pref || custRecord?.contact_pref || 'whatsapp';
+  const phone = b?.cust_phone || custRecord?.phone || inv?.customer?.phone || '';
+  return { job: j, booking: b, invoice: inv, pref, phone };
+}
+
+// The main entry point — call this alongside sendCustomerNotification(eventId, opts)
+// at every status-change trigger point. No-ops quietly (same spirit as
+// sendCustomerNotification) when the feature's off, the customer prefers
+// email-only, or there's no phone number on file.
+function notifyWhatsAppForEvent(eventId, opts = {}) {
+  try {
+    if (D.settings?.whatsapp_updates_enabled === false) return;
+    const { job: j, booking: b, invoice: inv, pref, phone } = _waResolveContact(opts);
+    if (pref !== 'whatsapp' && pref !== 'both') return;
+    if (!phone) return;
+    if (eventId === 'ready_for_pickup' && j) {
+      return _showWaPrompt(`Send a "ready for pickup" WhatsApp update to ${j.cust_name || b?.cust_name || 'the customer'}?`, () => waReady(j.id));
+    }
+    if (eventId === 'invoice_ready' && inv) {
+      return _showWaPrompt(`Send the invoice to ${inv.customer?.name || 'the customer'} on WhatsApp?`, () => waInvoice(inv.id));
+    }
+    const textFn = WA_EVENT_TEXT[eventId];
+    if (!textFn) return;
+    const d = _buildEmailData({ event: eventId, job: j, booking: b, invoice: inv, to: opts.to, notes: opts.notes });
+    const msg = textFn(d);
+    _showWaPrompt(`Send a WhatsApp update to ${d.customer_name}?`, () => {
+      audit('wa-status-update', `${eventId} → ${d.customer_name}`, { event: eventId });
+      _waOpen(phone, msg);
+    });
+  } catch (e) { console.warn('[notifyWhatsAppForEvent]', eventId, e); }
+}
+window.notifyWhatsAppForEvent = notifyWhatsAppForEvent;
 
 // Build the self-contained approval payload from a job's estimate + an invoice.
 // Photos are embedded as data URLs (the customer can't read the sub-gated
@@ -7976,10 +8125,15 @@ window.openCustomerForm = function(id) {
           <select id="cf-state"><option value="">—</option>${stateOpts}</select>
         </div>
         <div class="f-grp"><label>Pincode</label><input id="cf-pin" type="text" inputmode="numeric" maxlength="6" value="${escapeHtml(c.pincode || '')}" /></div>
-        <div class="f-grp"></div>
+        <div class="f-grp"><label>Prefers to be contacted by</label>
+          <select id="cf-contact-pref">
+            <option value="whatsapp" ${(c.contact_pref || 'whatsapp') === 'whatsapp' ? 'selected' : ''}>WhatsApp</option>
+            <option value="email" ${c.contact_pref === 'email' ? 'selected' : ''}>Email</option>
+            <option value="both" ${c.contact_pref === 'both' ? 'selected' : ''}>Both</option>
+          </select></div>
       </div>
       <div class="f-row r1">
-        <div class="f-grp"><label>Notes</label><textarea id="cf-notes" placeholder="VIP, prefers WhatsApp, etc.">${escapeHtml(c.notes || '')}</textarea></div>
+        <div class="f-grp"><label>Notes</label><textarea id="cf-notes" placeholder="VIP notes, special instructions, etc.">${escapeHtml(c.notes || '')}</textarea></div>
       </div>
 
       <!-- ─── Vehicles ─── -->
@@ -8222,6 +8376,7 @@ async function saveCustomer(id) {
   const state      = document.getElementById('cf-state').value.trim();
   const pincode    = document.getElementById('cf-pin').value.trim();
   const notes      = document.getElementById('cf-notes').value.trim();
+  const contactPref = document.getElementById('cf-contact-pref')?.value || 'whatsapp';
   const custType   = (document.getElementById('cf-type')?.value || 'individual').trim();
   const companyName= document.getElementById('cf-company')?.value.trim() || '';
   const gstin      = document.getElementById('cf-gstin')?.value.trim() || '';
@@ -8238,7 +8393,7 @@ async function saveCustomer(id) {
   const address = _customerFullAddress({ addr1, addr2, city, state, pincode });
   const patch = {
     name, phone, phone2, email, notes, address,
-    driver_name: driverName, dob,
+    driver_name: driverName, dob, contact_pref: contactPref,
     addr1, addr2, city, state, pincode,
     customer_type: custType, company_name: companyName, gstin, ref_no: refNo,
     vehicles: _editingVehicles.slice(), updated_at: nowStr()
@@ -10938,6 +11093,24 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
         <div id="sf-em-msg" style="margin-top:8px;font-size:12.5px;min-height:16px;line-height:1.5"></div>
       </div>
 
+      <!-- ── Customer WhatsApp status updates ──────────────────────────────
+           WhatsApp can't be auto-sent like email (wa.me needs a real click —
+           popup blockers stop a background status change from opening a tab
+           on its own), so this shows a "Send WhatsApp update" prompt banner
+           to staff instead, only for customers who said they prefer
+           WhatsApp on their appointment/customer record. ──────────────── -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Customer WhatsApp updates</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px;line-height:1.55">When a booking or job changes status, staff get a one-tap prompt to send the customer a WhatsApp update — but only for customers who set <b>WhatsApp</b> or <b>Both</b> as their preferred contact channel (Appointment form / Customers tab). WhatsApp can't be sent silently in the background like email — it always needs someone to tap Send.</div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:6px">
+          <input type="checkbox" id="sf-wa-on" ${s.whatsapp_updates_enabled !== false ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer" />
+          <span style="font-family:var(--fd);font-weight:700;font-size:14px">Enable WhatsApp status-update prompts</span>
+        </label>
+        <div style="font-size:11.5px;color:var(--faint);margin:6px 0 14px 28px;line-height:1.5">Covers the same moments as customer email: booking confirmed, estimate ready, estimate approved, work started, work complete, ready for pickup, and invoice ready. Invoices can't be attached as a file over WhatsApp (that's a WhatsApp limitation, not ours) — instead the message includes a tappable link to view/download the invoice.</div>
+        <button class="add-btn" onclick="_saveWhatsAppSettings()">Save WhatsApp settings</button>
+        <div id="sf-wa-msg" style="margin-top:8px;font-size:12.5px;min-height:16px;line-height:1.5"></div>
+      </div>
+
       <!-- ── CSV import — bulk customers + vehicles from paper / old system ── -->
       <div class="card" style="padding:18px">
         <h3 style="margin:0 0 6px">Import customers from CSV</h3>
@@ -11275,6 +11448,16 @@ window.saveEmailSettings = async function() {
   msg.style.color = 'var(--teal)';
   msg.textContent = '✓ Saved. ' + (D.settings.email_enabled ? 'Emails will fire on the events you ticked.' : 'Emails are disabled — toggle on to send.');
   showToast('Email settings saved', 'good');
+};
+
+window._saveWhatsAppSettings = async function() {
+  D.settings = D.settings || {};
+  D.settings.whatsapp_updates_enabled = !!document.getElementById('sf-wa-on')?.checked;
+  await wsSaveSettings();
+  const msg = document.getElementById('sf-wa-msg');
+  msg.style.color = 'var(--teal)';
+  msg.textContent = '✓ Saved. ' + (D.settings.whatsapp_updates_enabled ? 'WhatsApp prompts will show for customers who prefer WhatsApp.' : 'WhatsApp prompts are off.');
+  showToast('WhatsApp settings saved', 'good');
 };
 
 // Tile click → flip the radio + restyle the tiles. (Avoids re-rendering the
@@ -13598,6 +13781,7 @@ window.generateInvoice = async function(jobId) {
   if (isNew && inv.customer?.email) {
     sendCustomerNotification('invoice_ready', { job: j, invoice: inv, to: inv.customer.email });
   }
+  if (isNew) notifyWhatsAppForEvent('invoice_ready', { job: j, invoice: inv });
 };
 
 // ══════════════════════════════════════════════════════════════════════════
