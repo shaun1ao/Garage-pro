@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Your invoice · Garage Pro</title>
+<style>
+  :root{
+    --bg:#0a0e14; --bg2:#121722; --surf:#171d2a; --brd:#26303f; --brd2:#324056;
+    --txt:#e7ecf3; --dim:#9fb0c6; --faint:#69788f;
+    --acc:#ff7a18; --acc2:#ff9a45; --teal:#20e3b2; --red:#ff6b6b; --blue:#639fff;
+    --fb:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--fb);-webkit-font-smoothing:antialiased;height:100%}
+  a{color:var(--acc2)}
+  .wrap{max-width:900px;margin:0 auto;padding:20px 16px 40px;min-height:100%;display:flex;flex-direction:column}
+  .brand{display:flex;align-items:center;gap:10px;padding:14px 0 18px;border-bottom:1px solid var(--brd);margin-bottom:18px}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;font-weight:800;color:#0a0e14;font-size:17px}
+  .ws{font-weight:700;font-size:15.5px}
+  .sub{font-size:12px;color:var(--faint)}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .toolbar h1{font-size:16px;margin:0;font-weight:700}
+  .print-btn{padding:10px 16px;border-radius:9px;border:0;font-family:var(--fb);font-weight:700;font-size:13.5px;cursor:pointer;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0e14}
+  .frame-wrap{flex:1;background:#fff;border-radius:12px;overflow:hidden;border:1px solid var(--brd);min-height:70vh}
+  iframe{width:100%;height:100%;border:0;display:block;min-height:70vh}
+  .state{text-align:center;padding:60px 20px;color:var(--dim);margin:auto}
+  .dot{width:38px;height:38px;border-radius:50%;border:3px solid rgba(255,255,255,.14);border-top-color:var(--acc);animation:spin .8s linear infinite;margin:0 auto 16px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap" id="root">
+  <div class="state"><div class="dot"></div>Loading your invoice…</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+const FB_CONFIG = {
+  apiKey: "AIzaSyD4rRHyT3NOxTfwQDy3mjv9HVYUH3riGDA",
+  authDomain: "garage-pro-874c6.firebaseapp.com",
+  projectId: "garage-pro-874c6",
+  storageBucket: "garage-pro-874c6.firebasestorage.app",
+  messagingSenderId: "714982026183",
+  appId: "1:714982026183:web:95401fffb0a93151b407e2"
+};
+
+const root = document.getElementById('root');
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const qs = new URLSearchParams(location.search);
+const WUID  = qs.get('w') || '';
+const TOKEN = qs.get('t') || '';
+
+function stateMsg(html){ root.innerHTML = `<div class="state">${html}</div>`; }
+
+function boot(){
+  if (!WUID || !TOKEN) { stateMsg('This link is incomplete. Please ask the workshop to resend it.'); return; }
+  let db;
+  try {
+    firebase.initializeApp(FB_CONFIG);
+    db = firebase.firestore();
+  } catch (e) { stateMsg('Could not connect. Please try again in a moment.'); return; }
+  db.collection('users').doc(WUID).collection('invoice_views').doc(TOKEN).get().then(snap => {
+    if (!snap.exists) { stateMsg('This invoice link is no longer valid. Please ask the workshop for an updated link.'); return; }
+    render(snap.data() || {});
+  }).catch(e => {
+    console.error('[invoice] load failed:', e && e.code, e);
+    if (e && e.code === 'permission-denied') {
+      stateMsg(`This invoice link isn't active yet.<br><span style="font-size:12.5px;color:var(--faint)">The workshop needs to publish the latest security rules. Please contact them.</span>`);
+    } else {
+      stateMsg(`Couldn't load this invoice.<br><span style="font-size:12.5px;color:var(--faint)">Please check your connection and refresh. (${esc((e && e.code) || 'error')})</span>`);
+    }
+  });
+}
+
+function render(DATA){
+  const initial = (DATA.workshop_name || 'G').trim().charAt(0).toUpperCase();
+  root.innerHTML = `
+    <div class="brand">
+      <div class="logo">${esc(initial)}</div>
+      <div><div class="ws">${esc(DATA.workshop_name || 'Workshop')}</div><div class="sub">Your invoice${DATA.plate ? ' · ' + esc(DATA.plate) : ''}</div></div>
+    </div>
+    <div class="toolbar">
+      <h1>${DATA.invoice_no ? 'Invoice ' + esc(DATA.invoice_no) : 'Invoice'}</h1>
+      <button class="print-btn" onclick="doPrint()">Print / Save PDF</button>
+    </div>
+    <div class="frame-wrap"><iframe id="invFrame" title="Invoice"></iframe></div>
+  `;
+  // srcdoc, not innerHTML — DATA.html is a full standalone <html> document
+  // (the same one staff see in-app), so it needs its own document context.
+  document.getElementById('invFrame').srcdoc = DATA.html || '<p style="padding:20px;font-family:sans-serif">No invoice content.</p>';
+}
+
+window.doPrint = function(){
+  const f = document.getElementById('invFrame');
+  try { f.contentWindow.focus(); f.contentWindow.print(); }
+  catch (e) { alert('Could not open print — try the print icon in your browser instead.'); }
+};
+
+boot();
+</script>
+</body>
+</html>
