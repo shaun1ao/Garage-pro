@@ -4360,6 +4360,7 @@ async function _spinJobCardFromBooking(bookingId, opts = {}) {
     id: uid('job'),
     booking_id:    b.id,
     plate:         b.plate || '',
+    vin:           b.vin || '',
     cust_name:     b.cust_name || '',
     type:          b.service || '',
     department:    b.department || departments()[0] || 'Mechanical',
@@ -5458,6 +5459,15 @@ window.openCheckoutForm = function(bookingId) {
   const b = D.bookings.find(x => x.id === bookingId);
   if (!b) return showToast('Appointment not found', 'bad');
   const job = D.jobs.find(j => j.booking_id === b.id);
+  // Prefer the job's actual bill (parts + service charges) or a linked
+  // invoice's real total over the rough estimate typed at booking time —
+  // that's what the customer is actually being charged.
+  const invForCost = (D.invoices || []).find(i => i.job_id === job?.id || i.booking_id === b.id);
+  const jobBillTotal = job
+    ? (job.parts || []).reduce((s, p) => s + (Number(p.unit_price || 0) * Number(p.qty || 1) * (1 - Number(p.disc_pct || 0) / 100)), 0)
+      + (job.service_charges || []).reduce((s, c) => s + Number(c.amount || 0), 0)
+    : 0;
+  const autoActualCost = b.actual_cost || (invForCost ? _invoiceTotals(invForCost).roundOff : 0) || jobBillTotal || b.cost_estimate || '';
   openModal({
     title: `Check out · ${b.plate}`,
     body: `
@@ -5470,14 +5480,18 @@ window.openCheckoutForm = function(bookingId) {
       </div>
       <div class="f-row">
         <div class="f-grp"><label>Actual cost (₹)</label>
-          <input id="co-cost" type="number" min="0" step="100" value="${escapeHtml(b.actual_cost || b.cost_estimate || '')}" /></div>
+          <input id="co-cost" type="number" min="0" step="100" value="${escapeHtml(autoActualCost)}" /></div>
         <div class="f-grp"><label>Payment status</label>
-          <select id="co-pay">
+          <select id="co-pay" onchange="document.getElementById('co-partial-wrap').style.display = this.value === 'Partial' ? '' : 'none'">
             <option value="Paid">Paid</option>
             <option value="Outstanding">Outstanding</option>
             <option value="Partial">Partial</option>
             <option value="Waived">Waived</option>
           </select></div>
+      </div>
+      <div class="f-grp" id="co-partial-wrap" style="display:none">
+        <label>Amount paid so far (₹)</label>
+        <input id="co-amount-paid" type="number" min="0" step="0.01" value="${escapeHtml(String(b.amount_paid || 0))}" />
       </div>
       ${(D.settings?.pickup_otp_enabled && job?.pickup_otp) ? `
       <div class="f-grp" style="margin-top:6px">
@@ -5502,6 +5516,11 @@ async function doCheckout(bookingId) {
   const cost = (document.getElementById('co-cost')?.value || '').trim();
   const pay  = document.getElementById('co-pay')?.value || 'Outstanding';
   const notes= (document.getElementById('co-notes')?.value || '').trim();
+  // Only meaningful when pay === 'Partial' — clamped to the actual cost so a
+  // typo can't record more paid than the bill.
+  const amountPaid = pay === 'Partial'
+    ? Math.min(Number(cost) || 0, Math.max(0, Number(document.getElementById('co-amount-paid')?.value || 0)))
+    : (pay === 'Paid' ? (Number(cost) || 0) : 0);
 
   // Pickup gate pass — enforce only when the toggle is on AND this job has a
   // code (cars marked ready before the toggle was flipped have none to check).
@@ -5548,6 +5567,7 @@ async function doCheckout(bookingId) {
   b.status = 'Delivered';
   if (cost) b.actual_cost = Number(cost);
   b.payment_status = pay;
+  b.amount_paid = amountPaid;
   if (notes) b.delivery_notes = notes;
   b.delivered_at = nowStr();
   b.updated_at = nowStr();
@@ -5556,7 +5576,7 @@ async function doCheckout(bookingId) {
 
   closeModal();
   showToast(`${b.plate} delivered`, 'good');
-  audit('checkout', `${b.plate} (${b.cust_name || '—'}) · ${pay}${cost ? ' · ₹' + cost : ''}`, { booking_id: b.id });
+  audit('checkout', `${b.plate} (${b.cust_name || '—'}) · ${pay}${cost ? ' · ₹' + cost : ''}${pay === 'Partial' ? ' (paid ₹' + amountPaid + ')' : ''}`, { booking_id: b.id });
   publishTracking(b.id);   // push Delivered to the public tracker
   renderCheckin();
   await Promise.all(writes);
@@ -5656,7 +5676,9 @@ async function renderJobs(force = false) {
       const stageBtns = `${status === 'Awaiting Assignment' || status === 'Awaiting Approval'
           ? ''
           : status === 'Technician Assigned'
-            ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Inspected')" title="Vehicle inspected, spares listed">Mark inspected</button>`
+            ? (currentRole() === 'mechanic' || currentRole() === 'floor_manager' || isAdminRole()
+                ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Inspected')" title="Vehicle inspected, spares listed">Mark inspected</button>`
+                : '')
             : status === 'Inspected'
               ? `${canApproveParts() ? `<button class="mini-btn warn" onclick="_markPricingComplete('${escapeHtml(j.id)}')" title="Parts priced & availability checked — tell the service advisor the estimate is ready to send">Parts priced</button>` : ''}${_isSA ? `<button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(j.id)}')" title="Generate estimate & send to client">Send estimate</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>` : ''}`
               : status === 'Estimate Sent'
@@ -5668,13 +5690,15 @@ async function renderJobs(force = false) {
                     : status === 'In Progress'
                       ? `<button class="mini-btn good" onclick="markRepairDone('${escapeHtml(j.id)}')" title="Technician finished — hand over for QC">Repair done</button>`
                       : status === 'Awaiting QC'
-                        ? `<button class="mini-btn good" onclick="passQC('${escapeHtml(j.id)}')" title="Test drive + final inspection passed">Pass QC</button>`
+                        ? (currentRole() === 'floor_manager' || isAdminRole()
+                            ? `<button class="mini-btn good" onclick="passQC('${escapeHtml(j.id)}')" title="Test drive + final inspection passed">Pass QC</button>`
+                            : '')
                         : status === 'QC Passed'
                           ? `${_isSA ? `<button class="mini-btn good" onclick="openInformClient('${escapeHtml(j.id)}')" title="Confirm pickup time + notify wash team">Inform client</button>` : ''}`
                           : status === 'Client Informed' || status === 'Washing'
                             ? `<button class="mini-btn good" onclick="markWashReady('${escapeHtml(j.id)}')" title="Washing done — car ready for pickup">Ready for pickup</button>`
                             : status === 'Ready for Pickup'
-                              ? `<button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waReady('${escapeHtml(j.id)}')" title="Tell the customer their car is ready, on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>Notify</button>${_isSA ? `<button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>` : ''}`
+                              ? `${currentRole() === 'mechanic' ? '' : `<button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waReady('${escapeHtml(j.id)}')" title="Tell the customer their car is ready, on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>Notify</button>`}${_isSA ? `<button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>` : ''}`
                               : status === 'Returned to Advisor'
                                 ? `${_isSA ? `<button class="mini-btn good" onclick="_billReturnedJob('${escapeHtml(j.id)}')" title="Bill an inspection / diagnostic charge if required, then invoice">Create invoice</button>` : ''}`
                                 : ''}`;
@@ -5828,9 +5852,28 @@ async function _qaApplyAssignment(jobId) {
   else if (currentTab === 'notifications') renderNotifications();
 }
 
+// Auto-add a standard Consumables charge (cleaning materials, shop supplies,
+// etc.) the moment a job is Approved — the Service Advisor assigned to the
+// job can adjust or remove it before invoicing, same as any other service
+// charge, but only they may (see the Consumables-specific gate in
+// _drawJobRows' charges table). Guarded by name so calling this from every
+// Approved-transition point (client decision, customer link, In Progress)
+// never doubles it up. Must write to service_charges — that's the field
+// every other read site (invoice generation, job card, timeline) actually
+// uses; an earlier version wrote to a dead `j.charges` field nothing read.
+function _ensureConsumablesCharge(j) {
+  j.service_charges = j.service_charges || [];
+  if (!j.service_charges.some(c => (c.name || '').trim().toLowerCase() === 'workshop consumables')) {
+    j.service_charges.push({ name: 'Workshop Consumables', amount: Number(D.settings?.consumables_default_amount) || 150 });
+  }
+}
+
 window.markJobStatus = async function(jobId, newStatus) {
   const j = D.jobs.find(x => x.id === jobId);
   if (!j) return;
+  if (newStatus === 'Inspected' && currentRole() !== 'mechanic' && currentRole() !== 'floor_manager' && !isAdminRole()) {
+    return customAlert('Only the Worker (technician) or Floor Manager can mark a job Inspected.', { title: 'Not allowed' });
+  }
   if (newStatus === 'Inspected' && !(j.parts || []).length) {
     if (!(await customConfirm('No spares are listed on this job yet. Mark as Inspected anyway?', { title: 'No spares listed', okLabel: 'Mark inspected', danger: false }))) return;
   }
@@ -5861,21 +5904,30 @@ window.markJobStatus = async function(jobId, newStatus) {
       target: j.mechanic ? { worker_name: j.mechanic } : { role: 'floor_manager' },
       job_id: jobId
     });
-    // Auto-add a standard Consumables charge once work actually starts
-    // (cleaning materials, shop supplies, etc.) — the Service Advisor can
-    // adjust or remove it on the job card before invoicing, same as any
-    // other service charge. Guarded so re-entering In Progress never doubles it.
-    j.charges = j.charges || [];
-    if (!j.charges.some(c => (c.name || '').trim().toLowerCase() === 'workshop consumables')) {
-      j.charges.push({ name: 'Workshop Consumables', amount: Number(D.settings?.consumables_default_amount) || 150 });
+    _ensureConsumablesCharge(j);
+    // Auto-copy the approved estimate's labour/service lines into the actual
+    // bill as a starting point — the SA can still edit/remove them before
+    // invoicing. Matched by name so re-entering In Progress never duplicates.
+    // Estimated PARTS are deliberately NOT copied here — that would deduct
+    // inventory before parts are actually confirmed installed.
+    for (const es of (j.est_services || [])) {
+      const name = (es.name || '').trim();
+      if (!name) continue;
+      if (!j.service_charges.some(c => (c.name || '').trim().toLowerCase() === name.toLowerCase())) {
+        j.service_charges.push({ name, amount: Number(es.price || 0) });
+      }
     }
   }
-  // Trigger — Mark reassembled / Returned to Advisor
+  // Trigger — Mark reassembled / Returned to Advisor. Goes to the SA actually
+  // assigned to this job's estimate, not every SA in the workshop — falls
+  // back to the role broadcast only if no assigned SA exists on record.
   if (newStatus === 'Returned to Advisor') {
+    const returnTarget = j.estimate_sent_by_id ? { worker_id: j.estimate_sent_by_id }
+                        : (j.estimate_sent_by ? { worker_name: j.estimate_sent_by } : { role: 'service_advisor' });
     notify({
       kind: 'returned-to-advisor',
-      message: `${j.plate} reassembled (no repair done) — back with the service advisor`,
-      target: { role: 'service_advisor' },
+      message: `${j.plate} reassembled (no repair done) — back with you. Choose how to close it out: invoice for labour, empty invoice, or no invoice.`,
+      target: returnTarget,
       job_id: jobId
     });
   }
@@ -5928,6 +5980,9 @@ window.markRepairDone = async function(jobId) {
 
 // Floor manager signs off after QC (test drive + final inspection). Status → QC Passed.
 window.passQC = async function(jobId) {
+  if (currentRole() !== 'floor_manager' && !isAdminRole()) {
+    return customAlert('Only the Floor Manager can pass QC.', { title: 'Floor Manager only' });
+  }
   const j = D.jobs.find(x => x.id === jobId);
   if (!j) return;
   const note = await customPrompt('Any QC notes? (optional — leave blank to just sign off)', {
@@ -6091,6 +6146,7 @@ window.sendJobEstimate = async function(jobId) {
   // Reuse the invoice flow but force the invoice into Draft so the customer
   // sees it's an estimate and we don't accidentally treat it as billed revenue.
   let inv = (D.invoices || []).find(x => x.job_id === jobId);
+  const isNewEstimateInv = !inv;
   if (!inv) {
     inv = _seedInvoiceFromJob(jobId);
     inv.created_at = nowStr();
@@ -6111,10 +6167,9 @@ window.sendJobEstimate = async function(jobId) {
   j.status = 'Estimate Sent';
   j.estimate_sent_at = nowStr();
   j.updated_at = nowStr();
-  await Promise.all([
-    wsSave('invoices', D.invoices),
-    wsSave('jobs', D.jobs)
-  ]);
+  const estWrites = [wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)];
+  if (isNewEstimateInv) estWrites.push(wsSave('settings', [D.settings]));
+  await Promise.all(estWrites);
   showToast(`Estimate ${inv.number} drafted for ${j.plate}`, 'good');
   publishTracking(j.booking_id);
   audit('estimate-sent', `${inv.number} · ${j.plate} · ${j.cust_name || '—'}`, { invoice_id: inv.id, job_id: jobId });
@@ -6300,6 +6355,7 @@ async function _cdSubmit(invId) {
     j.updated_at = nowStr();
     inv.status = 'Issued';
     inv.payment_status = inv.payment_status || 'Outstanding';
+    _ensureConsumablesCharge(j);
     showToast(`${j.plate} → approved · ${counts.approved} concern${counts.approved === 1 ? '' : 's'} scoped${counts.rejected ? ', ' + counts.rejected + ' rejected' : ''}`, 'good');
     audit('client-decision-approve', `${inv.number} · ${j.plate} — ${counts.approved} approved · ${counts.rejected} rejected`, { invoice_id: inv.id, job_id: j.id });
     // Trigger 5 — Client approves (full/partial) → notify parts department to forward approved line items
@@ -6441,6 +6497,7 @@ window.waInvoice = function(invId) {
 // "Your car is ready for pickup" on WhatsApp (includes the pickup code if the
 // gate-pass toggle is on).
 window.waReady = function(jobId) {
+  if (currentRole() === 'mechanic') return customAlert('Notifying the customer isn\'t part of the technician workflow — the service advisor handles this.', { title: 'Not available' });
   const j = (D.jobs || []).find(x => x.id === jobId);
   if (!j) return showToast('Job not found', 'bad');
   const name = (j.cust_name || 'there').split(' ')[0];
@@ -6542,6 +6599,7 @@ window.shareEstimateLink = async function(jobId) {
   }
   // Reuse / create the estimate invoice, exactly like sendJobEstimate.
   let inv = (D.invoices || []).find(x => x.job_id === jobId);
+  const isNewShareInv = !inv;
   if (!inv) {
     inv = _seedInvoiceFromJob(jobId);
     inv.created_at = nowStr();
@@ -6582,7 +6640,9 @@ window.shareEstimateLink = async function(jobId) {
     console.error('[shareEstimateLink]', e);
     return customAlert('Could not publish the approval link: ' + (e.message || e), { title: 'Publish failed' });
   }
-  await Promise.all([wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)]);
+  const shareWrites = [wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)];
+  if (isNewShareInv) shareWrites.push(wsSave('settings', [D.settings]));
+  await Promise.all(shareWrites);
   publishTracking(j.booking_id);
   audit('estimate-link-shared', `${inv.number || ''} · ${j.plate} · ${j.cust_name || '—'}`, { invoice_id: inv.id, job_id: jobId });
   renderJobs();
@@ -6692,6 +6752,7 @@ function _applyCustomerDecision(appr) {
     j.updated_at = nowStr();
     inv.status = 'Issued';
     inv.payment_status = inv.payment_status || 'Outstanding';
+    _ensureConsumablesCharge(j);
     audit('client-decision-approve', `${inv.number || ''} · ${j.plate} — customer approved ${counts.approved} via link`, { invoice_id: inv.id, job_id: j.id });
   }
   // Stash the decision on the job so the advisor can forward it downstream.
@@ -6715,7 +6776,22 @@ function _applyCustomerDecision(appr) {
     job_id: j.id,
     meta: { approved: counts.approved, rejected: counts.rejected, status: j.last_customer_decision.status }
   });
-  Promise.all([wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)])
+  // Sync the decision onto any linked parts_request items (Pending → Approved/Declined)
+  // and let the Parts Manager know directly — not the worker.
+  const partsChanged = _syncPartsRequestApprovals(j, inv);
+  const hasLinkedRequests = (D.parts_requests || []).some(r => r.job_id === j.id);
+  if (hasLinkedRequests) {
+    notify({
+      kind: 'estimate-response',
+      message: `${summary} Check the parts request for ${j.plate} — item approval status has been updated.`,
+      target: { role: 'parts_dept' },
+      job_id: j.id,
+      meta: { approved: counts.approved, rejected: counts.rejected, status: j.last_customer_decision.status }
+    });
+  }
+  const writes = [wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)];
+  if (partsChanged) writes.push(wsSave('parts_requests', D.parts_requests));
+  Promise.all(writes)
     .then(() => { publishTracking(j.booking_id); if (typeof renderJobs === 'function') renderJobs(); })
     .catch(e => console.warn('[appr save]', e));
   showToast(`${who} responded to the estimate for ${j.plate}`, 'good');
@@ -6844,7 +6920,8 @@ window.openJobForm = function(id) {
     insurance_approval:  j.insurance_approval || 'Pending',
     approved_amount:     j.approved_amount || '',
     surveyor_name:       j.surveyor_name || '',
-    insurance_notes:     j.insurance_notes || ''
+    insurance_notes:     j.insurance_notes || '',
+    estimate_sent_by_id: j.estimate_sent_by_id || ''
   };
   // Estimation phase → show ONLY the estimation parts/services; hide the actual
   // "Parts used" + "Service charges" until the repair is actually running. Keeps
@@ -6862,7 +6939,7 @@ window.openJobForm = function(id) {
     title: `Job card · ${j.plate || j.id}`,
     body: `
       <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);margin-bottom:14px;line-height:1.55">
-        <b style="color:var(--txt)">${escapeHtml(j.cust_name || '—')}</b> · ${escapeHtml(j.plate || '—')}<br>
+        <b style="color:var(--txt)">${escapeHtml(j.cust_name || '—')}</b> · ${escapeHtml(j.plate || '—')}${j.vin ? ` · VIN ${escapeHtml(j.vin)}` : ''}<br>
         Service: ${escapeHtml(j.type || '—')} · Created ${escapeHtml((j.created_at || '').slice(0,16) || '—')}
       </div>
       <div class="f-row">
@@ -7587,13 +7664,21 @@ function _drawJobRows() {
   }
   const chgWrap = document.getElementById('jf-charges-rows');
   if (chgWrap) {
+    // The Consumables line is stricter than other charges — only the Service
+    // Advisor actually assigned to THIS job's estimate (or an admin) may edit
+    // or remove it, not any SA in the workshop.
+    const isAssignedSA = isAdminRole() || (!!currentWorker?.id && currentWorker.id === _editingJob.estimate_sent_by_id);
     chgWrap.innerHTML = _editingJob.charges.length
       ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:420px">
           <thead><tr><th>Charge name</th><th style="width:140px">Amount (₹)</th><th style="width:36px"></th></tr></thead>
-          <tbody>${_editingJob.charges.map((c, i) => { const dis = roChg ? 'disabled' : ''; return `<tr>
-            <td><input type="text" data-jc="${i}" data-f="name" value="${escapeHtml(c.name)}" placeholder="Labour, diagnostic fee…" ${dis} style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><input type="number" min="0" step="0.01" data-jc="${i}" data-f="amount" value="${escapeHtml(String(c.amount))}" ${dis} style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td>${roChg ? '' : `<button type="button" class="mini-btn danger" onclick="_jobRemoveCharge(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`}</td>
+          <tbody>${_editingJob.charges.map((c, i) => {
+            const isConsumables = (c.name || '').trim().toLowerCase() === 'workshop consumables';
+            const rowLocked = roChg || (isConsumables && !isAssignedSA);
+            const dis = rowLocked ? 'disabled' : '';
+            return `<tr>
+            <td><input type="text" data-jc="${i}" data-f="name" value="${escapeHtml(c.name)}" placeholder="Labour, diagnostic fee…" ${dis} title="${isConsumables && !isAssignedSA && !roChg ? 'Only the Service Advisor assigned to this job can edit Consumables' : ''}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="0.01" data-jc="${i}" data-f="amount" value="${escapeHtml(String(c.amount))}" ${dis} title="${isConsumables && !isAssignedSA && !roChg ? 'Only the Service Advisor assigned to this job can edit Consumables' : ''}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td>${rowLocked ? '' : `<button type="button" class="mini-btn danger" onclick="_jobRemoveCharge(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>`}</td>
           </tr>`; }).join('')}</tbody></table></div>`
       : '<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No service charges. Click "Add charge" above.</div>';
     chgWrap.querySelectorAll('input[data-jc]').forEach(inp => inp.addEventListener('input', (ev) => {
@@ -9605,7 +9690,7 @@ async function renderParts(force = false) {
           ${r.notes ? `<div style="font-size:11.5px;color:var(--faint);margin-top:3px">${escapeHtml(r.notes)}</div>` : ''}
           ${breakdown ? `<div style="margin-top:6px">${breakdown}</div>` : ''}
         </td>
-        <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>` : '—'}</td>
+        <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>${r.vin ? `<div style="font-size:10.5px;color:var(--faint);margin-top:2px">VIN ${escapeHtml(r.vin)}</div>` : ''}` : '—'}</td>
         <td>${escapeHtml(r.urgency || 'Normal')}</td>
         <td>${statusPill(rollup)}</td>
         <td><div class="row-act">
@@ -9632,6 +9717,20 @@ function _prStatusTint(s) {
   }[s] || { bg:'rgba(255,255,255,.06)', fg:'var(--faint)' };
 }
 
+// Small badge showing where an item stands with the CUSTOMER's estimate
+// decision — separate from its internal Pending/Ordered/Received status.
+// Blank for items never priced into an estimate (nothing to show).
+function _prCustomerApprovalPill(ca) {
+  if (!ca) return '';
+  const tint = {
+    Pending:  { bg:'rgba(255,179,71,.16)',  fg:'var(--acc2)', label:'Awaiting customer' },
+    Approved: { bg:'rgba(32,227,178,.16)',  fg:'var(--teal)', label:'Customer approved' },
+    Declined: { bg:'rgba(255,107,107,.16)', fg:'var(--red)',  label:'Customer declined' }
+  }[ca];
+  if (!tint) return '';
+  return `<span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:100px;background:${tint.bg};color:${tint.fg}">${tint.label}</span>`;
+}
+
 // ── Detail modal: list every item, per-item buttons + bulk "Apply to all" ──
 window.openPartReqDetail = function(reqId) { _openPartReqDetail(reqId); };
 function _openPartReqDetail(reqId) {
@@ -9647,10 +9746,13 @@ function _openPartReqDetail(reqId) {
     // No approve/deny gate — whatever qty the worker requested IS the request.
     // Pending → Ordered (cost+MRP captured first, via _prMarkOrdered) →
     // Received (shelf location captured first, via _prMarkReceived).
+    const orderGated = it.customer_approval === 'Pending' || it.customer_approval === 'Declined';
     let buttons = '';
     if (isApprover) {
       buttons = it.status === 'Pending'
-        ? `<button class="mini-btn warn" onclick="_prMarkOrdered('${escapeHtml(reqId)}','${escapeHtml(it.id)}')">📦 Mark ordered</button><button class="mini-btn danger" onclick="setPartStatus('${escapeHtml(reqId)}','Cancelled','${escapeHtml(it.id)}')" title="No longer needed">✕ Cancel</button>`
+        ? (orderGated
+            ? `<button class="mini-btn warn" disabled title="${it.customer_approval === 'Declined' ? 'Customer declined this part' : 'Waiting on customer approval'}" style="opacity:.5;cursor:not-allowed">📦 Mark ordered</button><button class="mini-btn danger" onclick="setPartStatus('${escapeHtml(reqId)}','Cancelled','${escapeHtml(it.id)}')" title="No longer needed">✕ Cancel</button>`
+            : `<button class="mini-btn warn" onclick="_prMarkOrdered('${escapeHtml(reqId)}','${escapeHtml(it.id)}')">📦 Mark ordered</button><button class="mini-btn danger" onclick="setPartStatus('${escapeHtml(reqId)}','Cancelled','${escapeHtml(it.id)}')" title="No longer needed">✕ Cancel</button>`)
         : it.status === 'Ordered'
           ? `<button class="mini-btn good" onclick="_prMarkReceived('${escapeHtml(reqId)}','${escapeHtml(it.id)}')">✓ Mark received</button>${act('↶ Back to pending', 'Pending', '')}`
           : it.status === 'Received'
@@ -9677,7 +9779,7 @@ function _openPartReqDetail(reqId) {
       <div style="display:flex;align-items:flex-start;gap:12px;padding:11px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:7px">
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;color:var(--txt);font-size:13.5px">${escapeHtml(it.name)} <span style="font-weight:500;color:var(--faint);font-size:12px">× ${it.qty}</span></div>
-          <div style="margin-top:3px"><span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:100px;background:${tint.bg};color:${tint.fg}">${(it.status || 'PENDING').toUpperCase()}</span></div>
+          <div style="margin-top:3px;display:flex;gap:5px;flex-wrap:wrap"><span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:100px;background:${tint.bg};color:${tint.fg}">${(it.status || 'PENDING').toUpperCase()}</span>${_prCustomerApprovalPill(it.customer_approval)}</div>
           ${priceBlock}
           ${it.location ? `<div style="font-size:11.5px;color:var(--dim);margin-top:2px">📍 ${escapeHtml(it.location)}</div>` : ''}
           ${estimateBox}
@@ -9689,6 +9791,8 @@ function _openPartReqDetail(reqId) {
     ? `<div style="padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:14px;font-size:12.5px;color:var(--faint)">Mark each item ordered (cost + MRP) or received (shelf location) individually below — bulk actions were removed since both steps now need item-specific details.</div>`
     : `<div style="padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:14px;font-size:12.5px;color:var(--faint)">Read-only view — only the Parts department can order or receive parts.</div>`;
 
+  const linkedJob = r.job_id ? (D.jobs || []).find(x => x.id === r.job_id) : null;
+  const vin = r.vin || linkedJob?.vin || '';
   _openSubModal({
     title: `Parts request · ${items.length} item${items.length === 1 ? '' : 's'}${r.plate ? ' · ' + r.plate : ''}`,
     bodyHtml: `
@@ -9698,6 +9802,7 @@ function _openPartReqDetail(reqId) {
         <div><span style="color:var(--faint)">At</span> <b style="color:var(--txt)">${escapeHtml((r.requested_at || '').slice(0,16))}</b></div>
         <div><span style="color:var(--faint)">Urgency</span> <b style="color:var(--txt)">${escapeHtml(r.urgency || 'Normal')}</b></div>
         <div><span style="color:var(--faint)">Overall</span> ${statusPill(rollup)}</div>
+        ${vin ? `<div style="grid-column:span 2"><span style="color:var(--faint)">VIN / Chassis</span> <b style="color:var(--txt)">${escapeHtml(vin)}</b></div>` : ''}
         ${r.notes ? `<div style="grid-column:span 2;color:var(--dim);font-style:italic">"${escapeHtml(r.notes)}"</div>` : ''}
       </div>
       ${bulk}
@@ -9720,6 +9825,12 @@ window._prMarkOrdered = async function(reqId, itemId) {
   const items = _prRequestItems(r);
   const it = items.find(x => x.id === itemId);
   if (!it) return showToast('Item not found', 'bad');
+  if (it.customer_approval === 'Declined') {
+    return customAlert(`The customer declined "${it.name}" on their estimate — it can't be ordered.`, { title: 'Declined by customer' });
+  }
+  if (it.customer_approval === 'Pending') {
+    return customAlert(`"${it.name}" is part of an estimate sent to the customer — waiting on their approval before it can be ordered.`, { title: 'Awaiting customer approval' });
+  }
   _openSubModal({
     title: `Order · ${it.name}`,
     bodyHtml: `
@@ -9855,7 +9966,7 @@ async function renderRequestParts(force = false) {
         <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((r.requested_at||'').slice(0,16))}</td>
         <td class="k">${_prItemsCell(r)}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
         <td>${escapeHtml(String(r.qty || 1))}</td>
-        <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>` : '—'}</td>
+        <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>${r.vin ? `<div style="font-size:10.5px;color:var(--faint);margin-top:2px">VIN ${escapeHtml(r.vin)}</div>` : ''}` : '—'}</td>
         <td>${escapeHtml(r.urgency || 'Normal')}</td>
         <td>${anyPriced ? `<b style="color:var(--teal)">${cur}${estTotal.toLocaleString('en-IN')}</b>` : '<span style="color:var(--faint);font-size:12px">—</span>'}</td>
         <td>${statusPill(s)}</td>
@@ -9890,9 +10001,13 @@ window.openPartRequestForm = function(prefill) {
       <datalist id="dlInvRequest">${(D.inventory || []).map(i => `<option value="${escapeHtml(i.name || '')}">`).join('')}</datalist>
       <div class="f-row">
         <div class="f-grp"><label>For job (optional)</label>
-          <select id="pf-job"><option value="">— None / general stock —</option>
-          ${activeJobs.map(j => `<option value="${escapeHtml(j.id)}" ${prefill.job_id === j.id ? 'selected' : ''}>${escapeHtml(j.plate)} · ${escapeHtml(j.cust_name || '—')}</option>`).join('')}
-          </select></div>
+          <div style="display:flex;gap:8px">
+            <select id="pf-job" style="flex:1"><option value="">— None / general stock —</option>
+            ${activeJobs.map(j => `<option value="${escapeHtml(j.id)}" ${prefill.job_id === j.id ? 'selected' : ''}>${escapeHtml(j.plate)}${j.vin ? ' · VIN ' + escapeHtml(j.vin) : ''} · ${escapeHtml(j.cust_name || '—')}</option>`).join('')}
+            </select>
+            <button type="button" class="mini-btn" onclick="_scanIntoPartRequest()" title="Scan the vehicle's QR to pick its job" style="padding:11px 14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h6v6M15 18h.01M18 15v.01"/></svg>Scan</button>
+          </div>
+        </div>
         <div class="f-grp"><label>Urgency</label>
           <select id="pf-urg"><option>Low</option><option selected>Normal</option><option>High</option><option>Critical</option></select></div>
       </div>
@@ -9912,6 +10027,32 @@ window.openPartRequestForm = function(prefill) {
     onSave: () => savePartRequest()
   });
   setTimeout(() => _prDrawItems(), 0);
+};
+
+// Scan a vehicle QR (or type its plate) from inside the Request Parts form to
+// pick that vehicle's job — same GPV-/registry resolution as everywhere else.
+window._scanIntoPartRequest = function() {
+  openScanner('part-request', async (code) => {
+    const raw = code.trim();
+    const key = /^GPV-/i.test(raw) ? raw.slice(4) : _plateNorm(raw);
+    const found = findVehicleByQRId(key) || _findVehicleByPlateNorm(key);
+    const plate = found ? found.vehicle.plate : raw;
+    const job = _activeJobForPlate(plate);
+    if (!job) {
+      return customAlert(`No open job card found for ${escapeHtml(plate)}. The vehicle needs an active job card before parts can be requested against it — this will be saved as a general stock request instead.`, { title: 'No matching job' });
+    }
+    const sel = document.getElementById('pf-job');
+    if (sel) {
+      // The job might not be in the dropdown if it was created after the form opened.
+      if (![...sel.options].some(o => o.value === job.id)) {
+        const opt = document.createElement('option');
+        opt.value = job.id; opt.textContent = `${job.plate} · ${job.cust_name || '—'}`;
+        sel.appendChild(opt);
+      }
+      sel.value = job.id;
+    }
+    showToast(`Linked to ${job.plate}'s job card`, 'good');
+  }, "Scan the vehicle's QR");
 };
 
 window._prAddItem    = function()   { _editingPartReq.items.push({ name: '', qty: 1 }); _prDrawItems(); };
@@ -9965,6 +10106,7 @@ async function savePartRequest() {
     notes: document.getElementById('pf-notes').value.trim(),
     job_id: jobId,
     plate: job?.plate || '',
+    vin: job?.vin || '',
     requested_by_id: currentWorker.id,
     requested_by: currentWorker.name,
     status: 'Pending',
@@ -10085,19 +10227,22 @@ window.setPartStatus = async function(reqId, status, itemId, extra) {
     // Don't ping the requester if they're also the one who just received it
     // (e.g. an owner who self-requested and self-fulfilled).
     const isSelf = (r.requested_by_id && r.requested_by_id === currentWorker?.id);
-    const target = { roles: ['service_advisor', 'floor_manager'] };
+    const msg = `Parts arrived${where} & added to inventory: ${list}${tail}`;
+    // Only the SA assigned to this job hears about arrival — not every SA and
+    // not the floor manager. Falls back to the service_advisor role only for
+    // general/stock requests that aren't tied to a job (no assigned SA exists).
+    const arrJob = r.job_id ? (D.jobs || []).find(x => x.id === r.job_id) : null;
+    const saTarget = arrJob
+      ? (arrJob.estimate_sent_by_id ? { worker_id: arrJob.estimate_sent_by_id }
+        : (arrJob.estimate_sent_by ? { worker_name: arrJob.estimate_sent_by } : { role: 'service_advisor' }))
+      : { role: 'service_advisor' };
+    notify({ kind: 'parts-arrived', message: msg, target: saTarget, job_id: r.job_id || '', booking_id: r.booking_id || '', meta: { request_id: r.id } });
+    // Separately let the requesting worker know their part is in — a distinct
+    // recipient from the SA above, so it needs its own notify() call.
     if (!isSelf && (r.requested_by_id || r.requested_by)) {
-      if (r.requested_by_id) target.worker_id = r.requested_by_id;
-      else target.worker_name = r.requested_by || '';
+      const workerTarget = r.requested_by_id ? { worker_id: r.requested_by_id } : { worker_name: r.requested_by || '' };
+      notify({ kind: 'parts-arrived', message: msg, target: workerTarget, job_id: r.job_id || '', booking_id: r.booking_id || '', meta: { request_id: r.id } });
     }
-    notify({
-      kind: 'parts-arrived',
-      message: `Parts arrived${where} & added to inventory: ${list}${tail}`,
-      target,
-      job_id: r.job_id || '',
-      booking_id: r.booking_id || '',
-      meta: { request_id: r.id }
-    });
   }
   // Persist BEFORE refreshing — refresh calls loadAllData(true) which would otherwise
   // overwrite our just-mutated D.parts_requests with the pre-save Firestore snapshot.
@@ -10128,6 +10273,9 @@ function _prAutoAddToJobEstimate(r, it) {
   if (!j) return false;
   const name = (it.name || '').trim();
   if (!name || it.price == null) return false;
+  // Once a part is priced into a job's estimate it becomes subject to the
+  // customer's approve/reject decision on that estimate — starts Pending.
+  if (!it.customer_approval) it.customer_approval = 'Pending';
   j.est_parts = j.est_parts || [];
   const existing = j.est_parts.find(p => (p.name || '').trim().toLowerCase() === name.toLowerCase());
   if (existing) {
@@ -10137,6 +10285,30 @@ function _prAutoAddToJobEstimate(r, it) {
   }
   j.est_parts.push({ name, qty: Number(it.qty || 1), price: Number(it.price), source: 'approved-request' });
   return true;
+}
+
+// When a customer approves/rejects an estimate (_applyCustomerDecision), stamp
+// the matching status onto any linked parts_request items (matched by name
+// against the invoice lines that carried the customer's decision) so the
+// parts department can see exactly what's cleared to order. Items never
+// priced into an estimate (customer_approval is unset) are untouched — they
+// carry no customer-approval concept (general/stock requests). Returns true
+// if any parts_requests changed, so the caller knows to persist them.
+function _syncPartsRequestApprovals(j, inv) {
+  const reqs = (D.parts_requests || []).filter(r => r.job_id === j.id);
+  if (!reqs.length) return false;
+  let changed = false;
+  for (const r of reqs) {
+    r.items = _prRequestItems(r);
+    for (const it of r.items) {
+      if (!it.customer_approval) continue; // never part of a sent estimate
+      const line = (inv.lines || []).find(l => (l.name || '').trim().toLowerCase() === (it.name || '').trim().toLowerCase());
+      if (!line) continue;
+      const newVal = line.approval === 'approved' ? 'Approved' : 'Declined';
+      if (it.customer_approval !== newVal) { it.customer_approval = newVal; changed = true; }
+    }
+  }
+  return changed;
 }
 
 // Old saves may still carry 'Approved'/'Declined' from the removed approval
@@ -10165,7 +10337,10 @@ function _prRequestItems(r) {
       // Received — these were being silently dropped on every re-normalize
       // (e.g. setPartStatus reassigns r.items = _prRequestItems(r) at its
       // very first line), which erased them right after being set.
-      location: it.location || '', supplier: it.supplier || '', barcode: it.barcode || ''
+      location: it.location || '', supplier: it.supplier || '', barcode: it.barcode || '',
+      // Pending/Approved/Declined once this item is priced into a job estimate
+      // and the customer responds — see _prAutoAddToJobEstimate / _syncPartsRequestApprovals.
+      customer_approval: it.customer_approval || ''
     }));
   }
   if (r.part_name) {
@@ -10174,7 +10349,8 @@ function _prRequestItems(r) {
       status:  _prMigrateStatus(r.status), stocked: !!r.stocked,
       price:      (r.price == null || r.price === '') ? null : Number(r.price),
       cost_price: (r.cost_price == null || r.cost_price === '') ? null : Number(r.cost_price),
-      location: r.location || '', supplier: r.supplier || '', barcode: r.barcode || ''
+      location: r.location || '', supplier: r.supplier || '', barcode: r.barcode || '',
+      customer_approval: r.customer_approval || ''
     }];
   }
   return [];
@@ -11765,6 +11941,9 @@ function _renderVehicleQRResult(code, customer, vehicle) {
     (b.plate || '').replace(/\s/g, '').toUpperCase() === (vehicle.plate || '').replace(/\s/g, '').toUpperCase()
     && (b.status === 'Scheduled' || !b.status)
     && (b.date === today || b.date >= today));
+  // Also look for a live job card on this plate — that's what lets us offer
+  // "Request parts" straight from a scan (parts requests link to a job, not a booking).
+  const activeJob = _activeJobForPlate(vehicle.plate);
   const box = document.getElementById('scanResult');
   box.innerHTML = `
     <div class="r-icon good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/></svg></div>
@@ -11779,11 +11958,22 @@ function _renderVehicleQRResult(code, customer, vehicle) {
     <div class="r-acts">
       <button class="fbtn fbtn-cancel" onclick="closeScanner()">Close</button>
       <button class="fbtn fbtn-cancel" onclick="closeScanner();openServiceHistory('${escapeHtml(customer.id)}','${escapeHtml(vehicle.id)}')" title="See every past visit on this vehicle">View history</button>
+      ${activeJob ? `<button class="fbtn fbtn-cancel" onclick="closeScanner();openPartRequestForm({job_id:'${escapeHtml(activeJob.id)}'})" title="Request parts for this job">Request parts</button>` : ''}
       ${activeBooking
         ? `<button class="fbtn fbtn-save" onclick="closeScanner();openCheckinForm('${escapeHtml(activeBooking.id)}')">Check in</button>`
         : `<button class="fbtn fbtn-save" onclick="closeScanner();_walkInFromVehicleQR('${escapeHtml(customer.id)}','${escapeHtml(vehicle.id)}')">Start walk-in</button>`}
     </div>`;
   box.classList.add('open');
+}
+// The most recent still-open job card for a plate (used to offer "Request
+// parts" straight from a vehicle QR scan — parts requests link to a job,
+// not a booking, so we need the job, not just the appointment).
+function _activeJobForPlate(plate) {
+  const pn = _plateNorm(plate);
+  if (!pn) return null;
+  const candidates = (D.jobs || []).filter(j => _plateNorm(j.plate) === pn && !['Delivered','Cancelled'].includes(j.status || ''));
+  candidates.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  return candidates[0] || null;
 }
 
 // A QR from ANOTHER workshop resolved via the shared registry — show the car +
@@ -11928,6 +12118,7 @@ function _renderScanResult(code, part, booking) {
         <button class="fbtn ${jobOpen ? 'fbtn-cancel' : 'fbtn-save'}" onclick="closeScanner();switchTab('inventory')">Open in Inventory</button>
       </div>`;
   } else if (booking) {
+    const linkedJob = _activeJobForPlate(booking.plate);
     box.innerHTML = `
       <div class="r-icon good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M20 6 9 17l-5-5"/></svg></div>
       <h4>Vehicle · ${escapeHtml(booking.plate || '—')}</h4>
@@ -11935,6 +12126,7 @@ function _renderScanResult(code, part, booking) {
       <code class="r-code">${escapeHtml(code)}</code>
       <div class="r-acts">
         <button class="fbtn fbtn-cancel" onclick="closeScanner()">Close</button>
+        ${linkedJob ? `<button class="fbtn fbtn-cancel" onclick="closeScanner();openPartRequestForm({job_id:'${escapeHtml(linkedJob.id)}'})" title="Request parts for this job">Request parts</button>` : ''}
         ${booking.status === 'Scheduled'
           ? `<button class="fbtn fbtn-save" onclick="closeScanner();openCheckinForm('${escapeHtml(booking.id)}')">Check in</button>`
           : `<button class="fbtn fbtn-save" onclick="closeScanner();openBookingForm('${escapeHtml(booking.id)}')">Open booking</button>`}
@@ -12010,8 +12202,11 @@ function _setScanFabVisible(show) {
   fab.style.display = show ? 'grid' : 'none';
 }
 
-// Show the FAB only on tabs where scanning is useful
-const _SCAN_TABS = new Set(['dashboard','checkin','jobs','bookings','inventory']);
+// Show the FAB only on tabs where scanning is useful. ('checkin' removed —
+// that tab no longer exists, check-in is a row action now. 'request_parts'
+// and 'parts' added — the FAB was invisible on both, so there was no way to
+// scan a vehicle QR while creating/managing a parts request.)
+const _SCAN_TABS = new Set(['dashboard','jobs','bookings','inventory','request_parts','parts']);
 const _switchTabForFab = window.switchTab;
 window.switchTab = function(tab) {
   _switchTabForFab(tab);
@@ -12254,8 +12449,19 @@ window.openInvoiceForm = function(idOrSeed) {
   setTimeout(() => _drawInvoiceLineRows(), 0);
 };
 
+// Persistent, monotonic invoice-number counter — NEVER derived from
+// D.invoices.length (that duplicates/reuses numbers the moment an invoice is
+// deleted or two get created before syncing) and never reset. Lives on
+// D.settings so it survives across sessions/devices; the caller that
+// generates a new invoice is responsible for saving settings afterward.
+function _nextInvoiceNumber() {
+  D.settings = D.settings || {};
+  const n = Math.max(1, Number(D.settings.next_invoice_seq || 1));
+  D.settings.next_invoice_seq = n + 1;
+  return 'INV-' + String(n).padStart(6, '0');
+}
 function _blankInvoice() {
-  const num = 'INV-' + String(((D.invoices || []).length + 1)).padStart(4, '0');
+  const num = _nextInvoiceNumber();
   return {
     id: uid('inv'),
     number: num,
@@ -12305,8 +12511,9 @@ function _seedInvoiceFromJob(jobId) {
   if (!j) return inv;
   const b = D.bookings.find(x => x.id === j.booking_id) || {};
   const c = D.customers.find(x => (x.name || '').toLowerCase() === (b.cust_name || j.cust_name || '').toLowerCase()) || {};
-  // Use the original booking ref for the invoice number when we can, matches the PDF format BK-XXXX
-  inv.number = b.booking_ref ? ('BK-' + b.booking_ref) : ('BK-' + (b.id || j.id || '').slice(-4).toUpperCase());
+  // inv.number keeps the sequential INV-000001 value _blankInvoice() already
+  // assigned above — previously overridden here with a BK-<booking_ref> or
+  // BK-<random id slice> scheme that wasn't sequential and could collide.
   inv.booking_id = b.id || '';
   inv.job_id = j.id;
   inv.customer = {
@@ -12358,6 +12565,12 @@ function _seedInvoiceFromJob(jobId) {
     };
   });
   inv.charges = (j.service_charges || []).map(ch => ({ name: ch.name || '', amount: Number(ch.amount || 0) }));
+  // Carry the amount actually captured at Checkout onto the freshly generated
+  // invoice, so a Partial payment_status doesn't land with amount_paid still 0.
+  const seedTotal = _invoiceTotals(inv).roundOff;
+  inv.amount_paid = inv.payment_status === 'Paid'    ? seedTotal
+                   : inv.payment_status === 'Partial' ? Math.min(seedTotal, Number(b.amount_paid || 0))
+                   : 0;
   return inv;
 }
 
@@ -12568,10 +12781,14 @@ async function saveInvoice() {
   inv.workshop_snapshot = _workshopSnapshot();
   inv.updated_at = nowStr();
   const idx = (D.invoices || []).findIndex(x => x.id === inv.id);
+  const isBrandNewInvoice = idx < 0;
   if (idx >= 0) D.invoices[idx] = { ...D.invoices[idx], ...inv };
   else { inv.created_at = nowStr(); D.invoices.push(inv); }
   // Sync contact fields (not bank) back to the matched customer for future auto-fill
   const writes = [wsSave('invoices', D.invoices)];
+  // Persist the invoice-number counter consumed when this new invoice's form
+  // was opened (_blankInvoice/_seedInvoiceFromJob already bumped it in memory).
+  if (isBrandNewInvoice) writes.push(wsSave('settings', [D.settings]));
   const cIdx = (D.customers || []).findIndex(c => (c.name || '').toLowerCase() === inv.customer.name.toLowerCase());
   if (cIdx >= 0) {
     const c = D.customers[cIdx];
@@ -13275,41 +13492,69 @@ function _invoiceHTMLFromRecord(inv, opts) {
 </body></html>`;
 }
 
-// Reroute the legacy generateInvoice (called from Jobs row + checkout) to:
-//   1) seed an invoice from the job
-//   2) save it to D.invoices
-//   3) open the print window from the saved record
-// Bill a car that was returned to the advisor after the customer declined the
-// repair. Lets the advisor add an inspection / diagnostic charge (or nothing)
-// and then generates the invoice — reviving the cancelled estimate invoice.
+// Declined-job handling: once a job is back with the Service Advisor
+// (Returned to Advisor), they pick exactly one of three outcomes before the
+// vehicle is released — matches the "Handling Declined Jobs" workflow:
+// customer declines → job returns to the assigned SA → SA reviews → SA
+// picks Invoice for completed labour / Empty invoice / No invoice → vehicle
+// eligible for Checkout (Checkout itself was never gated on job.status, so
+// all three paths already leave the vehicle checkout-ready).
 window._billReturnedJob = function(jobId) {
   if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can generate invoices', 'bad');
   const j = (D.jobs || []).find(x => x.id === jobId);
   if (!j) return showToast('Job not found', 'bad');
   const cur = D.settings?.currency || '₹';
   openModal({
-    title: `Invoice · ${j.plate || '—'}`,
+    title: `Declined job · ${j.plate || '—'}`,
     body: `
       <div style="color:var(--dim);font-size:13px;line-height:1.55;margin-bottom:14px">
-        The customer declined the repair. Add an inspection / diagnostic charge if you're billing for the assessment, then generate the invoice. Leave the amount at 0 to invoice with no charge.
+        The customer declined the repair. Choose how to close this out — the vehicle is ready for checkout either way.
       </div>
-      <div class="f-grp"><label>Charge description</label>
-        <input id="brj-desc" type="text" value="Inspection / diagnostic charge" /></div>
-      <div class="f-grp"><label>Amount (${escapeHtml(cur)})</label>
-        <input id="brj-amt" type="number" min="0" step="1" value="0" /></div>`,
-    saveLabel: 'Create invoice',
+      <div class="f-grp">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="brj-mode" value="labour" checked onchange="_brjToggle()" /> Invoice for completed labour <span style="color:var(--faint);font-weight:500">(inspection / diagnostic charge)</span></label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px"><input type="radio" name="brj-mode" value="empty" onchange="_brjToggle()" /> Empty invoice <span style="color:var(--faint);font-weight:500">(₹0, for the customer's records)</span></label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px"><input type="radio" name="brj-mode" value="none" onchange="_brjToggle()" /> No invoice <span style="color:var(--faint);font-weight:500">(just release the vehicle)</span></label>
+      </div>
+      <div id="brj-charge-fields" style="margin-top:10px">
+        <div class="f-grp"><label>Charge description</label>
+          <input id="brj-desc" type="text" value="Inspection / diagnostic charge" /></div>
+        <div class="f-grp"><label>Amount (${escapeHtml(cur)})</label>
+          <input id="brj-amt" type="number" min="0" step="1" value="0" /></div>
+      </div>`,
+    saveLabel: 'Confirm',
     onSave: async () => {
-      const desc = (document.getElementById('brj-desc')?.value || '').trim();
-      const amt  = Number(document.getElementById('brj-amt')?.value || 0);
-      if (amt > 0 && desc) {
-        j.service_charges = (j.service_charges || []).concat([{ name: desc, amount: amt }]);
+      const mode = document.querySelector('input[name="brj-mode"]:checked')?.value || 'labour';
+      if (mode === 'none') {
+        j.billing_outcome = 'no_invoice';
+        j.status = 'Ready for Pickup';
         j.updated_at = nowStr();
+        audit('no-invoice-release', `${j.plate} — declined job released without an invoice`, { job_id: jobId });
         await wsSave('jobs', D.jobs);
+        closeModal();
+        showToast(`${j.plate} — no invoice created, vehicle ready for checkout`, 'good');
+        renderJobs();
+        return;
       }
+      if (mode === 'labour') {
+        const desc = (document.getElementById('brj-desc')?.value || '').trim();
+        const amt  = Number(document.getElementById('brj-amt')?.value || 0);
+        if (amt > 0 && desc) {
+          j.service_charges = (j.service_charges || []).concat([{ name: desc, amount: amt }]);
+          j.updated_at = nowStr();
+          await wsSave('jobs', D.jobs);
+        }
+      }
+      // mode === 'empty' skips adding any charge — generateInvoice bills whatever's already on the job (nothing, if none was ever added).
+      j.billing_outcome = mode === 'empty' ? 'empty_invoice' : 'labour_invoice';
       closeModal();
       await generateInvoice(jobId);
     }
   });
+};
+window._brjToggle = function() {
+  const mode = document.querySelector('input[name="brj-mode"]:checked')?.value || 'labour';
+  const fields = document.getElementById('brj-charge-fields');
+  if (fields) fields.style.display = mode === 'labour' ? '' : 'none';
 };
 
 window.generateInvoice = async function(jobId) {
@@ -13337,6 +13582,7 @@ window.generateInvoice = async function(jobId) {
   inv.updated_at = nowStr();
   const b = D.bookings.find(x => x.id === j.booking_id);
   const writes = [wsSave('invoices', D.invoices)];
+  if (isNew) writes.push(wsSave('settings', [D.settings])); // persist the consumed invoice-number seq
   if (j && !j.invoice_no) { j.invoice_no = inv.number; writes.push(wsSave('jobs', D.jobs)); }
   if (b && !b.invoice_no) { b.invoice_no = inv.number; writes.push(wsSave('bookings', D.bookings)); }
   // Lazy-load this job's photos so the printed invoice can include them
