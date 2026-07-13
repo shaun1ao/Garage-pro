@@ -5298,6 +5298,18 @@ window.deleteBooking = async function(id) {
 //  CHECK-IN
 // ══════════════════════════════════════════
 async function renderCheckin(force = false) {
+  // The dedicated Check-in tab was removed (2026-07-08) — check-in/checkout
+  // now happens from Appointments rows and the dashboard, so its ci* elements
+  // no longer exist in the DOM. Callers (doCheckin/doCheckout) still invoke
+  // this as their "refresh the view" step; without this bail-out the
+  // unguarded getElementById calls below threw on every check-in/checkout
+  // (unhandled rejection) and the refresh silently never happened. Delegate
+  // to whichever tab the user is actually on instead.
+  if (!document.getElementById('ciDate')) {
+    if (currentTab === 'bookings'  && typeof renderBookings  === 'function') return renderBookings(force);
+    if (currentTab === 'dashboard' && typeof renderDashboard === 'function') return renderDashboard(force);
+    return;
+  }
   await loadAllData(force);
   // Default date input to today on first render
   const di = document.getElementById('ciDate');
@@ -5617,6 +5629,11 @@ async function doCheckout(bookingId) {
   closeModal();
   showToast(`${b.plate} delivered`, 'good');
   audit('checkout', `${b.plate} (${b.cust_name || '—'}) · ${pay}${cost ? ' · ₹' + cost : ''}${pay === 'Partial' ? ' (paid ₹' + amountPaid + ')' : ''}`, { booking_id: b.id });
+  // Customer-facing triggers — checkout is the real path to Delivered
+  // (bypasses markJobStatus, where the thank_you email mapping lives), so
+  // these only ever fired from the manual status dropdown before.
+  sendCustomerNotification('thank_you', { job, booking: b });
+  notifyWhatsAppForEvent('thank_you', { job, booking: b });
   publishTracking(b.id);   // push Delivered to the public tracker
   renderCheckin();
   await Promise.all(writes);
@@ -6045,6 +6062,11 @@ window.passQC = async function(jobId) {
     target: { role: 'service_advisor' },
     job_id: jobId
   });
+  // Customer-facing triggers — QC sign-off is the real path to "QC Passed"
+  // (bypasses markJobStatus, which is where the work_complete email mapping
+  // lives), so these only ever fired from the manual status dropdown before.
+  sendCustomerNotification('work_complete', { job: j });
+  notifyWhatsAppForEvent('work_complete', { job: j });
   renderJobs();
   await wsSave('jobs', D.jobs);
   publishTracking(j.booking_id);
@@ -6145,6 +6167,12 @@ window.markWashReady = async function(jobId) {
     target: { role: 'service_advisor' },
     job_id: jobId
   });
+  // Customer-facing triggers — this is the path cars ACTUALLY reach Ready for
+  // Pickup through (the wash-done button), but it bypasses markJobStatus, so
+  // the ready_for_pickup email/WhatsApp only ever fired from the manual status
+  // dropdown. Both no-op when disabled/trigger off/pref mismatch.
+  sendCustomerNotification('ready_for_pickup', { job: j });
+  notifyWhatsAppForEvent('ready_for_pickup', { job: j });
   renderJobs();
   await wsSave('jobs', D.jobs);
   publishTracking(j.booking_id);
@@ -6487,9 +6515,13 @@ function _waDigits(raw) {
 //  API/business account needed. Used for invoices, "car ready", reminders,
 //  and the estimate approval link.
 // ══════════════════════════════════════════════════════════════════════════
-function _waOpen(phone, message) {
+function _waOpen(phone, message, preWin) {
   const p = _waDigits(phone);
   const url = (p ? `https://wa.me/${p}` : 'https://wa.me/') + '?text=' + encodeURIComponent(message);
+  // preWin = a window opened SYNCHRONOUSLY inside the user's click, before any
+  // await — async work (e.g. publishing an invoice link) burns the click's
+  // transient activation, after which a fresh window.open gets popup-blocked.
+  if (preWin && !preWin.closed) { preWin.location = url; return; }
   const w = window.open(url, '_blank');
   if (!w) showToast('Allow pop-ups to open WhatsApp', 'bad');
 }
@@ -6528,7 +6560,12 @@ async function _publishInvoiceView(invId) {
   const inv = (D.invoices || []).find(x => x.id === invId);
   if (!inv || !currentUser) return '';
   const token = _apprToken();
-  const html = _invoiceHTMLFromRecord(inv, {});
+  // Strip <script> blocks from the published copy — the staff print window's
+  // auto-print script (`setTimeout(() => window.print(), 400)`) would otherwise
+  // run inside invoice.html's iframe and pop a print dialog in the customer's
+  // face the moment they open the link. The inline "Print invoice" button
+  // (an onclick attribute, not a script tag) survives and still works.
+  const html = _invoiceHTMLFromRecord(inv, {}).replace(/<script>[\s\S]*?<\/script>/gi, '');
   const doc = {
     token, invoice_id: inv.id, invoice_no: inv.number || '',
     workshop_name: (D.settings || {}).workshop_name || 'Garage Pro',
@@ -6544,6 +6581,10 @@ async function _publishInvoiceView(invId) {
 window.waInvoice = async function(invId) {
   const inv = (D.invoices || []).find(x => x.id === invId);
   if (!inv) return showToast('Invoice not found', 'bad');
+  // Open the tab NOW, synchronously inside the click — the awaited Firestore
+  // publish below can outlive the click's transient activation, after which
+  // window.open would be popup-blocked. We navigate this window afterwards.
+  const preWin = window.open('', '_blank');
   const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
   const total = _invoiceTotals(inv).roundOff;
   const name = inv.customer?.name ? inv.customer.name.split(' ')[0] : 'there';
@@ -6556,7 +6597,7 @@ window.waInvoice = async function(invId) {
     + (viewLink ? `\nView / download your invoice: ${viewLink}` : (link ? `\nTrack your vehicle: ${link}` : ''))
     + `\n\nThank you for choosing us!`;
   audit('wa-invoice', `${inv.number || ''} → ${inv.customer?.name || '—'}`, { invoice_id: inv.id });
-  _waOpen(_invPhone(inv), msg);
+  _waOpen(_invPhone(inv), msg, preWin);
 };
 
 // "Your car is ready for pickup" on WhatsApp (includes the pickup code if the
@@ -7046,6 +7087,42 @@ let _editingJob = null;
 
 const INSURANCE_APPROVAL_OPTS = ['Pending','Submitted','Approved','Partially Approved','Rejected','Settled'];
 
+// ══════════════════════════════════════════════════════════════════════════
+//  DIGITAL VEHICLE INSPECTION (DVI) — a structured per-component CONDITION
+//  checklist, distinct from job.intake (which only tracks POSSESSIONS in the
+//  car at handover — spare wheel, tool kit, etc. — see openVehicleIntake).
+//  Gives the technician/floor manager a fast visual walk-through at intake,
+//  and gives the Service Advisor something concrete to build the estimate
+//  from (Fair/Replace items can be pushed straight into Estimated service).
+// ══════════════════════════════════════════════════════════════════════════
+const DVI_CATEGORIES = [
+  { cat: 'Brakes',                      items: ['Front brakes', 'Rear brakes', 'Brake fluid'] },
+  { cat: 'Tyres',                       items: ['Front-left tyre', 'Front-right tyre', 'Rear-left tyre', 'Rear-right tyre', 'Spare tyre'] },
+  { cat: 'Fluids',                      items: ['Engine oil', 'Coolant', 'Power steering fluid', 'Washer fluid'] },
+  { cat: 'Battery & electrical',        items: ['Battery health', 'Headlights', 'Tail lights', 'Indicators'] },
+  { cat: 'Belts, hoses & suspension',   items: ['Drive belt', 'Hoses', 'Shocks / struts'] },
+  { cat: 'Other',                       items: ['Wiper blades', 'Exhaust system', 'AC cooling'] }
+];
+const DVI_CONDITIONS = [
+  { id: 'good',    label: 'Good',    fg: 'var(--teal)', bg: 'rgba(32,227,178,.16)' },
+  { id: 'fair',    label: 'Fair',    fg: 'var(--acc2)', bg: 'rgba(255,179,71,.16)' },
+  { id: 'replace', label: 'Replace', fg: 'var(--red)',  bg: 'rgba(255,107,107,.16)' },
+  { id: 'na',      label: 'N/A',     fg: 'var(--faint)', bg: 'rgba(255,255,255,.06)' }
+];
+function _dviConditionTint(id) { return DVI_CONDITIONS.find(c => c.id === id) || { fg: 'var(--faint)', bg: 'rgba(255,255,255,.06)' }; }
+function _dviDefaultItems() {
+  const out = [];
+  for (const grp of DVI_CATEGORIES) {
+    for (const name of grp.items) out.push({ id: uid('dvi'), category: grp.cat, component: name, condition: '', notes: '', photo_ids: [] });
+  }
+  return out;
+}
+// Who may tick conditions / add inspection photos — the people actually
+// looking at the car, same gate as "Mark Inspected" elsewhere in the app.
+// Everyone else (SA, parts dept, receptionist) sees it read-only, which is
+// enough to build the estimate from without letting them alter the findings.
+function _dviCanEdit() { return currentRole() === 'mechanic' || currentRole() === 'floor_manager' || isAdminRole(); }
+
 window.openJobForm = function(id) {
   const j = D.jobs.find(x => x.id === id);
   if (!j) return showToast('Job not found', 'bad');
@@ -7060,6 +7137,11 @@ window.openJobForm = function(id) {
     // Estimation-only lines — quote/planning, NEVER deducted from inventory.
     est_parts:    (j.est_parts    || []).map(p => ({ name: p.name || '', qty: Number(p.qty || 1), price: Number(p.price || 0), source: p.source || 'manual' })),
     est_services: (j.est_services || []).map(s => ({ name: s.name || '', price: Number(s.price || 0) })),
+    // Digital Vehicle Inspection — reuse saved items (preserves ids/photo links)
+    // if this job already has one, else seed the default checklist.
+    dvi: (j.dvi && Array.isArray(j.dvi.items) && j.dvi.items.length)
+      ? j.dvi.items.map(it => ({ id: it.id || uid('dvi'), category: it.category || '', component: it.component || '', condition: it.condition || '', notes: it.notes || '', photo_ids: (it.photo_ids || []).slice() }))
+      : _dviDefaultItems(),
     mechanics: startMechs,
     photos:   [],      // populated async after the form renders (see _jobLoadPhotos)
     is_insurance:        !!j.is_insurance,
@@ -7084,6 +7166,7 @@ window.openJobForm = function(id) {
   const _canPartsUsed  = canApproveParts();
   const _canLabour     = isServiceAdvisorRole();
   const _isMechanicRole = currentRole() === 'mechanic';
+  const _canEditDvi    = _dviCanEdit();
   openModal({
     title: `Job card · ${j.plate || j.id}`,
     body: `
@@ -7220,6 +7303,21 @@ window.openJobForm = function(id) {
         <div style="font-size:11px;color:var(--faint);margin-top:6px">Images are resized to ~1280px before upload. JPEG quality 78%.</div>
       </div>
 
+      <!-- Digital Vehicle Inspection — per-component condition checklist,
+           distinct from the possessions-only intake checklist. Editable by
+           whoever's actually looking at the car (worker/floor manager);
+           read-only for everyone else so the SA can build the estimate from
+           it without altering the findings. -->
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;flex-wrap:wrap">
+          <div style="font-family:var(--fd);font-weight:700;font-size:14px">Vehicle inspection (DVI)</div>
+          ${_canEditDvi ? '' : `<div style="font-size:11.5px;color:var(--faint)">Read-only — only the Worker or Floor Manager can update the inspection</div>`}
+        </div>
+        <div style="font-size:11.5px;color:var(--faint);margin-bottom:10px">Condition of key components at inspection — separate from the "items in the car" intake checklist. Fair/Replace items can be pushed straight onto the estimate.</div>
+        <input id="dvi-photo-input" type="file" accept="image/*" multiple style="display:none" onchange="_dviUploadPhoto(event)" />
+        <div id="jf-dvi-rows"></div>
+      </div>
+
       <!-- Insurance section — collapsed unless toggled on. Matches main.py schema. -->
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
@@ -7254,7 +7352,7 @@ window.openJobForm = function(id) {
     saveLabel: 'Save job',
     onSave: () => saveJob(j.id)
   });
-  setTimeout(() => { _drawJobRows(); _drawEstRows(); _drawMechanicChips(); _jobLoadPhotos(j.id); }, 0);
+  setTimeout(() => { _drawJobRows(); _drawEstRows(); _drawMechanicChips(); _jobLoadPhotos(j.id).then(_drawDviRows); _drawDviRows(); }, 0);
 };
 
 window._toggleInsurance = function() {
@@ -7696,6 +7794,112 @@ window._jobZoomPhoto = function(photoId) {
   });
 };
 
+// ── Digital Vehicle Inspection rows ──────────────────────────────────────
+function _drawDviRows() {
+  const wrap = document.getElementById('jf-dvi-rows');
+  if (!wrap) return;
+  const items = _editingJob.dvi || [];
+  const canEdit = _dviCanEdit();
+  const isSA = isServiceAdvisorRole();
+  const photosById = new Map((_editingJob.photos || []).map(p => [p.id, p]));
+  const byCategory = {};
+  for (const it of items) (byCategory[it.category || 'Other'] = byCategory[it.category || 'Other'] || []).push(it);
+
+  wrap.innerHTML = Object.entries(byCategory).map(([cat, rows]) => `
+    <div style="margin-bottom:14px">
+      <div style="font-family:var(--fd);font-weight:700;font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${escapeHtml(cat)}</div>
+      ${rows.map(it => {
+        const canOffer = isSA && (it.condition === 'fair' || it.condition === 'replace');
+        const photos = (it.photo_ids || []).map(pid => photosById.get(pid)).filter(Boolean);
+        return `
+        <div style="padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:7px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div style="font-weight:600;font-size:13px;color:var(--txt);min-width:140px">${escapeHtml(it.component)}</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap">
+              ${DVI_CONDITIONS.map(c => {
+                const on = it.condition === c.id;
+                return `<button type="button" ${canEdit ? `onclick="_dviSetCondition('${escapeHtml(it.id)}','${c.id}')"` : 'disabled'}
+                  style="padding:5px 10px;border-radius:100px;border:1px solid ${on ? c.fg : 'var(--brd2)'};background:${on ? c.bg : 'transparent'};color:${on ? c.fg : 'var(--faint)'};font-family:var(--fb);font-size:11px;font-weight:700;cursor:${canEdit ? 'pointer' : 'not-allowed'}">${c.label}</button>`;
+              }).join('')}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:7px;flex-wrap:wrap">
+            <input type="text" data-dvi-notes="${escapeHtml(it.id)}" value="${escapeHtml(it.notes || '')}" placeholder="Notes (optional)" ${canEdit ? '' : 'disabled'}
+              style="flex:1;min-width:160px;padding:6px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);font-size:12px" />
+            ${canEdit ? `<button type="button" class="mini-btn" onclick="_dviTriggerPhoto('${escapeHtml(it.id)}')" style="font-size:11px">+ Photo</button>` : ''}
+            ${canOffer ? `<button type="button" class="mini-btn good" onclick="_dviAddToEstimate('${escapeHtml(it.id)}')" style="font-size:11px">Add to estimate</button>` : ''}
+          </div>
+          ${photos.length ? `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${photos.map(p => `
+            <div style="position:relative;width:56px;height:56px;border-radius:6px;overflow:hidden;border:1px solid var(--brd);cursor:zoom-in" onclick="_jobZoomPhoto('${escapeHtml(p.id)}')">
+              <img src="${escapeHtml(p.data)}" alt="" style="width:100%;height:100%;object-fit:cover" />
+            </div>`).join('')}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+
+  wrap.querySelectorAll('input[data-dvi-notes]').forEach(inp => inp.addEventListener('input', (ev) => {
+    const it = (_editingJob.dvi || []).find(x => x.id === ev.target.dataset.dviNotes);
+    if (it) it.notes = ev.target.value;
+  }));
+}
+
+window._dviSetCondition = function(itemId, cond) {
+  if (!_dviCanEdit()) return showToast('Only the Worker or Floor Manager can update the inspection', 'bad');
+  const it = (_editingJob.dvi || []).find(x => x.id === itemId);
+  if (!it) return;
+  it.condition = it.condition === cond ? '' : cond;   // click again to clear
+  _drawDviRows();
+};
+
+window._dviTriggerPhoto = function(itemId) {
+  if (!_dviCanEdit()) return showToast('Only the Worker or Floor Manager can add inspection photos', 'bad');
+  const inp = document.getElementById('dvi-photo-input');
+  if (inp) { inp.dataset.itemId = itemId; inp.click(); }
+};
+
+window._dviUploadPhoto = async function(ev) {
+  const itemId = ev.target.dataset.itemId;
+  const files = Array.from(ev.target.files || []);
+  ev.target.value = '';
+  if (!files.length || !itemId) return;
+  const it = (_editingJob.dvi || []).find(x => x.id === itemId);
+  if (!it) return;
+  const jobId = _editingJob?.id;
+  if (!jobId) return customAlert('Please save the job first before adding inspection photos.', { title: 'Save the job first' });
+  showToast(`Uploading ${files.length} photo${files.length === 1 ? '' : 's'}…`, 'good');
+  let ok = 0;
+  for (const f of files) {
+    try {
+      const meta = await uploadJobPhoto(jobId, f, 'Inspection: ' + it.component);
+      it.photo_ids = it.photo_ids || [];
+      it.photo_ids.push(meta.id);
+      ok++;
+    } catch (e) {
+      console.warn('[dvi photo]', e);
+      showToast('Photo upload failed: ' + (e?.message || e), 'bad');
+    }
+  }
+  if (ok) _editingJob.photos = await loadJobPhotos(jobId);   // refresh shared cache so thumbnails resolve
+  _drawDviRows();
+};
+
+// SA-only quick action — pushes a Fair/Replace component straight onto the
+// job's Estimated service list (price left at 0 for the SA to fill in), the
+// same one-click pattern used elsewhere in the app for turning a flagged
+// item into a billable line without re-typing it.
+window._dviAddToEstimate = function(itemId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can edit estimates', 'bad');
+  const it = (_editingJob.dvi || []).find(x => x.id === itemId);
+  if (!it) return;
+  _editingJob.est_services = _editingJob.est_services || [];
+  if (_editingJob.est_services.some(s => (s.name || '').trim().toLowerCase() === it.component.toLowerCase())) {
+    return showToast('Already on the estimate', 'good');
+  }
+  _editingJob.est_services.push({ name: it.component, price: 0 });
+  if (typeof _drawEstRows === 'function') _drawEstRows();
+  showToast(`${it.component} added to Estimated service — set a price`, 'good');
+};
+
 window._jobAddMechanic = function() {
   const inp = document.getElementById('jf-mech-add');
   const name = (inp.value || '').trim();
@@ -7887,6 +8091,17 @@ async function saveJob(id) {
                      .map(p => ({ name: p.name.trim(), qty: Math.max(1, Number(p.qty || 1)), price: Number(p.price || 0), source: p.source || 'manual' }));
   j.est_services = (_editingJob?.est_services || []).filter(s => (s.name || '').trim())
                      .map(s => ({ name: s.name.trim(), price: Number(s.price || 0) }));
+  // Digital Vehicle Inspection — condition checklist, distinct from job.intake
+  // (possessions only). Read-only viewers never mutate _editingJob.dvi (the
+  // row controls are disabled for them), so this just round-trips unchanged
+  // when a non-editor saves other parts of the job card.
+  j.dvi = {
+    items: (_editingJob?.dvi || []).map(it => ({
+      id: it.id, category: it.category, component: it.component,
+      condition: it.condition || '', notes: (it.notes || '').trim(), photo_ids: it.photo_ids || []
+    })),
+    recorded_at: nowStr(), recorded_by: currentWorker?.name || ''
+  };
 
   // ── Inventory diff: deduct net usage (or refund removed parts) ──
   // Every job part must already exist in inventory (the picker enforces this on
