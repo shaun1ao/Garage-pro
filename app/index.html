@@ -55,7 +55,13 @@ h1,h2,h3,h4{font-family:var(--fd);font-weight:800;letter-spacing:-.01em;line-hei
 ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.12)}
 
 /* ── full-screen overlays (auth gate, onboarding) ── */
-.overlay{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px}
+/* overflow-y:auto + "safe center" — without this, content taller than the
+   viewport (e.g. the Setup Wizard with a details panel expanded) gets
+   clipped at the top with no way to scroll to it: flex centering an
+   overflowing child clips at the START by default, scrollbar or not. "safe
+   center" falls back to start-alignment instead of clipping when the
+   content doesn't fit. */
+.overlay{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:safe center;justify-content:center;flex-direction:column;padding:24px;overflow-y:auto}
 .overlay::before{content:"";position:absolute;inset:0;background:radial-gradient(800px 500px at 75% -10%,rgba(255,122,24,.16),transparent 60%),radial-gradient(700px 500px at 5% 100%,rgba(32,227,178,.10),transparent 55%);pointer-events:none}
 .overlay > *{position:relative;z-index:1}
 .overlay .logo{width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;margin-bottom:22px;box-shadow:0 8px 24px -6px rgba(255,122,24,.6)}
@@ -333,6 +339,31 @@ header.app-header{
 .gp-modal-close svg{width:14px;height:14px}
 .gp-modal-body{padding:22px 24px;max-height:70vh;overflow-y:auto}
 .gp-modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 24px;border-top:1px solid var(--brd);background:var(--bg2)}
+/* Sticky bar inside a .gp-modal-body. A negative margin on the sticky el
+   itself does NOT work here — once position:sticky is actually "stuck",
+   its stuck offset is measured from the scroll container's PADDING edge
+   and a margin on the sticky element no longer moves that stuck position
+   at all (only its un-stuck, in-flow position, which is irrelevant once
+   scrolled). So the container's own top padding has to be removed instead
+   — callers using this class must zero out #gpModalBody's top padding via
+   inline style (see openJobForm), and this class supplies the horizontal
+   padding + the vertical spacing that used to come from the body's own
+   padding-top, via its own top/bottom padding.       */
+.gp-sticky-in-body{position:sticky;top:0;z-index:6;margin:0 -24px;padding:10px 24px}
+/* Job card accordion — one section open at a time. .jf-acc-panel animates
+   max-height (0 ↔ its measured scrollHeight); JS flips it to "none" once the
+   open transition finishes so rows added/removed afterward (parts, photos,
+   DVI items…) don't get clipped by a stale fixed px value — see
+   _jobAccSetState. */
+.jf-acc{border-top:1px solid var(--brd)}
+.jf-acc:last-of-type{border-bottom:1px solid var(--brd)}
+.jf-acc-head{width:100%;display:flex;align-items:center;gap:9px;padding:14px 2px;background:none;border:none;cursor:pointer;font-family:var(--fd);font-weight:700;font-size:14px;color:var(--txt);text-align:left}
+.jf-acc-head:hover{color:var(--acc)}
+.jf-acc-chevron{flex-shrink:0;transition:transform .22s cubic-bezier(.2,.7,.2,1);color:var(--faint)}
+.jf-acc.open .jf-acc-chevron{transform:rotate(90deg)}
+.jf-acc-meta{margin-left:auto;font-family:var(--fb);font-weight:500;font-size:12px;color:var(--faint);white-space:nowrap}
+.jf-acc-panel{max-height:0;overflow:hidden;transition:max-height .28s cubic-bezier(.2,.7,.2,1)}
+.jf-acc-panel-inner{padding-bottom:16px}
 .fbtn{padding:10px 18px;border-radius:9px;font-family:var(--fb);font-weight:700;font-size:13.5px;cursor:pointer;border:1px solid;transition:all .15s}
 .fbtn-save{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;border-color:transparent}
 .fbtn-save:hover{transform:translateY(-1px);box-shadow:0 6px 16px -4px rgba(255,122,24,.55)}
@@ -457,6 +488,7 @@ input[list]{background:var(--bg2)}
   .gp-modal-head{padding:14px 16px}
   .gp-modal-head h3{font-size:16px}
   .gp-modal-body{padding:16px; max-height:none}
+  .gp-sticky-in-body{margin:0 -16px; padding:10px 16px}
   .gp-modal-foot{padding:12px 14px; flex-wrap:wrap}
   .gp-modal-foot .fbtn{flex:1; min-width:120px}
 
@@ -2489,7 +2521,10 @@ const DEFAULT_ROLE_PERMS = {
   // receiving stays Parts department + owner/manager only, see canApproveParts()).
   service_advisor: ['dashboard','bookings','jobs','queue','customers','bays','invoices','parts','notifications','chat','timesheets'],
   // Parts department — owns the manage/approve side (approve / price / order / fulfil → stocks the item) plus can request.
-  parts_dept:    ['dashboard','inventory','request_parts','parts','notifications','chat','timesheets'],
+  // 'jobs' included by default (2026-07-14) so Parts can see job cards (VIN,
+  // parts used, DVI flags) without extra config — Parts Used editing there is
+  // already gated by canApproveParts(), the rest renders read-only for them.
+  parts_dept:    ['dashboard','jobs','inventory','request_parts','parts','notifications','chat','timesheets'],
   receptionist:  ['dashboard','bookings','queue','customers','invoices','notifications','chat','timesheets'],
   // Mechanics can REQUEST parts only — they don't get the Manage Requests tab.
   mechanic:      ['dashboard','bookings','jobs','queue','bays','inventory','request_parts','notifications','chat','timesheets']
@@ -3140,7 +3175,14 @@ window.renderDashboard = renderDashboard;
 let _modalSaveHandler = null;
 function openModal({ title, body, saveLabel = 'Save', danger = null, onSave, wide = false }) {
   document.getElementById('gpModalTitle').textContent = title;
-  document.getElementById('gpModalBody').innerHTML = body;
+  const _gpBody = document.getElementById('gpModalBody');
+  // Reset any per-caller inline override (e.g. the job card's sticky-header
+  // padding/max-height fix below) so a DIFFERENT modal opened next doesn't
+  // inherit it — #gpModalBody is one shared DOM node reused by every
+  // openModal() caller.
+  _gpBody.style.padding = '';
+  _gpBody.style.maxHeight = '';
+  _gpBody.innerHTML = body;
   // Wider modal for big multi-section forms (booking, etc.)
   document.querySelector('#gpModal .gp-modal-box').style.maxWidth = wide ? '960px' : '';
   const foot = document.getElementById('gpModalFoot');
@@ -5829,6 +5871,15 @@ async function renderJobs(force = false) {
   const dept = document.getElementById('jbDept')?.value || '';
   const mech = document.getElementById('jbMech').value;
   let list = D.jobs.slice();
+  // Workers (mechanics) only ever see jobs assigned to them — never other
+  // workers' jobs, unassigned jobs, or others' completed jobs. Every other
+  // role (SA, floor manager, parts dept, admins) still sees the full list,
+  // since their duties need workshop-wide visibility. Matched by name, same
+  // convention as every mechanic-assignment notify() elsewhere in the app.
+  if (currentRole() === 'mechanic') {
+    const myName = (currentWorker?.name || '').toLowerCase();
+    list = list.filter(j => (j.mechanic || '').toLowerCase() === myName || (j.mechanics || []).some(m => (m || '').toLowerCase() === myName));
+  }
   if (q) list = list.filter(j =>
     (j.plate||'').toLowerCase().includes(q) ||
     (j.cust_name||'').toLowerCase().includes(q) ||
@@ -7257,9 +7308,58 @@ function _dviDefaultItems() {
 // enough to build the estimate from without letting them alter the findings.
 function _dviCanEdit() { return currentRole() === 'mechanic' || currentRole() === 'floor_manager' || isAdminRole(); }
 
+// ── Job card accordion ──────────────────────────────────────────────────
+// One section open at a time. Collapsed by default — _jobAccOpen is reset
+// to null every time a job card is opened (not remembered ACROSS jobs, only
+// while the current card stays open, per spec).
+window._jobAccOpen = null;
+function _jobAccHead(id, label, meta) {
+  return `<button type="button" class="jf-acc-head" onclick="_jobAccToggle('${id}')">
+    <svg class="jf-acc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M9 18l6-6-6-6"/></svg>
+    <span>${label}</span>
+    <span class="jf-acc-meta" id="${id}-meta" ${meta ? '' : 'style="display:none"'}>${meta || ''}</span>
+  </button>`;
+}
+function _jobAccSetState(id, open) {
+  const sec = document.querySelector(`.jf-acc[data-acc="${id}"]`);
+  if (!sec) return;
+  const panel = sec.querySelector('.jf-acc-panel');
+  sec.classList.toggle('open', open);
+  if (open) {
+    panel.style.maxHeight = panel.scrollHeight + 'px';
+  } else {
+    if (!panel.style.maxHeight || panel.style.maxHeight === 'none') {
+      panel.style.maxHeight = panel.scrollHeight + 'px';
+      void panel.offsetHeight; // force reflow so the browser has a concrete start height to animate from
+    }
+    panel.style.maxHeight = '0px';
+  }
+}
+// Called by _draw*Rows()/_toggleInsurance() etc. after they mutate an open
+// section's content, so newly added/removed rows don't get clipped by a
+// stale fixed max-height (only matters mid-transition; once open+settled the
+// panel's max-height is 'none' and needs no help — see the transitionend
+// listener set up in openJobForm's init).
+function _jobAccResize(id) {
+  if (window._jobAccOpen !== id) return;
+  const sec = document.querySelector(`.jf-acc[data-acc="${id}"]`);
+  const panel = sec?.querySelector('.jf-acc-panel');
+  if (panel && panel.style.maxHeight !== 'none') panel.style.maxHeight = panel.scrollHeight + 'px';
+}
+window._jobAccToggle = function(id) {
+  const wasOpen = window._jobAccOpen === id;
+  const prevId = window._jobAccOpen;
+  window._jobAccOpen = wasOpen ? null : id;
+  if (prevId && prevId !== id) _jobAccSetState(prevId, false);
+  _jobAccSetState(id, !wasOpen);
+};
+
 window.openJobForm = function(id) {
   const j = D.jobs.find(x => x.id === id);
   if (!j) return showToast('Job not found', 'bad');
+  // Every section starts collapsed — only remembered while THIS card stays
+  // open (see _jobAccToggle), reset fresh each time a job card is opened.
+  window._jobAccOpen = null;
   // Mechanics: keep primary in sync with the array. If the primary isn't listed, add it.
   const startMechs = Array.isArray(j.mechanics) && j.mechanics.length
     ? j.mechanics.slice()
@@ -7301,18 +7401,20 @@ window.openJobForm = function(id) {
   const _canLabour     = isServiceAdvisorRole();
   const _isMechanicRole = currentRole() === 'mechanic';
   const _canEditDvi    = _dviCanEdit();
+  // Snapshot at open time — used by both the sticky at-a-glance strip and
+  // the accordion section headers below (Estimate total, DVI flag count).
+  const cur = D.settings?.currency || '₹';
+  const estTotal = (_editingJob.est_parts || []).reduce((s, p) => s + Number(p.qty || 1) * Number(p.price || 0), 0)
+                 + (_editingJob.est_services || []).reduce((s, x) => s + Number(x.price || 0), 0);
+  const actTotal = (_editingJob.parts || []).reduce((s, p) => s + Number(p.qty || 1) * Number(p.unit_price || 0) * (1 - Number(p.disc_pct || 0) / 100), 0)
+                 + (_editingJob.charges || []).reduce((s, c) => s + Number(c.amount || 0), 0);
+  const dviFlags = (_editingJob.dvi || []).filter(it => it.condition === 'fair' || it.condition === 'replace').length;
   openModal({
     title: `Job card · ${j.plate || j.id}`,
     body: `
       ${(() => {
-        // ── At-a-glance strip + sticky section jump-bar — the modal is long,
-        // this stops staff scrolling to find things. Snapshot at open time.
-        const cur = D.settings?.currency || '₹';
-        const estTotal = (_editingJob.est_parts || []).reduce((s, p) => s + Number(p.qty || 1) * Number(p.price || 0), 0)
-                       + (_editingJob.est_services || []).reduce((s, x) => s + Number(x.price || 0), 0);
-        const actTotal = (_editingJob.parts || []).reduce((s, p) => s + Number(p.qty || 1) * Number(p.unit_price || 0) * (1 - Number(p.disc_pct || 0) / 100), 0)
-                       + (_editingJob.charges || []).reduce((s, c) => s + Number(c.amount || 0), 0);
-        const dviFlags = (_editingJob.dvi || []).filter(it => it.condition === 'fair' || it.condition === 'replace').length;
+        // ── Sticky section jump-bar — the modal is long, this stops staff
+        // scrolling to find things.
         const chips = [
           !_isMechanicRole ? ['jf-sec-est', 'Estimate'] : null,
           _jobShowActual ? ['jf-sec-parts', 'Parts'] : null,
@@ -7322,7 +7424,7 @@ window.openJobForm = function(id) {
           ['jf-sec-ins', 'Insurance']
         ].filter(Boolean);
         return `
-      <div style="position:sticky;top:-1px;z-index:6;background:var(--surf);margin:-4px -4px 0;padding:6px 4px 8px;border-bottom:1px solid var(--brd)">
+      <div class="gp-sticky-in-body" style="background:var(--surf);border-bottom:1px solid var(--brd)">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;margin-bottom:7px">
           ${statusPill(j.status || 'Awaiting Assignment')}
           <span style="color:var(--faint)">Estimate <b style="color:var(--blue)">${cur}${estTotal.toLocaleString('en-IN')}</b></span>
@@ -7389,71 +7491,89 @@ window.openJobForm = function(id) {
           <textarea id="jf-labour" placeholder="What's been done, what's pending, parts needed…">${escapeHtml(j.labour_notes || '')}</textarea></div>
       </div>
 
-      <!-- ── Collapsible: ESTIMATION PARTS (quote only — never deducts inventory) ──
-           Service Advisor (+owner/manager) only creates/edits estimates; workers
-           don't see this section at all. -->
+      <!-- ── Accordion: ESTIMATE (parts + services) — quote only, never deducts
+           inventory. Service Advisor (+owner/manager) only creates/edits
+           estimates; workers don't see this section at all. -->
       ${_isMechanicRole ? '' : `
-      <div id="jf-sec-est" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
-        <details ${(_editingJob.est_parts.length || _editingJob.est_services.length) ? 'open' : ''}>
-          <summary style="cursor:pointer;font-family:var(--fd);font-weight:700;font-size:14px;color:var(--blue,#639fff);list-style:none;display:flex;align-items:center;gap:8px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="15" height="15"><path d="M9 18l6-6-6-6"/></svg>
-            Estimation parts <span style="font-weight:500;color:var(--faint);font-size:12px">(quote only — not deducted from inventory)</span>
-          </summary>
-          <div style="margin-top:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.22);border-radius:10px">
-            ${_canEstimate ? `<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-              <button type="button" class="mini-btn" onclick="_jobAddEstFromInventory()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>From inventory</button>
-              <button type="button" class="mini-btn" onclick="_jobAddEstFromApproved()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>From priced request</button>
-            </div>` : ''}
-            <div id="jf-estparts-rows"></div>
-          </div>
-        </details>
-      </div>
+      <div class="jf-acc" data-acc="jf-sec-est" id="jf-sec-est">
+        ${_jobAccHead('jf-sec-est', 'Estimate', `${cur}${estTotal.toLocaleString('en-IN')}`)}
+        <div class="jf-acc-panel"><div class="jf-acc-panel-inner">
+          <details ${(_editingJob.est_parts.length || _editingJob.est_services.length) ? 'open' : ''}>
+            <summary style="cursor:pointer;font-family:var(--fd);font-weight:700;font-size:14px;color:var(--blue,#639fff);list-style:none;display:flex;align-items:center;gap:8px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="15" height="15"><path d="M9 18l6-6-6-6"/></svg>
+              Estimation parts <span style="font-weight:500;color:var(--faint);font-size:12px">(quote only — not deducted from inventory)</span>
+            </summary>
+            <div style="margin-top:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.22);border-radius:10px">
+              ${_canEstimate ? `<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+                <button type="button" class="mini-btn" onclick="_jobAddEstFromInventory()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>From inventory</button>
+                <button type="button" class="mini-btn" onclick="_jobAddEstFromApproved()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>From priced request</button>
+              </div>` : ''}
+              <div id="jf-estparts-rows"></div>
+            </div>
+          </details>
 
-      <!-- ── Collapsible: ESTIMATED SERVICE ── -->
-      <div style="margin-top:14px">
-        <details ${_editingJob.est_services.length ? 'open' : ''}>
-          <summary style="cursor:pointer;font-family:var(--fd);font-weight:700;font-size:14px;color:var(--blue,#639fff);list-style:none;display:flex;align-items:center;gap:8px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="15" height="15"><path d="M9 18l6-6-6-6"/></svg>
-            Estimated service <span style="font-weight:500;color:var(--faint);font-size:12px">(quote only)</span>
-          </summary>
-          <div style="margin-top:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.22);border-radius:10px">
-            ${_canEstimate ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-              <button type="button" class="mini-btn" onclick="_jobAddEstService()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>Add service</button>
-            </div>` : ''}
-            <div id="jf-estsvc-rows"></div>
+          <div style="margin-top:14px">
+            <details ${_editingJob.est_services.length ? 'open' : ''}>
+              <summary style="cursor:pointer;font-family:var(--fd);font-weight:700;font-size:14px;color:var(--blue,#639fff);list-style:none;display:flex;align-items:center;gap:8px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="15" height="15"><path d="M9 18l6-6-6-6"/></svg>
+                Estimated service <span style="font-weight:500;color:var(--faint);font-size:12px">(quote only)</span>
+              </summary>
+              <div style="margin-top:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.22);border-radius:10px">
+                ${_canEstimate ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+                  <button type="button" class="mini-btn" onclick="_jobAddEstService()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>Add service</button>
+                </div>` : ''}
+                <div id="jf-estsvc-rows"></div>
+              </div>
+            </details>
           </div>
-        </details>
+
+          <!-- Explicit "Done" — no notification fires while items are being added
+               one at a time (from inventory / priced request / manual / DVI quick-
+               add); this single action is the only estimation-related notify(). -->
+          ${_canEstimate ? `
+          <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <button type="button" class="mini-btn good" onclick="_jobMarkEstimationReady('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M20 6 9 17l-5-5"/></svg>Done — parts estimation ready for review</button>
+            ${j.est_ready ? `<span style="font-size:11.5px;color:var(--teal);font-weight:700">✓ Marked ready${j.est_ready_at ? ' · ' + escapeHtml(j.est_ready_at.slice(0,16)) : ''} — further edits notify the assigned SA</span>` : ''}
+          </div>
+          ` : ''}
+        </div></div>
       </div>
       `}
 
-      ${_jobShowActual ? '' : `<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd);font-size:12.5px;color:var(--faint);line-height:1.5">🧾 <b style="color:var(--dim)">Parts used &amp; service charges</b> appear here once the repair starts (approve the estimate → <b>Start repair</b>). While it's still an estimate, only the blue estimation sections above apply.</div>`}
-      <div id="jf-sec-parts" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)${_jobShowActual ? '' : ';display:none'}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
-          <div style="font-family:var(--fd);font-weight:700;font-size:14px">Parts used</div>
-          ${_canPartsUsed ? `<div style="display:flex;gap:8px;align-items:center">
-            <span style="font-size:12px;color:var(--faint)">Bulk discount %</span>
-            <input id="jf-bulkdisc" type="number" min="0" max="100" step="0.5" placeholder="0" style="width:70px;padding:6px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" />
-            <button type="button" class="mini-btn warn" onclick="_jobApplyBulkDiscount()" title="Apply this discount % to every part row">Apply to all</button>
-            <button type="button" class="mini-btn" onclick="_jobScanPart()" title="Scan a part barcode to add it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h3M18 15v6M21 18h-3"/></svg>Scan</button>
-            <button type="button" class="mini-btn" onclick="_jobAddPart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add part</button>
-          </div>` : `<div style="font-size:11.5px;color:var(--faint)">Only Parts department / Owner can add or edit</div>`}
-        </div>
-        <div id="jf-parts-rows"></div>
+      ${_jobShowActual ? '' : `<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd);font-size:12.5px;color:var(--faint);line-height:1.5">🧾 <b style="color:var(--dim)">Parts used &amp; service charges</b> appear here once the repair starts (approve the estimate → <b>Start repair</b>). While it's still an estimate, only the Estimate section above applies.</div>`}
+      ${_jobShowActual ? `
+      <div class="jf-acc" data-acc="jf-sec-parts" id="jf-sec-parts">
+        ${_jobAccHead('jf-sec-parts', 'Parts used')}
+        <div class="jf-acc-panel"><div class="jf-acc-panel-inner">
+          <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
+            ${_canPartsUsed ? `<div style="display:flex;gap:8px;align-items:center">
+              <span style="font-size:12px;color:var(--faint)">Bulk discount %</span>
+              <input id="jf-bulkdisc" type="number" min="0" max="100" step="0.5" placeholder="0" style="width:70px;padding:6px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" />
+              <button type="button" class="mini-btn warn" onclick="_jobApplyBulkDiscount()" title="Apply this discount % to every part row">Apply to all</button>
+              <button type="button" class="mini-btn" onclick="_jobScanPart()" title="Scan a part barcode to add it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h3M18 15v6M21 18h-3"/></svg>Scan</button>
+              <button type="button" class="mini-btn" onclick="_jobAddPart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add part</button>
+            </div>` : `<div style="font-size:11.5px;color:var(--faint)">Only Parts department / Owner can add or edit</div>`}
+          </div>
+          <div id="jf-parts-rows"></div>
+        </div></div>
       </div>
 
-      <div id="jf-sec-charges" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)${_jobShowActual ? '' : ';display:none'}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div style="font-family:var(--fd);font-weight:700;font-size:14px">Service charges</div>
-          ${_canLabour ? `<button type="button" class="mini-btn" onclick="_jobAddCharge()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add charge</button>` : `<div style="font-size:11.5px;color:var(--faint)">Only Service Advisor / Owner can add or edit</div>`}
-        </div>
-        <div id="jf-charges-rows"></div>
+      <div class="jf-acc" data-acc="jf-sec-charges" id="jf-sec-charges">
+        ${_jobAccHead('jf-sec-charges', 'Service charges')}
+        <div class="jf-acc-panel"><div class="jf-acc-panel-inner">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+            ${_canLabour ? `<button type="button" class="mini-btn" onclick="_jobAddCharge()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add charge</button>` : `<div style="font-size:11.5px;color:var(--faint)">Only Service Advisor / Owner can add or edit</div>`}
+          </div>
+          <div id="jf-charges-rows"></div>
+        </div></div>
       </div>
+      ` : ''}
 
       <!-- Photos — before/after damage, parts replaced, insurance evidence -->
-      <div id="jf-sec-photos" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;flex-wrap:wrap">
-          <div style="font-family:var(--fd);font-weight:700;font-size:14px">Photos <span style="font-weight:500;color:var(--faint);font-size:12px;margin-left:6px">(before/after, damage, parts replaced, insurance evidence)</span></div>
-          <div style="display:flex;gap:8px;align-items:center">
+      <div class="jf-acc" data-acc="jf-sec-photos" id="jf-sec-photos">
+        ${_jobAccHead('jf-sec-photos', 'Photos', '(before/after, damage, parts replaced, insurance evidence)')}
+        <div class="jf-acc-panel"><div class="jf-acc-panel-inner">
+          <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:8px;gap:8px">
             <select id="jf-photo-label" style="padding:8px 10px;border-radius:7px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:12.5px">
               ${PHOTO_LABELS.map(l => `<option value="${l}">${l}</option>`).join('')}
             </select>
@@ -7462,9 +7582,9 @@ window.openJobForm = function(id) {
               <input id="jf-photo-input" type="file" accept="image/*" multiple style="display:none" onchange="_jobUploadPhotos(event)" />
             </label>
           </div>
-        </div>
-        <div id="jf-photos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;min-height:50px"></div>
-        <div style="font-size:11px;color:var(--faint);margin-top:6px">Images are resized to ~1280px before upload. JPEG quality 78%.</div>
+          <div id="jf-photos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;min-height:50px"></div>
+          <div style="font-size:11px;color:var(--faint);margin-top:6px">Images are resized to ~1280px before upload. JPEG quality 78%.</div>
+        </div></div>
       </div>
 
       <!-- Digital Vehicle Inspection — per-component condition checklist,
@@ -7472,49 +7592,73 @@ window.openJobForm = function(id) {
            whoever's actually looking at the car (worker/floor manager);
            read-only for everyone else so the SA can build the estimate from
            it without altering the findings. -->
-      <div id="jf-sec-dvi" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;flex-wrap:wrap">
-          <div style="font-family:var(--fd);font-weight:700;font-size:14px">Vehicle inspection (DVI)</div>
-          ${_canEditDvi ? '' : `<div style="font-size:11.5px;color:var(--faint)">Read-only — only the Worker or Floor Manager can update the inspection</div>`}
-        </div>
-        <div style="font-size:11.5px;color:var(--faint);margin-bottom:10px">Condition of key components at inspection — separate from the "items in the car" intake checklist. Fair/Replace items can be pushed straight onto the estimate.</div>
-        <input id="dvi-photo-input" type="file" accept="image/*" multiple style="display:none" onchange="_dviUploadPhoto(event)" />
-        <div id="jf-dvi-rows"></div>
+      <div class="jf-acc" data-acc="jf-sec-dvi" id="jf-sec-dvi">
+        ${_jobAccHead('jf-sec-dvi', 'Vehicle inspection (DVI)', dviFlags ? `⚑ ${dviFlags} flag${dviFlags === 1 ? '' : 's'}` : '')}
+        <div class="jf-acc-panel"><div class="jf-acc-panel-inner">
+          ${_canEditDvi ? '' : `<div style="font-size:11.5px;color:var(--faint);margin-bottom:6px">Read-only — only the Worker or Floor Manager can update the inspection</div>`}
+          <div style="font-size:11.5px;color:var(--faint);margin-bottom:10px">Condition of key components at inspection — separate from the "items in the car" intake checklist. Fair/Replace items can be pushed straight onto the estimate.</div>
+          <input id="dvi-photo-input" type="file" accept="image/*" multiple style="display:none" onchange="_dviUploadPhoto(event)" />
+          <div id="jf-dvi-rows"></div>
+        </div></div>
       </div>
 
       <!-- Insurance section — collapsed unless toggled on. Matches main.py schema. -->
-      <div id="jf-sec-ins" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-          <input type="checkbox" id="jf-ins-on" ${_editingJob.is_insurance ? 'checked' : ''} onchange="_toggleInsurance()" style="width:18px;height:18px;cursor:pointer" />
-          <span style="font-family:var(--fd);font-weight:700;font-size:14px;color:var(--acc2)">🛡  This is an insurance job</span>
-        </label>
-        <div id="jf-ins-fields" style="${_editingJob.is_insurance ? '' : 'display:none'};margin-top:12px;padding:14px;background:rgba(255,179,71,.08);border:1px solid rgba(255,179,71,.30);border-radius:10px">
-          <div class="f-row r3">
-            <div class="f-grp"><label>Insurer name</label><input id="jf-ins-name" type="text" value="${escapeHtml(_editingJob.insurer_name)}" placeholder="ICICI Lombard" /></div>
-            <div class="f-grp"><label>Claim number</label><input id="jf-ins-claim" type="text" value="${escapeHtml(_editingJob.claim_number)}" placeholder="CLM-2025-XXXX" /></div>
-            <div class="f-grp"><label>Policy number</label><input id="jf-ins-policy" type="text" value="${escapeHtml(_editingJob.policy_number)}" placeholder="POL-XXXXXX" /></div>
-          </div>
-          <div class="f-row r3">
-            <div class="f-grp"><label>Approval status</label>
-              <select id="jf-ins-approval">${INSURANCE_APPROVAL_OPTS.map(s => `<option value="${s}" ${_editingJob.insurance_approval === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+      <div class="jf-acc" data-acc="jf-sec-ins" id="jf-sec-ins">
+        ${_jobAccHead('jf-sec-ins', '🛡 Insurance', _editingJob.is_insurance ? 'On' : 'Off')}
+        <div class="jf-acc-panel"><div class="jf-acc-panel-inner">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="jf-ins-on" ${_editingJob.is_insurance ? 'checked' : ''} onchange="_toggleInsurance()" style="width:18px;height:18px;cursor:pointer" />
+            <span style="font-family:var(--fd);font-weight:700;font-size:14px;color:var(--acc2)">This is an insurance job</span>
+          </label>
+          <div id="jf-ins-fields" style="${_editingJob.is_insurance ? '' : 'display:none'};margin-top:12px;padding:14px;background:rgba(255,179,71,.08);border:1px solid rgba(255,179,71,.30);border-radius:10px">
+            <div class="f-row r3">
+              <div class="f-grp"><label>Insurer name</label><input id="jf-ins-name" type="text" value="${escapeHtml(_editingJob.insurer_name)}" placeholder="ICICI Lombard" /></div>
+              <div class="f-grp"><label>Claim number</label><input id="jf-ins-claim" type="text" value="${escapeHtml(_editingJob.claim_number)}" placeholder="CLM-2025-XXXX" /></div>
+              <div class="f-grp"><label>Policy number</label><input id="jf-ins-policy" type="text" value="${escapeHtml(_editingJob.policy_number)}" placeholder="POL-XXXXXX" /></div>
             </div>
-            <div class="f-grp"><label>Approved amount (₹)</label><input id="jf-ins-amount" type="number" min="0" step="0.01" value="${escapeHtml(String(_editingJob.approved_amount || ''))}" placeholder="0" /></div>
-            <div class="f-grp"><label>Surveyor name</label><input id="jf-ins-surveyor" type="text" value="${escapeHtml(_editingJob.surveyor_name)}" /></div>
+            <div class="f-row r3">
+              <div class="f-grp"><label>Approval status</label>
+                <select id="jf-ins-approval">${INSURANCE_APPROVAL_OPTS.map(s => `<option value="${s}" ${_editingJob.insurance_approval === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+              </div>
+              <div class="f-grp"><label>Approved amount (₹)</label><input id="jf-ins-amount" type="number" min="0" step="0.01" value="${escapeHtml(String(_editingJob.approved_amount || ''))}" placeholder="0" /></div>
+              <div class="f-grp"><label>Surveyor name</label><input id="jf-ins-surveyor" type="text" value="${escapeHtml(_editingJob.surveyor_name)}" /></div>
+            </div>
+            <div class="f-row r1">
+              <div class="f-grp"><label>Notes / remarks</label><textarea id="jf-ins-notes" placeholder="Photos submitted, partial settlement reasons, follow-ups…">${escapeHtml(_editingJob.insurance_notes)}</textarea></div>
+            </div>
+            <div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(255,179,71,.30);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+              <div style="font-size:12px;color:var(--dim);line-height:1.5;max-width:480px">Generate a branded claim document with the customer, vehicle, parts, labour, and uploaded photos — ready to print or save as PDF for the insurer.</div>
+              <button type="button" class="mini-btn good" onclick="viewInsuranceDoc('${escapeHtml(j.id)}')" style="white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg>Generate insurance PDF</button>
+            </div>
           </div>
-          <div class="f-row r1">
-            <div class="f-grp"><label>Notes / remarks</label><textarea id="jf-ins-notes" placeholder="Photos submitted, partial settlement reasons, follow-ups…">${escapeHtml(_editingJob.insurance_notes)}</textarea></div>
-          </div>
-          <div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(255,179,71,.30);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-            <div style="font-size:12px;color:var(--dim);line-height:1.5;max-width:480px">Generate a branded claim document with the customer, vehicle, parts, labour, and uploaded photos — ready to print or save as PDF for the insurer.</div>
-            <button type="button" class="mini-btn good" onclick="viewInsuranceDoc('${escapeHtml(j.id)}')" style="white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg>Generate insurance PDF</button>
-          </div>
-        </div>
+        </div></div>
       </div>
 
       <div class="f-err" id="jf-err"></div>
     `,
     saveLabel: 'Save job',
     onSave: () => saveJob(j.id)
+  });
+  // The job card's jump-nav uses .gp-sticky-in-body, which needs #gpModalBody's
+  // own top padding removed (see that class's CSS comment for why a margin on
+  // the sticky element alone can't do this) — reset by openModal() itself for
+  // every other caller, so only opt in here. Also force an internal max-height
+  // (mobile's own CSS sets max-height:none, i.e. the whole modal scrolls via
+  // .gp-modal, not this element) — without an actual scroll happening INSIDE
+  // #gpModalBody, .gp-modal-box's overflow:hidden becomes the nearer ancestor
+  // that establishes a (non-scrolling) sticky containing block instead, and
+  // the "sticky" bar just rides along with .gp-modal's scroll rather than
+  // ever engaging. Forcing a real internal scrollport here — same as desktop
+  // — fixes that for every viewport size.
+  { const gb = document.getElementById('gpModalBody'); gb.style.paddingTop = '0'; gb.style.maxHeight = '70vh'; }
+  // Once the open-transition finishes, drop max-height to 'none' so content
+  // added afterward (a part row, a photo, a DVI entry) isn't clipped by the
+  // fixed px value that was only ever meant to animate the initial reveal.
+  document.querySelectorAll('#gpModalBody .jf-acc-panel').forEach(panel => {
+    panel.addEventListener('transitionend', (e) => {
+      if (e.propertyName !== 'max-height') return;
+      if (panel.closest('.jf-acc')?.classList.contains('open')) panel.style.maxHeight = 'none';
+    });
   });
   setTimeout(() => { _drawJobRows(); _drawEstRows(); _drawMechanicChips(); _jobLoadPhotos(j.id).then(_drawDviRows); _drawDviRows(); }, 0);
 };
@@ -7523,6 +7667,9 @@ window._toggleInsurance = function() {
   _editingJob.is_insurance = !!document.getElementById('jf-ins-on').checked;
   const wrap = document.getElementById('jf-ins-fields');
   if (wrap) wrap.style.display = _editingJob.is_insurance ? '' : 'none';
+  const meta = document.getElementById('jf-sec-ins-meta');
+  if (meta) meta.textContent = _editingJob.is_insurance ? 'On' : 'Off';
+  _jobAccResize('jf-sec-ins');
 };
 
 // Add a part to the job — opens a picker so the user can only choose items that
@@ -7779,6 +7926,35 @@ window._jobAddEstService = function() { if (!isServiceAdvisorRole()) return show
 window._jobRemoveEstPart = function(i) { if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can edit estimates', 'bad'); _editingJob.est_parts.splice(i,1); _drawEstRows(); };
 window._jobRemoveEstService = function(i) { if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can edit estimates', 'bad'); _editingJob.est_services.splice(i,1); _drawEstRows(); };
 
+// The ONLY estimation-related notify() — deliberately not fired per-item as
+// parts get added (from inventory / a priced request / manual / a DVI quick-
+// add). Notifies the assigned Service Advisor AND the assigned worker once,
+// then stamps job.est_ready so a later edit fires the separate "modified"
+// notice in saveJob() instead of silently going unnoticed.
+window._jobMarkEstimationReady = async function(jobId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can mark the estimation ready', 'bad');
+  const j = (D.jobs || []).find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  const parts = (_editingJob?.est_parts || []).filter(p => (p.name || '').trim());
+  const services = (_editingJob?.est_services || []).filter(s => (s.name || '').trim());
+  if (!parts.length && !services.length) {
+    return customAlert('Add at least one Estimation part or Estimated service first.', { title: 'Nothing to mark ready' });
+  }
+  j.est_ready = true;
+  j.est_ready_at = nowStr();
+  j.updated_at = nowStr();
+  const saTarget = j.estimate_sent_by_id ? { worker_id: j.estimate_sent_by_id }
+                 : (j.estimate_sent_by ? { worker_name: j.estimate_sent_by } : { role: 'service_advisor' });
+  notify({ kind: 'estimate-ready-review', message: 'Parts estimation is ready for review.', target: saTarget, job_id: j.id });
+  if (j.mechanic) {
+    notify({ kind: 'estimate-ready-review', message: 'Parts estimation is ready for review.', target: { worker_name: j.mechanic }, job_id: j.id });
+  }
+  audit('estimation-ready', `${j.plate} — parts estimation marked ready for review`, { job_id: jobId });
+  await wsSave('jobs', D.jobs);
+  showToast('Marked ready — assigned SA and worker notified', 'good');
+  openJobForm(jobId);   // refresh the modal so the "Marked ready" badge shows
+};
+
 // Render both estimation tables + a combined estimate total.
 function _drawEstRows() {
   const cur = D.settings?.currency || '₹';
@@ -7824,12 +8000,13 @@ function _drawEstRows() {
     }));
   }
   _updateEstTotal();
+  _jobAccResize('jf-sec-est');
 }
 function _updateEstTotal() {
   const cur = D.settings?.currency || '₹';
   const pt = (_editingJob.est_parts || []).reduce((s,p) => s + Number(p.qty||1)*Number(p.price||0), 0);
   const st = (_editingJob.est_services || []).reduce((s,x) => s + Number(x.price||0), 0);
-  const el = document.getElementById('jf-est-total');
+  const el = document.getElementById('jf-sec-est-meta');
   if (el) el.textContent = `${cur}${(pt+st).toLocaleString('en-IN')}`;
 }
 
@@ -7871,6 +8048,7 @@ function _drawJobPhotos() {
   const photos = _editingJob.photos || [];
   if (!photos.length) {
     wrap.innerHTML = `<div style="grid-column:1/-1;padding:24px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No photos yet. Pick a label and click "Upload" — multi-select is supported.</div>`;
+    _jobAccResize('jf-sec-photos');
     return;
   }
   // Group by label so before/after/etc photos sit together
@@ -7889,6 +8067,7 @@ function _drawJobPhotos() {
         ${escapeHtml((p.uploaded_at || '').slice(5, 16))}${p.uploaded_by ? ' · ' + escapeHtml(p.uploaded_by) : ''}
       </div>
     </div>`).join('');
+  _jobAccResize('jf-sec-photos');
 }
 
 window._jobUploadPhotos = async function(ev) {
@@ -7958,14 +8137,14 @@ window._jobZoomPhoto = function(photoId) {
   });
 };
 
-// Jump-bar navigation inside the job-card modal. Opens a collapsed <details>
-// inside the target section first (the estimate sections start collapsed on
-// empty jobs) so the scroll actually lands on visible content.
+// Jump-bar navigation inside the job-card modal. Opens the target accordion
+// section (closing whichever other one was open) so the scroll actually
+// lands on visible, expanded content.
 window._jobJump = function(sectionId) {
   const el = document.getElementById(sectionId);
   if (!el) return;
-  el.querySelectorAll('details').forEach(d => { d.open = true; });
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (window._jobAccOpen !== sectionId) window._jobAccToggle(sectionId);
+  setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
 };
 
 // ── Digital Vehicle Inspection rows ──────────────────────────────────────
@@ -8015,6 +8194,10 @@ function _drawDviRows() {
     const it = (_editingJob.dvi || []).find(x => x.id === ev.target.dataset.dviNotes);
     if (it) it.notes = ev.target.value;
   }));
+  const flagCount = items.filter(it => it.condition === 'fair' || it.condition === 'replace').length;
+  const metaEl = document.getElementById('jf-sec-dvi-meta');
+  if (metaEl) { metaEl.textContent = flagCount ? `⚑ ${flagCount} flag${flagCount === 1 ? '' : 's'}` : ''; metaEl.style.display = flagCount ? '' : 'none'; }
+  _jobAccResize('jf-sec-dvi');
 }
 
 window._dviSetCondition = function(itemId, cond) {
@@ -8215,6 +8398,8 @@ function _drawJobRows() {
       _editingJob.charges[i][f] = (f === 'name') ? v : (Number(v) || 0);
     }));
   }
+  _jobAccResize('jf-sec-parts');
+  _jobAccResize('jf-sec-charges');
 }
 
 async function saveJob(id) {
@@ -8261,10 +8446,27 @@ async function saveJob(id) {
   j.service_charges = (_editingJob?.charges || []).filter(c => (c.name || '').trim())
                         .map(c => ({ name: c.name.trim(), amount: Number(c.amount || 0) }));
   // Estimation lines — saved as-is, NEVER touch the inventory diff below.
+  // Snapshot before overwriting so we can tell, right below, whether an
+  // ALREADY-submitted ("ready for review") estimation actually changed —
+  // that's what triggers the "estimation updated" notice, not just any save.
+  const _estWasReady  = !!j.est_ready;
+  const _estBeforeJSON = _estWasReady ? JSON.stringify({ p: j.est_parts || [], s: j.est_services || [] }) : '';
   j.est_parts    = (_editingJob?.est_parts    || []).filter(p => (p.name || '').trim())
                      .map(p => ({ name: p.name.trim(), qty: Math.max(1, Number(p.qty || 1)), price: Number(p.price || 0), source: p.source || 'manual' }));
   j.est_services = (_editingJob?.est_services || []).filter(s => (s.name || '').trim())
                      .map(s => ({ name: s.name.trim(), price: Number(s.price || 0) }));
+  // Parts estimation was already marked "ready for review" and got edited
+  // again — notify the assigned Service Advisor it needs another look.
+  if (_estWasReady && _estBeforeJSON !== JSON.stringify({ p: j.est_parts, s: j.est_services })) {
+    const _saTarget = j.estimate_sent_by_id ? { worker_id: j.estimate_sent_by_id }
+                    : (j.estimate_sent_by ? { worker_name: j.estimate_sent_by } : { role: 'service_advisor' });
+    notify({
+      kind: 'estimate-modified',
+      message: `The parts estimation for ${j.plate} has been updated.`,
+      target: _saTarget,
+      job_id: j.id
+    });
+  }
   // Digital Vehicle Inspection — condition checklist, distinct from job.intake
   // (possessions only). Read-only viewers never mutate _editingJob.dvi (the
   // row controls are disabled for them), so this just round-trips unchanged
