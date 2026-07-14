@@ -1319,24 +1319,13 @@ footer{background:linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px so
       <div class="settings-section" style="max-width:560px">
         <h4>Email Notifications</h4>
         <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">
-          Send welcome / license-key emails from your own Gmail using a free Google Apps Script web app. <b>No API keys, no Gmail App Password.</b> See <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12px">EMAIL_NOTIFICATIONS_SETUP.md</code> for the 4-minute setup.
+          Send welcome / license-key emails. Sending is fully managed (Resend, via a small relay) — no API keys or credentials to manage here.
         </p>
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:9px;font-weight:500;cursor:pointer">
             <input type="checkbox" id="emailEnabledInput" />
             <span>Enable email notifications</span>
           </label>
-        </div>
-        <div class="form-group">
-          <label>Apps Script web-app URL</label>
-          <input id="emailUrlInput" type="text" placeholder="https://script.google.com/macros/s/AKfy.../exec" />
-        </div>
-        <div class="form-group">
-          <label>Gmail App Password <span style="color:var(--faint);font-weight:500">(optional — used by the script for SMTP auth)</span></label>
-          <input id="emailAppKeyInput" type="password" placeholder="16-char app password from myaccount.google.com/apppasswords" autocomplete="off" />
-          <span style="font-size:12px;color:var(--faint);display:block;margin-top:4px;line-height:1.5">
-            Generate at <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:var(--acc2)">myaccount.google.com/apppasswords</a>. The script can use this as a credential — by default our Apps Script uses Google's own MailApp so this isn't needed, but it's here so you can rotate it later without redeploying.
-          </span>
         </div>
         <div class="form-group">
           <label>Website URL <span style="color:var(--faint);font-weight:500">(used in email links — e.g. "Open my account")</span></label>
@@ -2409,8 +2398,6 @@ let S = {
   },
   email: {
     enabled:    false,              // master toggle
-    webhookUrl: '',                 // Google Apps Script web-app URL
-    appKey:     '',                 // Gmail App Password (optional, used by script for auth)
     siteUrl:    '',                 // public site URL used in email links
     fromName:   'Garage Pro',
     replyTo:    '',                 // optional reply-to address
@@ -3133,8 +3120,6 @@ function renderAdminPricing() {
   // ── Email settings ──
   const em = S.email || {};
   if (document.getElementById('emailEnabledInput')) document.getElementById('emailEnabledInput').checked = !!em.enabled;
-  if (document.getElementById('emailUrlInput'))     document.getElementById('emailUrlInput').value     = em.webhookUrl || '';
-  if (document.getElementById('emailAppKeyInput')) document.getElementById('emailAppKeyInput').value  = em.appKey    || '';
   if (document.getElementById('emailSiteUrlInput'))document.getElementById('emailSiteUrlInput').value = em.siteUrl   || (typeof location !== 'undefined' ? location.origin : '');
   if (document.getElementById('emailFromInput'))    document.getElementById('emailFromInput').value    = em.fromName  || 'Garage Pro';
   if (document.getElementById('emailReplyInput'))   document.getElementById('emailReplyInput').value   = em.replyTo   || '';
@@ -3457,27 +3442,33 @@ async function activateFreeDemo() {
 }
 
 // ══════════════════════════════════════════
-//  EMAIL NOTIFICATIONS — via Google Apps Script web-app
+//  EMAIL NOTIFICATIONS — via the Vercel/Resend relay
 // ══════════════════════════════════════════
-// The Apps Script accepts { to, subject, body, html, fromName, replyTo }.
-// We use text/plain content-type to skip the CORS preflight, since Apps Script
-// web-apps don't reply to OPTIONS. The script JSON-parses it on the server.
+// Vercel relay that actually calls Resend (the API key lives server-side —
+// see email-relay/README.md). Fill in EMAIL_RELAY_URL once that's deployed.
+// Must match the same constant + secret used in app/index.html.
+const EMAIL_RELAY_URL = 'https://email-relay-gilt.vercel.app/api/send';
+const EMAIL_RELAY_KEY  = '2b8151bd6fd5180c23109bc2dd115fe44f1ca29d104e741f';
+
 async function sendEmail(to, subject, body, html) {
-  if (!S.email || !S.email.enabled || !S.email.webhookUrl) return false;
+  if (!S.email || !S.email.enabled) return false;
+  if (!EMAIL_RELAY_URL || EMAIL_RELAY_URL.includes('REPLACE_WITH_YOUR_VERCEL_URL')) {
+    console.warn('Email relay isn\'t deployed yet — set EMAIL_RELAY_URL near sendEmail().');
+    return false;
+  }
   try {
-    const res = await fetch(S.email.webhookUrl, {
+    const res = await fetch(EMAIL_RELAY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      headers: { 'Content-Type': 'application/json', 'x-relay-key': EMAIL_RELAY_KEY },
       body: JSON.stringify({
-        to, subject, body, html: html || body,
+        to, subject, html: html || body,
         fromName: S.email.fromName || 'Garage Pro',
-        replyTo:  S.email.replyTo  || '',
-        appKey:   S.email.appKey   || '',           // optional Gmail app password
-        siteUrl:  emailSiteUrl()                    // also passed for the script's records
+        replyTo:  S.email.replyTo  || ''
       })
     });
-    const ok = res.ok;
-    if (!ok) console.warn('Email send returned', res.status);
+    const data = await res.json().catch(() => null);
+    const ok = res.ok && data && data.ok;
+    if (!ok) console.warn('Email send failed:', data && data.error);
     return ok;
   } catch (e) {
     console.warn('Email send failed:', e);
@@ -3572,18 +3563,10 @@ async function sendLicenseEmail(user, data) {
 
 function saveEmailSettings() {
   const msg = document.getElementById('emailMsg');
-  const url = document.getElementById('emailUrlInput').value.trim();
-  if (url && !/^https?:\/\/script\.google\.com\//.test(url)) {
-    msg.style.color = '#ff6b6b';
-    msg.textContent = 'URL should look like https://script.google.com/macros/s/.../exec';
-    return;
-  }
   let siteUrl = document.getElementById('emailSiteUrlInput').value.trim().replace(/\/+$/, '');
   if (siteUrl && !/^https?:\/\//i.test(siteUrl)) siteUrl = 'https://' + siteUrl;
   S.email = {
     enabled:    document.getElementById('emailEnabledInput').checked,
-    webhookUrl: url,
-    appKey:     document.getElementById('emailAppKeyInput').value,
     siteUrl:    siteUrl,
     fromName:   document.getElementById('emailFromInput').value.trim() || 'Garage Pro',
     replyTo:    document.getElementById('emailReplyInput').value.trim(),
@@ -3603,8 +3586,8 @@ async function sendTestEmail() {
   const msg = document.getElementById('emailMsg');
   // Save current form values first, in case admin hasn't clicked Save yet
   saveEmailSettings();
-  if (!S.email.webhookUrl) {
-    msg.style.color = '#ff6b6b'; msg.textContent = 'Paste your Apps Script URL first.';
+  if (!S.email.enabled) {
+    msg.style.color = '#ff6b6b'; msg.textContent = 'Tick "Enable email notifications" first.';
     return;
   }
   const to = await customPrompt({
@@ -3621,12 +3604,12 @@ async function sendTestEmail() {
     to,
     'Garage Pro — test email',
     'If you can read this, email notifications are wired up correctly.',
-    `<div style="font-family:sans-serif;padding:20px"><h2 style="color:#ff7a18">It works ✅</h2><p>Your Garage Pro site can now send emails through this Apps Script web-app. You're all set.</p></div>`
+    `<div style="font-family:sans-serif;padding:20px"><h2 style="color:#ff7a18">It works ✅</h2><p>Your Garage Pro site can now send emails. You're all set.</p></div>`
   );
   if (ok) {
     msg.style.color = 'var(--teal)'; msg.textContent = `Test email sent to ${to}. Check the inbox in a few seconds.`;
   } else {
-    msg.style.color = '#ff6b6b'; msg.textContent = 'Send failed — check the URL and that the script is deployed as a web app (Anyone access).';
+    msg.style.color = '#ff6b6b'; msg.textContent = 'Send failed — check the console for details.';
   }
 }
 
