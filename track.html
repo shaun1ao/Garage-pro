@@ -640,7 +640,13 @@ _trackWaitForFirebase();
 //   /track/<slug>           — needs the host to rewrite to index.html
 //   /#track/<slug>          — works on any static host (hash routing)
 async function _trackAutoPickFromUrl() {
-  let slug = new URLSearchParams(location.search).get('ws') || '';
+  const params = new URLSearchParams(location.search);
+  let slug = params.get('ws') || '';
+  // Plate/booking# carried over from an email or WhatsApp message (see
+  // _wsTrackLink() in app/index.html) — lets us skip straight to the status
+  // instead of making the customer re-type what we already know.
+  const plate   = params.get('plate')   || '';
+  const booking = params.get('booking') || '';
   // Path: /track/<slug>
   const pm = (location.pathname || '').match(/^\/track\/([^\/?#]+)/i);
   if (pm) slug = decodeURIComponent(pm[1]);
@@ -672,6 +678,18 @@ async function _trackAutoPickFromUrl() {
   // Jump straight to step 3 (plate input) bypassing state + workshop pickers.
   _trackPickedState = match.state || '__unspecified__';
   _trackPickWorkshop(match.uid, match.name);
+  // Auto-fill + auto-submit when the link already carries the plate/booking#
+  // (_trackPickWorkshop just switched modes and focused the empty input —
+  // override that here since we're about to fill it ourselves).
+  if (plate) {
+    _trackSwitchMode('plate');
+    document.getElementById('track-plate-input').value = plate;
+    trackLookup('plate');
+  } else if (booking) {
+    _trackSwitchMode('booking');
+    document.getElementById('track-booking-input').value = booking;
+    trackLookup('booking');
+  }
 }
 </script>
 </body>
