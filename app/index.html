@@ -2317,7 +2317,11 @@ const _SLA_STAGES = {
 
 function _slaParseTs(s) {
   if (!s) return null;
-  const d = new Date(String(s).replace(' ', 'T'));
+  // nowStr() stores UTC time with no zone suffix — without the "Z" here,
+  // Date parses the digits as LOCAL time instead, shifting every timestamp
+  // by the viewer's UTC offset (e.g. 5.5h for IST) and throwing off any
+  // comparison against Date.now() (SLA age, "stuck job" thresholds, etc.).
+  const d = new Date(String(s).replace(' ', 'T') + 'Z');
   return isNaN(d.getTime()) ? null : d.getTime();
 }
 function _slaAge(ms) {
@@ -3329,6 +3333,25 @@ window.ensureQR = ensureQR;
 // Small unique-ish ID for new records (matches desktop's _uid())
 function uid(prefix = '') { return (prefix ? prefix + '-' : '') + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function nowStr() { return new Date().toISOString().slice(0, 19).replace('T', ' '); }
+
+// Relative "time ago" for any nowStr()-formatted timestamp (UTC, no zone
+// suffix — the "Z" below is required to parse it as UTC instead of local
+// time; see _slaParseTs for the bug this avoids). Used by the Notifications
+// tab so distinct notifications remain visually distinguishable instead of
+// an absolute minute-precision string that collapses same-minute events.
+function _timeAgo(s) {
+  if (!s) return '';
+  const d = new Date(String(s).replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return s;
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 5)         return 'just now';
+  if (diff < 60)        return Math.floor(diff) + 's ago';
+  if (diff < 3600)      return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400)     return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 172800)    return 'yesterday';
+  if (diff < 604800)    return Math.floor(diff / 86400) + 'd ago';
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
 function toTime(d = new Date()) { return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -14974,7 +14997,7 @@ async function renderNotifications(force = false) {
       <div style="flex:1;min-width:0">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
           <div style="font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--txt)">${escapeHtml(n.kind.replace(/-/g,' '))}</div>
-          <div style="font-size:11px;color:var(--faint);white-space:nowrap;font-family:'Courier New',monospace">${escapeHtml((n.at || '').slice(0,16))}</div>
+          <div style="font-size:11px;color:var(--faint);white-space:nowrap" title="${escapeHtml(n.at || '')}">${escapeHtml(_timeAgo(n.at))}</div>
         </div>
         <div style="font-size:13.5px;color:var(--dim);margin-top:3px;line-height:1.45">${escapeHtml(n.message)}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px;flex-wrap:wrap">
@@ -15027,7 +15050,7 @@ function _chatLastMessage(contactId) {
 }
 function _chatTimeShort(s) {
   if (!s) return '';
-  const d = new Date(String(s).replace(' ', 'T'));
+  const d = new Date(String(s).replace(' ', 'T') + 'Z');   // nowStr() is UTC — see _slaParseTs
   if (isNaN(d)) return '';
   const diff = (Date.now() - d.getTime()) / 1000;
   if (diff < 86400) return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
