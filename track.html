@@ -601,9 +601,16 @@ async function _trackRevealPickup() {
 
 // "5 minutes ago" / "2 hours ago" / "yesterday" — relative when recent, absolute
 // (date) when old. Falls back to the raw string if parsing fails.
+//
+// nowStr() (app/index.html) stores UTC time via toISOString() with no zone
+// suffix, e.g. "2026-07-14 15:47:34". Without an explicit "Z", `new Date(...)`
+// parses a string like that as LOCAL time instead of UTC — so every "ago"
+// came out wrong by exactly the viewer's UTC offset (5.5 hours for IST),
+// making recent updates read as hours old. Appending "Z" forces UTC parsing,
+// matching how the string was actually produced.
 function _trackTimeAgo(s) {
   if (!s) return '—';
-  const d = new Date(String(s).replace(' ', 'T'));
+  const d = new Date(String(s).replace(' ', 'T') + 'Z');
   if (isNaN(d)) return s;
   const diff = (Date.now() - d.getTime()) / 1000;
   if (diff < 60)        return 'just now';
