@@ -5288,8 +5288,6 @@ window.emailBookingCustomer = async function(bookingId) {
   if (!b.cust_email) return showToast('No customer email on this booking', 'bad');
   const s = D.settings || {};
   if (!s.email_enabled) return customAlert('Customer emails are disabled. Open Settings → Customer email notifications and enable them first.', { title: 'Emails disabled' });
-  const _emCfg = (s.emailjs_public_key && s.emailjs_service_id && s.emailjs_template_id) || s.email_appscript_url;
-  if (!_emCfg) return customAlert('Email isn\'t set up yet. Open Settings → Customer email notifications and add your EmailJS keys (recommended).', { title: 'Email not configured' });
   // Build the picker — checkboxes off, user picks ONE event then Send
   const choices = EMAIL_EVENTS.map(e => `<label style="display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--brd2);border-radius:8px;background:var(--bg2);cursor:pointer">
     <input type="radio" name="em-pick" value="${escapeHtml(e.id)}" style="width:16px;height:16px;cursor:pointer" />
@@ -11583,110 +11581,26 @@ async function renderSettings(force = false) {
 
 
       <!-- ────────────────────────────────────────────────────────────────
-           Customer email notifications — Apps Script relay (NO Firebase
-           Blaze plan required, NO backend, NO app password). Free Gmail
-           sends 100/day, Workspace 1500/day, and emails ship from the
-           workshop's own Gmail address (real reply-to, no spam tax).
+           Customer email notifications — sent through Garage Pro's managed
+           relay (Resend). No setup needed here beyond the toggle — the
+           sending infra is centrally hosted; each workshop's emails carry
+           its own name as the sender and its own "Contact email" (above) as
+           the reply-to, so customer replies land with the workshop.
            ──────────────────────────────────────────────────────────────── -->
       <div class="card" style="padding:18px">
         <h3 style="margin:0 0 6px">Customer email notifications</h3>
-        <div style="color:var(--faint);font-size:13px;margin-bottom:14px;line-height:1.55">Send branded emails to customers when bookings, jobs, and invoices change state. Uses a tiny <a href="https://script.google.com" target="_blank" rel="noopener" style="color:var(--acc2)">Google Apps Script</a> running in <i>your own</i> Google account — <b>free, no credit card, no backend, no app password</b>. Free Gmail sends 100/day; Workspace 1500/day.</div>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px;line-height:1.55">Send branded emails to customers when bookings, jobs, and invoices change state. Sending is fully managed by Garage Pro — no setup, no API keys, nothing to deploy.</div>
 
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:14px">
           <input type="checkbox" id="sf-em-on" ${s.email_enabled ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer" />
           <span style="font-family:var(--fd);font-weight:700;font-size:14px">Enable customer emails</span>
         </label>
 
-        <!-- EmailJS — alternative. Also confirms delivery; capped at 200/mo free. -->
-        <details style="padding:0;margin-bottom:12px">
-          <summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--teal,#20e3b2);padding:10px 0">Prefer EmailJS instead? (also free, ~200 emails/month)</summary>
-          <div style="padding:12px 14px;background:rgba(32,227,178,.06);border:1px solid rgba(32,227,178,.30);border-radius:10px;margin-top:6px">
-          <div style="font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.5">Another card-free option that confirms delivery. Free 200 emails/month. Connect your own Gmail via emailjs.com.</div>
-          <div class="f-row r3">
-            <div class="f-grp"><label>Public Key</label><input id="sf-ejs-key" type="text" value="${escapeHtml(s.emailjs_public_key || '')}" placeholder="Vx...xyz" autocomplete="off" /></div>
-            <div class="f-grp"><label>Service ID</label><input id="sf-ejs-svc" type="text" value="${escapeHtml(s.emailjs_service_id || '')}" placeholder="service_xxx" autocomplete="off" /></div>
-            <div class="f-grp"><label>Template ID</label><input id="sf-ejs-tpl" type="text" value="${escapeHtml(s.emailjs_template_id || '')}" placeholder="template_xxx" autocomplete="off" /></div>
-          </div>
-          <details style="margin-top:8px">
-            <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--acc2)">How to set up EmailJS (~5 min)</summary>
-            <ol style="margin:10px 0 4px 18px;font-size:12px;color:var(--dim);line-height:1.7">
-              <li>Sign up free at <a href="https://www.emailjs.com" target="_blank" rel="noopener" style="color:var(--acc2)">emailjs.com</a>.</li>
-              <li><b>Email Services → Add New Service → Gmail</b> → connect your Gmail. Copy the <b>Service ID</b>.</li>
-              <li><b>Email Templates → Create New Template.</b> Set the fields to use these variables exactly:
-                <br>• To Email: <code>{{to_email}}</code> &nbsp; • Subject: <code>{{subject}}</code> &nbsp; • From Name: <code>{{from_name}}</code> &nbsp; • Reply To: <code>{{reply_to}}</code>
-                <br>• Content: switch the template body to <b>Code/HTML</b> mode and put just <code>{{{html_body}}}</code> (triple braces). Save. Copy the <b>Template ID</b>.</li>
-              <li><b>Account → General</b> → copy your <b>Public Key</b>.</li>
-              <li>Paste all three above, tick Enable, hit <b>Send test</b>.</li>
-            </ol>
-          </details>
-          </div>
-        </details>
-
-        <div style="padding:12px 14px;background:rgba(99,159,255,.06);border:1px solid rgba(99,159,255,.30);border-radius:10px;margin-bottom:12px">
-          <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--blue,#639fff);margin-bottom:4px">✓ Google Apps Script — free, no card, no App Password</div>
-          <div style="font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.5">Runs in <i>your own</i> Google account and sends from your Gmail. It now <b>confirms delivery</b> (reports the real success/error). Paste your Web App URL below and follow the one-time setup.</div>
-          <div class="f-grp"><label>Apps Script Web App URL</label><input id="sf-em-url" type="url" value="${escapeHtml(s.email_appscript_url || '')}" placeholder="https://script.google.com/macros/s/AKfy.../exec" autocomplete="off" /></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-            <button type="button" class="add-btn" onclick="saveEmailSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Save email link</button>
-            <button type="button" class="refresh-btn" onclick="_testAppsScriptConnection()" title="Verify the URL reaches a deployed script"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>Test connection</button>
-            <button type="button" class="refresh-btn" onclick="_sendTestEmailPrompt()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Send test email</button>
-          </div>
-          <div style="font-size:11.5px;color:var(--acc2);margin-top:8px">⚠ After editing the script you must <b>redeploy it as a NEW version</b> (Deploy → Manage deployments → ✏️ Edit → Version: <b>New version</b> → Deploy) — Apps Script "Save" alone does NOT update the live URL. This is the #1 reason email "stops working".</div>
-        </div>
-
-        <div class="f-row" style="grid-template-columns:1fr">
+        <div class="f-row">
           <div class="f-grp"><label>From name (displayed on emails)</label><input id="sf-em-from" type="text" value="${escapeHtml(s.email_from_name || s.workshop_name || '')}" placeholder="Speed Auto Care" /></div>
+          <div class="f-grp"><label>Reply-to email</label><input id="sf-em-reply" type="email" value="${escapeHtml(s.email_reply_to || s.email || '')}" placeholder="service@yourshop.in" autocomplete="off" /></div>
         </div>
-        <details style="margin-top:8px;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:8px">
-          <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--acc2)">How to get this URL (one-time, ~4 minutes)</summary>
-          <ol style="margin:10px 0 4px 18px;font-size:12.5px;color:var(--dim);line-height:1.7">
-            <li>Go to <a href="https://script.google.com" target="_blank" rel="noopener" style="color:var(--acc2)">script.google.com</a> and sign in with the Gmail you want emails to come from.</li>
-            <li>Click <b>+ New project</b>. Delete the default code and paste the script below. Click <b>Save</b>.</li>
-            <li>Click <b>Deploy → New deployment</b>. Type: <b>Web app</b>. Execute as: <b>Me</b>. Who has access: <b>Anyone</b>. Click <b>Deploy</b>.</li>
-            <li>Authorise the script (Google asks once). Copy the <b>Web app URL</b> it gives you and paste it above.</li>
-          </ol>
-          <pre style="background:#0b0d12;color:#eaeef5;font-size:11px;padding:12px;border-radius:6px;overflow:auto;margin-top:10px;line-height:1.55">function doPost(e) {
-  try {
-    // Garage Pro posts as a regular HTML form (to dodge browser CORS rules),
-    // so the JSON arrives in e.parameter.payload. Older clients used raw POST
-    // bodies — fall back to e.postData.contents so both work.
-    const raw = (e.parameter && e.parameter.payload) || (e.postData && e.postData.contents) || '';
-    const b   = JSON.parse(raw);
-    if (!b.to || !b.subject) return out({ok:false, error:'Missing to/subject'});
-    const opts = { htmlBody: b.html || b.body || '', name: b.fromName || 'Workshop' };
-    if (b.replyTo) opts.replyTo = b.replyTo;
-    // Inline logo — Gmail strips data: image URLs, so we attach it as an inline
-    // image referenced by cid:gp_logo in the HTML. This makes the logo show up.
-    if (b.logo && b.logo.indexOf('base64,') > -1) {
-      var meta = b.logo.substring(0, b.logo.indexOf(','));
-      var data = b.logo.substring(b.logo.indexOf(',') + 1);
-      var mime = (meta.match(/data:(.*?);/) || [])[1] || 'image/png';
-      opts.inlineImages = { gp_logo: Utilities.newBlob(Utilities.base64Decode(data), mime, 'logo') };
-    }
-    // Invoice PDF — the app sends the invoice as HTML; convert it to a PDF and
-    // attach it so the customer gets a proper downloadable invoice.
-    if (b.invoiceHtml) {
-      var pdf = Utilities.newBlob(b.invoiceHtml, 'text/html', (b.invoiceName || 'Invoice') + '.html')
-                  .getAs('application/pdf').setName((b.invoiceName || 'Invoice') + '.pdf');
-      opts.attachments = [pdf];
-    }
-    MailApp.sendEmail(b.to, b.subject, b.body || '', opts);
-    return out({ok:true});
-  } catch (err) { return out({ok:false, error:String(err)}); }
-}
-// doGet supports JSONP so Garage Pro can verify the URL works — POST responses
-// are CORS-blocked, but a &lt;script src="...?callback=foo"&gt; tag isn't.
-function doGet(e) {
-  const cb = e && e.parameter && e.parameter.callback;
-  const payload = { ok: true, message: 'Email relay alive', quota: MailApp.getRemainingDailyQuota() };
-  if (cb) {
-    return ContentService.createTextOutput(cb + '(' + JSON.stringify(payload) + ')')
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
-  }
-  return ContentService.createTextOutput('Email relay — OK');
-}
-function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }</pre>
-        </details>
+        <div style="font-size:12px;color:var(--faint);margin-top:6px">Emails are sent from a do-not-reply Garage Pro address — customer replies go straight to the address above instead. Defaults to this workshop's <b>Contact email</b> (set above in Workshop info) until you type a different one.</div>
 
         <!-- Template picker — three tile choices -->
         <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
@@ -11745,7 +11659,7 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
             <input type="checkbox" id="sf-em-attach" ${s.email_attach_invoice !== false ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer" />
             <span style="font-family:var(--fd);font-weight:700;font-size:13.5px">Attach the invoice as a PDF</span>
           </label>
-          <div style="font-size:11.5px;color:var(--faint);margin:6px 0 0 28px;line-height:1.5">When an email is tied to an invoice (invoice-ready, ready-for-pickup, thank-you), the invoice is attached as a downloadable PDF. Works on the Google Apps Script path.</div>
+          <div style="font-size:11.5px;color:var(--faint);margin:6px 0 0 28px;line-height:1.5">When an email is tied to an invoice (invoice-ready, ready-for-pickup, thank-you), the invoice is attached as a downloadable file.</div>
         </div>
 
         <!-- Custom footer (on top) + cancellation policy footer -->
@@ -11761,7 +11675,6 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
         <!-- Actions -->
         <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <button class="refresh-btn" onclick="_testAppsScriptConnection()" title="Verify the URL reaches a deployed script"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>Test connection</button>
             <input type="email" id="sf-em-test" placeholder="Send test to…" style="padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:13.5px;width:200px" />
             <button class="refresh-btn" onclick="_sendTestEmail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Send test</button>
           </div>
@@ -12098,29 +12011,22 @@ window._removeServiceType = async function(name) {
 window.saveEmailSettings = async function() {
   D.settings = D.settings || {};
   D.settings.email_enabled       = !!document.getElementById('sf-em-on').checked;
-  D.settings.email_appscript_url = (document.getElementById('sf-em-url')?.value || '').trim();
-  D.settings.emailjs_public_key  = (document.getElementById('sf-ejs-key')?.value || '').trim();
-  D.settings.emailjs_service_id  = (document.getElementById('sf-ejs-svc')?.value || '').trim();
-  D.settings.emailjs_template_id = (document.getElementById('sf-ejs-tpl')?.value || '').trim();
   D.settings.email_from_name     = (document.getElementById('sf-em-from')?.value || '').trim();
+  D.settings.email_reply_to      = (document.getElementById('sf-em-reply')?.value || '').trim();
   D.settings.email_template      = (document.querySelector('input[name="sf-em-tpl"]:checked')?.value) || 'classic';
   D.settings.cancellation_policy = (document.getElementById('sf-em-policy')?.value || '').trim();
   D.settings.email_footer_custom = (document.getElementById('sf-em-footer')?.value || '').trim();
   D.settings.email_attach_invoice = !!document.getElementById('sf-em-attach')?.checked;
   delete D.settings.email_smtp_user;
   delete D.settings.email_smtp_pass;
+  delete D.settings.email_appscript_url;
+  delete D.settings.emailjs_public_key;
+  delete D.settings.emailjs_service_id;
+  delete D.settings.emailjs_template_id;
   const triggers = {};
   document.querySelectorAll('input[data-em-trig]').forEach(el => { triggers[el.dataset.emTrig] = !!el.checked; });
   D.settings.email_triggers = triggers;
-  // Validation when emails are enabled — need EITHER EmailJS (all 3) OR Apps Script URL
   const msg = document.getElementById('sf-em-msg');
-  msg.style.color = 'var(--red)';
-  const hasEjs = D.settings.emailjs_public_key && D.settings.emailjs_service_id && D.settings.emailjs_template_id;
-  const hasScript = /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(D.settings.email_appscript_url);
-  if (D.settings.email_enabled && !hasEjs && !hasScript) {
-    msg.textContent = 'Add your EmailJS keys (all three) — or an Apps Script URL — before enabling emails.';
-    return;
-  }
   await wsSaveSettings();
   msg.style.color = 'var(--teal)';
   msg.textContent = '✓ Saved. ' + (D.settings.email_enabled ? 'Emails will fire on the events you ticked.' : 'Emails are disabled — toggle on to send.');
@@ -12208,96 +12114,10 @@ window._closeEmailPreview = function() {
   if (wrap)  wrap.style.display = 'none';
 };
 
-// JSONP-based connection test — verifies the URL points at a live, properly
-// deployed Apps Script with "Anyone" access. POST responses are CORS-blocked
-// so we can't inspect a real send, but a <script> tag isn't subject to CORS,
-// so we ask doGet to wrap its response in a JSONP callback we control.
-//
-// Tells us 4 critical things in one call:
-//   1. The URL itself loads (no 404 → wrong URL or no deployment)
-//   2. The script executed (no error → script saved)
-//   3. The script reached the LATEST deployed version (the JSONP block exists in the new code)
-//   4. MailApp permission was granted (getRemainingDailyQuota throws otherwise)
-window._testAppsScriptConnection = function() {
-  const msg = document.getElementById('sf-em-msg');
-  // If EmailJS is configured, there's no separate "connection test" — the
-  // Send test button gives real success/error. Point the user there.
-  const key = (document.getElementById('sf-ejs-key')?.value || '').trim();
-  const svc = (document.getElementById('sf-ejs-svc')?.value || '').trim();
-  const tpl = (document.getElementById('sf-ejs-tpl')?.value || '').trim();
-  if (key && svc && tpl) {
-    msg.style.color = 'var(--dim)';
-    msg.innerHTML = 'Using EmailJS — just type your address in the test box and hit <b>Send test</b>. It reports the exact result (success or the precise error).';
-    return;
-  }
-  const url = (document.getElementById('sf-em-url')?.value || (D.settings||{}).email_appscript_url || '').trim();
-  if (!url) { msg.style.color='var(--red)'; msg.textContent='Add EmailJS keys (recommended) or an Apps Script URL first.'; return; }
-  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(url)) {
-    msg.style.color='var(--red)'; msg.textContent='That URL doesn\'t look like an Apps Script Web App URL (must end in /exec).'; return;
-  }
-  msg.style.color = 'var(--dim)';
-  msg.textContent = 'Testing connection…';
-  const cbName = '_gpEmCb' + Date.now() + Math.floor(Math.random()*1000);
-  const script = document.createElement('script');
-  let done = false;
-  const cleanup = () => {
-    delete window[cbName];
-    try { script.remove(); } catch(_) {}
-  };
-  // 12s timeout — if the script never fires the callback, the deployment
-  // probably isn't using the latest code (the OLD doGet returns plain text,
-  // not JSONP, so the browser silently fails to execute it as JS).
-  const timeout = setTimeout(() => {
-    if (done) return; done = true; cleanup();
-    msg.style.color = 'var(--red)';
-    msg.innerHTML = '✗ <b>No response from your Apps Script.</b> Likely causes:<br>'
-      + '&nbsp;&nbsp;• The script wasn\'t redeployed after editing (Apps Script "Save" ≠ "Deploy"). Go to <b>Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy</b>.<br>'
-      + '&nbsp;&nbsp;• The deployment\'s "Who has access" isn\'t set to <b>Anyone</b>.<br>'
-      + '&nbsp;&nbsp;• You pasted a Save URL, not a Web App URL (the right one ends in <code>/exec</code>).';
-  }, 12000);
-  window[cbName] = (resp) => {
-    if (done) return; done = true; clearTimeout(timeout); cleanup();
-    if (resp && resp.ok) {
-      msg.style.color = 'var(--teal)';
-      const quotaStr = (typeof resp.quota === 'number') ? ` · ${resp.quota} emails left in Gmail's daily quota` : '';
-      msg.innerHTML = '✓ <b>Connected.</b> Your Apps Script is alive and authorised' + quotaStr + '. You can send a test email below.';
-    } else {
-      msg.style.color = 'var(--red)';
-      msg.innerHTML = '✗ Script responded but reported an error: ' + escapeHtml(JSON.stringify(resp || {}));
-    }
-  };
-  script.onerror = () => {
-    if (done) return; done = true; clearTimeout(timeout); cleanup();
-    msg.style.color = 'var(--red)';
-    msg.innerHTML = '✗ <b>Couldn\'t load the script URL.</b> Either the URL is wrong, the deployment was deleted, or the script crashed with an authorization error. Open the script at <a href="https://script.google.com" target="_blank" style="color:var(--acc2)">script.google.com</a> and check the <b>Executions</b> log.';
-  };
-  script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + encodeURIComponent(cbName);
-  document.body.appendChild(script);
-};
-
-// Send a test email to whatever address is typed into the test field. Uses
-// the CURRENT form values, not the persisted settings, so the user can iterate
-// without saving first. (Saves the entered creds first so the function can read them.)
-// Send-test triggered from the Apps Script box (no visible input there) —
-// ask for the address, drop it into the shared test field, then reuse the
-// normal send-test path so behaviour + messages stay identical.
-window._sendTestEmailPrompt = async function() {
-  const to = await customPrompt('Send a test email to which address?', {
-    title: 'Send test email', placeholder: 'you@example.com', okLabel: 'Send test'
-  });
-  if (to === null) return;
-  const clean = (to || '').trim();
-  if (!clean) { showToast('Enter an email address', 'bad'); return; }
-  const inp = document.getElementById('sf-em-test');
-  if (inp) inp.value = clean;
-  await _sendTestEmail();
-};
-
 window._sendTestEmail = async function() {
   const msg = document.getElementById('sf-em-msg');
   const to  = document.getElementById('sf-em-test').value.trim();
   if (!to) { msg.style.color='var(--red)'; msg.textContent='Enter an address in the test field first.'; return; }
-  // Persist whatever's typed in so the Cloud Function has live creds to use
   await saveEmailSettings();
   if (!D.settings.email_enabled) { msg.style.color='var(--red)'; msg.textContent='Tick "Enable customer emails" first.'; return; }
   msg.style.color='var(--dim)';
@@ -12309,9 +12129,7 @@ window._sendTestEmail = async function() {
   });
   if (res.ok) {
     msg.style.color = 'var(--teal)';
-    // Gmail (via Apps Script or EmailJS) confirmed the send — this is a REAL
-    // success, not a "we hope it worked". The message actually left the outbox.
-    msg.innerHTML = '✓ <b>Sent — and confirmed by Gmail.</b> Check the inbox at <b>' + escapeHtml(to) + '</b> (give it a minute; check spam the first time).';
+    msg.innerHTML = '✓ <b>Sent.</b> Check the inbox at <b>' + escapeHtml(to) + '</b> (give it a minute; check spam the first time).';
   } else {
     msg.style.color = 'var(--red)';
     msg.innerHTML = '✗ <b>Not sent:</b> ' + escapeHtml(res.error || res.skipped || 'unknown error');
@@ -14463,12 +14281,11 @@ window.generateInvoice = async function(jobId) {
 
 // ══════════════════════════════════════════════════════════════════════════
 //  CUSTOMER EMAIL NOTIFICATIONS
-//  Browser can't speak SMTP, so the actual send is performed by a tiny
-//  Google Apps Script Web App running in the workshop owner's Google
-//  account (URL stored in D.settings.email_appscript_url). The script
-//  uses MailApp.sendEmail under the hood — free forever, no Firebase
-//  Blaze plan, no backend, no App Password. This module owns the
-//  templates, the trigger registry, and the client-side dispatcher.
+//  Browser can't hold a secret API key, so the actual send goes through a
+//  small Vercel relay (see email-relay/) that calls Resend server-side.
+//  This module owns the templates, the trigger registry, and the
+//  client-side dispatcher; _smtpSend() below is the low-level call to
+//  that relay.
 //
 //  Templates:  Classic | Formal | Receipt — chosen in Settings.
 //  Triggers:   booking_confirmed, estimate_ready, customer_approved,
@@ -14743,11 +14560,10 @@ function _emailTplReceipt(d, evt) {
 //
 // To actually send, requires:
 //   D.settings.email_enabled            = true
-//   D.settings.email_appscript_url      = the Apps Script Web App URL (ends /exec)
 //   D.settings.email_template           = 'classic' | 'formal' | 'receipt'
 //   D.settings.email_triggers[eventId]  = true
 //
-// The actual send is done by the workshop's Apps Script Web App.
+// The actual send goes through the Vercel/Resend relay (see _smtpSend below).
 // ──────────────────────────────────────────────────────────────────────────
 async function sendCustomerNotification(eventId, opts = {}) {
   const s = D.settings || {};
@@ -14759,9 +14575,9 @@ async function sendCustomerNotification(eventId, opts = {}) {
   const data = _buildEmailData({ ...opts, event: eventId, headline: evt.headline });
   if (!data.customer_email) return { ok: false, skipped: 'no-recipient' };
   const { subject, html } = _renderEmailTemplate(s.email_template || 'classic', data);
-  // Attach the invoice as a real PDF when there's an invoice in scope and the
-  // owner hasn't turned attachments off. Built from the same record the Invoices
-  // tab prints; the Apps Script relay converts the HTML to a PDF server-side.
+  // Attach the invoice when there's one in scope and the owner hasn't turned
+  // attachments off. Built from the same record the Invoices tab prints; sent
+  // to the relay as HTML (not converted to PDF — see email-relay/README.md).
   let invoiceHtml = '', invoiceName = '';
   const invForPdf = opts.invoice || (opts.job ? (D.invoices || []).find(x => x.job_id === opts.job.id) : null);
   if (invForPdf && s.email_attach_invoice !== false) {
@@ -14782,22 +14598,18 @@ async function sendCustomerNotification(eventId, opts = {}) {
 }
 window.sendCustomerNotification = sendCustomerNotification;
 
-// Low-level send. Posts to the workshop's Apps Script Web App URL, which uses
-// MailApp.sendEmail to deliver via the owner's Gmail. Free forever — no Cloud
-// Functions, no Blaze plan, no App Password.
-//
-// Why hidden form + iframe instead of fetch:
-//   Apps Script web apps respond with a 302 redirect to script.googleusercontent.com,
-//   and neither response includes an Access-Control-Allow-Origin header. fetch()
-//   (even with mode:'no-cors') refuses to follow that cross-origin redirect and
-//   throws "Failed to fetch". HTML forms are NOT subject to CORS for the request
-//   itself — the browser submits, follows the redirect, and lands the response in
-//   a target iframe. We can't read the response body (cross-origin iframe), but
-//   the request goes through and Apps Script processes it. The iframe's `load`
-//   event tells us the round-trip completed.
+// Low-level send — posts to the Vercel relay, which calls Resend server-side.
+// Vercel relay that actually calls Resend (the API key lives server-side —
+// see email-relay/README.md). Fill in EMAIL_RELAY_URL once that's deployed.
+const EMAIL_RELAY_URL = 'https://email-relay-gilt.vercel.app/api/send';
+const EMAIL_RELAY_KEY  = '2b8151bd6fd5180c23109bc2dd115fe44f1ca29d104e741f';
+
 async function _smtpSend({ to, subject, html, fromName, logo, invoiceHtml, invoiceName }) {
   const s = D.settings || {};
-  const replyTo = s.email || s.workshop_email || '';
+  // Reply-to priority: an explicit Reply-to email (Settings → Customer email
+  // notifications) > this workshop's general Contact email > nothing. Sending
+  // itself is from a do-not-reply Garage Pro address — replies always land here.
+  const replyTo = s.email_reply_to || s.email || s.workshop_email || '';
   // One automatic retry on transient network failures — the single biggest cause
   // of "half the emails don't send" is a flaky fetch, not a real rejection.
   const _postOnce = async (url, init) => {
@@ -14808,94 +14620,42 @@ async function _smtpSend({ to, subject, html, fromName, logo, invoiceHtml, invoi
     }
     throw lastErr;
   };
-  // ── Preferred path: EmailJS REST API ──────────────────────────────────────
-  // EmailJS is CORS-enabled and returns a REAL success/error response, unlike
-  // the Apps Script iframe (which is opaque — we can never tell if it worked).
-  // If the three EmailJS fields are set, use it.
-  if (s.emailjs_public_key && s.emailjs_service_id && s.emailjs_template_id) {
-    const body = {
-      service_id:  s.emailjs_service_id,
-      template_id: s.emailjs_template_id,
-      user_id:     s.emailjs_public_key,
-      template_params: {
-        to_email:  to,
-        subject:   subject,
-        html_body: html,
-        from_name: fromName || s.email_from_name || s.workshop_name || 'Garage Pro',
-        reply_to:  replyTo
-      }
-    };
-    let resp;
-    try {
-      resp = await _postOnce('https://api.emailjs.com/api/v1.0/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-    } catch (e) {
-      throw new Error('Network error reaching EmailJS: ' + (e?.message || e));
-    }
-    if (resp.ok) return { ok: true };
-    // EmailJS returns a plain-text error we CAN read (real feedback)
-    const txt = (await resp.text().catch(() => '')) || ('HTTP ' + resp.status);
-    let hint = txt;
-    if (/Public Key is invalid|user_id/i.test(txt))     hint = 'EmailJS Public Key is wrong.';
-    else if (/service_id|service ID/i.test(txt))         hint = 'EmailJS Service ID is wrong.';
-    else if (/template_id|template ID/i.test(txt))       hint = 'EmailJS Template ID is wrong.';
-    else if (/Gmail_API|insufficient|scopes|reconnect/i.test(txt)) hint = 'EmailJS Gmail connection needs reconnecting in the EmailJS dashboard.';
-    throw new Error('EmailJS rejected the email: ' + hint);
+  if (!EMAIL_RELAY_URL || EMAIL_RELAY_URL.includes('REPLACE_WITH_YOUR_VERCEL_URL')) {
+    throw new Error('Email relay isn\'t deployed yet — set EMAIL_RELAY_URL near _smtpSend() once email-relay/ is live on Vercel.');
   }
-
-  // ── Google Apps Script relay — now with REAL success/error ────────────────
-  // The old version posted through a hidden iframe whose response is
-  // cross-origin-opaque, so it ALWAYS reported "sent" even when Gmail failed —
-  // that's why "email doesn't work but shows no error". The fix: fetch() with a
-  // text/plain body (a "simple" request → no CORS preflight, which Apps Script
-  // can't answer). Apps Script's /exec 302-redirects to
-  // script.googleusercontent.com whose response carries
-  // Access-Control-Allow-Origin: *, so we can actually READ the JSON result.
-  // Requires the updated Apps Script (Settings shows the exact code) that ends
-  // with: return ContentService.createTextOutput(JSON.stringify({ok:true})).
-  const url = s.email_appscript_url;
-  if (!url) throw new Error('Email isn\'t set up yet. In Settings → Customer email notifications, paste your Google Apps Script Web App URL (or EmailJS keys).');
-  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec/.test(url))
-    throw new Error('That doesn\'t look like an Apps Script Web App URL — it should end with /exec.');
   // Logo fix: email clients (Gmail especially) strip <img src="data:…">. So we
-  // send the logo to the Apps Script as a separate base64 field and rewrite its
-  // <img src> to a cid: reference; the script attaches it as an INLINE image,
-  // which renders reliably. Only swaps when the data-URL logo is actually in the html.
+  // send the logo to the relay as a separate base64 field and rewrite its
+  // <img src> to a cid: reference; the relay attaches it as an INLINE image
+  // (Resend's content_id attachment field), which renders reliably. Only
+  // swaps when the data-URL logo is actually present in the html.
   let outHtml = html, logoData = '';
   if (logo && /^data:image\//i.test(logo) && html.indexOf(logo) >= 0) {
     outHtml = html.split(logo).join('cid:gp_logo');
     logoData = logo;
   }
-  const payload = {
-    to, subject, html: outHtml,
-    body: outHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
-    fromName: fromName || s.email_from_name || s.workshop_name || 'Garage Pro',
-    replyTo,
-    logo: logoData,                    // data URL → inline image (cid:gp_logo)
-    invoiceHtml: invoiceHtml || '',    // Apps Script converts to a PDF attachment
-    invoiceName: invoiceName || 'Invoice'
-  };
+  // Sender identity per garage: the workshop's own name as the From display
+  // name, and its reply-to (above) so customer replies land with the garage,
+  // not the platform's do-not-reply inbox.
   let resp;
   try {
-    resp = await _postOnce(url, {
+    resp = await _postOnce(EMAIL_RELAY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // simple request → no preflight
-      body: JSON.stringify(payload),
-      redirect: 'follow'
+      headers: { 'Content-Type': 'application/json', 'x-relay-key': EMAIL_RELAY_KEY },
+      body: JSON.stringify({
+        to, subject, html: outHtml,
+        fromName: fromName || s.email_from_name || s.workshop_name || 'Garage Pro',
+        replyTo,
+        logo: logoData,                  // data URL → inline image (cid:gp_logo)
+        attachmentHtml: (invoiceHtml && s.email_attach_invoice !== false) ? invoiceHtml : '',
+        attachmentName: invoiceName || 'Invoice'
+      })
     });
   } catch (e) {
-    throw new Error('Couldn\'t reach the Apps Script URL: ' + (e?.message || e) + '. Check the URL and that the script is deployed with access "Anyone".');
+    throw new Error('Couldn\'t reach the email relay: ' + (e?.message || e));
   }
-  const text = await resp.text().catch(() => '');
-  let data = null; try { data = JSON.parse(text); } catch (_) {}
-  if (data && data.ok === true)  return { ok: true };
-  if (data && data.ok === false) throw new Error('Gmail rejected it: ' + (data.error || 'unknown error'));
-  // No readable JSON came back → the deployed script is the OLD version that
-  // doesn't return a result (or wasn't redeployed as a NEW version).
-  throw new Error('Your Apps Script didn\'t confirm the send. Copy the latest script from Settings (it must return JSON {ok:true}) and redeploy it as a NEW version.');
+  const data = await resp.json().catch(() => null);
+  if (resp.ok && data && data.ok) return { ok: true };
+  throw new Error((data && data.error) || `Email relay error ${resp.status}`);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
