@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Leave feedback · Garage Pro</title>
+<style>
+  :root{
+    --bg:#0a0e14; --bg2:#121722; --surf:#171d2a; --brd:#26303f; --brd2:#324056;
+    --txt:#e7ecf3; --dim:#9fb0c6; --faint:#69788f;
+    --acc:#ff7a18; --acc2:#ff9a45; --teal:#20e3b2; --red:#ff6b6b; --blue:#639fff;
+    --fb:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--fb);-webkit-font-smoothing:antialiased;min-height:100%}
+  .wrap{max-width:520px;margin:0 auto;padding:20px 16px 40px;min-height:100vh;display:flex;flex-direction:column}
+  .brand{display:flex;align-items:center;gap:10px;padding:14px 0 18px;border-bottom:1px solid var(--brd);margin-bottom:22px}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;font-weight:800;color:#0a0e14;font-size:17px}
+  .ws{font-weight:700;font-size:15.5px}
+  .sub{font-size:12px;color:var(--faint)}
+  .card{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:26px 22px}
+  h1{font-size:19px;margin:0 0 6px;font-weight:800}
+  .lead{font-size:13.5px;color:var(--dim);margin:0 0 22px;line-height:1.5}
+  .stars{display:flex;gap:8px;justify-content:center;margin-bottom:22px}
+  .star{font-size:38px;line-height:1;cursor:pointer;color:var(--brd2);transition:color .15s,transform .1s;user-select:none;background:none;border:0;padding:0}
+  .star:hover{transform:scale(1.08)}
+  .star.on{color:var(--acc2)}
+  label{display:block;font-size:12.5px;color:var(--dim);font-weight:600;margin-bottom:7px}
+  textarea{width:100%;min-height:100px;padding:12px 14px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px;resize:vertical}
+  textarea:focus{outline:none;border-color:var(--acc2)}
+  .submit-btn{width:100%;margin-top:18px;padding:14px;border-radius:10px;border:0;font-family:var(--fb);font-weight:700;font-size:15px;cursor:pointer;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05}
+  .submit-btn:disabled{opacity:.5;cursor:not-allowed}
+  .err{color:var(--red);font-size:12.5px;margin-top:10px;min-height:16px}
+  .state{text-align:center;padding:60px 20px;color:var(--dim);margin:auto}
+  .dot{width:38px;height:38px;border-radius:50%;border:3px solid rgba(255,255,255,.14);border-top-color:var(--acc);animation:spin .8s linear infinite;margin:0 auto 16px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .thanks-icon{width:56px;height:56px;border-radius:50%;background:rgba(32,227,178,.14);color:var(--teal);display:grid;place-items:center;margin:0 auto 18px;font-size:28px}
+</style>
+</head>
+<body>
+<div class="wrap" id="root">
+  <div class="state"><div class="dot"></div>Loading…</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+const FB_CONFIG = {
+  apiKey: "AIzaSyD4rRHyT3NOxTfwQDy3mjv9HVYUH3riGDA",
+  authDomain: "garage-pro-874c6.firebaseapp.com",
+  projectId: "garage-pro-874c6",
+  storageBucket: "garage-pro-874c6.firebasestorage.app",
+  messagingSenderId: "714982026183",
+  appId: "1:714982026183:web:95401fffb0a93151b407e2"
+};
+
+const root = document.getElementById('root');
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const qs = new URLSearchParams(location.search);
+const WUID  = qs.get('w') || '';
+const TOKEN = qs.get('t') || '';
+let db, rating = 0;
+
+function stateMsg(html){ root.innerHTML = `<div class="state">${html}</div>`; }
+
+function boot(){
+  if (!WUID || !TOKEN) { stateMsg('This link is incomplete. Please ask the workshop to resend it.'); return; }
+  try {
+    firebase.initializeApp(FB_CONFIG);
+    db = firebase.firestore();
+  } catch (e) { stateMsg('Could not connect. Please try again in a moment.'); return; }
+  db.collection('users').doc(WUID).collection('feedback_links').doc(TOKEN).get().then(snap => {
+    if (!snap.exists) { stateMsg('This feedback link is no longer valid.'); return; }
+    const data = snap.data() || {};
+    if (data.submitted) { renderThanks(data); return; }
+    renderForm(data);
+  }).catch(e => {
+    console.error('[feedback] load failed:', e && e.code, e);
+    stateMsg(`Couldn't load this page.<br><span style="font-size:12.5px;color:var(--faint)">Please check your connection and refresh.</span>`);
+  });
+}
+
+function renderForm(DATA){
+  const initial = (DATA.workshop_name || 'G').trim().charAt(0).toUpperCase();
+  root.innerHTML = `
+    <div class="brand">
+      <div class="logo">${esc(initial)}</div>
+      <div><div class="ws">${esc(DATA.workshop_name || 'Workshop')}</div><div class="sub">${DATA.plate ? esc(DATA.plate) : 'Your recent visit'}</div></div>
+    </div>
+    <div class="card">
+      <h1>How was your experience?</h1>
+      <p class="lead">${DATA.cust_name ? 'Hi ' + esc(DATA.cust_name.split(' ')[0]) + ', y' : 'Y'}our feedback helps ${esc(DATA.workshop_name || 'the workshop')} improve.</p>
+      <div class="stars" id="stars">
+        ${[1,2,3,4,5].map(n => `<button type="button" class="star" data-n="${n}" onclick="setRating(${n})">★</button>`).join('')}
+      </div>
+      <label for="fb-comment">Comment (optional)</label>
+      <textarea id="fb-comment" placeholder="Tell us what went well or what we could do better…"></textarea>
+      <button class="submit-btn" id="fb-submit" onclick="submitFeedback()">Submit feedback</button>
+      <div class="err" id="fb-err"></div>
+    </div>
+  `;
+}
+
+window.setRating = function(n){
+  rating = n;
+  document.querySelectorAll('.star').forEach(el => {
+    el.classList.toggle('on', Number(el.dataset.n) <= n);
+  });
+};
+
+window.submitFeedback = function(){
+  const err = document.getElementById('fb-err');
+  if (!rating) { err.textContent = 'Please pick a star rating first.'; return; }
+  const btn = document.getElementById('fb-submit');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  const comment = (document.getElementById('fb-comment').value || '').trim().slice(0, 2000);
+  db.collection('users').doc(WUID).collection('feedback_links').doc(TOKEN).update({
+    rating, comment, submitted: true, submitted_at: new Date().toISOString()
+  }).then(() => {
+    renderThanks({});
+  }).catch(e => {
+    console.error('[feedback] submit failed:', e && e.code, e);
+    err.textContent = 'Could not submit — please try again.';
+    btn.disabled = false; btn.textContent = 'Submit feedback';
+  });
+};
+
+function renderThanks(){
+  root.innerHTML = `
+    <div class="state">
+      <div class="thanks-icon">✓</div>
+      <div style="font-size:17px;font-weight:800;color:var(--txt);margin-bottom:6px">Thank you!</div>
+      <div>Your feedback has been received.</div>
+    </div>
+  `;
+}
+
+boot();
+</script>
+</body>
+</html>
