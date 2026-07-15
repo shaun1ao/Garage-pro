@@ -89,13 +89,6 @@ h1,h2,h3,h4{font-family:var(--fd);font-weight:800;letter-spacing:-.01em;line-hei
 .auth-form .a-ok{font-size:13px;color:var(--teal);min-height:18px}
 .auth-form .full-btn{width:100%;justify-content:center;margin-top:2px}
 .auth-form .forgot{background:none;border:0;color:var(--acc2);font-size:13px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;text-align:right;margin-top:-8px}
-/* Worker sign-in — workshop search dropdown (mirrors track.html's picker) */
-.wl-ws-dropdown{display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;max-height:220px;overflow-y:auto;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.4)}
-.wl-ws-item{display:block;width:100%;text-align:left;padding:11px 13px;cursor:pointer;border:0;border-bottom:1px solid var(--brd);background:none;color:var(--txt);font-family:var(--fb);font-size:13.5px}
-.wl-ws-item:last-child{border-bottom:0}
-.wl-ws-item:hover{background:rgba(255,179,71,.08)}
-.wl-picked-chip{margin-bottom:14px;padding:11px 13px;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13.5px}
-.wl-picked-chip button{background:none;border:1px solid var(--brd2);color:var(--dim);padding:5px 11px;border-radius:6px;font-size:12px;cursor:pointer}
 .auth-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fff;color:#1a1a1a;border:1px solid #dadce0;border-radius:9px;padding:11px 14px;font-family:var(--fb);font-weight:600;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.1)}
 .auth-google:hover{box-shadow:0 4px 12px rgba(0,0,0,.18);transform:translateY(-1px)}
 .auth-google:disabled{opacity:.6;cursor:not-allowed;transform:none}
@@ -550,7 +543,6 @@ input[list]{background:var(--bg2)}
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="authTabSignin" onclick="switchAuth('signin')">Sign in</button>
-      <button class="auth-tab" id="authTabWorker" onclick="switchAuth('worker')">Worker PIN</button>
       <button class="auth-tab" id="authTabSignup" onclick="switchAuth('signup')">Create workshop</button>
     </div>
 
@@ -586,37 +578,6 @@ input[list]{background:var(--bg2)}
       </div>
       <div class="a-err" id="su-err"></div>
       <button type="submit" class="btn full-btn">Create workshop</button>
-    </form>
-
-    <!-- SIGN IN AS WORKER — no workshop email/password needed. Search for the
-         workshop by name (same public directory track.html uses), then enter
-         your own name + PIN. This signs you into the FULL app under your
-         role's normal permissions, not a limited view. -->
-    <form class="auth-form" id="authFormWorker" onsubmit="doWorkerLogin(event)" autocomplete="off">
-      <div id="wl-step-search">
-        <div><label>Which state is your workshop in?</label>
-          <select id="wl-state-input" onchange="_wlStatePicked()">
-            <option value="">— Pick a state —</option>
-          </select>
-        </div>
-        <div style="position:relative;margin-top:14px">
-          <label>Workshop name</label>
-          <input id="wl-ws-input" type="text" placeholder="Start typing your workshop name…" disabled oninput="_wlRenderDropdown(this.value)" onfocus="_wlRenderDropdown(this.value)" />
-          <div class="wl-ws-dropdown" id="wl-ws-dropdown"></div>
-        </div>
-        <div style="font-size:12px;color:var(--faint);margin-top:6px" id="wl-search-msg"></div>
-      </div>
-
-      <div id="wl-step-pin" style="display:none">
-        <div class="wl-picked-chip">
-          <div><span style="color:var(--faint)">Workshop:</span> <b id="wl-picked-name" style="color:var(--txt)"></b></div>
-          <button type="button" onclick="_wlChangeWorkshop()">Change</button>
-        </div>
-        <div><label>Your name</label><input id="wl-name" type="text" placeholder="Aslam" autocomplete="off" /></div>
-        <div><label>PIN</label><input id="wl-pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" placeholder="••••" autocomplete="off" /></div>
-        <div class="a-err" id="wl-err"></div>
-        <button type="submit" class="btn full-btn">Sign in</button>
-      </div>
     </form>
 
     <!-- FORGOT PASSWORD -->
@@ -1375,6 +1336,43 @@ const FB_CONFIG = {
   messagingSenderId: "714982026183",
   appId: "1:714982026183:web:95401fffb0a93151b407e2"
 };
+
+// ── Cloudinary (job photo storage) ──────────────────────────────────────
+// Firestore's free tier was filling up fast because every job photo was
+// stored as a base64 data URL inside its own Firestore document (~33%
+// bigger than the raw image, plus it counts against the 1 GiB storage
+// quota and the 1 MiB per-doc limit). Photos now upload straight from the
+// browser to Cloudinary's free tier via an unsigned upload preset — no API
+// secret needed client-side — and only the resulting URL gets saved to
+// Firestore instead of the image bytes.
+const CLOUDINARY_CLOUD_NAME = 'd3btpfep';
+const CLOUDINARY_UPLOAD_PRESET = 'Garage Pro';
+const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+
+// Uploads a Blob/File to Cloudinary and returns its secure (https) URL.
+async function _uploadToCloudinary(blob, filename) {
+  const form = new FormData();
+  form.append('file', blob, filename || 'photo.jpg');
+  form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  const resp = await fetch(CLOUDINARY_UPLOAD_URL, { method: 'POST', body: form });
+  const data = await resp.json().catch(() => null);
+  if (!resp.ok || !data || !data.secure_url) {
+    throw new Error((data && data.error && data.error.message) || 'Photo upload failed');
+  }
+  return data.secure_url;
+}
+
+// A resized-photo data URL (from _resizePhoto/_resizeImageToDataUrl) is
+// already in memory as base64 — decode it back to a Blob so it can be
+// posted as multipart form data instead of re-reading the original file.
+function _dataUrlToBlob(dataUrl) {
+  const [header, b64] = dataUrl.split(',');
+  const mime = /data:(.*?);/.exec(header)[1];
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
 // ── Browser-autofill suppressor ───────────────────────────────────────────
 // We want Chrome/Safari/Firefox to STOP suggesting saved names/emails/phones
 // inside the app's forms (it's noisy and frequently wrong for a workshop tool).
@@ -1800,17 +1798,6 @@ fbAuth.onAuthStateChanged(async (user) => {
       _prefillWizard();
       return;
     }
-    // Came in via the "Worker PIN" sign-in path (a Cloud Function already
-    // verified the name+PIN and minted this session's custom token) — the
-    // worker is already known, so skip the PIN pad entirely.
-    if (window._pendingWorkerLogin) {
-      const pw = window._pendingWorkerLogin;
-      delete window._pendingWorkerLogin;
-      currentWorker = D.mechanics.find(w => w.id === pw.id) || pw;
-      sessionStorage.setItem('gp_worker:' + user.uid, JSON.stringify(currentWorker));
-      enterApp();
-      return;
-    }
     if (!currentWorker || !D.mechanics.find(w => w.id === currentWorker.id)) {
       showPinpad();
       return;
@@ -1857,155 +1844,14 @@ window._prefillWizard = _prefillWizard;
 // ══════════════════════════════════════════
 window.switchAuth = function(which) {
   document.getElementById('authTabSignin').classList.toggle('active', which === 'signin');
-  document.getElementById('authTabWorker' ).classList.toggle('active', which === 'worker');
   document.getElementById('authTabSignup').classList.toggle('active', which === 'signup');
   document.getElementById('authFormSignin').classList.toggle('active', which === 'signin');
-  document.getElementById('authFormWorker').classList.toggle('active', which === 'worker');
   document.getElementById('authFormSignup').classList.toggle('active', which === 'signup');
   document.getElementById('authFormReset' ).classList.toggle('active', which === 'reset');
   // Hide the top tabs row when on the reset view (it's a sub-screen)
   document.querySelector('.auth-tabs').style.display = (which === 'reset') ? 'none' : '';
   // Clear any stale messages
-  ['si-err','su-err','rs-err','rs-ok','wl-err'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
-  if (which === 'worker') _wlInit();
-};
-
-// ══════════════════════════════════════════
-//  WORKER PIN LOGIN — no workshop email/password needed. Worker searches for
-//  their workshop by name (same public `users` root-doc directory the
-//  marketing site's Track Repair page reads — those docs are public-read),
-//  then types their own name + PIN. A Cloud Function checks that name+PIN
-//  server-side and, on a match, hands back a custom Firebase auth token for
-//  that SAME workshop UID — so signing in with it lands in exactly the same
-//  session an email/password sign-in would, with the full app under that
-//  worker's normal role permissions.
-// ══════════════════════════════════════════
-const WORKER_LOGIN_URL = 'https://email-relay-gilt.vercel.app/api/worker-login';
-let _wlAllWorkshops = null;
-let _wlPicked = null;   // { uid, name }
-
-async function _wlLoadWorkshops() {
-  if (_wlAllWorkshops) return _wlAllWorkshops;
-  const snap = await fbDb.collection('users').get();
-  const list = [];
-  snap.forEach(doc => {
-    const d = doc.data() || {};
-    const name = (d.workshop_name || '').trim();
-    if (!name) return;
-    list.push({ uid: doc.id, name, state: (d.state || '').trim() });
-  });
-  list.sort((a, b) => a.name.localeCompare(b.name));
-  _wlAllWorkshops = list;
-  return list;
-}
-
-async function _wlInit() {
-  _wlPicked = null;
-  document.getElementById('wl-step-search').style.display = '';
-  document.getElementById('wl-step-pin').style.display = 'none';
-  document.getElementById('wl-ws-input').value = '';
-  document.getElementById('wl-name').value = '';
-  document.getElementById('wl-pin').value = '';
-  const sel = document.getElementById('wl-state-input');
-  if (sel._wlBuilt) return;
-  const msg = document.getElementById('wl-search-msg');
-  msg.textContent = 'Loading workshops…';
-  try {
-    const list = await _wlLoadWorkshops();
-    const states = new Set();
-    let haveUnspecified = false;
-    for (const w of list) { if (w.state) states.add(w.state); else haveUnspecified = true; }
-    Array.from(states).sort().forEach(s => {
-      const opt = document.createElement('option'); opt.value = s; opt.textContent = s;
-      sel.appendChild(opt);
-    });
-    if (haveUnspecified) {
-      const opt = document.createElement('option'); opt.value = '__unspecified__'; opt.textContent = 'Other / state not specified';
-      sel.appendChild(opt);
-    }
-    sel._wlBuilt = true;
-    msg.textContent = '';
-  } catch (e) {
-    msg.style.color = 'var(--red)';
-    msg.textContent = 'Could not load workshops: ' + (e.message || e);
-  }
-}
-
-window._wlStatePicked = function() {
-  const state = document.getElementById('wl-state-input').value;
-  const input = document.getElementById('wl-ws-input');
-  input.disabled = !state;
-  input.value = '';
-  document.getElementById('wl-ws-dropdown').style.display = 'none';
-  if (!state) return;
-  input.focus();
-  _wlRenderDropdown('');
-};
-
-function _wlRenderDropdown(query) {
-  const state = document.getElementById('wl-state-input').value;
-  const dd = document.getElementById('wl-ws-dropdown');
-  const q = query.toLowerCase().trim();
-  const list = (_wlAllWorkshops || []).filter(w => {
-    const stateMatch = state === '__unspecified__' ? !w.state : w.state === state;
-    return stateMatch && (!q || w.name.toLowerCase().includes(q));
-  }).slice(0, 30);
-  if (!list.length) {
-    dd.innerHTML = `<div style="padding:12px 13px;color:var(--faint);font-size:13px">No workshops match.</div>`;
-    dd.style.display = 'block';
-    return;
-  }
-  dd.innerHTML = list.map(w => `<button type="button" class="wl-ws-item" onclick="_wlPickWorkshop('${escapeHtml(w.uid)}')">${escapeHtml(w.name)}</button>`).join('');
-  dd.style.display = 'block';
-}
-
-window._wlPickWorkshop = function(uid) {
-  const w = (_wlAllWorkshops || []).find(x => x.uid === uid);
-  if (!w) return;
-  _wlPicked = w;
-  document.getElementById('wl-ws-dropdown').style.display = 'none';
-  document.getElementById('wl-picked-name').textContent = w.name;
-  document.getElementById('wl-step-search').style.display = 'none';
-  document.getElementById('wl-step-pin').style.display = '';
-  setTimeout(() => document.getElementById('wl-name').focus(), 0);
-};
-
-window._wlChangeWorkshop = function() {
-  _wlPicked = null;
-  document.getElementById('wl-step-pin').style.display = 'none';
-  document.getElementById('wl-step-search').style.display = '';
-};
-
-window.doWorkerLogin = async function(e) {
-  e.preventDefault();
-  const err = document.getElementById('wl-err'); err.textContent = '';
-  if (!_wlPicked) { err.textContent = 'Pick your workshop first.'; return; }
-  const name = document.getElementById('wl-name').value.trim();
-  const pin  = document.getElementById('wl-pin').value.trim();
-  if (!name || !pin) { err.textContent = 'Enter both your name and PIN.'; return; }
-  const btn = e.target.querySelector('button[type="submit"]');
-  btn.disabled = true; btn.textContent = 'Signing in…';
-  try {
-    const resp = await fetch(WORKER_LOGIN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workshopUid: _wlPicked.uid, name, pin })
-    });
-    const data = await resp.json().catch(() => null);
-    if (!resp.ok || !data || !data.token) {
-      err.textContent = (data && data.error) || 'Sign-in failed — check your name and PIN.';
-      return;
-    }
-    // Stash the already-resolved worker so the auth-state-changed handler
-    // signs straight into the app instead of showing the PIN pad again.
-    window._pendingWorkerLogin = data.worker;
-    await fbAuth.signInWithCustomToken(data.token);
-    // onAuthStateChanged handles the rest
-  } catch (e2) {
-    err.textContent = e2.message || 'Sign-in failed. Check your connection and try again.';
-  } finally {
-    btn.disabled = false; btn.textContent = 'Sign in';
-  }
+  ['si-err','su-err','rs-err','rs-ok'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
 };
 
 window.doEmailSignIn = async function(e) {
@@ -2921,23 +2767,20 @@ async function wsSave(name, items) {
 window.wsRef = wsRef; window.wsCol = wsCol; window.wsLoad = wsLoad; window.wsSave = wsSave;
 
 // ══════════════════════════════════════════════════════════════════════════
-//  JOB-CARD PHOTOS — per-photo Firestore documents
+//  JOB-CARD PHOTOS — per-photo Firestore documents, image on Cloudinary
 //  Stored at users/{uid}/job_photos/{photoId}. Each doc holds ONE photo's
-//  data URL so we never blow the 1MB-per-doc Firestore limit. The job's
-//  photos[] array only stores light metadata (id + label).
-//
-//  Why per-photo docs instead of Firebase Storage: Storage isn't enabled on
-//  this project yet and requires extra setup. This works out of the box and
-//  is fine for workshops with realistic photo volumes (resized to ~150KB each).
+//  light metadata plus its Cloudinary URL (see _uploadToCloudinary above) —
+//  Firestore only ever stores a short string per photo, not the image bytes.
+//  The job's photos[] array only stores light metadata (id + label).
 // ══════════════════════════════════════════════════════════════════════════
 const PHOTO_LABELS = ['Before','After','Damage','Parts replaced','Insurance','Reference','Other'];
 
-// Resize an uploaded image and re-encode as JPEG. Iteratively shrinks the
-// dimensions + quality until the resulting data URL fits under MAX_BYTES so
-// the Firestore doc (1MB hard limit) always accepts it. Always outputs JPEG —
-// PNG photos were exceeding the limit and silently failing.
+// Resize an uploaded image and re-encode as JPEG before it ever leaves the
+// device — keeps uploads fast on shop wifi/mobile data. Iteratively shrinks
+// dimensions + quality until under MAX_BYTES. Always outputs JPEG — PNG
+// photos were coming out oversized otherwise.
 function _resizePhoto(file, maxDim = 1280) {
-  const MAX_BYTES = 850 * 1024;   // ~850KB after base64 leaves headroom for metadata in the 1MB doc
+  const MAX_BYTES = 850 * 1024;   // ~850KB — generous for a resized photo, keeps uploads snappy
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onerror = () => reject(new Error('Couldn\'t read the file. Try a different image.'));
@@ -2969,7 +2812,7 @@ function _resizePhoto(file, maxDim = 1280) {
             if (quality > 0.5) quality = Math.max(0.5, quality - 0.12);
             else dim = Math.round(dim * 0.82);
           }
-          reject(new Error('Photo too detailed to fit in Firestore (1MB doc limit). Use a smaller image, or enable Firebase Storage for bigger uploads.'));
+          reject(new Error('Photo too detailed to resize for upload. Try a smaller image.'));
         } catch (e) {
           reject(e);
         }
@@ -2981,13 +2824,15 @@ function _resizePhoto(file, maxDim = 1280) {
   });
 }
 
-// Upload a single photo for a job. Stores the data URL + metadata at
-// users/{uid}/job_photos/{photoId}. Returns the new photo's metadata (id,
-// label, uploaded_at, uploaded_by) — the data URL stays in Firestore.
+// Upload a single photo for a job. Resizes client-side, then uploads to
+// Cloudinary and stores just the resulting URL + metadata at
+// users/{uid}/job_photos/{photoId} — Firestore never sees the image bytes.
+// Returns the new photo's metadata (id, label, uploaded_at, uploaded_by).
 async function uploadJobPhoto(jobId, file, label) {
   if (!file)  throw new Error('No file selected');
   if (file.size > 8 * 1024 * 1024) throw new Error('Photo too large (max 8 MB before resize)');
-  const data = await _resizePhoto(file, 1280);
+  const resized = await _resizePhoto(file, 1280);
+  const data = await _uploadToCloudinary(_dataUrlToBlob(resized), (file.name || 'photo') + '.jpg');
   const meta = {
     id: uid('photo'),
     job_id: jobId,
@@ -6893,6 +6738,11 @@ function _apprShrinkPhoto(dataUrl, maxDim = 720, quality = 0.5) {
   return new Promise(resolve => {
     try {
       const img = new Image();
+      // Photos now live on Cloudinary (remote https URL, not a same-origin
+      // data: URI) — without this, drawing a cross-origin image to canvas
+      // taints it and toDataURL() throws a SecurityError. Cloudinary's
+      // delivery URLs send permissive CORS headers, so this just works.
+      img.crossOrigin = 'anonymous';
       img.onload = () => {
         try {
           let { width: w, height: h } = img;
@@ -8455,7 +8305,7 @@ window._jobUploadPhotos = async function(ev) {
       // Decode common Firestore errors into something actionable
       let reason = e?.message || String(e);
       if (e?.code === 'permission-denied')         reason = 'Firestore rules block this write. Redeploy firestore.rules.';
-      else if (/longer than/i.test(reason) || /size/i.test(reason)) reason = 'Photo too large for Firestore (>1MB after compression). Try a smaller image, or enable Firebase Storage.';
+      else if (/upload failed|Cloudinary/i.test(reason)) reason = 'Photo upload to Cloudinary failed. Check your connection and try again.';
       else if (/quota/i.test(reason))              reason = 'Firestore daily quota exceeded. Wait 24h or upgrade plan.';
       else if (/network|offline/i.test(reason))    reason = 'Network unavailable. Check your connection.';
       errors.push(`${f.name}: ${reason}`);
