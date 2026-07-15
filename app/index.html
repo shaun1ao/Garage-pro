@@ -862,6 +862,10 @@ input[list]{background:var(--bg2)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
           Reports
         </button>
+        <button class="snav" data-tab="feedback" onclick="switchTab('feedback')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17.3 6.2 21l1.6-6.6L2.5 9.9l6.7-.6L12 3l2.8 6.3 6.7.6-5.3 4.5 1.6 6.6z"/></svg>
+          Feedback
+        </button>
         <button class="snav" data-tab="timesheets" onclick="switchTab('timesheets')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
           Timesheets
@@ -1193,6 +1197,7 @@ input[list]{background:var(--bg2)}
         <div class="page-head">
           <div><h2>Reports</h2><div class="dash-meta"><span class="live-dot"></span><span id="rptCrumb">—</span></div></div>
           <div style="display:flex;gap:8px">
+            <select id="rptBranchFilter" onchange="renderReports()" style="display:none"></select>
             <select id="rptRange" onchange="renderReports()">
               <option value="7">Last 7 days</option>
               <option value="30" selected>Last 30 days</option>
@@ -1204,6 +1209,16 @@ input[list]{background:var(--bg2)}
           </div>
         </div>
         <div id="rptBody"></div>
+      </div>
+      <div class="tab-panel" id="tab-feedback">
+        <div class="page-head">
+          <div><h2>Feedback</h2><div class="dash-meta"><span class="live-dot"></span><span id="fbCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <select id="fbBranchFilter" onchange="renderFeedback()" style="display:none"></select>
+            <button class="refresh-btn" onclick="renderFeedback(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+          </div>
+        </div>
+        <div id="fbBody"></div>
       </div>
       <div class="tab-panel" id="tab-notifications">
         <div class="page-head">
@@ -1566,6 +1581,11 @@ function currentSub() {
   // Chain plan detection: any plan with the word "chain" in the name OR truly
   // unlimited limits (maxBays >= 999). Branches are only available on chain tiers.
   const isChain = /chain/i.test(planLabel) || Number(s.maxBays || 0) >= 999;
+  // Branch cap: Chain → 5 (more than that needs a direct support conversation
+  // — see createBranch). Any other plan is left unrestricted, matching the
+  // branch feature's existing "never blocked by plan" behavior for non-chain
+  // tiers.
+  const maxBranches = isChain ? 5 : Infinity;
   return {
     active,
     planName:    planLabel || 'Plan',
@@ -1574,7 +1594,8 @@ function currentSub() {
     maxBookings: Number(s.maxBookings || 0) || FREE_TIER_LIMITS.maxBookings,
     expiry:      exp,
     licenseKey:  s.licenseKey || '',
-    isChain
+    isChain,
+    maxBranches
   };
 }
 // Block an action when adding `extra` more items would exceed the plan limit.
@@ -2500,14 +2521,15 @@ function renderHeader() {
 // 'chat' (basic internal messaging) is available to every role — it's just
 // text between staff, no financial/customer data, so no gating needed.
 const DEFAULT_ROLE_PERMS = {
-  owner:         ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','timesheets','notifications','chat','audit','settings'],
-  manager:       ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','timesheets','notifications','chat','audit'],
+  owner:         ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','feedback','timesheets','notifications','chat','audit','settings'],
+  manager:       ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','feedback','timesheets','notifications','chat','audit'],
   floor_manager: ['dashboard','bookings','jobs','queue','customers','bays','inventory','request_parts','parts','notifications','chat','timesheets'],
   // Service advisor — owns customer-facing intake, job cards, estimates, QC hand-off and invoices.
   // 'parts' (Manage Requests) added so the Service Advisor can see requests
   // they're now notified about — it renders read-only for them (ordering /
   // receiving stays Parts department + owner/manager only, see canApproveParts()).
-  service_advisor: ['dashboard','bookings','jobs','queue','customers','bays','invoices','parts','notifications','chat','timesheets'],
+  // 'feedback' — SA is the one closest to customer relationships day-to-day.
+  service_advisor: ['dashboard','bookings','jobs','queue','customers','bays','invoices','parts','feedback','notifications','chat','timesheets'],
   // Parts department — owns the manage/approve side (approve / price / order / fulfil → stocks the item) plus can request.
   // 'jobs' included by default (2026-07-14) so Parts can see job cards (VIN,
   // parts used, DVI flags) without extra config — Parts Used editing there is
@@ -2538,8 +2560,19 @@ function getRolePerms(role) {
   return DEFAULT_ROLE_PERMS[role] || ['dashboard'];
 }
 
+// True once a chain account has at least one branch registered.
+// From that point the "main" account becomes a pure oversight console —
+// Reports + Feedback rolled up across branches — instead of an operational
+// workshop itself. Every other tab is hidden regardless of role, and this
+// applies no matter which worker on the account signs in.
+function isChainHQMode() {
+  return Array.isArray(userProfile?.branches) && userProfile.branches.length > 0;
+}
+window.isChainHQMode = isChainHQMode;
+
 function canSee(tabId) {
   if (!currentWorker) return false;
+  if (isChainHQMode()) return tabId === 'reports' || tabId === 'feedback';
   if (isOwnerRole()) return true;
   const perms = getRolePerms(currentRole());
   // "_newbk" is the New Booking shortcut — show whenever Bookings is allowed
@@ -2562,9 +2595,11 @@ function renderSidebarVisibility() {
     }
     lbl.style.display = anyVisible ? '' : 'none';
   });
-  // If the active tab is no longer allowed, jump to dashboard (or first allowed)
+  // If the active tab is no longer allowed, jump to dashboard (or first allowed) —
+  // a chain HQ account instead lands on Reports, the only tab it has.
   if (currentTab && !canSee(currentTab)) {
-    const fallback = ['dashboard','bookings','jobs','timesheets'].find(t => canSee(t)) || 'dashboard';
+    const fallbackList = isChainHQMode() ? ['reports', 'feedback'] : ['dashboard', 'bookings', 'jobs', 'timesheets'];
+    const fallback = fallbackList.find(t => canSee(t)) || (isChainHQMode() ? 'reports' : 'dashboard');
     if (fallback !== currentTab) switchTab(fallback);
   }
 }
@@ -6833,6 +6868,99 @@ async function _publishFeedbackLink(job, booking) {
   return `${_apprSiteBase()}/feedback.html?w=${encodeURIComponent(currentUser.uid)}&t=${encodeURIComponent(token)}`;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+//  FEEDBACK TAB — read-only view of what customers submitted through the
+//  tokenized feedback links (see _publishFeedbackLink above). Docs live at
+//  users/{uid}/feedback_links/{token}; only ones with submitted === true are
+//  real responses — the rest are links that were sent but never opened/used.
+//
+//  Chain HQ accounts (isChainHQMode) get a branch filter: "All locations"
+//  fans out to every branch's feedback_links collection (each is public-read,
+//  same as this account's own — no rules change needed) plus this account's
+//  own; picking one location shows just that location's responses.
+// ══════════════════════════════════════════════════════════════════════════
+let _feedbackCacheByScope = {};
+async function renderFeedback(force = false) {
+  const hq = isChainHQMode();
+  const branches = hq && Array.isArray(userProfile?.branches) ? userProfile.branches : [];
+  const filterEl = document.getElementById('fbBranchFilter');
+  if (filterEl) {
+    filterEl.style.display = hq ? '' : 'none';
+    if (hq && (!filterEl._built || force)) {
+      const curVal = filterEl.value;
+      filterEl.innerHTML = `<option value="all">All locations</option><option value="${escapeHtml(currentUser.uid)}">HQ (this account)</option>` +
+        branches.map(b => `<option value="${escapeHtml(b.uid)}">${escapeHtml(b.name || 'Branch')}</option>`).join('');
+      if (curVal && filterEl.querySelector(`option[value="${CSS.escape(curVal)}"]`)) filterEl.value = curVal;
+      filterEl._built = true;
+    }
+  }
+  const scope = hq && filterEl ? filterEl.value : 'own';
+
+  if (force || !_feedbackCacheByScope[scope]) {
+    try {
+      if (!hq || scope === currentUser.uid) {
+        const snap = await wsCol('feedback_links').where('submitted', '==', true).get();
+        _feedbackCacheByScope[scope] = snap.docs.map(d => d.data());
+      } else if (scope === 'all') {
+        const targets = [{ uid: currentUser.uid, name: userProfile?.workshop_name || 'HQ' }, ...branches];
+        const results = await Promise.all(targets.map(async (t) => {
+          try {
+            const snap = await fbDb.collection('users').doc(t.uid).collection('feedback_links').where('submitted', '==', true).get();
+            return snap.docs.map(d => ({ ...d.data(), _location: t.name || 'Branch' }));
+          } catch (e) { console.warn('[feedback] branch load failed:', t.uid, e); return []; }
+        }));
+        _feedbackCacheByScope[scope] = results.flat();
+      } else {
+        const target = branches.find(b => b.uid === scope);
+        const snap = await fbDb.collection('users').doc(scope).collection('feedback_links').where('submitted', '==', true).get();
+        _feedbackCacheByScope[scope] = snap.docs.map(d => ({ ...d.data(), _location: target?.name || 'Branch' }));
+      }
+    } catch (e) {
+      console.warn('[feedback] load failed:', e);
+      _feedbackCacheByScope[scope] = [];
+    }
+  }
+  const list = (_feedbackCacheByScope[scope] || []).slice().sort((a, b) => (b.submitted_at || '').localeCompare(a.submitted_at || ''));
+  const body = document.getElementById('fbBody');
+  const crumb = document.getElementById('fbCrumb');
+  if (!body || !crumb) return;
+  if (!list.length) {
+    crumb.textContent = 'No feedback yet';
+    body.innerHTML = `<div class="placeholder"><h3>No feedback yet</h3><p>Feedback links go out with the thank-you message after checkout — submitted ratings and comments will show up here.</p></div>`;
+    return;
+  }
+  const avg = list.reduce((s, f) => s + (Number(f.rating) || 0), 0) / list.length;
+  crumb.textContent = `${list.length} response${list.length === 1 ? '' : 's'} · ${avg.toFixed(1)} ★ average`;
+  const stars = (n) => { n = Math.max(0, Math.min(5, Math.round(Number(n) || 0))); return '★'.repeat(n) + '☆'.repeat(5 - n); };
+  body.innerHTML = `
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px">
+      <div class="card" style="padding:16px 22px;text-align:center;min-width:140px">
+        <div style="font-family:var(--fd);font-weight:800;font-size:30px;color:var(--acc2)">${avg.toFixed(1)}</div>
+        <div style="font-size:12px;color:var(--faint)">average rating</div>
+      </div>
+      <div class="card" style="padding:16px 22px;text-align:center;min-width:140px">
+        <div style="font-family:var(--fd);font-weight:800;font-size:30px;color:var(--txt)">${list.length}</div>
+        <div style="font-size:12px;color:var(--faint)">total responses</div>
+      </div>
+    </div>
+    <div style="display:grid;gap:10px">
+      ${list.map(f => `
+        <div class="card" style="padding:14px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div>
+              <span style="color:#ffb347;font-size:16px;letter-spacing:1px">${stars(f.rating)}</span>
+              <span style="margin-left:8px;font-weight:700;color:var(--txt)">${escapeHtml(f.cust_name || 'Customer')}</span>
+              ${f.plate ? `<span style="color:var(--faint);font-size:12.5px;margin-left:6px">· ${escapeHtml(f.plate)}</span>` : ''}
+              ${f._location && scope === 'all' ? `<span style="color:var(--faint);font-size:11.5px;margin-left:6px">(${escapeHtml(f._location)})</span>` : ''}
+            </div>
+            <div style="color:var(--faint);font-size:12px;white-space:nowrap">${escapeHtml((f.submitted_at || '').slice(0,16))}</div>
+          </div>
+          ${f.comment ? `<div style="margin-top:8px;color:var(--dim);font-size:13.5px;line-height:1.5">${escapeHtml(f.comment)}</div>` : ''}
+        </div>`).join('')}
+    </div>`;
+}
+window.renderFeedback = renderFeedback;
+
 // Send an invoice summary on WhatsApp, with a tappable link to view/download
 // the actual invoice (see _publishInvoiceView — wa.me itself can't attach a PDF).
 window.waInvoice = async function(invId) {
@@ -9660,7 +9788,7 @@ const TAB_TITLES = {
   dashboard:'Dashboard', bookings:'Appointments', checkin:'Check-in', jobs:'Job Cards',
   bays:'Bays', queue:'Queue', customers:'Customers',
   workers:'Workers', inventory:'Inventory', request_parts:'Request Parts', parts:'Manage Requests',
-  invoices:'Invoices', reports:'Reports', timesheets:'Timesheets', notifications:'Notifications', audit:'Audit Log', settings:'Settings'
+  invoices:'Invoices', reports:'Reports', feedback:'Feedback', timesheets:'Timesheets', notifications:'Notifications', audit:'Audit Log', settings:'Settings'
 };
 
 // ── Hindi labels for the worker-facing navigation. Keyed by tab id so it's
@@ -9910,6 +10038,7 @@ window.switchTab = function(tab) {
   if (tab === 'request_parts') renderRequestParts();
   if (tab === 'invoices')      renderInvoices();
   if (tab === 'reports')       renderReports();
+  if (tab === 'feedback')      renderFeedback();
   if (tab === 'audit')         renderAudit();
   if (tab === 'notifications') renderNotifications();
   if (tab === 'chat')          renderChat();
@@ -11556,6 +11685,7 @@ const ALL_TABS = [
   { id:'parts',         label:'Manage Requests' },
   { id:'invoices',      label:'Invoices' },
   { id:'reports',     label:'Reports' },
+  { id:'feedback',    label:'Feedback' },
   { id:'timesheets',  label:'Timesheets' },
   { id:'notifications', label:'Notifications' },
   { id:'chat',        label:'Chat' },
@@ -11840,13 +11970,13 @@ async function renderSettings(force = false) {
           </div>
         </div>
 
-        <!-- Attach invoice PDF -->
+        <!-- Link to invoice -->
         <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
           <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
             <input type="checkbox" id="sf-em-attach" ${s.email_attach_invoice !== false ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer" />
-            <span style="font-family:var(--fd);font-weight:700;font-size:13.5px">Attach the invoice as a PDF</span>
+            <span style="font-family:var(--fd);font-weight:700;font-size:13.5px">Include a link to view/download the invoice</span>
           </label>
-          <div style="font-size:11.5px;color:var(--faint);margin:6px 0 0 28px;line-height:1.5">When an email is tied to an invoice (invoice-ready, ready-for-pickup, thank-you), the invoice is attached as a downloadable file.</div>
+          <div style="font-size:11.5px;color:var(--faint);margin:6px 0 0 28px;line-height:1.5">When an email is tied to an invoice (invoice-ready, ready-for-pickup, thank-you), a "View / download invoice" button is added — the same public invoice page already used in WhatsApp messages. No raw file is attached.</div>
         </div>
 
         <!-- Custom footer (on top) + cancellation policy footer -->
@@ -12450,6 +12580,14 @@ window.createBranch = async function(ev) {
   const pass  = document.getElementById('br-pass').value;
   const btn = ev.target.querySelector('button[type="submit"]');
   if (pass.length < 8) { err.textContent = 'Password must be at least 8 characters.'; return; }
+  // Branch cap: Chain → 5. Past that, it's a direct conversation with
+  // support, not a self-serve upgrade.
+  const sub = currentSub();
+  const existingCount = Array.isArray(userProfile?.branches) ? userProfile.branches.length : 0;
+  if (existingCount >= sub.maxBranches) {
+    err.innerHTML = `Your "${escapeHtml(sub.planName)}" plan supports up to ${sub.maxBranches} branches. Contact <a href="mailto:support@garagepro.me" style="color:var(--blue)">support@garagepro.me</a> if you need more.`;
+    return;
+  }
   btn.disabled = true; btn.textContent = 'Creating…';
   try {
     // Use a secondary Firebase app so creating the new account doesn't sign out the chain owner
@@ -14564,6 +14702,11 @@ function _buildEmailData(opts) {
     // the tokenized feedback doc itself — that's an async Firestore write,
     // and this function is synchronous, so it can't mint the link here.
     feedback_link:   opts.feedback_link || '',
+    // Same story — sendCustomerNotification awaits _publishInvoiceView and
+    // passes the resulting link in, instead of attaching the invoice as a
+    // raw HTML file (which most mail clients just showed as a downloadable
+    // webpage, not a proper document).
+    invoice_view_link: opts.invoice_view_link || '',
     // Receipt-style breakdown — only filled when an invoice is in scope
     items:           inv ? (inv.lines || []).map(l => ({ name: l.name || '', qty: Number(l.qty || 1), amount: Number(l.unit_price || 0) * Number(l.qty || 1) * (1 - Number(l.disc_pct||0)/100) })) : [],
     charges:         inv ? (inv.charges || []) : [],
@@ -14586,12 +14729,15 @@ function _emailFooterBlock(d, align) {
 }
 
 // Call-to-action button block: "Track your repair" + (estimate only) "Review your
-// estimate" + (thank-you/invoice only) "Leave feedback". Table-based so it
-// renders in Outlook/Gmail. Returns '' when no links.
+// estimate" + (invoice-carrying events only) "View / download invoice" +
+// (thank-you/invoice only) "Leave feedback". Table-based so it renders in
+// Outlook/Gmail. Returns '' when no links.
 function _emailCtaBlock(d) {
   const btns = [];
   if (d.event === 'estimate_ready' && d.approval_link)
     btns.push(`<a href="${_esc(d.approval_link)}" style="display:inline-block;background:#1e7be0;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">Review &amp; approve your estimate</a>`);
+  if (d.invoice_view_link)
+    btns.push(`<a href="${_esc(d.invoice_view_link)}" style="display:inline-block;background:#6b4fbb;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">View / download invoice</a>`);
   if (d.track_link)
     btns.push(`<a href="${_esc(d.track_link)}" style="display:inline-block;background:#0a0f1a;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">Track your repair</a>`);
   if ((d.event === 'thank_you' || d.event === 'invoice_ready') && d.feedback_link)
@@ -14788,22 +14934,21 @@ async function sendCustomerNotification(eventId, opts = {}) {
   if (!opts.force && triggers[eventId] === false) return { ok: false, skipped: 'event-off' };
   const evt = EMAIL_EVENTS.find(e => e.id === eventId);
   if (!evt) return { ok: false, skipped: 'unknown-event' };
-  const data = _buildEmailData({ ...opts, event: eventId, headline: evt.headline });
+  // Link to view/download the invoice instead of attaching it — a raw HTML
+  // file used to be attached here, which most mail clients just show as a
+  // downloadable webpage, not a proper document. Reuses the same tokenized
+  // public invoice page WhatsApp already links to (see _publishInvoiceView).
+  let invoiceViewLink = '';
+  const invForLink = opts.invoice || (opts.job ? (D.invoices || []).find(x => x.job_id === opts.job.id) : null);
+  if (invForLink && s.email_attach_invoice !== false) {
+    try { invoiceViewLink = await _publishInvoiceView(invForLink.id); }
+    catch (e) { console.warn('[email] invoice view publish failed', e); }
+  }
+  const data = _buildEmailData({ ...opts, event: eventId, headline: evt.headline, invoice_view_link: invoiceViewLink });
   if (!data.customer_email) return { ok: false, skipped: 'no-recipient' };
   const { subject, html } = _renderEmailTemplate(s.email_template || 'classic', data);
-  // Attach the invoice when there's one in scope and the owner hasn't turned
-  // attachments off. Built from the same record the Invoices tab prints; sent
-  // to the relay as HTML (not converted to PDF — see email-relay/README.md).
-  let invoiceHtml = '', invoiceName = '';
-  const invForPdf = opts.invoice || (opts.job ? (D.invoices || []).find(x => x.job_id === opts.job.id) : null);
-  if (invForPdf && s.email_attach_invoice !== false) {
-    try {
-      invoiceHtml = _invoiceHTMLFromRecord(invForPdf, {});
-      invoiceName = 'Invoice-' + (invForPdf.number || invForPdf.id || '').toString().replace(/[^\w.-]+/g, '');
-    } catch (e) { console.warn('[email] invoice PDF build failed', e); }
-  }
   try {
-    const res = await _smtpSend({ to: data.customer_email, subject, html, fromName: data.workshop_name, logo: data.workshop_logo, invoiceHtml, invoiceName });
+    const res = await _smtpSend({ to: data.customer_email, subject, html, fromName: data.workshop_name, logo: data.workshop_logo });
     if (res.ok) audit('email-sent', `${eventId} → ${data.customer_email}`, { event: eventId, to: data.customer_email });
     return res;
   } catch (e) {
@@ -14820,7 +14965,7 @@ window.sendCustomerNotification = sendCustomerNotification;
 const EMAIL_RELAY_URL = 'https://email-relay-gilt.vercel.app/api/send';
 const EMAIL_RELAY_KEY  = '2b8151bd6fd5180c23109bc2dd115fe44f1ca29d104e741f';
 
-async function _smtpSend({ to, subject, html, fromName, logo, invoiceHtml, invoiceName }) {
+async function _smtpSend({ to, subject, html, fromName, logo }) {
   const s = D.settings || {};
   // Reply-to priority: an explicit Reply-to email (Settings → Customer email
   // notifications) > this workshop's general Contact email > nothing. Sending
@@ -14861,9 +15006,7 @@ async function _smtpSend({ to, subject, html, fromName, logo, invoiceHtml, invoi
         to, subject, html: outHtml,
         fromName: fromName || s.email_from_name || s.workshop_name || 'Garage Pro',
         replyTo,
-        logo: logoData,                  // data URL → inline image (cid:gp_logo)
-        attachmentHtml: (invoiceHtml && s.email_attach_invoice !== false) ? invoiceHtml : '',
-        attachmentName: invoiceName || 'Invoice'
+        logo: logoData                   // data URL → inline image (cid:gp_logo)
       })
     });
   } catch (e) {
@@ -15421,27 +15564,73 @@ window._renderChatBadge = function() {
 //            insurance summary, top services, low stock
 // ══════════════════════════════════════════════════════════════════════════
 // A workshop's live snapshot — used both to publish this branch's summary and
-// to show the "HQ" row in the chain roll-up.
+// to show the "HQ" row in the chain roll-up. Includes both today's live floor
+// state (cars on floor, active jobs, pending approvals) and a rolling 30-day
+// window (revenue, completed jobs, turnaround, repeat rate, insurance,
+// outstanding) so a chain HQ's per-branch drill-down (renderChainReports) has
+// enough to show a meaningful report card, not just a today snapshot.
 function _branchLiveSummary() {
   const today = todayStr();
-  let revenue = 0;
+  let revenueToday = 0;
   for (const inv of (D.invoices || [])) {
     if (inv.status === 'Cancelled' || inv.is_estimate) continue;
     const d = inv.issue_date || (inv.updated_at || inv.created_at || '').slice(0, 10);
     if (d !== today) continue;
-    try { revenue += Number(_invoiceTotals(inv).roundOff || 0); } catch (_) {}
+    try { revenueToday += Number(_invoiceTotals(inv).roundOff || 0); } catch (_) {}
   }
   const activeBk = new Set((D.jobs || [])
     .filter(j => !['Delivered', 'Cancelled', 'Returned to Advisor'].includes(j.status || ''))
     .map(j => j.booking_id).filter(Boolean));
+
+  const since30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const invs30 = (D.invoices || []).filter(i =>
+    i.status !== 'Cancelled' && !i.is_estimate && (i.issue_date || (i.created_at || '').slice(0, 10)) >= since30);
+  let revenue30 = 0, outstanding30 = 0;
+  for (const inv of invs30) {
+    try {
+      const t = Number(_invoiceTotals(inv).roundOff || 0);
+      revenue30 += t;
+      const paid = inv.payment_status === 'Paid' ? t : (inv.payment_status === 'Partial' ? Number(inv.amount_paid || 0) : 0);
+      outstanding30 += Math.max(0, t - paid);
+    } catch (_) {}
+  }
+  const jobs30 = (D.jobs || []).filter(j => (j.created_at || '').slice(0, 10) >= since30);
+  const completed30 = jobs30.filter(j => j.status === 'Delivered').length;
+  let turnSum = 0, turnN = 0;
+  for (const j of jobs30) {
+    if (j.status !== 'Delivered') continue;
+    const start = _slaParseTs(j.created_at), end = _slaParseTs(j.completed_at || j.updated_at);
+    if (start && end && end > start) { turnSum += (end - start); turnN++; }
+  }
+  const custJobs = {};
+  for (const j of (D.jobs || [])) {
+    if (j.status !== 'Delivered') continue;
+    const k = (j.cust_name || '').toLowerCase().trim();
+    if (k) custJobs[k] = (custJobs[k] || 0) + 1;
+  }
+  const totalCust = Object.keys(custJobs).length;
+  const repeatCust = Object.values(custJobs).filter(n => n >= 2).length;
+  const insJobs30 = jobs30.filter(j => j.is_insurance);
+
   return {
-    workshop_name:     D.settings?.workshop_name || userProfile?.workshop_name || '',
-    revenue_today:     Math.round(revenue),
-    cars_on_floor:     (D.bookings || []).filter(b => b.status !== 'Delivered' && b.status !== 'Cancelled' && (b.status === 'Arrived' || activeBk.has(b.id))).length,
-    active_jobs:       (D.jobs || []).filter(j => !['Delivered', 'Cancelled'].includes(j.status || '')).length,
-    pending_approvals: (D.jobs || []).filter(j => j.status === 'Estimate Sent').length
+    workshop_name:      D.settings?.workshop_name || userProfile?.workshop_name || '',
+    revenue_today:      Math.round(revenueToday),
+    cars_on_floor:      (D.bookings || []).filter(b => b.status !== 'Delivered' && b.status !== 'Cancelled' && (b.status === 'Arrived' || activeBk.has(b.id))).length,
+    active_jobs:        (D.jobs || []).filter(j => !['Delivered', 'Cancelled'].includes(j.status || '')).length,
+    pending_approvals:  (D.jobs || []).filter(j => j.status === 'Estimate Sent').length,
+    revenue_30d:        Math.round(revenue30),
+    outstanding:        Math.round(outstanding30),
+    jobs_completed_30d: completed30,
+    avg_turnaround_h:   turnN ? (turnSum / turnN / 3600000) : null,
+    repeat_rate_pct:    totalCust ? Math.round((repeatCust / totalCust) * 100) : null,
+    insurance_jobs:     insJobs30.length,
+    insurance_approved: Math.round(insJobs30.reduce((s, j) => s + Number(j.approved_amount || 0), 0))
   };
 }
+
+// Shared "4h" / "2d 3h" formatter — used by both the normal single-workshop
+// Reports tab and the chain HQ view.
+function _fmtDurH(h) { return h == null ? '—' : (h < 48 ? `${Math.round(h)}h` : `${Math.floor(h / 24)}d ${Math.round(h % 24)}h`); }
 
 // Publish this branch's summary onto its own (public-read) root user doc so the
 // chain parent can roll it up. Best-effort; called on app load + after checkout.
@@ -15456,6 +15645,15 @@ async function publishBranchSummary() {
 window.publishBranchSummary = publishBranchSummary;
 
 async function renderReports(force = false) {
+  // A chain HQ account (has registered branches) gets a completely different
+  // view — oversight across branches, filterable by branch, instead of the
+  // normal single-workshop analytics below (see isChainHQMode).
+  if (isChainHQMode()) return renderChainReports(force);
+  // Not (or no longer) a chain HQ account — make sure the branch filter from
+  // a prior chain view, if any, is hidden and the normal range picker is back.
+  const branchFilterEl = document.getElementById('rptBranchFilter');
+  if (branchFilterEl) branchFilterEl.style.display = 'none';
+  document.getElementById('rptRange').style.display = '';
   await loadAllData(force);
   const range = document.getElementById('rptRange').value || '30';
   const since = (range === 'all') ? new Date(0) : new Date(Date.now() - Number(range) * 86400000);
@@ -15579,50 +15777,8 @@ async function renderReports(force = false) {
       ${sub ? `<div style="font-size:12px;color:var(--dim);margin-top:6px">${sub}</div>` : ''}
     </div>`;
 
-  // ── Chain roll-up — only for accounts that own branches. Each branch
-  // publishes its own summary to its (public-read) root doc; we read them here.
-  let chainHtml = '';
-  const branches = Array.isArray(userProfile?.branches) ? userProfile.branches : [];
-  if (branches.length) {
-    const own = _branchLiveSummary();
-    const rows = [{ name: (own.workshop_name || 'This branch') + ' · HQ', s: own, live: true, at: nowStr() }];
-    try {
-      const snaps = await Promise.all(branches.map(br => fbDb.collection('users').doc(br.uid).get().catch(() => null)));
-      snaps.forEach((snap, i) => {
-        const bs = (snap && snap.exists) ? (snap.data().branch_summary || {}) : {};
-        rows.push({ name: branches[i].name || bs.workshop_name || 'Branch', s: bs, live: false, at: bs.updated_at });
-      });
-    } catch (_) {}
-    const sum = (k) => rows.reduce((a, r) => a + Number(r.s?.[k] || 0), 0);
-    chainHtml = `<div class="card" style="padding:18px;margin-bottom:22px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
-        <h3 style="margin:0;font-size:15px">Chain roll-up · ${rows.length} location${rows.length === 1 ? '' : 's'}</h3>
-        <button class="mini-btn" onclick="renderReports(true)">Refresh</button>
-      </div>
-      <div style="color:var(--faint);font-size:12px;margin-bottom:14px">Branch figures come from each branch's last app sync — open a branch to refresh its numbers.</div>
-      <div style="overflow:auto"><table class="list-tbl" style="min-width:640px">
-        <thead><tr><th>Location</th><th style="text-align:right">Revenue today</th><th style="text-align:right">On floor</th><th style="text-align:right">Active jobs</th><th style="text-align:right">Awaiting approval</th><th>Updated</th></tr></thead>
-        <tbody>${rows.map(r => `<tr>
-          <td class="k">${escapeHtml(r.name)}${r.live ? ' <span style="font-size:10px;color:var(--teal)">● live</span>' : ''}</td>
-          <td style="text-align:right;color:var(--teal);font-weight:700">${inr(r.s?.revenue_today || 0)}</td>
-          <td style="text-align:right">${escapeHtml(String(r.s?.cars_on_floor ?? '—'))}</td>
-          <td style="text-align:right">${escapeHtml(String(r.s?.active_jobs ?? '—'))}</td>
-          <td style="text-align:right;${Number(r.s?.pending_approvals || 0) ? 'color:var(--acc2);font-weight:700' : ''}">${escapeHtml(String(r.s?.pending_approvals ?? '—'))}</td>
-          <td style="font-size:11.5px;color:var(--faint);white-space:nowrap">${escapeHtml((r.at || '').slice(0, 16) || '—')}</td>
-        </tr>`).join('')}
-        <tr style="border-top:2px solid var(--brd2)"><td class="k" style="font-weight:800">All locations</td>
-          <td style="text-align:right;color:var(--teal);font-weight:800">${inr(sum('revenue_today'))}</td>
-          <td style="text-align:right;font-weight:800">${sum('cars_on_floor')}</td>
-          <td style="text-align:right;font-weight:800">${sum('active_jobs')}</td>
-          <td style="text-align:right;font-weight:800">${sum('pending_approvals')}</td><td></td></tr>
-        </tbody>
-      </table></div>
-    </div>`;
-  }
-
   document.getElementById('rptCrumb').textContent = `${range === 'all' ? 'All time' : 'Last ' + range + ' days'} · ${invs.length} invoice${invs.length === 1 ? '' : 's'} issued`;
   document.getElementById('rptBody').innerHTML = `
-    ${chainHtml}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px">
       ${card('Revenue billed', inr(revenue), 'var(--teal)')}
       ${card('Paid', inr(paid + partialPaid), 'var(--teal)', partialPaid ? `incl. ${inr(partialPaid)} partial` : '')}
@@ -15711,6 +15867,104 @@ async function renderReports(force = false) {
     </div>`;
 }
 window.renderReports = renderReports;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CHAIN HQ REPORTS — shown instead of the normal Reports tab once this
+//  account has branches registered (see isChainHQMode). Each branch (and
+//  this HQ account itself) publishes a summary onto its own public-read root
+//  doc (see _branchLiveSummary / publishBranchSummary); this reads them by
+//  uid and renders either a side-by-side comparison ("All locations") or a
+//  single branch's report card, picked via the filter dropdown.
+// ══════════════════════════════════════════════════════════════════════════
+async function renderChainReports(force = false) {
+  const branches = Array.isArray(userProfile?.branches) ? userProfile.branches : [];
+  const sel = document.getElementById('rptBranchFilter');
+  const rangeSel = document.getElementById('rptRange');
+  if (rangeSel) rangeSel.style.display = 'none';   // the 30-day window is fixed in this view
+  if (sel) {
+    sel.style.display = '';
+    if (!sel._built || force) {
+      const cur = sel.value;
+      sel.innerHTML = `<option value="all">All locations</option><option value="${escapeHtml(currentUser.uid)}">HQ (this account)</option>` +
+        branches.map(b => `<option value="${escapeHtml(b.uid)}">${escapeHtml(b.name || 'Branch')}</option>`).join('');
+      if (cur && sel.querySelector(`option[value="${CSS.escape(cur)}"]`)) sel.value = cur;
+      sel._built = true;
+    }
+  }
+  const filter = sel ? sel.value : 'all';
+
+  const cur = D.settings?.currency || '₹';
+  const inr = (n) => `${cur}${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  const card = (label, val, color = 'var(--txt)', sub = '') => `
+    <div style="background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:18px">
+      <div style="font-family:var(--fd);font-size:24px;font-weight:800;color:${color};line-height:1.1">${val}</div>
+      <div style="font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:6px">${escapeHtml(label)}</div>
+      ${sub ? `<div style="font-size:12px;color:var(--dim);margin-top:6px">${sub}</div>` : ''}
+    </div>`;
+
+  // Load this HQ's own live data (it may not operate as a workshop day-to-day
+  // once branches exist, but this keeps its own card accurate if it does)
+  // plus every branch's last-published summary.
+  await loadAllData(force);
+  const own = _branchLiveSummary();
+  let branchRows = [];
+  try {
+    const snaps = await Promise.all(branches.map(br => fbDb.collection('users').doc(br.uid).get().catch(() => null)));
+    branchRows = snaps.map((snap, i) => ({
+      uid:  branches[i].uid,
+      name: branches[i].name || (snap && snap.exists && snap.data().workshop_name) || 'Branch',
+      s:    (snap && snap.exists) ? (snap.data().branch_summary || {}) : {}
+    }));
+  } catch (e) { console.warn('[chain-reports] branch fetch failed:', e); }
+
+  document.getElementById('rptCrumb').textContent = `Chain oversight · ${branches.length} branch${branches.length === 1 ? '' : 'es'}`;
+  const body = document.getElementById('rptBody');
+
+  if (filter === 'all') {
+    const rows = [{ name: (own.workshop_name || 'HQ') + ' · HQ', s: own, live: true }, ...branchRows];
+    const sum = (k) => rows.reduce((a, r) => a + Number(r.s?.[k] || 0), 0);
+    body.innerHTML = `
+      <div class="card" style="padding:18px">
+        <div style="color:var(--faint);font-size:12px;margin-bottom:14px">Branch figures come from each location's last app sync — open a branch to refresh its numbers. Revenue/jobs are a rolling 30-day window.</div>
+        <div style="overflow:auto"><table class="list-tbl" style="min-width:820px">
+          <thead><tr><th>Location</th><th style="text-align:right">Revenue (30d)</th><th style="text-align:right">Jobs completed (30d)</th><th style="text-align:right">Avg turnaround</th><th style="text-align:right">Repeat rate</th><th style="text-align:right">Outstanding</th><th>Updated</th></tr></thead>
+          <tbody>${rows.map(r => `<tr>
+            <td class="k">${escapeHtml(r.name)}${r.live ? ' <span style="font-size:10px;color:var(--teal)">● live</span>' : ''}</td>
+            <td style="text-align:right;color:var(--teal);font-weight:700">${inr(r.s?.revenue_30d || 0)}</td>
+            <td style="text-align:right">${escapeHtml(String(r.s?.jobs_completed_30d ?? '—'))}</td>
+            <td style="text-align:right">${r.s?.avg_turnaround_h != null ? _fmtDurH(r.s.avg_turnaround_h) : '—'}</td>
+            <td style="text-align:right">${r.s?.repeat_rate_pct != null ? r.s.repeat_rate_pct + '%' : '—'}</td>
+            <td style="text-align:right;${Number(r.s?.outstanding || 0) ? 'color:var(--red);font-weight:700' : ''}">${inr(r.s?.outstanding || 0)}</td>
+            <td style="font-size:11.5px;color:var(--faint);white-space:nowrap">${escapeHtml((r.s?.updated_at || '').slice(0, 16) || '—')}</td>
+          </tr>`).join('')}
+          <tr style="border-top:2px solid var(--brd2)"><td class="k" style="font-weight:800">All locations</td>
+            <td style="text-align:right;color:var(--teal);font-weight:800">${inr(sum('revenue_30d'))}</td>
+            <td style="text-align:right;font-weight:800">${sum('jobs_completed_30d')}</td>
+            <td></td><td></td>
+            <td style="text-align:right;font-weight:800">${inr(sum('outstanding'))}</td><td></td></tr>
+          </tbody>
+        </table></div>
+      </div>`;
+  } else {
+    const isOwn = filter === currentUser.uid;
+    const b = isOwn ? { name: own.workshop_name || 'HQ', s: own } : branchRows.find(x => x.uid === filter);
+    const s = b ? b.s : {};
+    body.innerHTML = `
+      <div style="color:var(--faint);font-size:12px;margin-bottom:14px">${isOwn ? 'Live data from this account.' : `Snapshot from ${escapeHtml((s.updated_at || '').slice(0, 16) || 'last sync')} — refreshes each time someone opens the app at that branch.`}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+        ${card('Revenue (30d)', inr(s.revenue_30d || 0), 'var(--teal)')}
+        ${card('Jobs completed (30d)', s.jobs_completed_30d ?? '—', 'var(--acc)')}
+        ${card('Avg turnaround', s.avg_turnaround_h != null ? _fmtDurH(s.avg_turnaround_h) : '—')}
+        ${card('Repeat customer rate', s.repeat_rate_pct != null ? s.repeat_rate_pct + '%' : '—')}
+        ${card('Insurance jobs (30d)', s.insurance_jobs ?? '—', 'var(--acc2)', s.insurance_approved ? `${inr(s.insurance_approved)} approved` : '')}
+        ${card('Outstanding', inr(s.outstanding || 0), Number(s.outstanding || 0) > 0 ? 'var(--red)' : 'var(--faint)')}
+        ${card('Cars on floor (live)', s.cars_on_floor ?? '—')}
+        ${card('Active jobs (live)', s.active_jobs ?? '—')}
+        ${card('Pending approvals (live)', s.pending_approvals ?? '—', Number(s.pending_approvals || 0) ? 'var(--acc2)' : 'var(--txt)')}
+      </div>`;
+  }
+}
+window.renderChainReports = renderChainReports;
 
 function _rptBars(obj, maxVal) {
   const entries = Object.entries(obj);
