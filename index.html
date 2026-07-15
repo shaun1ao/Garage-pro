@@ -1737,7 +1737,10 @@ footer{background:linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px so
           <div class="form-group" style="display:flex;align-items:flex-end"><button class="form-btn form-btn-save" onclick="udCreateBranch()" style="width:100%">Create branch login</button></div>
         </div>
         <div class="success-msg" id="udBranchMsg" style="margin-bottom:10px"></div>
-        <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">Your branches</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 8px;flex-wrap:wrap;gap:6px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em">Your branches</div>
+          <div id="udBranchCount" style="font-size:12px;color:var(--faint)"></div>
+        </div>
         <div id="udBranchList"></div>
         <div style="margin-top:10px;font-size:12px;color:var(--faint)">Share the credentials with each branch's manager so they can sign in. They can change the password from their own account afterwards.</div>
       </div>
@@ -2359,7 +2362,8 @@ const DEFAULT_PLANS = [
     maxBays: 999, maxWorkers: 999, maxBookings: 999,
     features: [
       'Unlimited bays, workers and bookings',
-      'Branch dashboards & roll-up reporting',
+      'Up to 5 branches',
+      'HQ oversight: reports & feedback across every branch',
       'Priority email/phone support',
       'API access + priority onboarding'
     ],
@@ -5694,12 +5698,17 @@ function _udUpdateGooglePromptBanner() {
 
 async function _udFetchAndRenderBranches() {
   if (!fbAuth.currentUser) return;
-  const wrap = document.getElementById('udBranchList');
+  const wrap  = document.getElementById('udBranchList');
+  const count = document.getElementById('udBranchCount');
   if (!wrap) return;
   wrap.innerHTML = `<div style="color:var(--faint);font-size:13px;padding:14px;text-align:center">Loading branches…</div>`;
   try {
     const doc = await fbDb.collection('users').doc(fbAuth.currentUser.uid).get();
     const branches = (doc.exists && Array.isArray(doc.data().branches)) ? doc.data().branches : [];
+    if (count) {
+      const maxBranches = isChainTier(currentSubscription) ? 5 : null;
+      count.textContent = maxBranches ? `${branches.length} of ${maxBranches} branches used` : `${branches.length} branch${branches.length === 1 ? '' : 'es'}`;
+    }
     if (!branches.length) {
       wrap.innerHTML = `<div style="padding:18px;background:var(--bg2);border:1px dashed var(--border);border-radius:8px;text-align:center;color:var(--dim);font-size:13.5px">No branches yet. Use the form above to create your first branch login.</div>`;
       return;
@@ -5730,6 +5739,17 @@ window.udCreateBranch = async function() {
   if (!name || !email || !pass) { msg.textContent = 'Fill in all three fields.'; return; }
   if (pass.length < 8) { msg.textContent = 'Password must be at least 8 characters.'; return; }
   if (!fbAuth.currentUser) { msg.textContent = 'Sign in to your account first.'; return; }
+  // Branch cap: Chain → 5. Past that it's a direct conversation with
+  // support, not a self-serve upgrade.
+  const maxBranches = isChainTier(currentSubscription) ? 5 : Infinity;
+  try {
+    const parentSnap = await fbDb.collection('users').doc(fbAuth.currentUser.uid).get();
+    const existingBranches = (parentSnap.exists && Array.isArray(parentSnap.data().branches)) ? parentSnap.data().branches : [];
+    if (existingBranches.length >= maxBranches) {
+      msg.innerHTML = `Your plan supports up to ${maxBranches} branch${maxBranches === 1 ? '' : 'es'}. Contact <a href="mailto:support@garagepro.me" style="color:var(--acc2)">support@garagepro.me</a> if you need more.`;
+      return;
+    }
+  } catch (e) { /* fall through — creation itself will surface any real error */ }
   msg.style.color = 'var(--dim)'; msg.textContent = 'Creating branch login…';
   try {
     // Secondary app instance so we don't sign the chain owner out
