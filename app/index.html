@@ -89,6 +89,13 @@ h1,h2,h3,h4{font-family:var(--fd);font-weight:800;letter-spacing:-.01em;line-hei
 .auth-form .a-ok{font-size:13px;color:var(--teal);min-height:18px}
 .auth-form .full-btn{width:100%;justify-content:center;margin-top:2px}
 .auth-form .forgot{background:none;border:0;color:var(--acc2);font-size:13px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;text-align:right;margin-top:-8px}
+/* Worker sign-in — workshop search dropdown (mirrors track.html's picker) */
+.wl-ws-dropdown{display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;max-height:220px;overflow-y:auto;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.wl-ws-item{display:block;width:100%;text-align:left;padding:11px 13px;cursor:pointer;border:0;border-bottom:1px solid var(--brd);background:none;color:var(--txt);font-family:var(--fb);font-size:13.5px}
+.wl-ws-item:last-child{border-bottom:0}
+.wl-ws-item:hover{background:rgba(255,179,71,.08)}
+.wl-picked-chip{margin-bottom:14px;padding:11px 13px;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13.5px}
+.wl-picked-chip button{background:none;border:1px solid var(--brd2);color:var(--dim);padding:5px 11px;border-radius:6px;font-size:12px;cursor:pointer}
 .auth-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fff;color:#1a1a1a;border:1px solid #dadce0;border-radius:9px;padding:11px 14px;font-family:var(--fb);font-weight:600;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.1)}
 .auth-google:hover{box-shadow:0 4px 12px rgba(0,0,0,.18);transform:translateY(-1px)}
 .auth-google:disabled{opacity:.6;cursor:not-allowed;transform:none}
@@ -543,6 +550,7 @@ input[list]{background:var(--bg2)}
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="authTabSignin" onclick="switchAuth('signin')">Sign in</button>
+      <button class="auth-tab" id="authTabWorker" onclick="switchAuth('worker')">Worker PIN</button>
       <button class="auth-tab" id="authTabSignup" onclick="switchAuth('signup')">Create workshop</button>
     </div>
 
@@ -578,6 +586,37 @@ input[list]{background:var(--bg2)}
       </div>
       <div class="a-err" id="su-err"></div>
       <button type="submit" class="btn full-btn">Create workshop</button>
+    </form>
+
+    <!-- SIGN IN AS WORKER — no workshop email/password needed. Search for the
+         workshop by name (same public directory track.html uses), then enter
+         your own name + PIN. This signs you into the FULL app under your
+         role's normal permissions, not a limited view. -->
+    <form class="auth-form" id="authFormWorker" onsubmit="doWorkerLogin(event)" autocomplete="off">
+      <div id="wl-step-search">
+        <div><label>Which state is your workshop in?</label>
+          <select id="wl-state-input" onchange="_wlStatePicked()">
+            <option value="">— Pick a state —</option>
+          </select>
+        </div>
+        <div style="position:relative;margin-top:14px">
+          <label>Workshop name</label>
+          <input id="wl-ws-input" type="text" placeholder="Start typing your workshop name…" disabled oninput="_wlRenderDropdown(this.value)" onfocus="_wlRenderDropdown(this.value)" />
+          <div class="wl-ws-dropdown" id="wl-ws-dropdown"></div>
+        </div>
+        <div style="font-size:12px;color:var(--faint);margin-top:6px" id="wl-search-msg"></div>
+      </div>
+
+      <div id="wl-step-pin" style="display:none">
+        <div class="wl-picked-chip">
+          <div><span style="color:var(--faint)">Workshop:</span> <b id="wl-picked-name" style="color:var(--txt)"></b></div>
+          <button type="button" onclick="_wlChangeWorkshop()">Change</button>
+        </div>
+        <div><label>Your name</label><input id="wl-name" type="text" placeholder="Aslam" autocomplete="off" /></div>
+        <div><label>PIN</label><input id="wl-pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" placeholder="••••" autocomplete="off" /></div>
+        <div class="a-err" id="wl-err"></div>
+        <button type="submit" class="btn full-btn">Sign in</button>
+      </div>
     </form>
 
     <!-- FORGOT PASSWORD -->
@@ -1761,6 +1800,17 @@ fbAuth.onAuthStateChanged(async (user) => {
       _prefillWizard();
       return;
     }
+    // Came in via the "Worker PIN" sign-in path (a Cloud Function already
+    // verified the name+PIN and minted this session's custom token) — the
+    // worker is already known, so skip the PIN pad entirely.
+    if (window._pendingWorkerLogin) {
+      const pw = window._pendingWorkerLogin;
+      delete window._pendingWorkerLogin;
+      currentWorker = D.mechanics.find(w => w.id === pw.id) || pw;
+      sessionStorage.setItem('gp_worker:' + user.uid, JSON.stringify(currentWorker));
+      enterApp();
+      return;
+    }
     if (!currentWorker || !D.mechanics.find(w => w.id === currentWorker.id)) {
       showPinpad();
       return;
@@ -1807,14 +1857,155 @@ window._prefillWizard = _prefillWizard;
 // ══════════════════════════════════════════
 window.switchAuth = function(which) {
   document.getElementById('authTabSignin').classList.toggle('active', which === 'signin');
+  document.getElementById('authTabWorker' ).classList.toggle('active', which === 'worker');
   document.getElementById('authTabSignup').classList.toggle('active', which === 'signup');
   document.getElementById('authFormSignin').classList.toggle('active', which === 'signin');
+  document.getElementById('authFormWorker').classList.toggle('active', which === 'worker');
   document.getElementById('authFormSignup').classList.toggle('active', which === 'signup');
   document.getElementById('authFormReset' ).classList.toggle('active', which === 'reset');
   // Hide the top tabs row when on the reset view (it's a sub-screen)
   document.querySelector('.auth-tabs').style.display = (which === 'reset') ? 'none' : '';
   // Clear any stale messages
-  ['si-err','su-err','rs-err','rs-ok'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
+  ['si-err','su-err','rs-err','rs-ok','wl-err'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
+  if (which === 'worker') _wlInit();
+};
+
+// ══════════════════════════════════════════
+//  WORKER PIN LOGIN — no workshop email/password needed. Worker searches for
+//  their workshop by name (same public `users` root-doc directory the
+//  marketing site's Track Repair page reads — those docs are public-read),
+//  then types their own name + PIN. A Cloud Function checks that name+PIN
+//  server-side and, on a match, hands back a custom Firebase auth token for
+//  that SAME workshop UID — so signing in with it lands in exactly the same
+//  session an email/password sign-in would, with the full app under that
+//  worker's normal role permissions.
+// ══════════════════════════════════════════
+const WORKER_LOGIN_URL = 'https://email-relay-gilt.vercel.app/api/worker-login';
+let _wlAllWorkshops = null;
+let _wlPicked = null;   // { uid, name }
+
+async function _wlLoadWorkshops() {
+  if (_wlAllWorkshops) return _wlAllWorkshops;
+  const snap = await fbDb.collection('users').get();
+  const list = [];
+  snap.forEach(doc => {
+    const d = doc.data() || {};
+    const name = (d.workshop_name || '').trim();
+    if (!name) return;
+    list.push({ uid: doc.id, name, state: (d.state || '').trim() });
+  });
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  _wlAllWorkshops = list;
+  return list;
+}
+
+async function _wlInit() {
+  _wlPicked = null;
+  document.getElementById('wl-step-search').style.display = '';
+  document.getElementById('wl-step-pin').style.display = 'none';
+  document.getElementById('wl-ws-input').value = '';
+  document.getElementById('wl-name').value = '';
+  document.getElementById('wl-pin').value = '';
+  const sel = document.getElementById('wl-state-input');
+  if (sel._wlBuilt) return;
+  const msg = document.getElementById('wl-search-msg');
+  msg.textContent = 'Loading workshops…';
+  try {
+    const list = await _wlLoadWorkshops();
+    const states = new Set();
+    let haveUnspecified = false;
+    for (const w of list) { if (w.state) states.add(w.state); else haveUnspecified = true; }
+    Array.from(states).sort().forEach(s => {
+      const opt = document.createElement('option'); opt.value = s; opt.textContent = s;
+      sel.appendChild(opt);
+    });
+    if (haveUnspecified) {
+      const opt = document.createElement('option'); opt.value = '__unspecified__'; opt.textContent = 'Other / state not specified';
+      sel.appendChild(opt);
+    }
+    sel._wlBuilt = true;
+    msg.textContent = '';
+  } catch (e) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Could not load workshops: ' + (e.message || e);
+  }
+}
+
+window._wlStatePicked = function() {
+  const state = document.getElementById('wl-state-input').value;
+  const input = document.getElementById('wl-ws-input');
+  input.disabled = !state;
+  input.value = '';
+  document.getElementById('wl-ws-dropdown').style.display = 'none';
+  if (!state) return;
+  input.focus();
+  _wlRenderDropdown('');
+};
+
+function _wlRenderDropdown(query) {
+  const state = document.getElementById('wl-state-input').value;
+  const dd = document.getElementById('wl-ws-dropdown');
+  const q = query.toLowerCase().trim();
+  const list = (_wlAllWorkshops || []).filter(w => {
+    const stateMatch = state === '__unspecified__' ? !w.state : w.state === state;
+    return stateMatch && (!q || w.name.toLowerCase().includes(q));
+  }).slice(0, 30);
+  if (!list.length) {
+    dd.innerHTML = `<div style="padding:12px 13px;color:var(--faint);font-size:13px">No workshops match.</div>`;
+    dd.style.display = 'block';
+    return;
+  }
+  dd.innerHTML = list.map(w => `<button type="button" class="wl-ws-item" onclick="_wlPickWorkshop('${escapeHtml(w.uid)}')">${escapeHtml(w.name)}</button>`).join('');
+  dd.style.display = 'block';
+}
+
+window._wlPickWorkshop = function(uid) {
+  const w = (_wlAllWorkshops || []).find(x => x.uid === uid);
+  if (!w) return;
+  _wlPicked = w;
+  document.getElementById('wl-ws-dropdown').style.display = 'none';
+  document.getElementById('wl-picked-name').textContent = w.name;
+  document.getElementById('wl-step-search').style.display = 'none';
+  document.getElementById('wl-step-pin').style.display = '';
+  setTimeout(() => document.getElementById('wl-name').focus(), 0);
+};
+
+window._wlChangeWorkshop = function() {
+  _wlPicked = null;
+  document.getElementById('wl-step-pin').style.display = 'none';
+  document.getElementById('wl-step-search').style.display = '';
+};
+
+window.doWorkerLogin = async function(e) {
+  e.preventDefault();
+  const err = document.getElementById('wl-err'); err.textContent = '';
+  if (!_wlPicked) { err.textContent = 'Pick your workshop first.'; return; }
+  const name = document.getElementById('wl-name').value.trim();
+  const pin  = document.getElementById('wl-pin').value.trim();
+  if (!name || !pin) { err.textContent = 'Enter both your name and PIN.'; return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const resp = await fetch(WORKER_LOGIN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workshopUid: _wlPicked.uid, name, pin })
+    });
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok || !data || !data.token) {
+      err.textContent = (data && data.error) || 'Sign-in failed — check your name and PIN.';
+      return;
+    }
+    // Stash the already-resolved worker so the auth-state-changed handler
+    // signs straight into the app instead of showing the PIN pad again.
+    window._pendingWorkerLogin = data.worker;
+    await fbAuth.signInWithCustomToken(data.token);
+    // onAuthStateChanged handles the rest
+  } catch (e2) {
+    err.textContent = e2.message || 'Sign-in failed. Check your connection and try again.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
 };
 
 window.doEmailSignIn = async function(e) {
