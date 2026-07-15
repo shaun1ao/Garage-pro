@@ -120,12 +120,15 @@ function brandHead(){
   </div>`;
 }
 
-function itemHTML(kind, i, name, meta, amount){
+function itemHTML(kind, i, name, meta, exclGst, gstAmt, amount){
   const key = kind + ':' + i;
   const st = decisions[key] || '';
+  const gstLine = gstAmt > 0
+    ? `<div class="item-meta">${meta ? esc(meta) + ' · ' : ''}${fmt(exclGst)} + GST ${fmt(gstAmt)}</div>`
+    : (meta ? `<div class="item-meta">${esc(meta)}</div>` : '');
   return `<div class="item ${st}" id="it-${esc(key)}">
     <div class="item-top">
-      <div><div class="item-name">${esc(name)}</div>${meta ? `<div class="item-meta">${esc(meta)}</div>` : ''}</div>
+      <div><div class="item-name">${esc(name)}</div>${gstLine}</div>
       <div class="amt">${fmt(amount)}</div>
     </div>
     <div class="btns">
@@ -161,12 +164,12 @@ function render(){
     </div>
 
     <div id="items">
-      ${lines.map((l,i) => itemHTML('line', i, l.name + (l.qty>1?' × '+l.qty:''), 'Part', l.amount)).join('')}
-      ${charges.map((c,i) => itemHTML('charge', i, c.name, 'Service / labour', c.amount)).join('')}
+      ${lines.map((l,i) => itemHTML('line', i, l.name + (l.qty>1?' × '+l.qty:''), 'Part', l.amount_excl_gst ?? l.amount, l.gst_amount || 0, l.amount)).join('')}
+      ${charges.map((c,i) => itemHTML('charge', i, c.name, 'Service / labour', c.amount_excl_gst ?? c.amount, c.gst_amount || 0, c.amount)).join('')}
     </div>
 
     <div class="totrow"><span style="color:var(--dim)">Estimate total</span><span class="amt">${fmt(DATA.total)}</span></div>
-    <div style="font-size:12px;color:var(--dim);text-align:right;margin-top:-6px;margin-bottom:14px">All prices are exclusive of GST/VAT/Tax unless otherwise stated.</div>
+    <div style="font-size:12px;color:var(--dim);text-align:right;margin-top:-6px;margin-bottom:14px">${(DATA.total_gst || 0) > 0 ? `Prices include GST${DATA.tax_pct ? ' (' + DATA.tax_pct + '%)' : ''} — ${fmt(DATA.total_gst)} of the total above is GST.` : 'No GST applies to this estimate.'}</div>
 
     <textarea class="note" id="note" placeholder="Anything you'd like to tell the workshop? (optional)"></textarea>
 
@@ -183,8 +186,8 @@ window.zoom = function(src){ document.getElementById('lbImg').src = src; documen
 // the customer can print or save-as-PDF from the browser.
 window.viewQuote = function(){
   const rows = []
-    .concat((DATA.lines||[]).map(l => ({ name: l.name + (l.qty>1 ? ' × '+l.qty : ''), kind:'Part', amount:l.amount })))
-    .concat((DATA.charges||[]).map(c => ({ name: c.name, kind:'Service / labour', amount:c.amount })));
+    .concat((DATA.lines||[]).map(l => ({ name: l.name + (l.qty>1 ? ' × '+l.qty : ''), kind:'Part', exclGst: l.amount_excl_gst ?? l.amount, gst: l.gst_amount || 0, amount:l.amount })))
+    .concat((DATA.charges||[]).map(c => ({ name: c.name, kind:'Service / labour', exclGst: c.amount_excl_gst ?? c.amount, gst: c.gst_amount || 0, amount:c.amount })));
   const today = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Estimate ${esc(DATA.invoice_no || '')} · ${esc(DATA.workshop_name || '')}</title>
   <style>
@@ -214,13 +217,13 @@ window.viewQuote = function(){
       </div>
     </div>
     <table>
-      <thead><tr><th>Item</th><th>Type</th><th>Amount</th></tr></thead>
+      <thead><tr><th>Item</th><th>Type</th><th>Price (excl. GST)</th><th>GST</th><th>Price (incl. GST)</th></tr></thead>
       <tbody>
-        ${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.kind)}</td><td>${esc(fmt(r.amount))}</td></tr>`).join('')}
-        <tr class="tot"><td colspan="2">Estimate total</td><td>${esc(fmt(DATA.total))}</td></tr>
+        ${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.kind)}</td><td>${esc(fmt(r.exclGst))}</td><td>${r.gst > 0 ? esc(fmt(r.gst)) : '—'}</td><td>${esc(fmt(r.amount))}</td></tr>`).join('')}
+        <tr class="tot"><td colspan="4">Estimate total</td><td>${esc(fmt(DATA.total))}</td></tr>
       </tbody>
     </table>
-    <div class="note">This is an estimate, not a final bill. Only the items you approve will be carried out and billed. All prices are exclusive of GST/VAT/Tax unless otherwise stated.</div>
+    <div class="note">This is an estimate, not a final bill. Only the items you approve will be carried out and billed. ${(DATA.total_gst || 0) > 0 ? `Prices include GST${DATA.tax_pct ? ' (' + DATA.tax_pct + '%)' : ''} — ${esc(fmt(DATA.total_gst))} of the total is GST, shown per item above.` : 'No GST applies to this estimate.'}</div>
   </body></html>`;
   try {
     const url = URL.createObjectURL(new Blob([html], { type:'text/html' }));
