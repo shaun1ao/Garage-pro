@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Check your loyalty points · Garage Pro</title>
+<meta name="description" content="See your loyalty points balance at your workshop — pick your workshop, type your phone number. No login needed." />
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e14; --bg2:#121722; --surf:#0e1420; --border:#26303f;
+    --text:#e7ecf3; --dim:#9fb0c6; --faint:#69788f;
+    --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2; --blue:#639fff;
+    --fd:'Sora',sans-serif; --fb:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--fb);-webkit-font-smoothing:antialiased}
+  a{color:var(--acc2)}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border)}
+  .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
+  .brand .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center}
+  .brand .logo svg{width:19px;height:19px}
+  .brand b{font-family:var(--fd);font-size:16px}
+  .topbar .back{font-size:13px;color:var(--dim);text-decoration:none}
+  .topbar .back:hover{color:var(--acc2)}
+  .sec{padding:44px 0 70px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  .sec-head{text-align:center}
+  .eyebrow{font-family:var(--fd);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--acc2);margin-bottom:10px}
+  .sec-head h2{font-family:var(--fd);font-size:clamp(24px,4vw,34px);margin:0;line-height:1.2}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;font-family:var(--fd);font-weight:700;cursor:pointer;border:0;transition:filter .15s}
+  .btn-primary{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-ghost{background:none;border:1px solid var(--border);color:var(--dim)}
+  .btn-ghost:hover{color:var(--text)}
+  footer{padding:26px 22px;text-align:center;color:var(--faint);font-size:12.5px;border-top:1px solid var(--border)}
+  .loy-ws-item{display:block;padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s;font-family:var(--fb);font-size:13.5px;color:var(--text)}
+  .loy-ws-item:last-child{border-bottom:0}
+  .loy-ws-item:hover{background:rgba(255,179,71,.08)}
+  .loy-balance-card{text-align:center;padding:28px 18px;background:linear-gradient(135deg,rgba(255,179,71,.08),rgba(32,227,178,.04));border:1px solid var(--border);border-radius:12px}
+  .loy-balance-card .pts{font-family:var(--fd);font-weight:800;font-size:44px;color:var(--acc2);line-height:1}
+  .loy-balance-card .lbl{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+  .loy-balance-card .val{margin-top:14px;font-size:13.5px;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="brand" href="/"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span><b>Garage Pro</b></a>
+  <a class="back" href="/">&larr; garagepro.me</a>
+</div>
+
+<!-- ═══════════════ LOYALTY POINTS LOOKUP ═══════════════
+     Public page where a customer picks their workshop and enters their phone
+     number to see their loyalty points balance. Reads from
+     users/{wsUid}/loyalty_lookup/{sha256(phone)} — a minimal, customer-safe
+     doc with no other private data (see app/index.html's
+     _publishLoyaltyLookup). Only readable by someone who already knows the
+     phone number on file, since the doc ID is a hash of it.
+     ══════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="loyalty" style="background:linear-gradient(180deg,rgba(255,179,71,0.04) 0%,transparent 100%)">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Loyalty points</div>
+      <h2>Check your points balance</h2>
+      <p style="color:var(--dim);max-width:580px;margin:14px auto 0;font-size:15.5px;line-height:1.6">No login. Just pick your workshop and type the phone number on your account.</p>
+    </div>
+
+    <div style="max-width:560px;margin:36px auto 0;background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.35)">
+
+      <!-- Step 1: state picker -->
+      <div id="loy-step-state">
+        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Which state is your workshop in?</label>
+        <select id="loy-state-input" style="width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" onchange="_loyStatePicked()">
+          <option value="">— Pick a state —</option>
+        </select>
+        <div id="loy-state-msg" style="margin-top:8px;font-size:12.5px;color:var(--faint);min-height:16px"></div>
+      </div>
+
+      <!-- Step 2: workshop picker (filtered by state) -->
+      <div id="loy-step-workshop" style="display:none">
+        <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="font-size:13.5px"><span style="color:var(--faint)">State:</span><b id="loy-state-name" style="color:var(--text);margin-left:6px"></b></div>
+          <button onclick="loyBack('state')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
+        </div>
+        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Pick your workshop</label>
+        <div style="position:relative">
+          <input id="loy-ws-input" type="text" autocomplete="off" placeholder="Start typing your workshop name…" style="width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" />
+          <div id="loy-ws-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow-y:auto;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
+        </div>
+        <div id="loy-ws-msg" style="margin-top:8px;font-size:12.5px;color:var(--faint);min-height:16px"></div>
+      </div>
+
+      <!-- Step 3: phone number input -->
+      <div id="loy-step-phone" style="display:none">
+        <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="font-size:13.5px"><span style="color:var(--faint)">Workshop:</span><b id="loy-ws-name" style="color:var(--text);margin-left:6px"></b></div>
+          <button onclick="loyBack('workshop')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
+        </div>
+        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Phone number on your account</label>
+        <div style="display:flex;gap:8px">
+          <input id="loy-phone-input" type="tel" autocomplete="off" placeholder="98765 43210" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" onkeydown="if(event.key==='Enter')loyLookup()" />
+          <button onclick="loyLookup()" class="btn btn-primary" style="padding:0 22px;font-size:14px">Check balance</button>
+        </div>
+        <div id="loy-lookup-msg" style="margin-top:10px;font-size:12.5px;color:var(--faint);min-height:16px;line-height:1.5"></div>
+      </div>
+
+      <!-- Step 4: balance display -->
+      <div id="loy-step-balance" style="display:none">
+        <div id="loy-balance-card"></div>
+        <div style="margin-top:18px;text-align:center">
+          <button onclick="loyBack('phone')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer">Check another number</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>Powered by <a href="/">Garage Pro</a> — workshop management for Indian garages.</footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyD4rRHyT3NOxTfwQDy3mjv9HVYUH3riGDA",
+  authDomain: "garage-pro-874c6.firebaseapp.com",
+  projectId: "garage-pro-874c6",
+  storageBucket: "garage-pro-874c6.firebasestorage.app",
+  messagingSenderId: "714982026183",
+  appId: "1:714982026183:web:95401fffb0a93151b407e2"
+});
+const fbDb = firebase.firestore();
+
+// Canonical Indian state list — mirrors app/index.html's INDIA_STATES so the
+// dropdown order matches what workshop owners chose in their Settings.
+const LOY_INDIA_STATES = [
+  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa',
+  'Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala',
+  'Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland',
+  'Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura',
+  'Uttar Pradesh','Uttarakhand','West Bengal',
+  'Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry'
+];
+
+let _loyAllWorkshops = null;
+let _loyPickedState  = null;
+let _loyPickedUid    = null;
+let _loyPickedName   = null;
+
+function _loyEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function _loyNormPhone(v) { return String(v || '').replace(/\D/g, '').slice(-10); }
+
+async function _loyLoadWorkshops() {
+  if (_loyAllWorkshops) return _loyAllWorkshops;
+  let snap;
+  try { snap = await fbDb.collection('users').get(); }
+  catch (e) { throw new Error('Couldn\'t load workshops: ' + (e.code || e.message)); }
+  const list = [];
+  snap.forEach(doc => {
+    const d = doc.data() || {};
+    const name = (d.workshop_name || '').trim();
+    if (!name) return;
+    list.push({ uid: doc.id, name, state: (d.state || '').trim() });
+  });
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  _loyAllWorkshops = list;
+  return list;
+}
+
+function _loyBuildStateDropdown() {
+  const sel = document.getElementById('loy-state-input');
+  if (!sel || sel._loyBuilt) return;
+  const haveStates = new Set();
+  let haveUnspecified = false;
+  for (const w of (_loyAllWorkshops || [])) { if (w.state) haveStates.add(w.state); else haveUnspecified = true; }
+  const opts = [`<option value="">— Pick a state —</option>`];
+  for (const st of LOY_INDIA_STATES) {
+    const has = haveStates.has(st);
+    opts.push(`<option value="${_loyEsc(st)}" ${has ? '' : 'disabled style="color:#666"'}>${_loyEsc(st)}${has ? '' : ' (no workshops yet)'}</option>`);
+  }
+  if (haveUnspecified) opts.push(`<option value="__unspecified__">Other / state not specified</option>`);
+  sel.innerHTML = opts.join('');
+  sel._loyBuilt = true;
+}
+
+function _loyWorkshopsForState(state) {
+  if (!_loyAllWorkshops) return [];
+  if (state === '__unspecified__') return _loyAllWorkshops.filter(w => !w.state);
+  return _loyAllWorkshops.filter(w => w.state === state);
+}
+
+function _loyRenderDropdown(matches) {
+  const dd = document.getElementById('loy-ws-dropdown');
+  if (!matches.length) {
+    dd.innerHTML = `<div class="loy-ws-item" style="color:var(--faint);cursor:default">No workshops match. Check the spelling, or change state.</div>`;
+    dd.style.display = 'block';
+    return;
+  }
+  dd.innerHTML = matches.slice(0, 20).map(w => `<div class="loy-ws-item" onclick="_loyPickWorkshop('${_loyEsc(w.uid)}', '${_loyEsc(w.name).replace(/'/g, "\\'")}')">${_loyEsc(w.name)}</div>`).join('');
+  dd.style.display = 'block';
+}
+
+function _loyInit() {
+  const stateSel = document.getElementById('loy-state-input');
+  const wsInput  = document.getElementById('loy-ws-input');
+  if (!stateSel || stateSel._loyBound) return;
+  stateSel._loyBound = true;
+
+  const stateMsg = document.getElementById('loy-state-msg');
+  stateMsg.textContent = 'Loading workshops…';
+  _loyLoadWorkshops().then(list => {
+    _loyBuildStateDropdown();
+    stateMsg.textContent = list.length
+      ? `${list.length} workshop${list.length === 1 ? '' : 's'} across India · pick a state to narrow down`
+      : 'No workshops registered yet';
+  }).catch(e => {
+    stateMsg.style.color = '#ff6b6b';
+    stateMsg.textContent = e.message || String(e);
+  });
+
+  wsInput.addEventListener('input', () => {
+    const q = wsInput.value.toLowerCase().trim();
+    const pool = _loyWorkshopsForState(_loyPickedState);
+    _loyRenderDropdown(q ? pool.filter(w => w.name.toLowerCase().includes(q)) : pool.slice(0, 20));
+  });
+  wsInput.addEventListener('focus', () => {
+    const q = wsInput.value.toLowerCase().trim();
+    const pool = _loyWorkshopsForState(_loyPickedState);
+    _loyRenderDropdown(q ? pool.filter(w => w.name.toLowerCase().includes(q)) : pool.slice(0, 20));
+  });
+  document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('#loy-step-workshop')) {
+      const dd = document.getElementById('loy-ws-dropdown');
+      if (dd) dd.style.display = 'none';
+    }
+  });
+}
+
+window._loyStatePicked = function() {
+  const state = document.getElementById('loy-state-input').value;
+  if (!state) return;
+  _loyPickedState = state;
+  document.getElementById('loy-step-state').style.display = 'none';
+  document.getElementById('loy-step-workshop').style.display = 'block';
+  document.getElementById('loy-state-name').textContent = state === '__unspecified__' ? 'Other (not specified)' : state;
+  _loyRenderDropdown(_loyWorkshopsForState(state).slice(0, 20));
+};
+
+window._loyPickWorkshop = function(uid, name) {
+  _loyPickedUid = uid;
+  _loyPickedName = name;
+  document.getElementById('loy-ws-dropdown').style.display = 'none';
+  document.getElementById('loy-ws-name').textContent = name;
+  document.getElementById('loy-step-workshop').style.display = 'none';
+  document.getElementById('loy-step-phone').style.display = 'block';
+  setTimeout(() => document.getElementById('loy-phone-input').focus(), 0);
+};
+
+window.loyBack = function(step) {
+  document.getElementById('loy-step-state').style.display   = step === 'state'   ? 'block' : 'none';
+  document.getElementById('loy-step-workshop').style.display = step === 'workshop' ? 'block' : 'none';
+  document.getElementById('loy-step-phone').style.display    = step === 'phone'    ? 'block' : 'none';
+  document.getElementById('loy-step-balance').style.display  = 'none';
+  if (step === 'workshop') _loyRenderDropdown(_loyWorkshopsForState(_loyPickedState).slice(0, 20));
+};
+
+window.loyLookup = async function() {
+  const msg = document.getElementById('loy-lookup-msg');
+  const phone = _loyNormPhone(document.getElementById('loy-phone-input').value);
+  if (!phone) { msg.style.color = '#ff6b6b'; msg.textContent = 'Enter the phone number on your account.'; return; }
+  if (!(window.crypto && crypto.subtle)) { msg.style.color = '#ff6b6b'; msg.textContent = 'This browser can\'t verify securely — please try a different browser.'; return; }
+  msg.style.color = 'var(--faint)'; msg.textContent = 'Checking…';
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phone));
+    const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const snap = await fbDb.collection('users').doc(_loyPickedUid).collection('loyalty_lookup').doc(hash).get();
+    if (!snap.exists) {
+      msg.style.color = '#ff6b6b';
+      msg.textContent = 'No points balance found for that number at this workshop. Check the number, or ask them to look you up.';
+      return;
+    }
+    const d = snap.data() || {};
+    document.getElementById('loy-balance-card').innerHTML = `
+      <div class="loy-balance-card">
+        <div class="pts">${_loyEsc(String(d.points ?? 0))}</div>
+        <div class="lbl">Loyalty points</div>
+        <div class="val">${d.cust_name ? _loyEsc(d.cust_name) + ' · ' : ''}${_loyEsc(d.workshop_name || _loyPickedName || 'Workshop')}</div>
+      </div>`;
+    document.getElementById('loy-step-phone').style.display = 'none';
+    document.getElementById('loy-step-balance').style.display = 'block';
+  } catch (e) {
+    msg.style.color = '#ff6b6b';
+    msg.textContent = 'Couldn\'t check your balance right now — please try again in a moment.';
+  }
+};
+
+_loyInit();
+</script>
+</body>
+</html>
