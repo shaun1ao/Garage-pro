@@ -3939,6 +3939,7 @@ async function renderBookings(force = false) {
         <td>${statusPill(status)}</td>
         <td><div class="row-act">
           ${status === 'Scheduled' ? `<button class="mini-btn good" onclick="openCheckinForm('${escapeHtml(b.id)}')" title="Check in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Check in</button>` : ''}
+          ${status === 'Scheduled' && isServiceAdvisorRole() ? `<button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waBookingReminder('${escapeHtml(b.id)}')" title="Send a reminder for this appointment on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>Reminder</button>` : ''}
           <button class="mini-btn" onclick="openBookingForm('${escapeHtml(b.id)}')" title="Edit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit
           </button>
@@ -5720,8 +5721,11 @@ async function doCheckout(bookingId) {
   // Customer-facing triggers — checkout is the real path to Delivered
   // (bypasses markJobStatus, where the thank_you email mapping lives), so
   // these only ever fired from the manual status dropdown before.
-  sendCustomerNotification('thank_you', { job, booking: b });
-  notifyWhatsAppForEvent('thank_you', { job, booking: b });
+  let feedbackLink = '';
+  try { feedbackLink = await _publishFeedbackLink(job, b); }
+  catch (e) { console.warn('[checkout] feedback link publish failed:', e); }
+  sendCustomerNotification('thank_you', { job, booking: b, feedback_link: feedbackLink });
+  notifyWhatsAppForEvent('thank_you', { job, booking: b, feedback_link: feedbackLink });
   publishTracking(b.id);   // push Delivered to the public tracker
   renderCheckin();
   await Promise.all(writes);
@@ -6206,7 +6210,13 @@ window.markJobStatus = async function(jobId, newStatus) {
     : null;
   if (emailEvent) {
     sendCustomerNotification(emailEvent, { job: j });   // fire-and-forget
-    notifyWhatsAppForEvent(emailEvent, { job: j });
+    // WhatsApp prompts are intentionally limited to 4 moments (booking
+    // confirmation, booking reminder, pickup time allotted, thank you +
+    // invoice) — see notifyWhatsAppForEvent(). "thank_you" is one of the
+    // four; the rest of this status map (work_started/work_complete/
+    // ready_for_pickup) stays email-only so the SA isn't asked to send a
+    // WhatsApp at every single status change.
+    if (emailEvent === 'thank_you') notifyWhatsAppForEvent(emailEvent, { job: j });
   }
   renderJobs();
   await wsSave('jobs', D.jobs);
@@ -6270,9 +6280,11 @@ window.passQC = async function(jobId) {
   });
   // Customer-facing triggers — QC sign-off is the real path to "QC Passed"
   // (bypasses markJobStatus, which is where the work_complete email mapping
-  // lives), so these only ever fired from the manual status dropdown before.
+  // lives), so this only ever fired from the manual status dropdown before.
+  // WhatsApp is deliberately NOT sent here — it's one of the moments outside
+  // the 4 allowed automatic prompts (see notifyWhatsAppForEvent()). The SA
+  // can still send an update manually at any time via the job card.
   sendCustomerNotification('work_complete', { job: j });
-  notifyWhatsAppForEvent('work_complete', { job: j });
   renderJobs();
   await wsSave('jobs', D.jobs);
   publishTracking(j.booking_id);
@@ -6337,6 +6349,9 @@ async function _saveInformClient(jobId) {
   closeModal();
   showToast(`${j.plate} — pickup confirmed for ${date} ${time}`, 'good');
   audit('client-informed', `${j.plate} — pickup ${date} ${time}, wash by ${wash}`, { job_id: jobId });
+  // Customer-facing — "pickup time allotted" is one of the 4 moments that
+  // gets an automatic WhatsApp prompt (see notifyWhatsAppForEvent()).
+  notifyWhatsAppForEvent('pickup_time_set', { job: j });
   // Trigger 10 — Pickup time confirmed → notify washing/detailing team (specific worker)
   notify({
     kind: 'wash-assigned',
@@ -6375,10 +6390,12 @@ window.markWashReady = async function(jobId) {
   });
   // Customer-facing triggers — this is the path cars ACTUALLY reach Ready for
   // Pickup through (the wash-done button), but it bypasses markJobStatus, so
-  // the ready_for_pickup email/WhatsApp only ever fired from the manual status
-  // dropdown. Both no-op when disabled/trigger off/pref mismatch.
+  // the ready_for_pickup email only ever fired from the manual status
+  // dropdown. No-ops when disabled/trigger off/pref mismatch. WhatsApp isn't
+  // sent here — the pickup time was already texted to the customer when it
+  // was allotted (see _saveInformClient); this is an internal completion
+  // signal, not one of the 4 allowed automatic WhatsApp moments.
   sendCustomerNotification('ready_for_pickup', { job: j });
-  notifyWhatsAppForEvent('ready_for_pickup', { job: j });
   renderJobs();
   await wsSave('jobs', D.jobs);
   publishTracking(j.booking_id);
@@ -6460,9 +6477,10 @@ window.sendJobEstimate = async function(jobId) {
   const w = window.open('', '_blank');
   _openDocInWindow(w, html);
   renderJobs();
-  // estimate_ready customer email — fire-and-forget
+  // estimate_ready customer email — fire-and-forget. No WhatsApp here — the
+  // estimate's approval link is meant to be shared deliberately (the SA
+  // reviews it with the customer first), not fired as an automatic prompt.
   sendCustomerNotification('estimate_ready', { job: j, invoice: inv });
-  notifyWhatsAppForEvent('estimate_ready', { job: j, invoice: inv });
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -6648,10 +6666,12 @@ async function _cdSubmit(invId) {
   renderJobs();
   await Promise.all(writes);
   publishTracking(j.booking_id);   // estimate approved/rejected → tracker
-  // customer_approved customer email — only on approve branches (skip rejects)
+  // customer_approved customer email — only on approve branches (skip rejects).
+  // No WhatsApp here — the customer only just approved via the estimate link
+  // moments ago; another prompt right back at them isn't one of the 4 allowed
+  // automatic moments.
   if (counts.approved > 0) {
     sendCustomerNotification('customer_approved', { job: j, invoice: inv });
-    notifyWhatsAppForEvent('customer_approved', { job: j, invoice: inv });
   }
 }
 window._cdSubmit = _cdSubmit;
@@ -6735,10 +6755,17 @@ function _wsSlug(name) {
   return String(name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 }
-function _wsTrackLink() {
+// plate/bookingNo (optional) get appended as query params so track.html can
+// auto-fill + auto-look-up the vehicle instead of making the customer type
+// it in — see _trackAutoPickFromUrl() there. Plate wins if both are given.
+function _wsTrackLink(plate, bookingNo) {
   const s = D.settings || {};
   const slug = _wsSlug(s.workshop_name || userProfile?.workshop_name || '');
-  return slug ? `https://garagepro.me/track.html?ws=${slug}` : '';
+  if (!slug) return '';
+  let url = `https://garagepro.me/track.html?ws=${slug}`;
+  if (plate)          url += `&plate=${encodeURIComponent(plate)}`;
+  else if (bookingNo) url += `&booking=${encodeURIComponent(bookingNo)}`;
+  return url;
 }
 function _wsName() { return (D.settings?.workshop_name || userProfile?.workshop_name || 'our workshop'); }
 // Best-effort customer phone from an invoice → its job → booking → customers.
@@ -6782,6 +6809,25 @@ async function _publishInvoiceView(invId) {
   return `${_apprSiteBase()}/invoice.html?w=${encodeURIComponent(currentUser.uid)}&t=${encodeURIComponent(token)}`;
 }
 
+// Publish a one-time, tokenized feedback link (mirrors _publishInvoiceView) —
+// the customer opens it (no login), leaves a star rating + optional comment,
+// which writes back to this same doc. Sent alongside the thank-you + invoice
+// message/email, the one moment after checkout where it's appropriate to ask.
+async function _publishFeedbackLink(job, booking) {
+  if (!currentUser) return '';
+  const token = _apprToken();
+  const doc = {
+    token,
+    job_id: job?.id || '', booking_id: booking?.id || job?.booking_id || '',
+    workshop_name: (D.settings || {}).workshop_name || 'Garage Pro',
+    plate: job?.plate || booking?.plate || '', cust_name: job?.cust_name || booking?.cust_name || '',
+    submitted: false, rating: 0, comment: '', submitted_at: '',
+    created_at: nowStr()
+  };
+  await wsCol('feedback_links').doc(token).set(doc);
+  return `${_apprSiteBase()}/feedback.html?w=${encodeURIComponent(currentUser.uid)}&t=${encodeURIComponent(token)}`;
+}
+
 // Send an invoice summary on WhatsApp, with a tappable link to view/download
 // the actual invoice (see _publishInvoiceView — wa.me itself can't attach a PDF).
 window.waInvoice = async function(invId) {
@@ -6798,10 +6844,15 @@ window.waInvoice = async function(invId) {
   let viewLink = '';
   try { viewLink = await _publishInvoiceView(invId); }
   catch (e) { console.warn('[waInvoice] publish failed:', e); }
-  const link = viewLink || _wsTrackLink();
+  const link = viewLink || _wsTrackLink(inv.vehicle?.plate || '');
+  const j = (D.jobs || []).find(x => x.id === inv.job_id);
+  let feedbackLink = '';
+  try { feedbackLink = await _publishFeedbackLink(j, j ? (D.bookings || []).find(x => x.id === j.booking_id) : null); }
+  catch (e) { console.warn('[waInvoice] feedback link publish failed:', e); }
   const msg = `Hi ${name}, your invoice ${inv.number || ''} from ${_wsName()}${veh} is ready — total ${cur}${total.toLocaleString('en-IN')}.`
     + (viewLink ? `\nView / download your invoice: ${viewLink}` : (link ? `\nTrack your vehicle: ${link}` : ''))
-    + `\n\nThank you for choosing us!`;
+    + `\n\nThank you for choosing us!`
+    + (feedbackLink ? `\n\nHow did we do? We'd love your feedback: ${feedbackLink}` : '');
   audit('wa-invoice', `${inv.number || ''} → ${inv.customer?.name || '—'}`, { invoice_id: inv.id });
   _waOpen(_invPhone(inv), msg, preWin);
 };
@@ -6809,12 +6860,16 @@ window.waInvoice = async function(invId) {
 // "Your car is ready for pickup" on WhatsApp (includes the pickup code if the
 // gate-pass toggle is on).
 window.waReady = function(jobId) {
-  if (currentRole() === 'mechanic') return customAlert('Notifying the customer isn\'t part of the technician workflow — the service advisor handles this.', { title: 'Not available' });
+  // Defense-in-depth only — notifyWhatsAppForEvent() already never prompts a
+  // mechanic to reach this, and the dashboard button that calls it directly
+  // is hidden for mechanics too. Silent no-op (no lecturing dialog) covers
+  // any path we've missed instead of blocking with a message.
+  if (currentRole() === 'mechanic') return;
   const j = (D.jobs || []).find(x => x.id === jobId);
   if (!j) return showToast('Job not found', 'bad');
   const name = (j.cust_name || 'there').split(' ')[0];
   const when = (j.pickup_date || j.pickup_time) ? `\nPickup: ${j.pickup_date || ''} ${j.pickup_time || ''}`.trimEnd() : '';
-  const link = _wsTrackLink();
+  const link = _wsTrackLink(j.plate || '');
   // Security: never send the code in the message. Tell them where to get it —
   // they'll verify the phone/email on their booking to reveal it on the page.
   const codeNote = (D.settings?.pickup_otp_enabled && j.pickup_otp)
@@ -6824,6 +6879,72 @@ window.waReady = function(jobId) {
     + (link ? `\nStatus: ${link}` : '');
   audit('wa-ready', `${j.plate} → ${j.cust_name || '—'}`, { job_id: j.id });
   _waOpen(_bookingPhone(j.booking_id) || j.cust_phone, msg);
+};
+
+// "Pick up time allotted" — one of the 4 automatic WhatsApp moments, sent
+// when the SA confirms the pickup date/time with the customer (see
+// _saveInformClient), before the wash/detail even starts.
+window.waPickupScheduled = function(jobId) {
+  if (currentRole() === 'mechanic') return;   // defense-in-depth, see waReady
+  const j = (D.jobs || []).find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  const name = (j.cust_name || 'there').split(' ')[0];
+  const link = _wsTrackLink(j.plate || '');
+  const msg = `Hi ${name}, your ${j.plate || 'vehicle'} is scheduled for pickup on ${j.pickup_date || ''} at ${j.pickup_time || ''} from ${_wsName()}.`
+    + (link ? `\nTrack: ${link}` : '');
+  audit('wa-pickup-scheduled', `${j.plate} → ${j.cust_name || '—'}`, { job_id: j.id });
+  _waOpen(_bookingPhone(j.booking_id) || j.cust_phone, msg);
+};
+
+// SA-only "send a WhatsApp update whenever you want" picker — the automatic
+// prompts are deliberately limited to 4 moments (booking confirmed, booking
+// reminder, pickup time allotted, thank-you + invoice), so this is the
+// escape hatch for everything else: a quick menu of the ready-made messages
+// that make sense for THIS job right now, plus a free-form option.
+window.waSendUpdate = function(jobId) {
+  if (!isServiceAdvisorRole()) return;   // button is already hidden otherwise
+  const j = (D.jobs || []).find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  const inv = (D.invoices || []).find(x => x.job_id === j.id);
+  const rows = [];
+  if (j.pickup_date || j.pickup_time) {
+    rows.push(['Pickup time', () => window.waPickupScheduled(j.id)]);
+  }
+  rows.push(['Ready for pickup', () => window.waReady(j.id)]);
+  if (inv) rows.push(['Thank you + invoice', () => window.waInvoice(inv.id)]);
+  if (inv && inv.payment_status !== 'Paid') rows.push(['Payment reminder', () => window.waPaymentReminder(inv.id)]);
+  rows.push(['Custom message…', () => _waCustomMessage(j)]);
+  const body = rows.map(([label], i) =>
+    `<button type="button" class="mini-btn" style="width:100%;justify-content:flex-start;margin-bottom:8px" onclick="_waPickerRun(${i})">${escapeHtml(label)}</button>`
+  ).join('');
+  window._waPickerActions = rows.map(([, fn]) => fn);
+  _openSubModal({ title: `WhatsApp update · ${j.plate}`, bodyHtml: body, footHtml: `<button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>` });
+};
+window._waPickerRun = function(i) {
+  const fn = (window._waPickerActions || [])[i];
+  closeSubModal();
+  if (fn) fn();
+};
+async function _waCustomMessage(j) {
+  const text = await customPrompt('Message to send on WhatsApp', {
+    title: `Custom message · ${j.plate}`, placeholder: 'Type your update…', okLabel: 'Open WhatsApp'
+  });
+  if (!text) return;
+  audit('wa-custom', `${j.plate} → ${j.cust_name || '—'}`, { job_id: j.id });
+  _waOpen(_bookingPhone(j.booking_id) || j.cust_phone, text);
+}
+
+// "Booking reminder" — one of the 4 automatic WhatsApp moments, but there's
+// no scheduler in this app to fire it on its own, so it's SA-triggered:
+// a manual "Reminder" button on upcoming (Scheduled) appointments.
+window.waBookingReminder = function(bookingId) {
+  if (!isServiceAdvisorRole()) return;   // button is already hidden otherwise
+  const b = (D.bookings || []).find(x => x.id === bookingId);
+  if (!b) return showToast('Appointment not found', 'bad');
+  const name = (b.cust_name || 'there').split(' ')[0];
+  const msg = `Hi ${name}, just a reminder — your appointment at ${_wsName()} for ${b.plate || 'your vehicle'} is on ${b.date || ''}${b.time ? ' at ' + b.time : ''}. See you then!`;
+  audit('wa-reminder-booking', `${b.plate || '—'} → ${b.cust_name || '—'}`, { booking_id: b.id });
+  _waOpen(b.cust_phone, msg);
 };
 
 // Friendly payment reminder for an outstanding invoice.
@@ -6869,16 +6990,17 @@ window._hideWaPrompt = function() {
 };
 
 // Simple WhatsApp text per status event — reuses _buildEmailData so the copy
-// stays consistent with what the email version says. ready_for_pickup and
-// invoice_ready are handled separately (they delegate to the existing
-// waReady/waInvoice, which already carry pickup-OTP notes / the invoice link).
+// stays consistent with what the email version says. Automatic WhatsApp
+// prompts are deliberately limited to 4 moments: booking confirmed, booking
+// reminder, pickup time allotted, and thank-you + invoice — so the SA isn't
+// nagged to send a WhatsApp at every single status change. (pickup_time_set,
+// ready_for_pickup, invoice_ready and booking_reminder are handled separately
+// — they need fields _buildEmailData doesn't carry, or delegate to an
+// existing bespoke sender like waReady/waInvoice.) The SA can still send any
+// update manually at any time — see waSendUpdate().
 const WA_EVENT_TEXT = {
   booking_confirmed: (d) => `Hi ${d.customer_name}, your appointment at ${d.workshop_name} for ${d.plate || 'your vehicle'} is confirmed for ${d.date}${d.time ? ' at ' + d.time : ''}. See you then!${d.track_link ? '\nTrack: ' + d.track_link : ''}`,
-  estimate_ready:    (d) => `Hi ${d.customer_name}, your repair estimate for ${d.plate || 'your vehicle'} is ready.${d.approval_link ? '\nReview & approve here: ' + d.approval_link : ' Please get in touch to review it.'}`,
-  customer_approved: (d) => `Thanks for approving the estimate for ${d.plate || 'your vehicle'}! We're getting started right away.`,
-  work_started:      (d) => `Hi ${d.customer_name}, we've started work on your ${d.plate || 'vehicle'} at ${d.workshop_name}.${d.track_link ? '\nTrack: ' + d.track_link : ''}`,
-  work_complete:     (d) => `Hi ${d.customer_name}, work on your ${d.plate || 'vehicle'} is complete! We'll have it ready for pickup shortly.`,
-  thank_you:         (d) => `Thank you for choosing ${d.workshop_name}, ${d.customer_name}! We hope to see you again.`
+  thank_you:         (d) => `Thank you for choosing ${d.workshop_name}, ${d.customer_name}! We hope to see you again.${d.feedback_link ? '\n\nHow did we do? We\'d love your feedback: ' + d.feedback_link : ''}`
 };
 
 // Resolve the phone + contact preference for whatever record we have (booking
@@ -6902,6 +7024,14 @@ function _waResolveContact(opts) {
 function notifyWhatsAppForEvent(eventId, opts = {}) {
   try {
     if (D.settings?.whatsapp_updates_enabled === false) return;
+    // Sending customer-facing WhatsApp updates is the Service Advisor's job
+    // (same boundary as the dashboard's "Notify" button, which is hidden for
+    // mechanics). Bail silently here BEFORE prompting — a mechanic finishing
+    // their own step (e.g. marking a job Ready for Pickup) would otherwise get
+    // asked "Send a WhatsApp update?", say yes, and then hit a wall telling
+    // them it's not their job. The SA already gets an in-app notify() for
+    // every one of these transitions and can send it themselves from there.
+    if (currentRole() === 'mechanic') return;
     const { job: j, booking: b, invoice: inv, pref, phone } = _waResolveContact(opts);
     if (pref !== 'whatsapp' && pref !== 'both') return;
     if (!phone) return;
@@ -6911,9 +7041,12 @@ function notifyWhatsAppForEvent(eventId, opts = {}) {
     if (eventId === 'invoice_ready' && inv) {
       return _showWaPrompt(`Send the invoice to ${inv.customer?.name || 'the customer'} on WhatsApp?`, () => waInvoice(inv.id));
     }
+    if (eventId === 'pickup_time_set' && j) {
+      return _showWaPrompt(`Send the pickup time to ${j.cust_name || b?.cust_name || 'the customer'} on WhatsApp?`, () => waPickupScheduled(j.id));
+    }
     const textFn = WA_EVENT_TEXT[eventId];
     if (!textFn) return;
-    const d = _buildEmailData({ event: eventId, job: j, booking: b, invoice: inv, to: opts.to, notes: opts.notes });
+    const d = _buildEmailData({ event: eventId, job: j, booking: b, invoice: inv, to: opts.to, notes: opts.notes, feedback_link: opts.feedback_link });
     const msg = textFn(d);
     _showWaPrompt(`Send a WhatsApp update to ${d.customer_name}?`, () => {
       audit('wa-status-update', `${eventId} → ${d.customer_name}`, { event: eventId });
@@ -7451,6 +7584,7 @@ window.openJobForm = function(id) {
           <span style="color:var(--faint)">Estimate <b style="color:var(--blue)">${cur}${estTotal.toLocaleString('en-IN')}</b></span>
           <span style="color:var(--faint)">Actual <b style="color:var(--teal)">${cur}${Math.round(actTotal).toLocaleString('en-IN')}</b></span>
           ${dviFlags ? `<span style="color:var(--red);font-weight:700">⚑ ${dviFlags} inspection flag${dviFlags === 1 ? '' : 's'}</span>` : ''}
+          ${isServiceAdvisorRole() ? `<button type="button" class="mini-btn" style="margin-left:auto;border-color:rgba(37,211,102,.5);color:#25d366" onclick="waSendUpdate('${escapeHtml(j.id)}')" title="Send the customer a WhatsApp update whenever you want — not tied to a status change"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>WhatsApp update</button>` : ''}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${chips.map(([sid, label]) => `<button type="button" onclick="_jobJump('${sid}')" style="padding:5px 11px;border-radius:100px;border:1px solid var(--brd2);background:var(--bg2);color:var(--dim);font-family:var(--fb);font-size:11.5px;font-weight:600;cursor:pointer">${label}</button>`).join('')}
@@ -7855,6 +7989,20 @@ window._jobAddEstFromInventory = function() {
   };
   setTimeout(() => { const inp = document.getElementById('_estQ'); if (inp) inp.addEventListener('input', () => render(inp.value)); render(''); }, 0);
 };
+// Estimation parts staged for a job → nudge the assigned worker to go inspect
+// the vehicle now there's something to check for. Falls back to the floor
+// manager if no worker is assigned yet. Called from every place est_parts
+// gets added: the job card's own pickers, and the parts department's
+// quick-price flow (which pushes straight into a job's estimate too).
+function _notifyWorkerEstAdded(job) {
+  if (!job) return;
+  notify({
+    kind: 'estimate-parts-added',
+    message: `${job.plate} — parts added to the estimate. Please inspect the vehicle.`,
+    target: job.mechanic ? { worker_name: job.mechanic } : { role: 'floor_manager' },
+    job_id: job.id
+  });
+}
 window._jobConfirmAddEstFromInventory = function() {
   const priced = (D.inventory || []).filter(i => Number(i.sell_price || 0) > 0);
   for (const id of _pickEstInvSelected) {
@@ -7865,7 +8013,10 @@ window._jobConfirmAddEstFromInventory = function() {
   const n = _pickEstInvSelected.size;
   _pickEstInvSelected = new Set();
   closeSubModal(); _drawEstRows();
-  if (n) showToast(`${n} estimation part${n===1?'':'s'} added`, 'good');
+  if (n) {
+    showToast(`${n} estimation part${n===1?'':'s'} added`, 'good');
+    _notifyWorkerEstAdded((D.jobs || []).find(x => x.id === _editingJob?.id));
+  }
 };
 
 // Add estimation parts from APPROVED parts-request items that carry a price.
@@ -7940,7 +8091,10 @@ window._jobConfirmAddApproved = function() {
   const n = (window._pickApprovedSelected || new Set()).size;
   window._pickApprovedSelected = new Set();
   closeSubModal(); _drawEstRows();
-  if (n) showToast(`${n} estimation part${n===1?'':'s'} added`, 'good');
+  if (n) {
+    showToast(`${n} estimation part${n===1?'':'s'} added`, 'good');
+    _notifyWorkerEstAdded((D.jobs || []).find(x => x.id === _editingJob?.id));
+  }
 };
 
 window._jobAddEstService = function() { if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can edit estimates', 'bad'); _editingJob.est_services.push({ name: '', price: 0 }); _drawEstRows(); };
@@ -10728,8 +10882,10 @@ window._prAddToEstimate = async function(reqId, itemId) {
   r.updated_at = nowStr();
   const writes = [wsSave('parts_requests', D.parts_requests)];
   const job = r.job_id ? (D.jobs || []).find(x => x.id === r.job_id) : null;
-  if (job && _prAutoAddToJobEstimate(r, it)) writes.push(wsSave('jobs', D.jobs));
+  const addedToEstimate = job && _prAutoAddToJobEstimate(r, it);
+  if (addedToEstimate) writes.push(wsSave('jobs', D.jobs));
   await Promise.all(writes);
+  if (addedToEstimate) _notifyWorkerEstAdded(job);
   audit('part-estimate-set', `${it.name} · ₹${n}${r.plate ? ' · ' + r.plate : ''}`, { request_id: reqId, item_id: itemId });
   showToast(
     job ? `Added to ${job.plate || 'the'} job's estimate` : (r.job_id ? 'Price saved — linked job not found' : 'Price saved (this request isn\'t linked to a job)'),
@@ -11104,6 +11260,9 @@ window.setPartStatus = async function(reqId, status, itemId, extra) {
     if (stockAdds.length) writes.push(wsSave('inventory', D.inventory));
     if (jobsTouched)      writes.push(wsSave('jobs', D.jobs));
     await Promise.all(writes);
+    // r has at most one linked job (job_id is constant across this request's
+    // items), so one notify covers every item touched in this pass.
+    if (jobsTouched) _notifyWorkerEstAdded((D.jobs || []).find(x => x.id === r.job_id));
   } catch (e) {
     showToast('Couldn\'t save status change: ' + (e?.message || e), 'bad');
   }
@@ -14297,7 +14456,10 @@ window.generateInvoice = async function(jobId) {
   // invoice_ready customer email — only on NEW invoices (re-printing an existing
   // invoice shouldn't re-email the customer)
   if (isNew && inv.customer?.email) {
-    sendCustomerNotification('invoice_ready', { job: j, invoice: inv, to: inv.customer.email });
+    let feedbackLink = '';
+    try { feedbackLink = await _publishFeedbackLink(j, D.bookings.find(x => x.id === j.booking_id)); }
+    catch (e) { console.warn('[invoice] feedback link publish failed:', e); }
+    sendCustomerNotification('invoice_ready', { job: j, invoice: inv, to: inv.customer.email, feedback_link: feedbackLink });
   }
   if (isNew) notifyWhatsAppForEvent('invoice_ready', { job: j, invoice: inv });
 };
@@ -14316,16 +14478,27 @@ window.generateInvoice = async function(jobId) {
 //              invoice_ready  — each individually toggleable.
 // ══════════════════════════════════════════════════════════════════════════
 
+// Appends "· PLATE (BK-0042)" (whichever of the two exist) to a subject line.
+// When the customer hits Reply, their email client carries the subject
+// forward as "Re: ...", so this is what lets the garage tell which booking
+// an incoming reply is about without needing to see the original thread.
+function _emailSubjectRef(d) {
+  const parts = [];
+  if (d.plate) parts.push(d.plate);
+  if (d.booking_no) parts.push(`(${d.booking_no})`);
+  return parts.length ? ` · ${parts.join(' ')}` : '';
+}
+
 // Canonical list of customer-email events. label/headline drive the UI copy.
 const EMAIL_EVENTS = [
-  { id: 'booking_confirmed',  label: 'Booking confirmed',     headline: 'Your booking is confirmed',         subject: (d) => `Booking confirmed · ${d.workshop_name}` },
-  { id: 'estimate_ready',     label: 'Estimate ready',        headline: 'Your repair estimate is ready',     subject: (d) => `Repair estimate ready · ${d.workshop_name}` },
-  { id: 'customer_approved',  label: 'Customer approved',     headline: 'Thanks — we\'re proceeding',         subject: (d) => `Approval received · ${d.workshop_name}` },
-  { id: 'work_started',       label: 'Work started',          headline: 'We\'ve started work on your car',    subject: (d) => `Work started on ${d.plate || 'your vehicle'}` },
-  { id: 'work_complete',      label: 'Work complete',         headline: 'Work is complete',                  subject: (d) => `Work complete · ${d.workshop_name}` },
-  { id: 'ready_for_pickup',   label: 'Ready for pickup',      headline: 'Your car is ready for pickup',      subject: (d) => `Ready for pickup · ${d.workshop_name}` },
-  { id: 'thank_you',          label: 'Thank-you (after pickup)', headline: 'Thank you for choosing us',     subject: (d) => `Thank you · ${d.workshop_name}` },
-  { id: 'invoice_ready',      label: 'Invoice ready',         headline: 'Your invoice is ready',             subject: (d) => `Invoice ${d.invoice_no || ''} · ${d.workshop_name}` }
+  { id: 'booking_confirmed',  label: 'Booking confirmed',     headline: 'Your booking is confirmed',         subject: (d) => `Booking confirmed · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'estimate_ready',     label: 'Estimate ready',        headline: 'Your repair estimate is ready',     subject: (d) => `Repair estimate ready · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'customer_approved',  label: 'Customer approved',     headline: 'Thanks — we\'re proceeding',         subject: (d) => `Approval received · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'work_started',       label: 'Work started',          headline: 'We\'ve started work on your car',    subject: (d) => `Work started on ${d.plate || 'your vehicle'}${d.booking_no ? ' (' + d.booking_no + ')' : ''}` },
+  { id: 'work_complete',      label: 'Work complete',         headline: 'Work is complete',                  subject: (d) => `Work complete · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'ready_for_pickup',   label: 'Ready for pickup',      headline: 'Your car is ready for pickup',      subject: (d) => `Ready for pickup · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'thank_you',          label: 'Thank-you (after pickup)', headline: 'Thank you for choosing us',     subject: (d) => `Thank you · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'invoice_ready',      label: 'Invoice ready',         headline: 'Your invoice is ready',             subject: (d) => `Invoice ${d.invoice_no || ''} · ${d.workshop_name}${_emailSubjectRef(d)}` }
 ];
 window.EMAIL_EVENTS = EMAIL_EVENTS;
 
@@ -14364,8 +14537,16 @@ function _buildEmailData(opts) {
     booking_no:      b?.booking_no || b?.booking_ref || j?.booking_no || inv?.booking_no || '',
     invoice_no:      inv?.number || '',
     currency:        ws.currency || '₹',
-    // Deep links surfaced as buttons in every template
-    track_link:      (function(){ try { return _wsTrackLink() || ''; } catch(_) { return ''; } })(),
+    // Deep links surfaced as buttons in every template. Plate/booking# are
+    // passed through so the customer lands on their vehicle's status
+    // directly — no re-typing what we already know.
+    track_link:      (function(){
+                       try {
+                         const _plate = b?.plate || j?.plate || inv?.vehicle?.plate || '';
+                         const _bk    = b?.booking_no || b?.booking_ref || j?.booking_no || inv?.booking_no || '';
+                         return _wsTrackLink(_plate, _bk) || '';
+                       } catch(_) { return ''; }
+                     })(),
     approval_link:   (function(){
                        const tok = j?.approval_token || inv?.approval_token || '';
                        try {
@@ -14374,6 +14555,10 @@ function _buildEmailData(opts) {
                        } catch(_) {}
                        return '';
                      })(),
+    // Set by the caller (doCheckout / invoice generation), which publishes
+    // the tokenized feedback doc itself — that's an async Firestore write,
+    // and this function is synchronous, so it can't mint the link here.
+    feedback_link:   opts.feedback_link || '',
     // Receipt-style breakdown — only filled when an invoice is in scope
     items:           inv ? (inv.lines || []).map(l => ({ name: l.name || '', qty: Number(l.qty || 1), amount: Number(l.unit_price || 0) * Number(l.qty || 1) * (1 - Number(l.disc_pct||0)/100) })) : [],
     charges:         inv ? (inv.charges || []) : [],
@@ -14396,13 +14581,16 @@ function _emailFooterBlock(d, align) {
 }
 
 // Call-to-action button block: "Track your repair" + (estimate only) "Review your
-// estimate". Table-based so it renders in Outlook/Gmail. Returns '' when no links.
+// estimate" + (thank-you/invoice only) "Leave feedback". Table-based so it
+// renders in Outlook/Gmail. Returns '' when no links.
 function _emailCtaBlock(d) {
   const btns = [];
   if (d.event === 'estimate_ready' && d.approval_link)
     btns.push(`<a href="${_esc(d.approval_link)}" style="display:inline-block;background:#1e7be0;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">Review &amp; approve your estimate</a>`);
   if (d.track_link)
     btns.push(`<a href="${_esc(d.track_link)}" style="display:inline-block;background:#0a0f1a;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">Track your repair</a>`);
+  if ((d.event === 'thank_you' || d.event === 'invoice_ready') && d.feedback_link)
+    btns.push(`<a href="${_esc(d.feedback_link)}" style="display:inline-block;background:#20a876;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">Leave feedback</a>`);
   if (!btns.length) return '';
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:8px 0 4px">${btns.join('')}</td></tr></table>`;
 }
