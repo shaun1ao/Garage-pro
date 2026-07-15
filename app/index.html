@@ -7193,15 +7193,27 @@ window.notifyWhatsAppForEvent = notifyWhatsAppForEvent;
 // Photos are embedded as data URLs (the customer can't read the sub-gated
 // job_photos collection), capped so we stay well under Firestore's 1 MiB doc.
 async function _apprBuildDoc(j, inv, token) {
-  const taxPct = Number(inv.tax_pct || 0);
+  const taxPct = Number(inv.tax_pct || inv.workshop_snapshot?.tax_pct || D.settings?.tax_pct || 0);
+  // Parts carry GST; services/labour (charges) don't — same convention as
+  // _invoiceTotals(), so the estimate matches the final invoice's math.
+  // amount_excl_gst is the pre-tax price, gst_amount is what GST adds, and
+  // amount (tax-inclusive) is what's actually billed — approve.html shows all
+  // three per item instead of a single collapsed figure.
   const lines = (inv.lines || []).map(l => {
     const taxable = Math.max(0, (Number(l.unit_price || 0) * Number(l.qty || 1)) * (1 - (Number(l.disc_pct || 0)) / 100));
+    const exclGst = Math.round(taxable);
+    const gstAmt  = Math.round(taxable * taxPct / 100);
     return {
       name: l.name || '', qty: Number(l.qty || 1),
-      amount: Math.round(taxable * (1 + taxPct / 100))
+      amount_excl_gst: exclGst,
+      gst_amount: gstAmt,
+      amount: exclGst + gstAmt
     };
   });
-  const charges = (inv.charges || []).map(c => ({ name: c.name || '', amount: Math.round(Number(c.amount || 0)) }));
+  const charges = (inv.charges || []).map(c => {
+    const amt = Math.round(Number(c.amount || 0));
+    return { name: c.name || '', amount_excl_gst: amt, gst_amount: 0, amount: amt };
+  });
 
   // Attach up to 3 job photos as small JPEG thumbnails. Downscaling keeps the
   // doc tiny (fast to publish, fast for the customer to open) — the original
@@ -7223,7 +7235,8 @@ async function _apprBuildDoc(j, inv, token) {
 
   const b = (D.bookings || []).find(x => x.id === j.booking_id) || {};
   const s = D.settings || {};
-  const total = lines.reduce((a, l) => a + l.amount, 0) + charges.reduce((a, c) => a + c.amount, 0);
+  const total    = lines.reduce((a, l) => a + l.amount, 0) + charges.reduce((a, c) => a + c.amount, 0);
+  const totalGst = lines.reduce((a, l) => a + l.gst_amount, 0) + charges.reduce((a, c) => a + c.gst_amount, 0);
 
   return {
     token,
@@ -7240,6 +7253,8 @@ async function _apprBuildDoc(j, inv, token) {
     charges,
     photos,
     total,
+    tax_pct: taxPct,
+    total_gst: totalGst,
     status: 'pending',
     decisions: {},
     customer_note: '',
