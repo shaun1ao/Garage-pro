@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Docs · Garage Pro</title>
+<meta name="description" content="Garage Pro documentation — learn how the software works." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0e14; --bg2:#0e131c; --surf:#141b26; --surf2:#1a2330;
+    --brd:rgba(255,255,255,0.08); --brd2:rgba(255,255,255,0.14);
+    --txt:#eef2f7; --dim:#9aa7b8; --faint:#6b7888;
+    --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2; --teal2:#16c79a;
+    --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:var(--fb);background:var(--bg);color:var(--txt);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--acc);color:#14100a}
+
+  /* ── Header (mirrors the marketing site) ── */
+  header.nav{position:sticky;top:0;z-index:50;background:rgba(10,14,20,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--brd)}
+  .nav-inner{max-width:1280px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:800;font-size:17px}
+  .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;flex:none}
+  .back-link{display:flex;align-items:center;gap:6px;color:var(--dim);font-weight:500;font-size:14px;transition:color .2s}
+  .back-link:hover{color:var(--txt)}
+
+  /* ── Layout ── */
+  .docs-wrap{max-width:1280px;margin:0 auto;padding:36px 24px 80px;display:grid;grid-template-columns:240px 1fr;gap:44px}
+  @media (max-width:860px){ .docs-wrap{grid-template-columns:1fr} }
+
+  /* ── Sidebar ── */
+  .sidebar{position:sticky;top:88px;align-self:start;max-height:calc(100vh - 110px);overflow-y:auto}
+  @media (max-width:860px){ .sidebar{position:static;max-height:none;margin-bottom:8px} }
+  .sidebar-group{margin-bottom:22px}
+  .sidebar-group h4{font-family:var(--fd);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin:0 0 8px;padding:0 12px}
+  .sidebar a{display:block;padding:8px 12px;border-radius:8px;font-size:14px;color:var(--dim);font-weight:500;transition:background .15s,color .15s}
+  .sidebar a:hover{background:var(--surf);color:var(--txt)}
+  .sidebar a.active{background:rgba(255,122,24,.12);color:var(--acc2);font-weight:700}
+
+  /* ── Banner ── */
+  .under-dev-banner{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,rgba(255,122,24,.14),rgba(255,179,71,.06));border:1px solid rgba(255,179,71,.28);border-radius:14px;padding:16px 20px;margin-bottom:36px}
+  .under-dev-banner .dot{width:9px;height:9px;border-radius:50%;background:var(--acc2);flex:none;box-shadow:0 0 0 4px rgba(255,179,71,.18);animation:pulse 1.8s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .under-dev-banner strong{color:var(--acc2)}
+  .under-dev-banner p{margin:2px 0 0;font-size:13.5px;color:var(--dim)}
+
+  /* ── Content ── */
+  .docs-content h1{font-family:var(--fd);font-size:32px;font-weight:800;margin:0 0 10px}
+  .docs-content .lead{font-size:15.5px;color:var(--dim);margin:0 0 30px;max-width:640px}
+  .section-card{background:var(--surf);border:1px solid var(--brd);border-radius:16px;padding:28px 26px;margin-bottom:20px}
+  .section-card h2{font-family:var(--fd);font-size:19px;font-weight:700;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+  .section-card .ic{width:34px;height:34px;border-radius:9px;background:var(--surf2);display:grid;place-items:center;color:var(--acc2);flex:none}
+  .section-card p.desc{font-size:13.5px;color:var(--faint);margin:0 0 16px}
+  .placeholder-body{border:1.5px dashed var(--brd2);border-radius:10px;padding:22px;text-align:center;color:var(--faint);font-size:13.5px;background:var(--bg2)}
+  .placeholder-body b{color:var(--dim)}
+
+  /* ── Content-formatting helpers ── */
+  .section-card p{font-size:14.5px;color:var(--dim);margin:0 0 14px}
+  .section-card p:last-child{margin-bottom:0}
+  .section-card h3{font-family:var(--fd);font-size:14.5px;font-weight:700;color:var(--txt);margin:20px 0 8px}
+  .section-card h3:first-of-type{margin-top:4px}
+  .doc-steps{margin:0 0 16px;padding:0;list-style:none;counter-reset:step}
+  .doc-steps li{counter-increment:step;position:relative;padding:0 0 14px 34px;font-size:14px;color:var(--dim);border-left:1.5px solid var(--brd2);margin-left:13px}
+  .doc-steps li:last-child{border-color:transparent;padding-bottom:0}
+  .doc-steps li::before{content:counter(step);position:absolute;left:-13px;top:0;width:26px;height:26px;border-radius:50%;background:var(--surf2);border:1.5px solid var(--brd2);color:var(--acc2);font-family:var(--fd);font-weight:700;font-size:12px;display:grid;place-items:center}
+  .doc-steps li b{color:var(--txt)}
+  .doc-list{margin:0 0 16px;padding:0 0 0 4px;list-style:none}
+  .doc-list li{position:relative;padding:0 0 10px 20px;font-size:14px;color:var(--dim)}
+  .doc-list li::before{content:'';position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .doc-list li b{color:var(--txt)}
+  .doc-list li:last-child{padding-bottom:0}
+  .doc-note{display:flex;gap:10px;background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--dim);margin:14px 0}
+  .doc-note svg{flex:none;color:var(--acc2);margin-top:1px}
+  .role-tag{display:inline-block;background:var(--surf2);border:1px solid var(--brd2);color:var(--acc2);font-family:var(--fb);font-weight:700;font-size:11.5px;padding:2px 8px;border-radius:100px;white-space:nowrap}
+  .status-chain{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 16px;font-size:12px}
+  .status-chain .st{background:var(--surf2);border:1px solid var(--brd2);color:var(--txt);padding:4px 10px;border-radius:100px;font-weight:600}
+  .status-chain .arrow{color:var(--faint)}
+
+  /* ── Footer note ── */
+  .docs-footer-note{margin-top:40px;padding-top:24px;border-top:1px solid var(--brd);font-size:13px;color:var(--faint);text-align:center}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+      Garage&nbsp;Pro Docs
+    </a>
+    <a href="index.html" class="back-link">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back to garagepro.me
+    </a>
+  </div>
+</header>
+
+<div class="docs-wrap">
+
+  <!-- ══════════════ SIDEBAR (design only — content below is the same
+       "under development" placeholder for every section for now) ══════════════ -->
+  <nav class="sidebar" id="docsSidebar">
+    <div class="sidebar-group">
+      <h4>Get started</h4>
+      <a href="#getting-started" class="active">Getting started</a>
+      <a href="#roles-permissions">Roles &amp; permissions</a>
+      <a href="#setup-wizard">Setup wizard</a>
+    </div>
+    <div class="sidebar-group">
+      <h4>Day-to-day workflow</h4>
+      <a href="#bookings">Bookings &amp; appointments</a>
+      <a href="#job-cards">Job cards</a>
+      <a href="#inspection">Digital vehicle inspection</a>
+      <a href="#estimates">Estimates &amp; approvals</a>
+      <a href="#parts">Parts &amp; inventory</a>
+      <a href="#invoicing">Invoicing &amp; payments</a>
+    </div>
+    <div class="sidebar-group">
+      <h4>Customer communication</h4>
+      <a href="#notifications">Email &amp; WhatsApp updates</a>
+      <a href="#tracking">Track Repair page</a>
+      <a href="#feedback">Customer feedback</a>
+    </div>
+    <div class="sidebar-group">
+      <h4>Specialised workflows</h4>
+      <a href="#insurance">Insurance claims</a>
+      <a href="#multi-branch">Multi-branch chains</a>
+    </div>
+    <div class="sidebar-group">
+      <h4>Reference</h4>
+      <a href="#reports">Reports &amp; analytics</a>
+      <a href="#troubleshooting">Troubleshooting &amp; FAQ</a>
+    </div>
+  </nav>
+
+  <!-- ══════════════ CONTENT ══════════════ -->
+  <main class="docs-content">
+    <h1>Documentation</h1>
+    <p class="lead">Everything you need to learn how Garage Pro works — from your first setup wizard to running a multi-branch chain.</p>
+
+    <div class="under-dev-banner">
+      <span class="dot"></span>
+      <div>
+        <strong>These docs are being filled in.</strong>
+        <p>The sections below now cover how each part of Garage Pro actually works. We're still expanding them with more screenshots and edge cases — if something's unclear, the app itself is the source of truth.</p>
+      </div>
+    </div>
+
+    <section id="getting-started" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg></span>Getting started</h2>
+      <p class="desc">Your first login, the setup wizard, and adding your first booking.</p>
+      <p>Garage Pro is a web app — there's nothing to install. Open <code>garagepro.me/app</code> in any browser, on any device, and you're in.</p>
+      <h3>Signing in</h3>
+      <p>There are two login levels:</p>
+      <ul class="doc-list">
+        <li><b>Workshop account</b> — the owner's email + password (or Google sign-in). This is the "master key" used once to set up the workshop and manage settings.</li>
+        <li><b>Worker PIN</b> — day-to-day staff sign in with a short PIN tied to their name and role, from the same shared login screen. No email or password to remember on the floor.</li>
+      </ul>
+      <h3>First run</h3>
+      <ol class="doc-steps">
+        <li>Sign in for the first time and Garage Pro drops you straight into the <b>Setup Wizard</b> — see the next section.</li>
+        <li>Once setup is done, you land on the <b>Dashboard</b>: today's bookings, bay status, and any pending notifications.</li>
+        <li>Add your first <b>Appointment</b> (or a walk-in), check the vehicle in, and open a <b>Job Card</b> — that's the core loop the rest of the app builds on.</li>
+      </ol>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Every screen in the app is shared in real time — if two people have it open on different devices, both see changes the moment they happen.</div>
+      </div>
+    </section>
+
+    <section id="roles-permissions" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Roles &amp; permissions</h2>
+      <p class="desc">Owner, Manager, Service Advisor, Floor Manager, Parts, Mechanic — and how to build your own custom role.</p>
+      <p>Every worker has exactly one role, and each role has its own default set of tabs and actions. This is what keeps a mechanic from accidentally editing an invoice, or a receptionist from touching inventory.</p>
+      <h3>Built-in roles</h3>
+      <ul class="doc-list">
+        <li><span class="role-tag">Owner</span> / <span class="role-tag">Manager</span> — full access to everything, including Settings and role permissions. Owners can't be demoted or removed by anyone else, so a workshop can never accidentally lock itself out.</li>
+        <li><span class="role-tag">Service Advisor</span> — owns customer-facing work: estimates, sending them for approval, invoicing, and all WhatsApp/email sends.</li>
+        <li><span class="role-tag">Floor Manager</span> — owns the shop floor: assigning technicians, bay moves, quality control sign-off.</li>
+        <li><span class="role-tag">Parts</span> — owns inventory and parts requests: pricing, ordering, receiving stock. Gets Job Cards access by default too, so they can see VIN/parts context without extra setup.</li>
+        <li><span class="role-tag">Mechanic</span> (worker) — sees only the jobs assigned to them, plus the inspection checklist. No estimate or pricing access.</li>
+        <li><span class="role-tag">Receptionist</span> — front-desk basics: bookings and check-in.</li>
+      </ul>
+      <h3>Custom roles</h3>
+      <p>From Settings → Role Permissions, an Owner/Manager can add a custom role name and tick exactly which tabs it can see — useful for a titled position (e.g. "Senior Technician") that needs slightly different access than the defaults.</p>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Permission checks happen both in the UI (buttons hide) and underneath (actions are blocked even if attempted directly) — so tightening a role's access is a real security boundary, not just a cosmetic one.</div>
+      </div>
+    </section>
+
+    <section id="setup-wizard" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>Setup wizard</h2>
+      <p class="desc">Workshop info, bays, departments, and your first team members.</p>
+      <p>Shown once, automatically, the first time a new workshop account signs in. It walks through everything Garage Pro needs before the floor can start using it:</p>
+      <ol class="doc-steps">
+        <li><b>Workshop info</b> — name, address, state, GST number and logo. This feeds every invoice and email footer.</li>
+        <li><b>Bays</b> — how many service bays you have and their types (e.g. general, alignment, wash) — this is what powers the live bay-status board.</li>
+        <li><b>Departments</b> — Mechanical, Electrical, Body Shop, etc. Each has its own list of service types, editable later from Settings.</li>
+        <li><b>Team members</b> — add your first workers, assign a role to each, and a PIN is generated for them to sign in with.</li>
+      </ol>
+      <p>Every field here can be changed later from Settings — the wizard just gets you to a usable starting point fast.</p>
+    </section>
+
+    <section id="bookings" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>Bookings &amp; appointments</h2>
+      <p class="desc">Scheduling, walk-ins, check-in, and the calendar view.</p>
+      <p>Every vehicle's visit starts life as an appointment — whether it was booked ahead of time or just walked in off the street.</p>
+      <h3>Creating one</h3>
+      <ul class="doc-list">
+        <li><b>Scheduled</b> — pick a customer (or add a new one), the vehicle, a service type, and a date/time range. Garage Pro warns you if it conflicts with something already booked.</li>
+        <li><b>Walk-in</b> — either type the details straight in, or scan the vehicle's QR code (if it's been to the workshop before, or any workshop on the network) to auto-fill the customer and car.</li>
+        <li><b>Quick booking</b> — a shorter form for when you just need a plate, name and time fast.</li>
+      </ul>
+      <h3>Check-in</h3>
+      <p>When the car physically arrives, checking in the appointment marks it "Arrived" and is the trigger a Service Advisor uses to <b>Create Job Card</b> — which also runs a quick vehicle-intake checklist (spare wheel, tools, fuel level, existing damage) while the customer is still standing there.</p>
+      <h3>Calendar view</h3>
+      <p>The Appointments tab has a calendar view alongside the list, so you can see a day or week's bookings at a glance instead of scrolling a table.</p>
+    </section>
+
+    <section id="job-cards" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l1 3H8l1-3z"/><path d="M5 6h14v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6z"/></svg></span>Job cards</h2>
+      <p class="desc">The accordion sections, status flow, and who does what at each stage.</p>
+      <p>The job card is the single record that follows a car from drop-off to hand-back. It's organised into collapsible sections — Estimate, Parts, Charges, Inspection, Photos, Insurance — with a jump-bar at the top so you can get to any of them without endless scrolling.</p>
+      <h3>The status flow</h3>
+      <div class="status-chain">
+        <span class="st">Awaiting Assignment</span><span class="arrow">→</span>
+        <span class="st">Technician Assigned</span><span class="arrow">→</span>
+        <span class="st">Inspected</span><span class="arrow">→</span>
+        <span class="st">Estimate Sent</span><span class="arrow">→</span>
+        <span class="st">Estimate Approved</span><span class="arrow">→</span>
+        <span class="st">In Progress</span><span class="arrow">→</span>
+        <span class="st">Awaiting QC</span><span class="arrow">→</span>
+        <span class="st">QC Passed</span><span class="arrow">→</span>
+        <span class="st">Washing</span><span class="arrow">→</span>
+        <span class="st">Ready for Pickup</span><span class="arrow">→</span>
+        <span class="st">Delivered</span>
+      </div>
+      <p>Each transition notifies whoever needs to act next — the Floor Manager when a job needs a technician, the assigned mechanic the moment they're handed a car, Parts once it's inspected, the Service Advisor once QC passes. You very rarely need to go looking for what to do next; the notification finds you.</p>
+      <h3>Sending a WhatsApp update anytime</h3>
+      <p>A Service Advisor can open the <b>WhatsApp update</b> button on any job card and send a pickup-time reminder, a "ready for pickup" message, the invoice, or a fully custom message — independent of the automatic status-based sends (see <a href="#notifications" style="color:var(--acc2)">Email &amp; WhatsApp updates</a>).</p>
+    </section>
+
+    <section id="inspection" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 3v18M13 8h5M13 16h5"/></svg></span>Digital vehicle inspection</h2>
+      <p class="desc">Running the checklist, flagging conditions, and attaching photos.</p>
+      <p>The Inspection section of a job card is a structured checklist — tyres, brakes, fluids, lights, and whatever else your workshop wants covered — that the assigned worker or Floor Manager fills in.</p>
+      <ul class="doc-list">
+        <li>Each item gets a <b>condition</b>: good, fair, or needs replacing.</li>
+        <li>Anything flagged <b>fair</b> or <b>replace</b> shows up as an inspection-flag count right on the job card summary, so nothing quietly gets missed before the estimate goes out.</li>
+        <li>A photo can be attached to any item — handy evidence for both the customer conversation and an insurance claim.</li>
+        <li>A flagged item can be pushed straight into the Estimate section as a suggested part or service, instead of re-typing it.</li>
+      </ul>
+    </section>
+
+    <section id="estimates" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="m9.5 9 1.5 1.5L14 7.5"/></svg></span>Estimates &amp; approvals</h2>
+      <p class="desc">Pricing a job, sending the link, and what the customer sees.</p>
+      <p>The Estimate section is quote-only — nothing here touches your actual stock until the customer approves and the repair is billed for real.</p>
+      <h3>Building the estimate</h3>
+      <ul class="doc-list">
+        <li>Add parts <b>from inventory</b> (already-priced stock items), <b>from a priced parts request</b> (something Parts had to source specially), or as a plain manual line.</li>
+        <li>Add labour/service lines the same way.</li>
+        <li>When it's ready, press <b>Done</b> — this is the one moment a notification fires (to the Service Advisor and the assigned worker), rather than pinging someone every time a single line is added.</li>
+      </ul>
+      <h3>Sending it to the customer</h3>
+      <p>The Service Advisor sends a link the customer opens on their own phone — no login. They see each line item and can approve or reject it individually, then submit their decision. That comes straight back to the workshop: a full approval moves the job to <b>Estimate Approved</b>, a partial approval flags exactly which lines were rejected, and a full rejection routes the car back to the Floor Manager to reassemble and release without repair.</p>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>If an estimate gets edited again after it was already marked "ready for review," the Service Advisor is notified that it changed, so a revised quote never slips out unnoticed.</div>
+      </div>
+    </section>
+
+    <section id="parts" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg></span>Parts &amp; inventory</h2>
+      <p class="desc">Requesting, pricing, ordering, and stock deduction.</p>
+      <h3>Parts requests</h3>
+      <p>When a worker needs a part that isn't already staged on the job, they submit a <b>parts request</b>. The Parts department sees every open request, prices it, and either fulfils it from stock or marks it Ordered/Received — with the requesting worker notified as it moves.</p>
+      <h3>Inventory</h3>
+      <ul class="doc-list">
+        <li>Every item carries a <b>cost price</b> and <b>MRP/sell price</b>, plus an optional shelf location and barcode.</li>
+        <li>Billing a part on a job's actual charges <b>automatically deducts</b> it from stock — no separate "update inventory" step to remember.</li>
+        <li>Scan a part's barcode with your phone camera to look it up or add it to a job in one tap.</li>
+        <li>Low-stock alerts email the workshop when an item runs low, so restocking doesn't happen after you've already run out.</li>
+      </ul>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Pricing a linked parts request automatically pushes that price onto the job's Estimate — no separate "pull it into the estimate" step needed.</div>
+      </div>
+    </section>
+
+    <section id="invoicing" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M9 13h6M9 17h4"/></svg></span>Invoicing &amp; payments</h2>
+      <p class="desc">Generating GST invoices, partial payments, and checkout.</p>
+      <p>Once a job's actual parts and charges are in, generating the invoice produces a proper GST-ready PDF — GST/HSN-SAC codes, a discount breakdown, and the amount in words — numbered sequentially (e.g. <code>INV-000123</code>) so nothing duplicates or skips.</p>
+      <h3>Checkout</h3>
+      <ul class="doc-list">
+        <li>Record the payment as cash, card, UPI, bank transfer or cheque — or split it as a <b>partial payment</b> with a balance still outstanding.</li>
+        <li>If the pickup security code is switched on, checkout won't release the car until the correct 4-digit code is entered.</li>
+        <li>Checking out fires the "thank you" message — with the invoice and a feedback link attached — to the customer.</li>
+      </ul>
+    </section>
+
+    <section id="notifications" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2z"/></svg></span>Email &amp; WhatsApp updates</h2>
+      <p class="desc">What sends automatically, what's manual, and how to customise the templates.</p>
+      <h3>Email</h3>
+      <p>Turned on in Settings → Customer Email Notifications, with a template style to pick from and a per-event on/off toggle. Automatic triggers: booking confirmed, estimate ready, customer approved, work started, work complete, ready for pickup, thank-you, and invoice ready.</p>
+      <h3>WhatsApp — deliberately limited to 4 moments</h3>
+      <p>Unlike email, WhatsApp only prompts automatically at points a customer genuinely expects to hear from you — anything more starts to feel spammy:</p>
+      <ul class="doc-list">
+        <li><b>Booking confirmed</b> — the moment an appointment is created or rescheduled.</li>
+        <li><b>Booking reminder</b> — a manual "Reminder" button on upcoming appointments; there's no automatic scheduler for this yet.</li>
+        <li><b>Pickup time allotted</b> — when the Service Advisor confirms a pickup date/time with the customer.</li>
+        <li><b>Thank-you + invoice</b> — one combined message at checkout, with the invoice link and a feedback link.</li>
+      </ul>
+      <p>Beyond those four, a Service Advisor can always send a WhatsApp update <b>whenever they want</b> from a job card's "WhatsApp update" button — pickup time, ready-for-pickup, the invoice, a payment reminder, or a fully custom message.</p>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Only a Service Advisor (or Owner/Manager) can send customer-facing WhatsApp messages — other roles simply don't see the button.</div>
+      </div>
+    </section>
+
+    <section id="tracking" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg></span>Track Repair page</h2>
+      <p class="desc">The public status page your customers use to check progress.</p>
+      <p>A public page (<code>garagepro.me/track.html</code>) where a customer picks their workshop, enters either their <b>plate number</b> or <b>booking number</b>, and sees the car's live status plus a short history of every status change with a relative "X minutes/hours ago" timestamp.</p>
+      <ul class="doc-list">
+        <li>Every email and WhatsApp update that includes a track/status link auto-fills the plate or booking number, so the customer lands straight on their car's status — no typing required.</li>
+        <li>If the pickup security code is on, the customer only sees it after verifying the phone number or email on their booking — the link alone never exposes it.</li>
+      </ul>
+      <p>Cuts the "is it done yet?" phone calls to close to zero.</p>
+    </section>
+
+    <section id="feedback" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 10.5c.5 2 2.5 4 4.5 4.5"/><circle cx="12" cy="12" r="10"/></svg></span>Customer feedback</h2>
+      <p class="desc">Where feedback links go out, and where responses land.</p>
+      <div class="placeholder-body">Content coming soon — <b>Customer feedback</b> is being written.</div>
+    </section>
+
+    <section id="insurance" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/></svg></span>Insurance claims</h2>
+      <p class="desc">Tracking a claim end to end and generating the report.</p>
+      <div class="placeholder-body">Content coming soon — <b>Insurance claims</b> is being written.</div>
+    </section>
+
+    <section id="multi-branch" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>Multi-branch chains</h2>
+      <p class="desc">Linking branches and reading the roll-up dashboard.</p>
+      <div class="placeholder-body">Content coming soon — <b>Multi-branch chains</b> is being written.</div>
+    </section>
+
+    <section id="reports" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg></span>Reports &amp; analytics</h2>
+      <p class="desc">Reading the numbers — revenue, jobs, inventory, and per-worker performance.</p>
+      <div class="placeholder-body">Content coming soon — <b>Reports &amp; analytics</b> is being written.</div>
+    </section>
+
+    <section id="troubleshooting" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>Troubleshooting &amp; FAQ</h2>
+      <p class="desc">Common questions and what to do when something looks wrong.</p>
+      <div class="placeholder-body">Content coming soon — <b>Troubleshooting &amp; FAQ</b> is being written.</div>
+    </section>
+
+    <div class="docs-footer-note">Garage Pro Docs — a work in progress. Have a question that can't wait? Reach out from the <a href="index.html#faq" style="color:var(--acc2)">main site</a>.</div>
+  </main>
+</div>
+
+<script>
+  // Sidebar active-link highlight on scroll — purely cosmetic, no content logic.
+  const links = Array.from(document.querySelectorAll('#docsSidebar a'));
+  const sections = links.map(a => document.querySelector(a.getAttribute('href')));
+  function updateActive() {
+    let current = sections[0];
+    for (const sec of sections) {
+      if (sec && sec.getBoundingClientRect().top < 140) current = sec;
+    }
+    links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + (current && current.id)));
+  }
+  window.addEventListener('scroll', updateActive, { passive: true });
+  updateActive();
+</script>
+</body>
+</html>
