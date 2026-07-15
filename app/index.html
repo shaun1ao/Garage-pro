@@ -2928,6 +2928,11 @@ const LIVE_COLLECTIONS = [
 function subscribeLiveCollections() {
   unsubscribeLive();
   if (!currentUser) return;
+  // Tracks which collections have already received their first snapshot —
+  // onSnapshot fires immediately with current server state on subscribe, and
+  // that initial fire must NOT be treated as "new" (see chat_messages below,
+  // otherwise every already-unread message would pop a banner on every boot).
+  const seenFirst = new Set();
   for (const name of LIVE_COLLECTIONS) {
     const ref = wsCol(name).doc('data');
     const unsub = ref.onSnapshot({ includeMetadataChanges: false }, snap => {
@@ -2935,9 +2940,16 @@ function subscribeLiveCollections() {
       if (snap.metadata.hasPendingWrites) return;
       const data = snap.exists ? (snap.data() || {}) : {};
       const items = Array.isArray(data.items) ? data.items : [];
+      const isFirstSnapshot = !seenFirst.has(name);
+      seenFirst.add(name);
       if (name === 'vehicleDB')      D.vehicleDB = (items[0] && items[0].db) || null;
       else if (name === 'settings')  D.settings  = items[0] || {};
-      else                            D[name]    = items;
+      else {
+        if (name === 'chat_messages' && !isFirstSnapshot && typeof _detectNewChatMessages === 'function') {
+          _detectNewChatMessages(D.chat_messages || [], items);
+        }
+        D[name] = items;
+      }
       D.loadedAt = Date.now();
       _coalesceRerender();
       // Special-case the notification badge — it should always reflect latest
@@ -5627,6 +5639,11 @@ window.openCheckoutForm = function(bookingId) {
       + (job.service_charges || []).reduce((s, c) => s + Number(c.amount || 0), 0)
     : 0;
   const autoActualCost = b.actual_cost || (invForCost ? _invoiceTotals(invForCost).roundOff : 0) || jobBillTotal || b.cost_estimate || '';
+  // Loyalty: look up the customer's current balance (matched the same way
+  // every other checkout-time customer lookup works — by name).
+  const loyCust = (D.customers || []).find(c => (c.name || '').toLowerCase() === (b.cust_name || '').toLowerCase());
+  const loyBalance = Number(loyCust?.loyalty_points || 0);
+  const loyRedeemValue = Number(D.settings?.loyalty_redeem_value ?? 1);
   openModal({
     title: `Check out · ${b.plate}`,
     body: `
@@ -5639,7 +5656,7 @@ window.openCheckoutForm = function(bookingId) {
       </div>
       <div class="f-row">
         <div class="f-grp"><label>Actual cost (₹)</label>
-          <input id="co-cost" type="number" min="0" step="100" value="${escapeHtml(autoActualCost)}" /></div>
+          <input id="co-cost" type="number" min="0" step="100" value="${escapeHtml(autoActualCost)}" onchange="_coUpdateRedeemHint()" /></div>
         <div class="f-grp"><label>Payment status</label>
           <select id="co-pay" onchange="document.getElementById('co-partial-wrap').style.display = this.value === 'Partial' ? '' : 'none'">
             <option value="Paid">Paid</option>
@@ -5652,6 +5669,12 @@ window.openCheckoutForm = function(bookingId) {
         <label>Amount paid so far (₹)</label>
         <input id="co-amount-paid" type="number" min="0" step="0.01" value="${escapeHtml(String(b.amount_paid || 0))}" />
       </div>
+      ${(D.settings?.loyalty_enabled && loyCust) ? `
+      <div class="f-grp" style="margin-top:6px">
+        <label>Redeem loyalty points <span style="color:var(--faint);font-weight:500;font-size:11px;margin-left:6px">(balance: ${loyBalance} pts · worth ₹${(loyBalance * loyRedeemValue).toLocaleString('en-IN')})</span></label>
+        <input id="co-loy-redeem" type="number" min="0" max="${loyBalance}" step="1" placeholder="0" value="0" oninput="_coUpdateRedeemHint()" />
+        <div style="font-size:11.5px;color:var(--faint);margin-top:4px" id="co-loy-hint"></div>
+      </div>` : ''}
       ${(D.settings?.pickup_otp_enabled && job?.pickup_otp) ? `
       <div class="f-grp" style="margin-top:6px">
         <label>Pickup OTP <span class="req">*</span> <span style="color:var(--faint);font-weight:500;font-size:11px;margin-left:6px">(emailed to the customer)</span></label>
@@ -5668,6 +5691,27 @@ window.openCheckoutForm = function(bookingId) {
     saveLabel: 'Check out',
     onSave: () => doCheckout(b.id)
   });
+};
+
+// Live hint under the "Redeem loyalty points" field — shows the ₹ value of
+// whatever's currently typed, and warns (without blocking) if it exceeds the
+// bill; doCheckout does the real clamping at save time.
+window._coUpdateRedeemHint = function() {
+  const redeemEl = document.getElementById('co-loy-redeem');
+  const hint = document.getElementById('co-loy-hint');
+  if (!redeemEl || !hint) return;
+  const rate = Number(D.settings?.loyalty_redeem_value ?? 1);
+  const pts = Math.max(0, Number(redeemEl.value) || 0);
+  const cost = Number(document.getElementById('co-cost')?.value || 0);
+  const value = pts * rate;
+  if (!pts) { hint.textContent = ''; return; }
+  if (value > cost) {
+    hint.style.color = 'var(--red)';
+    hint.textContent = `That's ₹${value.toLocaleString('en-IN')} — more than the bill. Will be capped at ₹${cost.toLocaleString('en-IN')} worth of points at checkout.`;
+  } else {
+    hint.style.color = 'var(--faint)';
+    hint.textContent = `= ₹${value.toLocaleString('en-IN')} off this bill`;
+  }
 };
 
 async function doCheckout(bookingId) {
@@ -5718,11 +5762,51 @@ async function doCheckout(bookingId) {
 
   // Update job to Delivered
   const job = D.jobs.find(j => j.booking_id === b.id);
+
+  // Loyalty — resolved BEFORE the job/booking writes below, since a
+  // redemption adds a discount line to job.service_charges (which must land
+  // in D.jobs before wsSave('jobs', D.jobs) is called just below).
+  let loyaltyNote = '';
+  if (D.settings?.loyalty_enabled) {
+    const loyCust = (D.customers || []).find(c => (c.name || '').toLowerCase() === (b.cust_name || '').toLowerCase());
+    if (loyCust) {
+      const balance    = Number(loyCust.loyalty_points || 0);
+      const redeemRate = Number(D.settings.loyalty_redeem_value ?? 1);
+      const earnRate   = Number(D.settings.loyalty_earn_per_100 ?? 5);
+      let netCost       = Number(cost) || 0;
+      let redeemPts     = Math.min(balance, Math.max(0, Math.floor(Number(document.getElementById('co-loy-redeem')?.value) || 0)));
+      let redeemValue   = redeemPts * redeemRate;
+      // Never redeem more value than the bill itself — clamp back down to a
+      // whole number of points so the discount line stays exact.
+      if (redeemValue > netCost) {
+        redeemValue = netCost;
+        redeemPts   = redeemRate > 0 ? Math.floor(redeemValue / redeemRate) : 0;
+        redeemValue = redeemPts * redeemRate;
+      }
+      if (redeemPts > 0 && job) {
+        job.service_charges = job.service_charges || [];
+        job.service_charges.push({ name: `Loyalty points redeemed (${redeemPts} pts)`, amount: -redeemValue });
+        netCost = Math.max(0, netCost - redeemValue);
+      }
+      // Points are earned on what's actually paid, not on the portion covered
+      // by previously-earned points — otherwise points would compound forever.
+      const earnedPts = Math.floor((netCost / 100) * earnRate);
+      loyCust.loyalty_points = balance - redeemPts + earnedPts;
+      writes.push(wsSave('customers', D.customers));
+      _publishLoyaltyLookup(loyCust).catch(e => console.warn('[loyalty] publish failed:', e));
+      loyaltyNote = redeemPts > 0
+        ? `Redeemed ${redeemPts} pts (₹${redeemValue.toLocaleString('en-IN')} off) · Earned ${earnedPts} pts this visit · New balance: ${loyCust.loyalty_points} pts`
+        : `Earned ${earnedPts} pts this visit · New balance: ${loyCust.loyalty_points} pts`;
+      audit('loyalty', `${b.cust_name || '—'} — ${loyaltyNote}`, { booking_id: b.id });
+    }
+  }
+
   if (job) {
     job.status = 'Delivered';
     job.completed_at = nowStr();
     if (cost) job.actual_cost = Number(cost);
     if (notes) job.delivery_notes = notes;
+    if (loyaltyNote) job.loyalty_note = loyaltyNote;
     writes.push(wsSave('jobs', D.jobs));
   }
 
@@ -5745,8 +5829,8 @@ async function doCheckout(bookingId) {
   let feedbackLink = '';
   try { feedbackLink = await _publishFeedbackLink(job, b); }
   catch (e) { console.warn('[checkout] feedback link publish failed:', e); }
-  sendCustomerNotification('thank_you', { job, booking: b, feedback_link: feedbackLink });
-  notifyWhatsAppForEvent('thank_you', { job, booking: b, feedback_link: feedbackLink });
+  sendCustomerNotification('thank_you', { job, booking: b, feedback_link: feedbackLink, loyalty_note: loyaltyNote });
+  notifyWhatsAppForEvent('thank_you', { job, booking: b, feedback_link: feedbackLink, loyalty_note: loyaltyNote });
   publishTracking(b.id);   // push Delivered to the public tracker
   renderCheckin();
   await Promise.all(writes);
@@ -6869,6 +6953,29 @@ async function _publishFeedbackLink(job, booking) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  LOYALTY LOOKUP — publishes this customer's current point balance to a
+//  small public-read doc so loyalty.html can show it without any login. Keyed
+//  by SHA-256(normalized phone) rather than the customer's own record id, so
+//  a visitor can only look up a balance if they already know the phone number
+//  on file — mirrors the same hash-gated pattern used elsewhere in the app
+//  for public, no-login lookups.
+// ══════════════════════════════════════════════════════════════════════════
+async function _publishLoyaltyLookup(cust) {
+  if (!currentUser || !fbDb || !cust) return;
+  const phone = String(cust.phone || '').replace(/\D/g, '').slice(-10);
+  if (!phone || !(window.crypto && crypto.subtle)) return;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phone));
+  const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  await fbDb.collection('users').doc(currentUser.uid).collection('loyalty_lookup').doc(hash).set({
+    cust_name: cust.name || '',
+    points: Number(cust.loyalty_points || 0),
+    workshop_name: D.settings?.workshop_name || userProfile?.workshop_name || '',
+    updated_at: nowStr()
+  });
+}
+window._publishLoyaltyLookup = _publishLoyaltyLookup;
+
+// ══════════════════════════════════════════════════════════════════════════
 //  FEEDBACK TAB — read-only view of what customers submitted through the
 //  tokenized feedback links (see _publishFeedbackLink above). Docs live at
 //  users/{uid}/feedback_links/{token}; only ones with submitted === true are
@@ -7133,7 +7240,7 @@ window._hideWaPrompt = function() {
 // update manually at any time — see waSendUpdate().
 const WA_EVENT_TEXT = {
   booking_confirmed: (d) => `Hi ${d.customer_name}, your appointment at ${d.workshop_name} for ${d.plate || 'your vehicle'} is confirmed for ${d.date}${d.time ? ' at ' + d.time : ''}. See you then!${d.track_link ? '\nTrack: ' + d.track_link : ''}`,
-  thank_you:         (d) => `Thank you for choosing ${d.workshop_name}, ${d.customer_name}! We hope to see you again.${d.feedback_link ? '\n\nHow did we do? We\'d love your feedback: ' + d.feedback_link : ''}`
+  thank_you:         (d) => `Thank you for choosing ${d.workshop_name}, ${d.customer_name}! We hope to see you again.${d.loyalty_note ? '\n\n🎁 ' + d.loyalty_note : ''}${d.feedback_link ? '\n\nHow did we do? We\'d love your feedback: ' + d.feedback_link : ''}`
 };
 
 // Resolve the phone + contact preference for whatever record we have (booking
@@ -11911,6 +12018,26 @@ async function renderSettings(force = false) {
         </label>
       </div>
 
+      <!-- Loyalty program — earn points per rupee spent, redeem for a discount
+           at checkout. Customers can check their balance on the public
+           loyalty lookup page (loyalty.html) without logging in. -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Loyalty program</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Customers earn points on every visit and can redeem them for a discount at checkout. Changes save instantly.</div>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:14px">
+          <input type="checkbox" id="sf-loy-enabled" ${s.loyalty_enabled ? 'checked' : ''} onchange="_wfToggle('loyalty_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
+          <span><b style="font-family:var(--fd);font-size:14px">Enable loyalty points</b><br>
+          <span style="font-size:12.5px;color:var(--dim)">Off = no points shown or tracked anywhere — checkout, invoices and the public lookup page all behave as if the feature doesn't exist.</span></span>
+        </label>
+        <div class="f-row">
+          <div class="f-grp"><label>Points earned per ₹100 spent</label>
+            <input type="number" id="sf-loy-earn" min="0" step="1" value="${escapeHtml(String(s.loyalty_earn_per_100 ?? 5))}" onchange="_wfToggle('loyalty_earn_per_100', Math.max(0, Number(this.value)||0))" /></div>
+          <div class="f-grp"><label>₹ value per point redeemed</label>
+            <input type="number" id="sf-loy-redeem" min="0" step="0.5" value="${escapeHtml(String(s.loyalty_redeem_value ?? 1))}" onchange="_wfToggle('loyalty_redeem_value', Math.max(0, Number(this.value)||0))" /></div>
+        </div>
+        <div style="font-size:11.5px;color:var(--faint);margin-top:6px">Example with the defaults: a ₹1,000 bill earns 50 points; each point is worth ₹1 toward a future visit.</div>
+      </div>
+
 
       <!-- ────────────────────────────────────────────────────────────────
            Customer email notifications — sent through Garage Pro's managed
@@ -13555,6 +13682,10 @@ function _seedInvoiceFromJob(jobId) {
   inv.advisor_name      = b.service_advisor || '';
   inv.job_card_no       = j.id ? ('JOB-' + (j.id || '').slice(-7).toUpperCase()) : '';
   inv.service_suggestions = (j.delivery_notes || '').split('\n').map(s => s.trim()).filter(Boolean);
+  // Loyalty summary computed at checkout (see doCheckout) — printed on the
+  // invoice as an informational line, not part of the totals math itself
+  // (the actual ₹ discount already landed as a negative service_charges line).
+  inv.loyalty_note = j.loyalty_note || '';
   // Prefer the first mechanic from the assignment list; fall back to the legacy single name
   const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
   inv.mechanic = mechs[0] || b.mechanic || '';
@@ -14444,6 +14575,8 @@ function _invoiceHTMLFromRecord(inv, opts) {
 
   <div class="words">Amount ( in Words ): ${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only</div>
 
+  ${inv.loyalty_note ? `<div style="margin:10px 0 16px;padding:9px 12px;background:#fff8ee;border:1px dashed #e5b869;border-radius:6px;font-size:11.5px;color:#5a4522">🎁 Loyalty: ${escapeHtml(inv.loyalty_note)}</div>` : ''}
+
   ${(inv.service_suggestions && inv.service_suggestions.length) ? `
     <div class="suggest">
       <div class="h">Service Suggestions:</div>
@@ -14722,6 +14855,10 @@ function _buildEmailData(opts) {
     // raw HTML file (which most mail clients just showed as a downloadable
     // webpage, not a proper document).
     invoice_view_link: opts.invoice_view_link || '',
+    // Set by doCheckout right after computing the redeem/earn math — a short
+    // human-readable line like "Earned 45 pts this visit · New balance: 320
+    // pts", shown on the thank-you email/WhatsApp message.
+    loyalty_note:    opts.loyalty_note || '',
     // Receipt-style breakdown — only filled when an invoice is in scope
     items:           inv ? (inv.lines || []).map(l => ({ name: l.name || '', qty: Number(l.qty || 1), amount: Number(l.unit_price || 0) * Number(l.qty || 1) * (1 - Number(l.disc_pct||0)/100) })) : [],
     charges:         inv ? (inv.charges || []) : [],
@@ -14801,6 +14938,7 @@ function _emailTplClassic(d, evt) {
           ${d.location ? `<p style="margin:6px 0"><b>Location:</b> ${_esc(d.location)}</p>` : ''}
           ${d.invoice_no ? `<p style="margin:6px 0"><b>Invoice:</b> ${_esc(d.invoice_no)} · Total ${_esc(d.currency)}${Number(d.total||0).toLocaleString('en-IN')}</p>` : ''}
           <p style="margin:6px 0"><b>Notes:</b> ${_esc(d.notes || 'N/A')}</p>
+          ${d.loyalty_note ? `<p style="margin:6px 0"><b>🎁 Loyalty:</b> ${_esc(d.loyalty_note)}</p>` : ''}
           <p style="margin:24px 0 4px">We look forward to seeing you soon,</p>
           <p style="margin:0;font-weight:700">${_esc(d.workshop_name)}</p>
           ${d.workshop_url ? `<p style="margin:14px 0 0"><a href="${_esc(d.workshop_url)}" style="color:#1e7be0;text-decoration:underline">${_esc(d.workshop_url)}</a></p>` : ''}
@@ -14853,6 +14991,7 @@ function _emailTplFormal(d, evt) {
           ${d.invoice_no ? `<p style="margin:3px 0"><b>Invoice no.:</b> ${_esc(d.invoice_no)}</p>` : ''}
           ${d.total ? `<p style="margin:3px 0"><b>Total:</b> ${_esc(d.currency)}${Number(d.total).toLocaleString('en-IN')}</p>` : ''}
           ${d.notes ? `<p style="margin:8px 0 3px"><b>Notes:</b> ${_esc(d.notes)}</p>` : ''}
+          ${d.loyalty_note ? `<p style="margin:8px 0 3px"><b>🎁 Loyalty:</b> ${_esc(d.loyalty_note)}</p>` : ''}
           <h3 style="margin:22px 0 8px;font-size:18px;font-weight:800">II. Workshop Information</h3>
           <p style="margin:3px 0"><b>${_esc(d.workshop_name)}</b></p>
           ${d.workshop_address ? `<p style="margin:3px 0">${_esc(d.workshop_address)}</p>` : ''}
@@ -14915,6 +15054,7 @@ function _emailTplReceipt(d, evt) {
           <div style="font-size:13.5px;line-height:1.6">
             <p><b>Service:</b> ${_esc(d.service_name)}</p>
             ${d.notes ? `<p><b>Notes:</b> ${_esc(d.notes)}</p>` : ''}
+            ${d.loyalty_note ? `<p><b>🎁 Loyalty:</b> ${_esc(d.loyalty_note)}</p>` : ''}
           </div>
         </td></tr>
         `}
@@ -15573,6 +15713,54 @@ window._renderChatBadge = function() {
   badge.style.display = n ? 'inline-block' : 'none';
   badge.textContent = n > 99 ? '99+' : String(n);
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CHAT MESSAGE BANNERS — a live pop-up when a message arrives, the same way
+//  a notification announces itself, instead of only bumping a silent badge
+//  count. Called from subscribeLiveCollections() with the before/after
+//  chat_messages arrays; diffs by id so only genuinely NEW messages banner.
+// ══════════════════════════════════════════════════════════════════════════
+function _detectNewChatMessages(oldItems, newItems) {
+  try {
+    const me = currentWorker?.id;
+    if (!me) return;
+    const oldIds = new Set((oldItems || []).map(m => m.id));
+    for (const m of (newItems || [])) {
+      if (oldIds.has(m.id)) continue;
+      if (m.to_id === me && m.from_id !== me) _showChatBanner(m);
+    }
+  } catch (e) { console.warn('[chat-banner]', e); }
+}
+
+function _showChatBanner(msg) {
+  // Already looking at this exact conversation — the message is visibly
+  // arriving in the open thread, a popup on top of it would be redundant.
+  if (currentTab === 'chat' && _chatOpenWith?.id === msg.from_id) return;
+  let stack = document.getElementById('chatBannerStack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'chatBannerStack';
+    stack.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:301;display:flex;flex-direction:column-reverse;gap:10px;align-items:flex-end;pointer-events:none';
+    document.body.appendChild(stack);
+  }
+  const el = document.createElement('div');
+  el.style.cssText = 'background:var(--surf);border:1px solid var(--brd2);border-radius:12px;padding:12px 14px;box-shadow:0 14px 32px rgba(0,0,0,.6);cursor:pointer;max-width:320px;width:320px;opacity:0;transform:translateY(12px);transition:opacity .25s,transform .25s;pointer-events:auto';
+  el.innerHTML = `
+    <div style="display:flex;gap:10px;align-items:flex-start">
+      <div style="width:34px;height:34px;border-radius:50%;background:var(--bg2);display:grid;place-items:center;font-weight:800;font-size:13px;color:var(--acc2);flex:none">${escapeHtml((msg.from_name||'?').slice(0,1).toUpperCase())}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13.5px;color:var(--txt)">${escapeHtml(msg.from_name || 'New message')}</div>
+        <div style="font-size:12.5px;color:var(--dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(msg.text || '')}</div>
+      </div>
+      <button type="button" aria-label="Dismiss" style="background:none;border:0;color:var(--faint);cursor:pointer;font-size:16px;padding:0 2px;flex:none">×</button>
+    </div>`;
+  const dismiss = () => { el.style.opacity = '0'; el.style.transform = 'translateY(12px)'; setTimeout(() => el.remove(), 250); };
+  el.querySelector('button').onclick = (e) => { e.stopPropagation(); dismiss(); };
+  el.onclick = () => { switchTab('chat'); _chatOpenThread(msg.from_id, msg.from_name); dismiss(); };
+  stack.appendChild(el);
+  requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+  setTimeout(dismiss, 6000);
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 //  REPORTS — revenue, jobs by status, top mechanics, outstanding invoices,
