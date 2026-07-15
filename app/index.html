@@ -1487,53 +1487,6 @@ window.serviceTypesFor = serviceTypesFor;
 // ──────────────────────────────────────────────────────────────────────────
 function _plateNorm(p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
-// ──────────────────────────────────────────────────────────────────────────
-//  PICKUP-CODE GATE — the customer must prove who they are (enter the phone or
-//  email on the booking) before the pickup code is revealed on the Track page.
-//  Security model without a backend: the code is NOT put in the public status
-//  doc and NOT sent in the WhatsApp message. Instead it lives in a doc whose ID
-//  is SHA-256(plateNorm | contact). To read it you must already know a contact
-//  linked to the booking — the doc ID itself is the secret. Same normalisation
-//  runs on both the app and track.html so the hashes line up.
-// ──────────────────────────────────────────────────────────────────────────
-function _pickupNormContact(v) {
-  v = String(v || '').trim();
-  if (!v) return '';
-  if (v.indexOf('@') > 0) return v.toLowerCase();      // email
-  const d = v.replace(/\D/g, '');                       // phone → last 10 digits
-  return d.length > 10 ? d.slice(-10) : d;
-}
-async function _pickupGateHash(plateNorm, contact) {
-  const norm = _pickupNormContact(contact);
-  if (!norm || !plateNorm || !(window.crypto && crypto.subtle)) return '';
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plateNorm + '|' + norm));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-// Collect the booking's + linked customer's contacts, then either write the
-// gate docs (when the car is Ready for Pickup and the toggle is on) or delete
-// them (any other state). Cheap: callers only invoke it when it can matter.
-async function _syncPickupGate(b, j, active) {
-  try {
-    if (!currentUser || !fbDb || !b) return;
-    const plateNorm = _plateNorm(b.plate);
-    if (!plateNorm) return;
-    const cust = (D.customers || []).find(c => (c.name || '').toLowerCase() === ((b.cust_name || '').toLowerCase()));
-    const contacts = [];
-    [b.cust_email, b.cust_phone, cust && cust.email, cust && cust.phone].forEach(x => {
-      const n = _pickupNormContact(x);
-      if (n && !contacts.includes(n)) contacts.push(n);
-    });
-    if (!contacts.length) return;
-    const col = fbDb.collection('users').doc(currentUser.uid).collection('pickup_gate');
-    const ids = await Promise.all(contacts.map(c => _pickupGateHash(plateNorm, c)));
-    for (const id of ids) {
-      if (!id) continue;
-      if (active) await col.doc(id).set({ code: j.pickup_otp, plate: b.plate, plate_norm: plateNorm, updated_at: nowStr() });
-      else        await col.doc(id).delete().catch(() => {});
-    }
-  } catch (e) { console.warn('[pickupGate]', e); }
-}
-
 async function publishTracking(bookingId) {
   try {
     if (!currentUser) return;
@@ -1565,21 +1518,15 @@ async function publishTracking(bookingId) {
       booking_no:          b.booking_no || '',
       mechanic_first_name: (j?.mechanic || '').split(' ')[0] || '',
       workshop_name:       D.settings?.workshop_name || userProfile?.workshop_name || '',
-      // Pickup gate pass — the code is NEVER put here in plaintext (it used to
-      // be, which leaked it to anyone with the link). We only flag that a code
-      // exists; the customer must verify a booking contact on the Track page to
-      // reveal it (see _syncPickupGate / users/{uid}/pickup_gate).
-      pickup_gated: !!(status === 'Ready for Pickup' && D.settings?.pickup_otp_enabled && j?.pickup_otp),
-      pickup_code: '',   // legacy field kept blank so any old plaintext is overwritten
+      // Pickup OTP — the code is never put here, or anywhere else public. It
+      // only ever exists in the email sent to the customer (see
+      // _sendPickupOtpEmail). These two fields are legacy leftovers from an
+      // older public-page-reveal design, kept blank so any old value is
+      // overwritten and track.html's dead code path never has data to show.
+      pickup_gated: false,
+      pickup_code: '',
       history
     }, { merge: true });
-    // Write or clear the identity-gated pickup-code docs. Only bother when the
-    // OTP feature is on and we're entering/leaving the Ready-for-Pickup state.
-    const _otpOn = !!(D.settings?.pickup_otp_enabled);
-    const _gateActive = _otpOn && status === 'Ready for Pickup' && j?.pickup_otp;
-    if (_otpOn && (_gateActive || status === 'Delivered' || status === 'Cancelled')) {
-      await _syncPickupGate(b, j, !!_gateActive);
-    }
   } catch (e) {
     console.warn('[publishTracking]', e);
   }
@@ -5672,8 +5619,11 @@ window.openCheckoutForm = function(bookingId) {
       </div>
       ${(D.settings?.pickup_otp_enabled && job?.pickup_otp) ? `
       <div class="f-grp" style="margin-top:6px">
-        <label>Pickup code <span class="req">*</span> <span style="color:var(--faint);font-weight:500;font-size:11px;margin-left:6px">(the customer sees it on their Track Repair page)</span></label>
-        <input id="co-otp" type="text" inputmode="numeric" maxlength="4" placeholder="4-digit code" autocomplete="off" style="letter-spacing:6px;font-family:'Courier New',monospace;font-weight:700" />
+        <label>Pickup OTP <span class="req">*</span> <span style="color:var(--faint);font-weight:500;font-size:11px;margin-left:6px">(emailed to the customer)</span></label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="co-otp" type="text" inputmode="numeric" maxlength="4" placeholder="4-digit code" autocomplete="off" style="flex:1;letter-spacing:6px;font-family:'Courier New',monospace;font-weight:700" />
+          <button type="button" class="mini-btn" onclick="_resendPickupOtp('${escapeHtml(job.id)}')" id="co-otp-resend">Resend code</button>
+        </div>
         ${isAdminRole() ? `<div style="font-size:11.5px;color:var(--faint);margin-top:4px">Owner/manager may leave this blank to override.</div>` : ''}
       </div>` : ''}
       <div class="f-grp" style="margin-top:6px"><label>Notes (optional)</label>
@@ -5699,15 +5649,15 @@ async function doCheckout(bookingId) {
     ? Math.min(Number(cost) || 0, Math.max(0, Number(document.getElementById('co-amount-paid')?.value || 0)))
     : (pay === 'Paid' ? (Number(cost) || 0) : 0);
 
-  // Pickup gate pass — enforce only when the toggle is on AND this job has a
-  // code (cars marked ready before the toggle was flipped have none to check).
+  // Pickup OTP — enforce only when the toggle is on AND this job has a code
+  // (cars marked ready before the toggle was flipped have none to check).
   // Owner/manager may leave the field blank to override (walk-in edge cases).
   const jobForOtp = D.jobs.find(j => j.booking_id === b.id);
   if (D.settings?.pickup_otp_enabled && jobForOtp?.pickup_otp) {
     const entered = (document.getElementById('co-otp')?.value || '').trim();
     if (entered !== jobForOtp.pickup_otp) {
       if (!(isAdminRole() && entered === '')) {
-        throw new Error(entered ? 'Wrong pickup code — ask the customer for the code shown on their Track Repair page.' : 'Enter the customer\'s pickup code.');
+        throw new Error(entered ? 'Wrong pickup code — ask the customer for the code we emailed them.' : 'Enter the customer\'s pickup OTP.');
       }
       audit('checkout-otp-override', `${b.plate} — released without pickup code by ${currentWorker?.name || '—'}`, { booking_id: b.id });
     }
@@ -6410,13 +6360,18 @@ window.markWashReady = async function(jobId) {
   j.status = 'Ready for Pickup';
   j.wash_done_at = nowStr();
   j.updated_at = nowStr();
-  // Pickup gate pass (Settings → Workflow extras, default OFF). Generate a
-  // 4-digit code the customer sees on their Track Repair page; checkout asks
-  // for it. When the toggle is off, no code exists and checkout asks nothing.
-  if ((D.settings || {}).pickup_otp_enabled) {
+  // Pickup OTP (Settings → Workflow extras, default OFF). Generates a 4-digit
+  // code and emails it straight to the customer — the only place it ever
+  // exists. Needs an email on file; if there isn't one, skip the code
+  // entirely rather than gate checkout on something we have no way to
+  // deliver.
+  const _bkForOtp = D.bookings.find(x => x.id === j.booking_id);
+  const _custForOtp = (D.customers || []).find(c => (c.name || '').toLowerCase() === ((j.cust_name || '').toLowerCase()));
+  const _otpEmail = _bkForOtp?.cust_email || _custForOtp?.email || '';
+  if ((D.settings || {}).pickup_otp_enabled && _otpEmail) {
     j.pickup_otp = String(Math.floor(1000 + Math.random() * 9000));
   }
-  showToast(`${j.plate} ready for pickup${j.pickup_otp ? ' · pickup code ' + j.pickup_otp : ''}`, 'good');
+  showToast(`${j.plate} ready for pickup${j.pickup_otp ? ' · pickup code emailed to customer' : ''}`, 'good');
   audit('wash-done', `${j.plate} — washed/detailed, ready for handover`, { job_id: jobId });
   notify({
     kind: 'ready-for-pickup',
@@ -6435,6 +6390,15 @@ window.markWashReady = async function(jobId) {
   renderJobs();
   await wsSave('jobs', D.jobs);
   publishTracking(j.booking_id);
+  // Independent of the ready_for_pickup toggle above — if Pickup OTP is on,
+  // the code has to reach the customer somehow, so this always fires.
+  if (j.pickup_otp) {
+    _sendPickupOtpEmail(j, _bkForOtp).then(res => {
+      if (!res.ok && res.skipped !== 'disabled') {
+        showToast('Pickup code saved but the email failed to send — use "Resend code" at checkout.', 'bad');
+      }
+    });
+  }
 };
 
 // Stage 2 — Parts department signals that pricing + availability are done, so
@@ -6898,8 +6862,8 @@ window.waInvoice = async function(invId) {
   _waOpen(_invPhone(inv), msg, preWin);
 };
 
-// "Your car is ready for pickup" on WhatsApp (includes the pickup code if the
-// gate-pass toggle is on).
+// "Your car is ready for pickup" on WhatsApp (mentions that a pickup OTP was
+// emailed, if the toggle is on — never the code itself).
 window.waReady = function(jobId) {
   // Defense-in-depth only — notifyWhatsAppForEvent() already never prompts a
   // mechanic to reach this, and the dashboard button that calls it directly
@@ -6911,10 +6875,10 @@ window.waReady = function(jobId) {
   const name = (j.cust_name || 'there').split(' ')[0];
   const when = (j.pickup_date || j.pickup_time) ? `\nPickup: ${j.pickup_date || ''} ${j.pickup_time || ''}`.trimEnd() : '';
   const link = _wsTrackLink(j.plate || '');
-  // Security: never send the code in the message. Tell them where to get it —
-  // they'll verify the phone/email on their booking to reveal it on the page.
+  // Security: never send the code itself over WhatsApp — it was already
+  // emailed by _sendPickupOtpEmail when the job went Ready for Pickup.
   const codeNote = (D.settings?.pickup_otp_enabled && j.pickup_otp)
-    ? `\nFor security, your pickup code isn't sent here. Open your status page below and verify the phone or email on your booking to see it.`
+    ? `\nWe've emailed you a pickup code — bring it (or show it) to collect your vehicle.`
     : '';
   const msg = `Hi ${name}, good news — your ${j.plate || 'vehicle'} is ready for pickup at ${_wsName()}! 🚗${when}${codeNote}`
     + (link ? `\nStatus: ${link}` : '');
@@ -11797,8 +11761,8 @@ async function renderSettings(force = false) {
 
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
           <input type="checkbox" id="sf-wf-otp" ${s.pickup_otp_enabled ? 'checked' : ''} onchange="_wfToggle('pickup_otp_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
-          <span><b style="font-family:var(--fd);font-size:14px">Pickup code (gate pass)</b><br>
-          <span style="font-size:12.5px;color:var(--dim)">When a car goes <b>Ready for Pickup</b>, a 4-digit code is generated and shown on the customer's Track Repair page. Checkout asks for that code, so the car is only released to the right person. Off = no codes, nothing extra at checkout.</span></span>
+          <span><b style="font-family:var(--fd);font-size:14px">Pickup OTP</b><br>
+          <span style="font-size:12.5px;color:var(--dim)">When a car goes <b>Ready for Pickup</b>, a 4-digit code is emailed straight to the customer — it's never shown anywhere else. Checkout asks for that code, so the car is only released to whoever the customer shared it with. Off = no codes, nothing extra at checkout.${s.email_enabled ? '' : ' <b style="color:var(--red)">Requires customer email notifications (below) to be turned on — otherwise there\'s no way to deliver the code.</b>'}</span></span>
         </label>
       </div>
 
@@ -14909,6 +14873,68 @@ async function _smtpSend({ to, subject, html, fromName, logo, invoiceHtml, invoi
   if (resp.ok && data && data.ok) return { ok: true };
   throw new Error((data && data.error) || `Email relay error ${resp.status}`);
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  PICKUP OTP EMAIL — genuine push-based OTP (Settings → Workflow extras)
+//  The code is generated in markWashReady and lives ONLY in this email —
+//  nothing reveals it anywhere else (no public page, no gated lookup). This
+//  intentionally bypasses the general "customer email notifications"
+//  trigger toggles (like a test email) since, unlike a status update, there
+//  is no other channel for the code to reach the customer through — if
+//  Pickup OTP is switched on, it must always try to send.
+// ══════════════════════════════════════════════════════════════════════════
+async function _sendPickupOtpEmail(job, booking) {
+  const s = D.settings || {};
+  if (!s.email_enabled) return { ok: false, skipped: 'disabled' };
+  const cust = (D.customers || []).find(c => (c.name || '').toLowerCase() === ((booking?.cust_name || job?.cust_name || '').toLowerCase()));
+  const to = booking?.cust_email || cust?.email || '';
+  if (!to) return { ok: false, skipped: 'no-recipient' };
+  const workshopName = s.workshop_name || 'Garage Pro';
+  const ref = _emailSubjectRef({ plate: job?.plate || booking?.plate, booking_no: booking?.booking_no });
+  const subject = `Your pickup code${ref} · ${workshopName}`;
+  const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;font-family:Arial,Helvetica,sans-serif">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 0">
+      <tr><td align="center">
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden">
+          <tr><td style="padding:32px 32px 8px;text-align:center">
+            ${s.logo ? `<img src="${s.logo}" alt="" style="max-height:48px;margin-bottom:12px" />` : ''}
+            <div style="font-weight:800;font-size:15px;color:#1a1a1a">${_esc(workshopName)}</div>
+          </td></tr>
+          <tr><td style="padding:8px 32px 0;text-align:center">
+            <div style="font-size:16px;color:#1a1a1a;margin-bottom:18px">Your vehicle is ready for pickup. Share this code with our team to collect it:</div>
+            <div style="font-family:'Courier New',monospace;font-weight:800;font-size:36px;letter-spacing:10px;color:#ff7a18;background:#fff3e8;border-radius:10px;padding:18px 0;margin-bottom:18px">${_esc(job.pickup_otp)}</div>
+            <div style="font-size:12.5px;color:#8892a0;margin-bottom:24px">Only share this with whoever is picking up ${_esc(job.plate || 'the vehicle')} in person. We will never ask for this code by phone or message.</div>
+          </td></tr>
+          <tr><td style="padding:0 32px 28px">${_emailFooterBlock({ workshop_phone: s.phone, workshop_email: s.email }, 'center')}</td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body></html>`;
+  try {
+    const res = await _smtpSend({ to, subject, html, fromName: workshopName, logo: s.logo || '' });
+    if (res.ok) audit('email-sent', `pickup_otp → ${to}`, { event: 'pickup_otp', to });
+    return res;
+  } catch (e) {
+    audit('email-failed', `pickup_otp → ${to}: ${e?.message || e}`, { event: 'pickup_otp', to, error: String(e?.message || e) });
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+window._sendPickupOtpEmail = _sendPickupOtpEmail;
+
+// "Resend code" button in the checkout modal — for when the first email
+// bounced, landed in spam, or the customer just can't find it.
+window._resendPickupOtp = async function(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j || !j.pickup_otp) return showToast('No pickup code set for this job.', 'bad');
+  const b = D.bookings.find(x => x.id === j.booking_id);
+  const btn = document.getElementById('co-otp-resend');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  const res = await _sendPickupOtpEmail(j, b);
+  if (btn) { btn.disabled = false; btn.textContent = 'Resend code'; }
+  if (res.ok) showToast('Pickup code re-sent.', 'good');
+  else if (res.skipped === 'no-recipient') showToast('No email on file for this customer.', 'bad');
+  else showToast('Could not send: ' + (res.error || 'unknown error'), 'bad');
+};
 
 // ══════════════════════════════════════════════════════════════════════════
 //  AUDIT LOG — append-only event trail
