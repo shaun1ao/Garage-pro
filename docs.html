@@ -340,31 +340,64 @@
     <section id="feedback" class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 10.5c.5 2 2.5 4 4.5 4.5"/><circle cx="12" cy="12" r="10"/></svg></span>Customer feedback</h2>
       <p class="desc">Where feedback links go out, and where responses land.</p>
-      <div class="placeholder-body">Content coming soon — <b>Customer feedback</b> is being written.</div>
+      <p>Every "thank-you + invoice" message at checkout — email and WhatsApp — includes a one-time feedback link. The customer opens it (no login), picks a 1–5 star rating, optionally leaves a comment, and submits.</p>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Each link is single-use and tied to that one visit — a customer can't reuse it for a different repair, and it can only be submitted once.</div>
+      </div>
     </section>
 
     <section id="insurance" class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/></svg></span>Insurance claims</h2>
       <p class="desc">Tracking a claim end to end and generating the report.</p>
-      <div class="placeholder-body">Content coming soon — <b>Insurance claims</b> is being written.</div>
+      <p>Mark a job as an insurance case from its Insurance section, and it carries its own set of fields alongside the normal repair workflow:</p>
+      <ul class="doc-list">
+        <li>Insurer name, claim number, and policy number</li>
+        <li>Surveyor name and approval status (Pending / Approved / Partial / Rejected)</li>
+        <li>Approved amount, plus free-text notes</li>
+      </ul>
+      <p>When it's time to submit to the insurer, generate a one-click PDF report that pulls in the job's photos and inspection findings — built for exactly this purpose, alongside the normal customer invoice.</p>
     </section>
 
     <section id="multi-branch" class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>Multi-branch chains</h2>
       <p class="desc">Linking branches and reading the roll-up dashboard.</p>
-      <div class="placeholder-body">Content coming soon — <b>Multi-branch chains</b> is being written.</div>
+      <p>On the Chain plan, each branch keeps its own independent login and day-to-day data — its own bays, jobs, and workers — but is linked to a parent account.</p>
+      <ul class="doc-list">
+        <li>A branch's subscription inherits from its chain parent, so you manage billing once at the top instead of per-location.</li>
+        <li>The parent account gets a <b>roll-up dashboard</b>: bays, revenue, and jobs across every branch in one view, so you can compare locations at a glance without logging into each one separately.</li>
+        <li>Unlinking a branch is non-destructive — it keeps working independently, only the roll-up relationship is removed.</li>
+      </ul>
     </section>
 
     <section id="reports" class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg></span>Reports &amp; analytics</h2>
       <p class="desc">Reading the numbers — revenue, jobs, inventory, and per-worker performance.</p>
-      <div class="placeholder-body">Content coming soon — <b>Reports &amp; analytics</b> is being written.</div>
+      <p>The Reports tab turns the data you're already entering into a picture of how the workshop is actually running:</p>
+      <ul class="doc-list">
+        <li>Revenue trends over a date range you pick</li>
+        <li>Jobs completed and average turnaround</li>
+        <li>Inventory usage — what's moving, what's sitting</li>
+        <li>Per-mechanic performance</li>
+      </ul>
+      <p>A daily closing summary can also land in the owner's inbox each morning — bookings, pending jobs, and yesterday's numbers, without opening the app.</p>
     </section>
 
     <section id="troubleshooting" class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>Troubleshooting &amp; FAQ</h2>
       <p class="desc">Common questions and what to do when something looks wrong.</p>
-      <div class="placeholder-body">Content coming soon — <b>Troubleshooting &amp; FAQ</b> is being written.</div>
+      <h3>A worker can't see a tab they need</h3>
+      <p>Check Settings → Role Permissions for their role — tabs are opt-in per role. An Owner/Manager can tick the missing tab on, or build a custom role if the default roles don't quite fit.</p>
+      <h3>Emails aren't sending</h3>
+      <p>Confirm Settings → Customer Email Notifications is switched on and the specific event's toggle is ticked. If it's on and still not arriving, check the spam folder first — that's the most common cause.</p>
+      <h3>A WhatsApp prompt didn't appear</h3>
+      <p>WhatsApp only auto-prompts for Service Advisors (and Owner/Manager) at exactly the 4 moments described in <a href="#notifications" style="color:var(--acc2)">Email &amp; WhatsApp updates</a> — other roles won't see it, and that's by design, not a bug. Use the job card's "WhatsApp update" button to send one manually at any time.</p>
+      <h3>A worker forgot their PIN</h3>
+      <p>An Owner/Manager can look up or reset any worker's PIN from the Workers section of Settings.</p>
+      <h3>The pickup code isn't showing on the Track page</h3>
+      <p>It only reveals itself after the customer verifies the phone number or email on file for that booking — this is deliberate, so the link alone can never leak the code to someone who intercepts it.</p>
+      <h3>Still stuck?</h3>
+      <p>Reach out from the <a href="index.html#faq" style="color:var(--acc2)">FAQ section</a> on the main site.</p>
     </section>
 
     <div class="docs-footer-note">Garage Pro Docs — a work in progress. Have a question that can't wait? Reach out from the <a href="index.html#faq" style="color:var(--acc2)">main site</a>.</div>
