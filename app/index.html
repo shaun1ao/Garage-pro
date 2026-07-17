@@ -655,6 +655,10 @@ input[list]{background:var(--bg2)}
               <div><label>Currency</label><input id="fs-currency" type="text" value="₹" maxlength="3" autocomplete="off" /></div>
             </div>
             <div style="margin-top:8px"><label>Address</label><textarea id="fs-addr" rows="2" placeholder="Street, area, PIN" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);font-family:var(--fb);font-size:14px;resize:vertical"></textarea></div>
+            <label style="display:flex;align-items:flex-start;gap:9px;margin-top:12px;cursor:pointer">
+              <input type="checkbox" id="fs-summaryemail" style="width:16px;height:16px;cursor:pointer;margin-top:2px" />
+              <span style="font-size:12.5px;color:var(--dim)">Email me a daily <b>morning briefing</b> and <b>end-of-day summary</b> at the Contact email above. You can change this later in Settings.</span>
+            </label>
           </div>
         </details>
 
@@ -1540,6 +1544,12 @@ async function publishTracking(bookingId) {
       // overwritten and track.html's dead code path never has data to show.
       pickup_gated: false,
       pickup_code: '',
+      // Pre-existing damage recorded at intake — shown read-only on the Track
+      // page so the customer can see the marks logged at drop-off. Positions
+      // only (x/y/type/note); no other private data.
+      damage_pins: Array.isArray(j?.intake?.damage_pins)
+        ? j.intake.damage_pins.map(p => ({ x: p.x, y: p.y, type: p.type || '', note: p.note || '' }))
+        : [],
       history
     }, { merge: true });
   } catch (e) {
@@ -1945,7 +1955,8 @@ window.doFirstSetup = async function(e) {
     state:    gv('fs-state'),
     gstin:    gv('fs-gstin'),
     currency: gv('fs-currency') || '₹',
-    address:  gv('fs-addr')
+    address:  gv('fs-addr'),
+    summary_emails_enabled: !!document.getElementById('fs-summaryemail')?.checked
   };
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true; btn.textContent = 'Setting up…';
@@ -2108,6 +2119,7 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
       state:    details.state    || '',
       gstin:    details.gstin    || '',
       currency: details.currency || '₹',
+      summary_emails_enabled: !!details.summary_emails_enabled,
       bay_types: [], services: []
     }],
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -2283,6 +2295,19 @@ function _maybeFireMorningBriefing() {
         message: `Good morning — ${todaysAppts.length} appointment${todaysAppts.length === 1 ? '' : 's'} today${earliest ? `, first at ${earliest}` : ''}: ${plates}${more}`,
         target: { role: 'service_advisor' }
       });
+      // Also email the workshop's own inbox (if the toggle is on). Keyed
+      // separately from the per-worker notify key so a second advisor signing
+      // in on the same device doesn't re-send the digest email.
+      const emKey = `gp_briefing_email:${currentUser.uid}:${today}`;
+      if (!localStorage.getItem(emKey)) {
+        localStorage.setItem(emKey, '1');
+        _sendGarageSummaryEmail(
+          `Morning briefing · ${todaysAppts.length} appointment${todaysAppts.length === 1 ? '' : 's'} today`,
+          'Good morning',
+          [`${todaysAppts.length} appointment${todaysAppts.length === 1 ? '' : 's'} scheduled today${earliest ? `, first at ${earliest}` : ''}.`,
+           `Vehicles: ${plates}${more}`]
+        ).catch(() => {});
+      }
       localStorage.setItem(key, '1');
     } catch (e) { console.warn('[morning-briefing]', e); }
   }, 1200);
@@ -2402,6 +2427,17 @@ function _maybeFireClosingSummary() {
       message: `End of day: ${delivered.length} car${delivered.length === 1 ? '' : 's'} delivered · ${cur}${revenue.toLocaleString('en-IN')} billed · ${onFloor} still on the floor · ${pendingEst} estimate${pendingEst === 1 ? '' : 's'} awaiting customer approval.`,
       target: { roles: ['owner', 'manager'] }
     });
+    // Also email the workshop's own inbox (if the toggle is on). The `key`
+    // here is already workshop+date scoped (not per-worker), so this fires at
+    // most once/device/day alongside the notify.
+    _sendGarageSummaryEmail(
+      `End-of-day summary · ${cur}${revenue.toLocaleString('en-IN')} billed`,
+      'End of day',
+      [`${delivered.length} car${delivered.length === 1 ? '' : 's'} delivered today.`,
+       `${cur}${revenue.toLocaleString('en-IN')} billed.`,
+       `${onFloor} vehicle${onFloor === 1 ? '' : 's'} still on the floor.`,
+       `${pendingEst} estimate${pendingEst === 1 ? '' : 's'} awaiting customer approval.`]
+    ).catch(() => {});
     localStorage.setItem(key, '1');
   } catch (e) { console.warn('[closing-summary]', e); }
 }
@@ -4624,7 +4660,14 @@ const INTAKE_DEFAULT_ITEMS = [
 ];
 const INTAKE_FUEL_LEVELS = ['Empty', '1/4', '1/2', '3/4', 'Full'];
 
-let _intakeBuffer = null;   // { jobId, items: {key:bool}, fuel, custom:[{name,present}], notes }
+// Damage diagram — tap the car silhouette to drop a numbered pin marking
+// existing damage (scratch/dent/etc), instead of trying to describe every
+// mark in the free-text Notes field where it's easy to forget one. Pins are
+// saved as job.intake.damage_pins: [{ id, x, y, type, note }], x/y stored as
+// a % of the SVG's own width/height so they redraw correctly at any size.
+const DAMAGE_TYPES = ['Scratch', 'Dent', 'Crack/chip', 'Rust', 'Missing part', 'Other'];
+
+let _intakeBuffer = null;   // { jobId, items: {key:bool}, fuel, custom:[{name,present}], notes, damage_pins:[] }
 
 window.openVehicleIntake = function(jobId) {
   const j = (D.jobs || []).find(x => x.id === jobId);
@@ -4635,7 +4678,8 @@ window.openVehicleIntake = function(jobId) {
     items: { ...Object.fromEntries(INTAKE_DEFAULT_ITEMS.map(i => [i.key, prior.items?.[i.key] ?? i.dflt])) },
     fuel:   prior.fuel_level || '1/2',
     custom: Array.isArray(prior.custom) ? prior.custom.slice() : [],
-    notes:  prior.notes || ''
+    notes:  prior.notes || '',
+    damage_pins: Array.isArray(prior.damage_pins) ? prior.damage_pins.map(p => ({ ...p })) : []
   };
   openModal({
     title: `Vehicle intake · ${j.plate || j.id}`,
@@ -4643,7 +4687,97 @@ window.openVehicleIntake = function(jobId) {
     saveLabel: 'Save intake & add photos',
     onSave: async () => { await _saveVehicleIntake(); }
   });
-  setTimeout(_intakeDrawCustom, 0);
+  setTimeout(() => { _intakeDrawCustom(); _intakeRenderDamagePins(); }, 0);
+};
+
+// A simple top-down car outline — front at top, rear at bottom, wheels on
+// the sides. Not photorealistic, just recognizable enough to tap a general
+// area. Shared by the editable intake form and the read-only job-card
+// summary so pins line up identically in both places.
+function _intakeDamageSVG() {
+  return `<svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block;color:var(--faint);pointer-events:none">
+    <rect x="30" y="20" width="140" height="360" rx="35" fill="none" stroke="currentColor" stroke-width="3"/>
+    <rect x="34" y="55" width="132" height="70" rx="6" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/>
+    <rect x="34" y="145" width="132" height="110" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/>
+    <rect x="34" y="275" width="132" height="65" rx="6" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/>
+    <rect x="8" y="72" width="16" height="52" rx="6" fill="currentColor" opacity=".5"/>
+    <rect x="176" y="72" width="16" height="52" rx="6" fill="currentColor" opacity=".5"/>
+    <rect x="8" y="276" width="16" height="52" rx="6" fill="currentColor" opacity=".5"/>
+    <rect x="176" y="276" width="16" height="52" rx="6" fill="currentColor" opacity=".5"/>
+    <text x="100" y="42" text-anchor="middle" font-size="12" fill="currentColor" opacity=".6">FRONT</text>
+    <text x="100" y="365" text-anchor="middle" font-size="12" fill="currentColor" opacity=".6">REAR</text>
+  </svg>`;
+}
+
+// Draws the numbered pin markers on top of the editable diagram (intake
+// form only — the job-card summary renders its own static copy inline).
+function _intakeRenderDamagePins() {
+  const wrap = document.getElementById('intake-damage-map');
+  if (!wrap) return;
+  wrap.querySelectorAll('.intake-pin').forEach(el => el.remove());
+  const pins = (_intakeBuffer && _intakeBuffer.damage_pins) || [];
+  pins.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'intake-pin';
+    btn.dataset.pinIdx = i;
+    btn.title = p.type + (p.note ? ': ' + p.note : '');
+    btn.textContent = String(i + 1);
+    btn.style.cssText = 'position:absolute;left:' + p.x + '%;top:' + p.y + '%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:var(--red);border:2px solid #fff;color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4);padding:0';
+    wrap.appendChild(btn);
+  });
+}
+
+// Tap the car body → add a new pin at that spot. Tap an existing numbered
+// pin → edit or remove it instead.
+window._intakeDamageMapClick = function(ev) {
+  const wrap = document.getElementById('intake-damage-map');
+  if (!wrap || !_intakeBuffer) return;
+  const pinEl = ev.target.closest('.intake-pin');
+  const rect = wrap.getBoundingClientRect();
+  if (pinEl) { _intakeOpenPinEditor(Number(pinEl.dataset.pinIdx)); return; }
+  const x = Math.max(2, Math.min(98, ((ev.clientX - rect.left) / rect.width) * 100));
+  const y = Math.max(2, Math.min(98, ((ev.clientY - rect.top) / rect.height) * 100));
+  _intakeOpenPinEditor(null, x, y);
+};
+
+// idx === null → adding a new pin at (x, y). idx === a number → editing or
+// removing an existing one (its own x/y are reused, unchanged).
+window._intakeOpenPinEditor = function(idx, x, y) {
+  const isNew = idx == null;
+  const pin = isNew ? { type: DAMAGE_TYPES[0], note: '' } : _intakeBuffer.damage_pins[idx];
+  _openSubModal({
+    title: isNew ? 'Mark damage' : `Damage #${idx + 1}`,
+    bodyHtml: `
+      <div class="f-grp"><label>Type</label>
+        <select id="pin-type">${DAMAGE_TYPES.map(t => `<option value="${escapeHtml(t)}" ${pin.type === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}</select>
+      </div>
+      <div class="f-grp"><label>Note (optional)</label>
+        <input id="pin-note" type="text" value="${escapeHtml(pin.note || '')}" placeholder="e.g. 2 inch scratch, rear-left door" />
+      </div>
+    `,
+    footHtml: `
+      ${isNew ? '' : `<button class="fbtn fbtn-danger" id="pin-delete">Remove</button>`}
+      <div style="flex:1"></div>
+      <button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>
+      <button class="fbtn fbtn-save" id="pin-save">${isNew ? 'Add pin' : 'Save'}</button>
+    `
+  });
+  if (!isNew) {
+    document.getElementById('pin-delete').onclick = () => {
+      _intakeBuffer.damage_pins.splice(idx, 1);
+      _intakeRenderDamagePins();
+      closeSubModal();
+    };
+  }
+  document.getElementById('pin-save').onclick = () => {
+    const type = document.getElementById('pin-type').value;
+    const note = document.getElementById('pin-note').value.trim();
+    if (isNew) _intakeBuffer.damage_pins.push({ id: uid('pin'), x, y, type, note });
+    else Object.assign(_intakeBuffer.damage_pins[idx], { type, note });
+    _intakeRenderDamagePins();
+    closeSubModal();
+  };
 };
 
 function _intakeFormHTML(j) {
@@ -4687,10 +4821,17 @@ function _intakeFormHTML(j) {
       <div id="intake-custom-list"></div>
     </div>
 
+    <!-- Damage diagram -->
+    <div style="margin-bottom:18px;padding:14px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px">
+      <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Existing damage</div>
+      <div style="font-size:11.5px;color:var(--faint);margin-bottom:12px">Tap the car to mark a scratch, dent, or other existing damage. Tap a numbered pin to edit or remove it.</div>
+      <div id="intake-damage-map" onclick="_intakeDamageMapClick(event)" style="position:relative;cursor:crosshair;width:160px;height:320px;margin:0 auto">${_intakeDamageSVG()}</div>
+    </div>
+
     <!-- Notes -->
     <div class="f-grp">
-      <label>Notes (dents, scratches, fuel exact, other concerns)</label>
-      <textarea id="intake-notes" placeholder="e.g. small dent on rear-left door, half-used fragrance, ₹200 in glovebox…">${escapeHtml(_intakeBuffer.notes)}</textarea>
+      <label>Notes (fuel exact, other concerns)</label>
+      <textarea id="intake-notes" placeholder="e.g. half-used fragrance, ₹200 in glovebox…">${escapeHtml(_intakeBuffer.notes)}</textarea>
     </div>
   `;
 }
@@ -4751,16 +4892,17 @@ async function _saveVehicleIntake() {
   // Drop empty custom rows so we don't save junk
   const custom = (_intakeBuffer.custom || []).filter(c => (c.name || '').trim());
   j.intake = {
-    items:       { ..._intakeBuffer.items },
-    fuel_level:  _intakeBuffer.fuel,
+    items:        { ..._intakeBuffer.items },
+    fuel_level:   _intakeBuffer.fuel,
     custom,
-    notes:       _intakeBuffer.notes,
-    recorded_at: nowStr(),
-    recorded_by: currentWorker?.name || ''
+    notes:        _intakeBuffer.notes,
+    damage_pins:  (_intakeBuffer.damage_pins || []).map(p => ({ ...p })),
+    recorded_at:  nowStr(),
+    recorded_by:  currentWorker?.name || ''
   };
   j.updated_at = nowStr();
   await wsSave('jobs', D.jobs);
-  audit('vehicle-intake', `${j.plate} · fuel ${j.intake.fuel_level} · ${Object.values(j.intake.items).filter(Boolean).length + custom.filter(c=>c.present).length} items present`, { job_id: j.id });
+  audit('vehicle-intake', `${j.plate} · fuel ${j.intake.fuel_level} · ${Object.values(j.intake.items).filter(Boolean).length + custom.filter(c=>c.present).length} items present${j.intake.damage_pins.length ? ' · ' + j.intake.damage_pins.length + ' damage mark(s)' : ''}`, { job_id: j.id });
   showToast('Intake checklist saved · now add photos', 'good');
   // Reset buffer
   const jobId = _intakeBuffer.jobId; const plate = j.plate;
@@ -4801,6 +4943,50 @@ window._intakeUploadPhotos = async function(ev, jobId) {
   if (status) status.innerHTML = `<span style="color:var(--teal)">✓ ${ok} of ${files.length} uploaded — saved against this job card.</span>`;
   ev.target.value = '';
 };
+
+// Read-only summary shown in the job card's "Vehicle intake" accordion
+// section — the checklist + damage diagram are only ever edited through
+// openVehicleIntake()'s modal; this just displays the last-saved state.
+function _intakeSummaryHTML(intake, jobId) {
+  if (!intake) {
+    return `<div style="color:var(--faint);font-size:13px;text-align:center;padding:16px">No intake checklist recorded for this job yet.</div>
+      <div style="text-align:center;margin-top:10px"><button type="button" class="mini-btn" onclick="closeModal();setTimeout(()=>openVehicleIntake('${escapeHtml(jobId)}'),200)">Record intake</button></div>`;
+  }
+  const present = INTAKE_DEFAULT_ITEMS.filter(i => intake.items?.[i.key]).map(i => i.label);
+  const missing = INTAKE_DEFAULT_ITEMS.filter(i => !intake.items?.[i.key]).map(i => i.label);
+  const customPresent = (intake.custom || []).filter(c => c.present).map(c => c.name).filter(Boolean);
+  const pins = intake.damage_pins || [];
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <div>
+        <div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;font-weight:700">Present</div>
+        <div style="font-size:13px;color:var(--txt);line-height:1.6">${present.length ? escapeHtml(present.join(', ')) : '—'}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;font-weight:700">Missing</div>
+        <div style="font-size:13px;color:${missing.length ? 'var(--acc2)' : 'var(--txt)'};line-height:1.6">${missing.length ? escapeHtml(missing.join(', ')) : '—'}</div>
+      </div>
+    </div>
+    <div style="font-size:13px;margin-bottom:10px"><b style="color:var(--faint);font-weight:600">Fuel:</b> ${escapeHtml(intake.fuel_level || '—')}</div>
+    ${customPresent.length ? `<div style="font-size:13px;margin-bottom:10px"><b style="color:var(--faint);font-weight:600">Other items:</b> ${escapeHtml(customPresent.join(', '))}</div>` : ''}
+    ${intake.notes ? `<div style="font-size:13px;margin-bottom:14px"><b style="color:var(--faint);font-weight:600">Notes:</b> ${escapeHtml(intake.notes)}</div>` : ''}
+
+    <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Damage diagram</div>
+    ${pins.length ? `
+      <div style="position:relative;width:120px;height:240px;margin:0 auto 12px">${_intakeDamageSVG()}
+        ${pins.map((p, i) => `<div title="${escapeHtml(p.type)}${p.note ? ': ' + escapeHtml(p.note) : ''}" style="position:absolute;left:${p.x}%;top:${p.y}%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:var(--red);border:2px solid #fff;color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center">${i + 1}</div>`).join('')}
+      </div>
+      <div style="display:grid;gap:6px;margin-bottom:14px">
+        ${pins.map((p, i) => `<div style="font-size:12.5px;color:var(--dim)"><b style="color:var(--red)">${i + 1}.</b> ${escapeHtml(p.type)}${p.note ? ' — ' + escapeHtml(p.note) : ''}</div>`).join('')}
+      </div>
+    ` : `<div style="color:var(--faint);font-size:13px;text-align:center;padding:10px;margin-bottom:10px">No damage marked at intake.</div>`}
+
+    <div style="text-align:center;margin-top:6px">
+      <button type="button" class="mini-btn" onclick="closeModal();setTimeout(()=>openVehicleIntake('${escapeHtml(jobId)}'),200)">Edit intake</button>
+    </div>
+    <div style="font-size:11px;color:var(--faint);margin-top:8px;text-align:center">Recorded ${escapeHtml((intake.recorded_at || '').slice(0, 16))}${intake.recorded_by ? ' by ' + escapeHtml(intake.recorded_by) : ''}</div>
+  `;
+}
 
 // Called as the customer field is typed/picked.
 //   • Phone auto-fills when empty
@@ -7362,6 +7548,10 @@ async function _apprBuildDoc(j, inv, token) {
     total,
     tax_pct: taxPct,
     total_gst: totalGst,
+    // Pre-existing damage recorded at intake (see openVehicleIntake) — shown
+    // read-only on the approval page so the customer agrees the marks were
+    // already there BEFORE approving any work, not disputes them at pickup.
+    damage_pins: Array.isArray(j.intake?.damage_pins) ? j.intake.damage_pins.map(p => ({ x: p.x, y: p.y, type: p.type || '', note: p.note || '' })) : [],
     status: 'pending',
     decisions: {},
     customer_note: '',
@@ -7795,7 +7985,10 @@ window.openJobForm = function(id) {
     approved_amount:     j.approved_amount || '',
     surveyor_name:       j.surveyor_name || '',
     insurance_notes:     j.insurance_notes || '',
-    estimate_sent_by_id: j.estimate_sent_by_id || ''
+    estimate_sent_by_id: j.estimate_sent_by_id || '',
+    // Read-only reference for the Intake accordion section — actual editing
+    // happens through the dedicated openVehicleIntake() modal, not inline here.
+    intake:              j.intake || null
   };
   // Estimation phase → show ONLY the estimation parts/services; hide the actual
   // "Parts used" + "Service charges" until the repair is actually running. Keeps
@@ -7825,6 +8018,7 @@ window.openJobForm = function(id) {
         // ── Sticky section jump-bar — the modal is long, this stops staff
         // scrolling to find things.
         const chips = [
+          ['jf-sec-intake', 'Intake'],
           !_isMechanicRole ? ['jf-sec-est', 'Estimate'] : null,
           _jobShowActual ? ['jf-sec-parts', 'Parts'] : null,
           _jobShowActual ? ['jf-sec-charges', 'Charges'] : null,
@@ -7978,6 +8172,16 @@ window.openJobForm = function(id) {
         </div></div>
       </div>
       ` : ''}
+
+      <!-- Vehicle intake — possessions checklist + damage diagram captured at
+           handover (see openVehicleIntake). Read-only here; the "Edit intake"
+           button re-opens the full editor. -->
+      <div class="jf-acc" data-acc="jf-sec-intake" id="jf-sec-intake">
+        ${_jobAccHead('jf-sec-intake', 'Vehicle intake', _editingJob.intake ? ((_editingJob.intake.damage_pins||[]).length ? `⚑ ${(_editingJob.intake.damage_pins||[]).length} damage mark${(_editingJob.intake.damage_pins||[]).length===1?'':'s'}` : 'Recorded') : 'Not recorded yet')}
+        <div class="jf-acc-panel"><div class="jf-acc-panel-inner">
+          ${_intakeSummaryHTML(_editingJob.intake, j.id)}
+        </div></div>
+      </div>
 
       <!-- Photos — before/after damage, parts replaced, insurance evidence -->
       <div class="jf-acc" data-acc="jf-sec-photos" id="jf-sec-photos">
@@ -8230,7 +8434,13 @@ window._jobAddEstFromInventory = function() {
       const picked = _pickEstInvSelected.has(id);
       return `<button type="button" data-eid="${escapeHtml(id)}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'rgba(32,227,178,.10)' : 'var(--surf)'};cursor:pointer;color:var(--txt);font-family:var(--fb)">
       <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'var(--teal,#20e3b2)' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
-      <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(i.name)}</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(i.category || '—')} · ${Number(i.qty||0)} in stock</div></div>
+      <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(i.name)}</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(i.category || '—')} · ${(() => {
+        const reserved = _reservedQtyFor(i.name, _editingJob?.id);
+        const free = Number(i.qty || 0) - reserved;
+        return reserved > 0
+          ? `<span style="color:${free <= 0 ? 'var(--red)' : 'var(--acc2)'}">${free} free of ${Number(i.qty||0)} (${reserved} reserved elsewhere)</span>`
+          : `${Number(i.qty||0)} in stock`;
+      })()}</div></div>
       <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:var(--teal)">${cur}${Number(i.sell_price||0).toLocaleString('en-IN')}</div>
     </button>`;
     }).join('');
@@ -10680,6 +10890,42 @@ window.promoteNextFromQueue = promoteNextFromQueue;
 // ══════════════════════════════════════════
 //  INVENTORY
 // ══════════════════════════════════════════
+// ── Parts reservation (soft) ────────────────────────────────────────────────
+// When a part is on a LIVE estimate, its quantity is "reserved" so two open
+// jobs don't both bank on the last one in stock. Reservation is DERIVED on the
+// fly by summing est_parts across every reserving job — never a stored counter
+// — so it can't drift, and it releases automatically the moment an estimate is
+// rejected or the job leaves the estimation phase (the part is then either
+// consumed via Parts Used or no longer quoted).
+const _RESERVING_STATUSES = new Set([
+  'Awaiting Assignment','Awaiting Approval','Technician Assigned','Inspected',
+  'Estimate Sent','Estimate Approved','Estimate Approved (Partial)'
+]);
+function _jobReservesStock(j) {
+  if (!j) return false;
+  if (j.visit_outcome === 'rejected') return false;
+  if (['Delivered','Cancelled'].includes(j.status || '')) return false;
+  return _RESERVING_STATUSES.has(j.status || 'Awaiting Assignment');
+}
+// Total quantity of an inventory item currently reserved across all live
+// estimates. Matched by name (same convention the invoice/estimate flows use),
+// optionally excluding one job (so the job card you're editing doesn't count
+// its own not-yet-saved lines against itself).
+function _reservedQtyFor(itemName, exceptJobId) {
+  const key = (itemName || '').trim().toLowerCase();
+  if (!key) return 0;
+  let n = 0;
+  for (const j of (D.jobs || [])) {
+    if (exceptJobId && j.id === exceptJobId) continue;
+    if (!_jobReservesStock(j)) continue;
+    for (const p of (j.est_parts || [])) {
+      if ((p.name || '').trim().toLowerCase() === key) n += Math.max(0, Number(p.qty || 0));
+    }
+  }
+  return n;
+}
+window._reservedQtyFor = _reservedQtyFor;
+
 async function renderInventory(force = false) {
   await loadAllData(force);
   // Managing inventory (add/edit/delete) is Parts department + owner/manager
@@ -10732,10 +10978,15 @@ async function renderInventory(force = false) {
     <tbody>${list.map(i => {
       const low = isLowStock(i);
       const out = (Number(i.qty) || 0) <= 0;
+      const reserved = _reservedQtyFor(i.name);
+      const free = (Number(i.qty) || 0) - reserved;
+      const reservedNote = reserved > 0
+        ? `<br><span style="font-size:11px;color:${free <= 0 ? 'var(--red)' : 'var(--acc2)'}">${reserved} reserved · ${free} free</span>`
+        : '';
       return `<tr>
         <td class="k">${escapeHtml(i.name || '—')}${i.supplier ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(i.supplier)}</span>` : ''}</td>
         <td>${escapeHtml(i.category || '—')}</td>
-        <td>${out ? '<span class="status-pill s-warn">● Out</span>' : low ? `<span class="status-pill s-arrived">● ${escapeHtml(String(i.qty || 0))} ${escapeHtml(i.unit || '')}</span>` : `<span class="k">${escapeHtml(String(i.qty || 0))} ${escapeHtml(i.unit || 'pcs')}</span>`}</td>
+        <td>${out ? '<span class="status-pill s-warn">● Out</span>' : low ? `<span class="status-pill s-arrived">● ${escapeHtml(String(i.qty || 0))} ${escapeHtml(i.unit || '')}</span>` : `<span class="k">${escapeHtml(String(i.qty || 0))} ${escapeHtml(i.unit || 'pcs')}</span>`}${reservedNote}</td>
         <td>${i.sell_price ? '₹' + Number(i.sell_price).toLocaleString('en-IN') : '—'}</td>
         <td style="font-family:'Courier New',monospace;font-size:12.5px;color:var(--faint)">${escapeHtml(i.hsn || '—')}</td>
         <td>${escapeHtml(i.location || '—')}</td>
@@ -12009,6 +12260,12 @@ async function renderSettings(force = false) {
           <input type="checkbox" id="sf-wf-closing" ${s.closing_summary_enabled !== false ? 'checked' : ''} onchange="_wfToggle('closing_summary_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
           <span><b style="font-family:var(--fd);font-size:14px">Daily closing summary</b><br>
           <span style="font-size:12.5px;color:var(--dim)">After 5 pm, the owner/manager gets a once-a-day digest: cars delivered, revenue billed, cars still on the floor, estimates awaiting approval.</span></span>
+        </label>
+
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:12px">
+          <input type="checkbox" id="sf-wf-summaryemail" ${s.summary_emails_enabled ? 'checked' : ''} onchange="_wfToggle('summary_emails_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
+          <span><b style="font-family:var(--fd);font-size:14px">Email me the daily summaries</b><br>
+          <span style="font-size:12.5px;color:var(--dim)">Also send the morning briefing and end-of-day summary to your workshop's <b>Contact email</b>${s.email ? ` (${escapeHtml(s.email)})` : ''} — they still appear in the app as notifications.${s.email ? '' : ' <b style="color:var(--red)">Set a Contact email above in Workshop info first, otherwise there\'s nowhere to send them.</b>'}</span></span>
         </label>
 
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
@@ -15218,6 +15475,51 @@ async function _sendPickupOtpEmail(job, booking) {
   }
 }
 window._sendPickupOtpEmail = _sendPickupOtpEmail;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  WORKSHOP DIGEST EMAIL — the morning briefing + end-of-day closing summary
+//  (which already fire as in-app notify()s) are ALSO emailed to the
+//  workshop's own Contact email when "Email me the daily summaries" is on
+//  (Settings → Workflow extras / setup wizard). This is workshop-internal
+//  mail to the garage's own inbox, deliberately independent of the
+//  customer-facing email toggle — so a shop can get its own digests without
+//  turning on customer emails.
+// ══════════════════════════════════════════════════════════════════════════
+async function _sendGarageSummaryEmail(subject, headline, lines) {
+  const s = D.settings || {};
+  if (!s.summary_emails_enabled) return { ok: false, skipped: 'disabled' };
+  const to = (s.email || '').trim();
+  if (!to) return { ok: false, skipped: 'no-recipient' };
+  const workshopName = s.workshop_name || 'Garage Pro';
+  const body = (Array.isArray(lines) ? lines : [lines]).filter(Boolean)
+    .map(l => `<div style="font-size:15px;color:#1a1a1a;line-height:1.6;margin:0 0 8px">${_esc(l)}</div>`).join('');
+  const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;font-family:Arial,Helvetica,sans-serif">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 0">
+      <tr><td align="center">
+        <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;max-width:520px">
+          <tr><td style="padding:28px 32px 6px;text-align:center">
+            ${s.logo ? `<img src="${s.logo}" alt="" style="max-height:44px;margin-bottom:10px" />` : ''}
+            <div style="font-weight:800;font-size:15px;color:#1a1a1a">${_esc(workshopName)}</div>
+          </td></tr>
+          <tr><td style="padding:14px 32px 4px">
+            <div style="font-size:19px;font-weight:800;color:#0a0f1a;margin-bottom:14px">${_esc(headline)}</div>
+            ${body}
+          </td></tr>
+          <tr><td style="padding:18px 32px 26px"><div style="font-size:12px;color:#8892a0;border-top:1px solid #e2e6ec;padding-top:12px">Automated workshop summary from Garage Pro. Turn off in Settings → Workflow extras.</div></td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body></html>`;
+  try {
+    const res = await _smtpSend({ to, subject, html, fromName: workshopName, logo: s.logo || '' });
+    if (res.ok) audit('email-sent', `garage_summary → ${to}`, { event: 'garage_summary', to });
+    return res;
+  } catch (e) {
+    audit('email-failed', `garage_summary → ${to}: ${e?.message || e}`, { event: 'garage_summary', to, error: String(e?.message || e) });
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+window._sendGarageSummaryEmail = _sendGarageSummaryEmail;
 
 // "Resend code" button in the checkout modal — for when the first email
 // bounced, landed in spam, or the customer just can't find it.
