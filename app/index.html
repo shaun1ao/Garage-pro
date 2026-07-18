@@ -688,10 +688,12 @@ input[list]{background:var(--bg2)}
     <!-- STEP 3: Workers -->
     <div class="setup-pane" data-pane="3" style="display:none">
       <h2>Add your team</h2>
-      <div class="a-sub">Each worker signs in on the floor with a 4-digit PIN. You can add more later from the Workers tab.</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 90px auto;gap:8px;margin:14px 0 8px;align-items:end">
+      <div class="a-sub">Each worker signs in on the floor with their own username and PIN. Leave the username blank and we'll make one from their first name. You can add more later from the Workers tab.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 90px auto;gap:8px;margin:14px 0 8px;align-items:end">
         <div><label style="display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase">Name</label>
           <input id="setupWkName" type="text" placeholder="Aslam" autocomplete="off" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" /></div>
+        <div><label style="display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase">Username</label>
+          <input id="setupWkUser" type="text" placeholder="aslam" autocomplete="off" autocapitalize="none" spellcheck="false" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" /></div>
         <div><label style="display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase">Role</label>
           <select id="setupWkRole" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
             <option value="mechanic">Mechanic</option>
@@ -731,13 +733,20 @@ input[list]{background:var(--bg2)}
       <div class="ws-sub" id="pinSub">Tap your name to start a shift</div>
     </div>
 
-    <div id="pinWorkerListWrap" style="width:100%">
-      <div class="worker-grid" id="pinWorkerList"></div>
-    </div>
-
-    <div id="pinEntryWrap" class="pin-entry" style="display:none">
-      <div class="nm" id="pinSelectedName">—<small id="pinSelectedRole">—</small></div>
-      <div class="pin-dots" id="pinDots"></div>
+    <!-- Workers sign in with their OWN username + PIN. There is deliberately no
+         roster of accounts here — a worker can only reach their own identity,
+         never browse or pick someone else's. -->
+    <div id="pinEntryWrap" class="pin-entry" style="display:flex">
+      <div style="width:100%">
+        <label for="pinUser" style="display:block;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:6px">Username</label>
+        <input id="pinUser" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"
+               placeholder="your username"
+               style="width:100%;padding:12px 14px;background:var(--surf);border:1px solid var(--brd2);border-radius:11px;color:var(--txt);font-family:var(--fb);font-size:15.5px;outline:none" />
+      </div>
+      <div style="width:100%">
+        <label style="display:block;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:6px">PIN</label>
+        <div class="pin-dots" id="pinDots" style="justify-content:flex-start;margin:0;min-height:18px"></div>
+      </div>
       <div class="pin-err" id="pinErr"></div>
       <div class="pin-grid">
         <button class="pin-key" type="button" data-d="1">1</button>
@@ -751,7 +760,7 @@ input[list]{background:var(--bg2)}
         <button class="pin-key" type="button" data-d="9">9</button>
         <button class="pin-key" type="button" data-d="clear">⌫</button>
         <button class="pin-key" type="button" data-d="0">0</button>
-        <button class="pin-key" type="button" data-d="back" style="font-size:13px">Back</button>
+        <button class="pin-key act" type="button" data-d="go" style="font-size:13px">Sign in</button>
       </div>
     </div>
 
@@ -889,10 +898,12 @@ input[list]{background:var(--bg2)}
       <!-- Sidebar footer: user pill + light mode + sign out -->
       <div class="sidebar-foot">
         <a id="sbSubBadge" href="../#pricing" target="_blank" rel="noopener" style="display:none;text-decoration:none;padding:9px 11px;margin:0 0 6px;border-radius:9px;background:var(--bg2);border:1px solid var(--brd);font-size:11.5px;line-height:1.4"></a>
-        <button class="snav user-row" onclick="switchWorker()" title="Switch worker">
+        <!-- Identity display only. Not a switcher — signing out is the one way
+             to change who's using the device (see doSignOut). -->
+        <div class="snav user-row" style="cursor:default" title="Signed in as">
           <span class="av" id="sbWorkerAv">—</span>
           <span id="sbWorkerName" style="flex:1;color:var(--txt)">—</span>
-        </button>
+        </div>
         <button class="snav" onclick="toggleLightMode()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="lightIcon"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
           <span id="lightLabel">Light mode</span>
@@ -1021,6 +1032,16 @@ input[list]{background:var(--bg2)}
           <select id="jbMech" onchange="renderJobs()"><option value="">All mechanics</option></select>
           <button class="refresh-btn" onclick="document.getElementById('jbSearch').value='';document.getElementById('jbStatus').value='';document.getElementById('jbDept').value='';document.getElementById('jbMech').value='';renderJobs()">Clear</button>
           <span class="pill"><b id="jbCount">0</b>&nbsp;results</span>
+        </div>
+        <!-- Bulk action bar — only appears once rows are ticked. Lets a floor
+             manager move a whole batch of jobs at end of day (e.g. everything
+             in "Awaiting QC" → "Washing") without opening each card. -->
+        <div id="jbBulkBar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:11px 14px;background:var(--bg2);border:1px solid var(--acc);border-radius:10px">
+          <b id="jbBulkCount" style="font-size:13.5px">0 selected</b>
+          <select id="jbBulkStatus" style="min-width:190px"><option value="">— Move all to… —</option></select>
+          <button class="mini-btn good" onclick="_jbBulkApply()">Apply</button>
+          <button class="mini-btn" onclick="_jbBulkClear()">Clear selection</button>
+          <span style="font-size:11.5px;color:var(--faint)">Bulk moves skip the per-job notifications — the customer tracker still updates.</span>
         </div>
         <div id="jbTableWrap"></div>
       </div>
@@ -2034,9 +2055,23 @@ window._wizAddWorker = function() {
   if (_wizWorkers.find(w => w.name.toLowerCase() === name.toLowerCase())) {
     err.textContent = 'A worker with that name already exists in this list.'; return;
   }
-  _wizWorkers.push({ name, role, pin });
+  // Username is what they'll type to sign in — default it from the first name
+  let username = (document.getElementById('setupWkUser')?.value || '').trim().toLowerCase();
+  if (username && !/^[a-z0-9._-]{2,20}$/.test(username)) {
+    err.textContent = 'Username: 2–20 characters, letters/numbers/. _ - only.'; return;
+  }
+  if (!username) {
+    const base = _slugUsername(name); let cand = base, n = 2;
+    while (_wizWorkers.some(w => w.username === cand)) cand = base + (n++);
+    username = cand;
+  }
+  if (_wizWorkers.some(w => w.username === username)) {
+    err.textContent = 'That username is already used in this list.'; return;
+  }
+  _wizWorkers.push({ name, role, pin, username });
   document.getElementById('setupWkName').value = '';
   document.getElementById('setupWkPin').value  = '';
+  const uEl = document.getElementById('setupWkUser'); if (uEl) uEl.value = '';
   _wizDrawWorkers();
 };
 window._wizRemoveWorker = function(i) { _wizWorkers.splice(i, 1); _wizDrawWorkers(); };
@@ -2049,7 +2084,7 @@ function _wizDrawWorkers() {
   }
   wrap.innerHTML = _wizWorkers.map((w, i) => `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:6px">
-      <div><b style="color:var(--txt)">${escapeHtml(w.name)}</b> <span style="color:var(--faint);font-size:12px;margin-left:6px;text-transform:capitalize">${escapeHtml(w.role)}</span> <span style="color:var(--faint);font-size:11.5px;margin-left:8px;font-family:'Courier New',monospace">PIN ${'•'.repeat(w.pin.length)}</span></div>
+      <div><b style="color:var(--txt)">${escapeHtml(w.name)}</b> <span style="color:var(--faint);font-size:12px;margin-left:6px;text-transform:capitalize">${escapeHtml(w.role)}</span> <span style="color:var(--acc2);font-size:11.5px;margin-left:8px;font-family:'Courier New',monospace">@${escapeHtml(w.username || '')}</span> <span style="color:var(--faint);font-size:11.5px;margin-left:8px;font-family:'Courier New',monospace">PIN ${'•'.repeat(w.pin.length)}</span></div>
       <button type="button" class="mini-btn danger" onclick="_wizRemoveWorker(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
     </div>`).join('');
 }
@@ -2062,6 +2097,7 @@ window._wizSaveWorkersAndFinish = async function() {
   // Hash each PIN then append to D.mechanics + save
   const hashed = await Promise.all(_wizWorkers.map(async w => ({
     id: uid('mech'), name: w.name, role: w.role, active: true,
+    username: w.username || _slugUsername(w.name),
     pin_hash: await sha256(w.pin), pin_len: w.pin.length,
     created_at: nowStr()
   })));
@@ -2077,7 +2113,7 @@ window._wizFinish = function() {
       .set({ setup_done_at: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
       .catch(() => {});
   }
-  showToast('All set! Tap your name to sign in.', 'good');
+  showToast('All set! Sign in with your username and PIN.', 'good');
   showPinpad();
 };
 
@@ -2101,6 +2137,7 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
       name:      ownerName,
       role:      'owner',
       active:    true,
+      username:  _slugUsername(ownerName),   // what the owner types to sign in
       pin_hash:  pinHash,
       pin_len:   pin.length,
       created_at: new Date().toISOString()
@@ -2144,102 +2181,132 @@ function friendlyAuthError(e) {
 }
 
 // ══════════════════════════════════════════
-//  PIN PAD — pick a worker, enter their PIN
+//  WORKER SIGN-IN — username + PIN, straight into your own account
 // ══════════════════════════════════════════
-let _pinSelectedWorker = null;
+// Deliberately NO roster of accounts on this screen. A worker types their own
+// username and PIN and lands in their own identity; they can't see who else
+// works here, and can't select someone else's account. The only way out is a
+// full sign-out back to this same screen.
 let _pinEntered = '';
+
+// Existing workshops predate the username field — without one, nobody could log
+// in after this screen replaced the tile picker. Derive a stable username from
+// each worker's name (first token, deduped) and persist it once.
+function _slugUsername(name) {
+  return String(name || '').trim().toLowerCase().split(/\s+/)[0].replace(/[^a-z0-9]/g, '') || 'user';
+}
+async function ensureWorkerUsernames() {
+  const list = D.mechanics || [];
+  if (!list.length) return;
+  const taken = new Set(list.map(w => (w.username || '').trim().toLowerCase()).filter(Boolean));
+  let changed = false;
+  for (const w of list) {
+    if ((w.username || '').trim()) continue;
+    let base = _slugUsername(w.name), cand = base, n = 2;
+    while (taken.has(cand)) cand = base + (n++);
+    w.username = cand; taken.add(cand); changed = true;
+  }
+  if (changed) {
+    try { await wsSave('mechanics', list); }
+    catch (e) { console.warn('[username backfill]', e); }
+  }
+}
 
 function showPinpad() {
   showOnly('overlayPinpad');
   document.getElementById('pinWsName').textContent = userProfile?.workshop_name || 'Workshop';
-  document.getElementById('pinSub').textContent = 'Tap your name to start a shift';
-  document.getElementById('pinWorkerListWrap').style.display = '';
-  document.getElementById('pinEntryWrap').style.display = 'none';
-  _pinSelectedWorker = null; _pinEntered = '';
-  // Render worker tiles
-  const list = document.getElementById('pinWorkerList');
-  const workers = (D.mechanics || []).filter(w => w.active !== false);
-  list.innerHTML = workers.map(w => {
-    const initials = (w.name || '?').split(' ').map(s => s[0]).slice(0,2).join('').toUpperCase();
-    const roleCls  = ['owner','manager'].includes((w.role || '').toLowerCase()) ? (w.role || '').toLowerCase() : '';
-    return `<div class="worker-tile ${roleCls}" onclick="selectWorker('${w.id.replace(/'/g, "\\'")}')">
-      <div class="av">${escapeHtml(initials)}</div>
-      <div class="nm">${escapeHtml(w.name || '—')}</div>
-      <div class="rl">${escapeHtml(w.role || 'mechanic')}</div>
-    </div>`;
-  }).join('') || '<div style="color:var(--dim);text-align:center;padding:24px;grid-column:1/-1">No active workers yet.</div>';
+  document.getElementById('pinSub').textContent = 'Sign in with your username and PIN';
+  _pinEntered = '';
+  const err = document.getElementById('pinErr'); if (err) err.textContent = '';
+  const u = document.getElementById('pinUser');
+  if (u) { u.value = ''; setTimeout(() => { try { u.focus(); } catch(e){} }, 60); }
+  renderPinDots();
+  // Make sure everyone has a username to type before they're asked to type one
+  ensureWorkerUsernames();
 }
 
-window.selectWorker = function(id) {
-  const w = (D.mechanics || []).find(x => x.id === id);
-  if (!w) return;
-  _pinSelectedWorker = w;
-  _pinEntered = '';
-  document.getElementById('pinWorkerListWrap').style.display = 'none';
-  document.getElementById('pinEntryWrap').style.display = 'flex';
-  document.getElementById('pinSelectedName').firstChild.textContent = w.name + ' ';
-  document.getElementById('pinSelectedRole').textContent = (w.role || 'mechanic').toUpperCase();
-  document.getElementById('pinErr').textContent = '';
-  renderPinDots();
-};
-
 function renderPinDots() {
-  const len = _pinSelectedWorker?.pin_len || 4;
   const dots = document.getElementById('pinDots');
+  if (!dots) return;
+  const len = Math.max(4, _pinEntered.length);
   let html = '';
   for (let i = 0; i < len; i++) html += `<div class="pin-dot ${i < _pinEntered.length ? 'filled' : ''}"></div>`;
   dots.innerHTML = html;
 }
 
-// PIN key handler
+// Resolve username + PIN against the worker records already synced from
+// Firestore. The failure message is identical for "no such username" and "wrong
+// PIN" on purpose — now that the roster is hidden, distinct errors would let
+// anyone probe the screen for a list of valid usernames.
+async function _pinTrySignIn() {
+  const errEl = document.getElementById('pinErr');
+  const uname = (document.getElementById('pinUser')?.value || '').trim().toLowerCase();
+  if (!uname)                { errEl.textContent = 'Enter your username'; return; }
+  if (_pinEntered.length < 4){ errEl.textContent = 'Enter your PIN';      return; }
+  await ensureWorkerUsernames();
+  const w = (D.mechanics || []).find(m =>
+    m.active !== false && (m.username || '').trim().toLowerCase() === uname);
+  const hash = await sha256(_pinEntered);
+  if (!w || hash !== w.pin_hash) {
+    errEl.textContent = 'Incorrect username or PIN';
+    _pinEntered = ''; renderPinDots();
+    setTimeout(() => { if (errEl.textContent === 'Incorrect username or PIN') errEl.textContent = ''; }, 2000);
+    return;
+  }
+  currentWorker = w;
+  sessionStorage.setItem('gp_worker:' + currentUser.uid, JSON.stringify({
+    id: w.id, name: w.name, role: w.role
+  }));
+  enterApp();
+}
+window._pinTrySignIn = _pinTrySignIn;
+
+// PIN key handler. PIN length is no longer known up-front (we don't know who's
+// signing in until they've typed a username), so entry is variable-length and
+// submitted explicitly via the Sign in key / Enter.
 document.querySelectorAll('#overlayPinpad .pin-key').forEach(k => {
-  k.addEventListener('click', async (ev) => {
+  k.addEventListener('click', async () => {
     const d = k.getAttribute('data-d');
-    if (d === 'back') { showPinpad(); return; }
+    const errEl = document.getElementById('pinErr');
+    if (d === 'go') { await _pinTrySignIn(); return; }
     if (d === 'clear') {
       _pinEntered = _pinEntered.slice(0, -1);
       renderPinDots();
-      document.getElementById('pinErr').textContent = '';
+      if (errEl) errEl.textContent = '';
       return;
     }
-    if (!_pinSelectedWorker) return;
-    const expectedLen = _pinSelectedWorker.pin_len || 4;
-    if (_pinEntered.length >= expectedLen) return;
+    if (_pinEntered.length >= 6) return;   // max supported PIN length
     _pinEntered += d;
     renderPinDots();
-    if (_pinEntered.length === expectedLen) {
-      // Validate
-      const hash = await sha256(_pinEntered);
-      if (hash === _pinSelectedWorker.pin_hash) {
-        currentWorker = _pinSelectedWorker;
-        sessionStorage.setItem('gp_worker:' + currentUser.uid, JSON.stringify({
-          id: currentWorker.id, name: currentWorker.name, role: currentWorker.role
-        }));
-        enterApp();
-      } else {
-        document.getElementById('pinErr').textContent = 'Incorrect PIN';
-        _pinEntered = '';
-        setTimeout(() => { renderPinDots(); document.getElementById('pinErr').textContent = ''; }, 800);
-      }
-    }
+    if (errEl) errEl.textContent = '';
   });
 });
 
-// Keyboard shortcut: typing numbers from worker tile pre-selects nothing — only acts when PIN-pad is showing
+// Keyboard: digits feed the PIN, Enter submits. Digits typed while the username
+// box has focus must reach the username field, not the PIN.
 document.addEventListener('keydown', (ev) => {
   if (document.getElementById('overlayPinpad').style.display !== 'flex') return;
-  if (!_pinSelectedWorker) return;
+  const inUserBox = document.activeElement && document.activeElement.id === 'pinUser';
+  if (ev.key === 'Enter') {
+    ev.preventDefault();
+    const btn = document.querySelector('#overlayPinpad .pin-key[data-d="go"]');
+    if (btn) btn.click();
+    return;
+  }
+  if (inUserBox) return;
   if (/^[0-9]$/.test(ev.key)) {
     const btn = document.querySelector(`#overlayPinpad .pin-key[data-d="${ev.key}"]`);
     if (btn) btn.click();
   } else if (ev.key === 'Backspace') {
-    const btn = document.querySelector(`#overlayPinpad .pin-key[data-d="clear"]`);
+    ev.preventDefault();
+    const btn = document.querySelector('#overlayPinpad .pin-key[data-d="clear"]');
     if (btn) btn.click();
-  } else if (ev.key === 'Escape') {
-    showPinpad();
   }
 });
 
+// Sign out of the worker's own account. The device stays bound to the workshop
+// (the Firebase session is untouched) and lands back on the username + PIN
+// screen — there is no account list to return to.
 window.switchWorker = function() {
   closeAllDropdowns();
   sessionStorage.removeItem('gp_worker:' + (currentUser?.uid || ''));
@@ -2687,8 +2754,8 @@ window.doSignOut = function() {
           <span style="display:flex;align-items:center;gap:12px;width:100%">
             <span style="width:34px;height:34px;border-radius:8px;background:rgba(255,179,71,.14);color:var(--acc2);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M16 17l5-5-5-5M21 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg></span>
             <span style="flex:1">
-              <span style="display:block;font-weight:700;color:var(--txt);margin-bottom:2px">Switch worker</span>
-              <span style="display:block;font-size:12.5px;color:var(--faint)">Sign out as <b>${escapeHtml(workerName)}</b> only. Back to PIN-pad so the next person can sign in.</span>
+              <span style="display:block;font-weight:700;color:var(--txt);margin-bottom:2px">Sign out of my account</span>
+              <span style="display:block;font-size:12.5px;color:var(--faint)">Log <b>${escapeHtml(workerName)}</b> out. Back to the username + PIN screen so the next person can sign in with their own account.</span>
             </span>
           </span>
         </button>
@@ -2736,6 +2803,38 @@ window.showToast = function(msg, type = 'good') {
   t.textContent = msg;
   t.className = `toast ${type} show`;
   _toastT = setTimeout(() => t.classList.remove('show'), 3000);
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+//  UNDO TOAST — shown after a destructive action. Deliberately its own
+//  element rather than reusing #toast, which sets textContent and so can't
+//  hold a button. Stays up for 2 minutes: deletes here are permanent and
+//  staff are usually mid-task, so a 3-second window would be useless.
+//  Only one undo is pending at a time — a second delete replaces the first.
+// ══════════════════════════════════════════════════════════════════════════
+let _undoT = null;
+window._showUndoToast = function(msg, onUndo, ms = 120000) {
+  clearTimeout(_undoT);
+  let el = document.getElementById('undoToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'undoToast';
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surf);border:1px solid var(--brd2);border-radius:11px;padding:11px 14px;font-size:14px;color:var(--txt);z-index:320;opacity:0;transition:opacity .25s,transform .25s;box-shadow:0 14px 32px rgba(0,0,0,.6);display:flex;align-items:center;gap:14px';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<span style="font-weight:600"></span>
+    <button type="button" id="undoToastBtn" style="background:none;border:1px solid var(--acc);color:var(--acc2);font-family:var(--fb);font-weight:800;font-size:13px;padding:6px 14px;border-radius:7px;cursor:pointer">Undo</button>
+    <button type="button" id="undoToastX" aria-label="Dismiss" style="background:none;border:0;color:var(--faint);font-size:16px;cursor:pointer;padding:0 2px">×</button>`;
+  el.querySelector('span').textContent = msg;
+  const hide = () => { el.style.opacity = '0'; el.style.transform = 'translateX(-50%) translateY(20px)'; clearTimeout(_undoT); };
+  el.querySelector('#undoToastX').onclick = hide;
+  el.querySelector('#undoToastBtn').onclick = async () => {
+    hide();
+    try { await onUndo(); showToast('Restored', 'good'); }
+    catch (e) { showToast('Could not undo: ' + (e?.message || e), 'bad'); }
+  };
+  requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateX(-50%) translateY(0)'; });
+  _undoT = setTimeout(hide, ms);
 };
 
 // ══════════════════════════════════════════
@@ -5591,9 +5690,18 @@ window.deleteBooking = async function(id) {
     const bay = D.bays.find(x => x.id === b.bay_id);
     if (bay) { bay.status = 'available'; bay.booking_id = null; bay.plate = ''; writes.push(wsSave('bays', D.bays)); }
   }
+  const _idx = D.bookings.findIndex(x => x.id === id);
   D.bookings = D.bookings.filter(x => x.id !== id);
   writes.unshift(wsSave('bookings', D.bookings));
-  showToast('Appointment deleted', 'good');
+  // Undo restores the appointment record itself. The bay it occupied stays
+  // freed — re-seizing a bay that someone else may have taken in the meantime
+  // would be worse than leaving it unassigned.
+  _showUndoToast(`Appointment deleted · ${b.plate || ''}`.trim(), async () => {
+    D.bookings.splice(Math.max(0, _idx), 0, b);
+    await wsSave('bookings', D.bookings);
+    audit('undo-delete-booking', `${b.plate || id} restored`, { booking_id: id });
+    renderBookings();
+  });
   audit('delete-booking', `${b.plate || id} (${b.cust_name || '—'})`, { booking_id: id });
   renderBookings();
   await Promise.all(writes);
@@ -5825,11 +5933,6 @@ window.openCheckoutForm = function(bookingId) {
       + (job.service_charges || []).reduce((s, c) => s + Number(c.amount || 0), 0)
     : 0;
   const autoActualCost = b.actual_cost || (invForCost ? _invoiceTotals(invForCost).roundOff : 0) || jobBillTotal || b.cost_estimate || '';
-  // Loyalty: look up the customer's current balance (matched the same way
-  // every other checkout-time customer lookup works — by name).
-  const loyCust = (D.customers || []).find(c => (c.name || '').toLowerCase() === (b.cust_name || '').toLowerCase());
-  const loyBalance = Number(loyCust?.loyalty_points || 0);
-  const loyRedeemValue = Number(D.settings?.loyalty_redeem_value ?? 1);
   openModal({
     title: `Check out · ${b.plate}`,
     body: `
@@ -5842,7 +5945,7 @@ window.openCheckoutForm = function(bookingId) {
       </div>
       <div class="f-row">
         <div class="f-grp"><label>Actual cost (₹)</label>
-          <input id="co-cost" type="number" min="0" step="100" value="${escapeHtml(autoActualCost)}" onchange="_coUpdateRedeemHint()" /></div>
+          <input id="co-cost" type="number" min="0" step="100" value="${escapeHtml(autoActualCost)}" /></div>
         <div class="f-grp"><label>Payment status</label>
           <select id="co-pay" onchange="document.getElementById('co-partial-wrap').style.display = this.value === 'Partial' ? '' : 'none'">
             <option value="Paid">Paid</option>
@@ -5855,12 +5958,6 @@ window.openCheckoutForm = function(bookingId) {
         <label>Amount paid so far (₹)</label>
         <input id="co-amount-paid" type="number" min="0" step="0.01" value="${escapeHtml(String(b.amount_paid || 0))}" />
       </div>
-      ${(D.settings?.loyalty_enabled && loyCust) ? `
-      <div class="f-grp" style="margin-top:6px">
-        <label>Redeem loyalty points <span style="color:var(--faint);font-weight:500;font-size:11px;margin-left:6px">(balance: ${loyBalance} pts · worth ₹${(loyBalance * loyRedeemValue).toLocaleString('en-IN')})</span></label>
-        <input id="co-loy-redeem" type="number" min="0" max="${loyBalance}" step="1" placeholder="0" value="0" oninput="_coUpdateRedeemHint()" />
-        <div style="font-size:11.5px;color:var(--faint);margin-top:4px" id="co-loy-hint"></div>
-      </div>` : ''}
       ${(D.settings?.pickup_otp_enabled && job?.pickup_otp) ? `
       <div class="f-grp" style="margin-top:6px">
         <label>Pickup OTP <span class="req">*</span> <span style="color:var(--faint);font-weight:500;font-size:11px;margin-left:6px">(emailed to the customer)</span></label>
@@ -5877,27 +5974,6 @@ window.openCheckoutForm = function(bookingId) {
     saveLabel: 'Check out',
     onSave: () => doCheckout(b.id)
   });
-};
-
-// Live hint under the "Redeem loyalty points" field — shows the ₹ value of
-// whatever's currently typed, and warns (without blocking) if it exceeds the
-// bill; doCheckout does the real clamping at save time.
-window._coUpdateRedeemHint = function() {
-  const redeemEl = document.getElementById('co-loy-redeem');
-  const hint = document.getElementById('co-loy-hint');
-  if (!redeemEl || !hint) return;
-  const rate = Number(D.settings?.loyalty_redeem_value ?? 1);
-  const pts = Math.max(0, Number(redeemEl.value) || 0);
-  const cost = Number(document.getElementById('co-cost')?.value || 0);
-  const value = pts * rate;
-  if (!pts) { hint.textContent = ''; return; }
-  if (value > cost) {
-    hint.style.color = 'var(--red)';
-    hint.textContent = `That's ₹${value.toLocaleString('en-IN')} — more than the bill. Will be capped at ₹${cost.toLocaleString('en-IN')} worth of points at checkout.`;
-  } else {
-    hint.style.color = 'var(--faint)';
-    hint.textContent = `= ₹${value.toLocaleString('en-IN')} off this bill`;
-  }
 };
 
 async function doCheckout(bookingId) {
@@ -5948,51 +6024,11 @@ async function doCheckout(bookingId) {
 
   // Update job to Delivered
   const job = D.jobs.find(j => j.booking_id === b.id);
-
-  // Loyalty — resolved BEFORE the job/booking writes below, since a
-  // redemption adds a discount line to job.service_charges (which must land
-  // in D.jobs before wsSave('jobs', D.jobs) is called just below).
-  let loyaltyNote = '';
-  if (D.settings?.loyalty_enabled) {
-    const loyCust = (D.customers || []).find(c => (c.name || '').toLowerCase() === (b.cust_name || '').toLowerCase());
-    if (loyCust) {
-      const balance    = Number(loyCust.loyalty_points || 0);
-      const redeemRate = Number(D.settings.loyalty_redeem_value ?? 1);
-      const earnRate   = Number(D.settings.loyalty_earn_per_100 ?? 5);
-      let netCost       = Number(cost) || 0;
-      let redeemPts     = Math.min(balance, Math.max(0, Math.floor(Number(document.getElementById('co-loy-redeem')?.value) || 0)));
-      let redeemValue   = redeemPts * redeemRate;
-      // Never redeem more value than the bill itself — clamp back down to a
-      // whole number of points so the discount line stays exact.
-      if (redeemValue > netCost) {
-        redeemValue = netCost;
-        redeemPts   = redeemRate > 0 ? Math.floor(redeemValue / redeemRate) : 0;
-        redeemValue = redeemPts * redeemRate;
-      }
-      if (redeemPts > 0 && job) {
-        job.service_charges = job.service_charges || [];
-        job.service_charges.push({ name: `Loyalty points redeemed (${redeemPts} pts)`, amount: -redeemValue });
-        netCost = Math.max(0, netCost - redeemValue);
-      }
-      // Points are earned on what's actually paid, not on the portion covered
-      // by previously-earned points — otherwise points would compound forever.
-      const earnedPts = Math.floor((netCost / 100) * earnRate);
-      loyCust.loyalty_points = balance - redeemPts + earnedPts;
-      writes.push(wsSave('customers', D.customers));
-      _publishLoyaltyLookup(loyCust).catch(e => console.warn('[loyalty] publish failed:', e));
-      loyaltyNote = redeemPts > 0
-        ? `Redeemed ${redeemPts} pts (₹${redeemValue.toLocaleString('en-IN')} off) · Earned ${earnedPts} pts this visit · New balance: ${loyCust.loyalty_points} pts`
-        : `Earned ${earnedPts} pts this visit · New balance: ${loyCust.loyalty_points} pts`;
-      audit('loyalty', `${b.cust_name || '—'} — ${loyaltyNote}`, { booking_id: b.id });
-    }
-  }
-
   if (job) {
     job.status = 'Delivered';
     job.completed_at = nowStr();
     if (cost) job.actual_cost = Number(cost);
     if (notes) job.delivery_notes = notes;
-    if (loyaltyNote) job.loyalty_note = loyaltyNote;
     writes.push(wsSave('jobs', D.jobs));
   }
 
@@ -6015,8 +6051,8 @@ async function doCheckout(bookingId) {
   let feedbackLink = '';
   try { feedbackLink = await _publishFeedbackLink(job, b); }
   catch (e) { console.warn('[checkout] feedback link publish failed:', e); }
-  sendCustomerNotification('thank_you', { job, booking: b, feedback_link: feedbackLink, loyalty_note: loyaltyNote });
-  notifyWhatsAppForEvent('thank_you', { job, booking: b, feedback_link: feedbackLink, loyalty_note: loyaltyNote });
+  sendCustomerNotification('thank_you', { job, booking: b, feedback_link: feedbackLink });
+  notifyWhatsAppForEvent('thank_you', { job, booking: b, feedback_link: feedbackLink });
   publishTracking(b.id);   // push Delivered to the public tracker
   renderCheckin();
   await Promise.all(writes);
@@ -6214,8 +6250,14 @@ async function renderJobs(force = false) {
     wrap.innerHTML = `<table class="list-tbl"><tr><td class="empty">No jobs match. Job cards are created automatically when a booking is checked in.</td></tr></table>`;
     return;
   }
+  // Drop any selection that's no longer visible under the current filters, so
+  // a bulk apply can never touch a row the user can't see.
+  const _visibleIds = new Set(list.map(j => j.id));
+  _jbSelected.forEach(id => { if (!_visibleIds.has(id)) _jbSelected.delete(id); });
+  const _allTicked = list.length > 0 && list.every(j => _jbSelected.has(j.id));
   wrap.innerHTML = `<table class="list-tbl">
     <thead><tr>
+      <th style="width:32px"><input type="checkbox" id="jbSelAll" ${_allTicked ? 'checked' : ''} title="Select all shown" style="width:15px;height:15px;cursor:pointer" /></th>
       <th>Created</th><th>Plate</th><th>Customer</th><th>Dept</th><th>Service</th><th>Mechanic</th><th>Status</th>
       <th style="text-align:right">Actions</th>
     </tr></thead>
@@ -6261,6 +6303,7 @@ async function renderJobs(force = false) {
                                 ? `${_isSA ? `<button class="mini-btn good" onclick="_billReturnedJob('${escapeHtml(j.id)}')" title="Bill an inspection / diagnostic charge if required, then invoice">Create invoice</button>` : ''}`
                                 : ''}`;
       return `<tr>
+      <td><input type="checkbox" data-jb-sel="${escapeHtml(j.id)}" ${_jbSelected.has(j.id) ? 'checked' : ''} style="width:15px;height:15px;cursor:pointer" /></td>
       <td>${escapeHtml((j.created_at || '').slice(0,10) || '—')}</td>
       <td><span class="plate">${escapeHtml(j.plate || '—')}</span>${insBadge}</td>
       <td class="k">${escapeHtml(j.cust_name || '—')}</td>
@@ -6271,6 +6314,7 @@ async function renderJobs(force = false) {
       <td><div class="row-act">
         ${stageBtns}
         <button class="mini-btn" onclick="openJobForm('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
+        <button class="mini-btn" onclick="printJobCard('${escapeHtml(j.id)}')" title="Print the paper job card that travels with the vehicle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>Print</button>
         ${j.plate ? `<button class="mini-btn" onclick="showQRForPlate('${escapeHtml(j.plate)}')" title="View / print this vehicle's QR sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v3M14 21h3M21 17v4"/></svg>QR</button>` : ''}
         ${_isSA ? `<button class="mini-btn good" onclick="generateInvoice('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Invoice</button>` : ''}
         ${j.is_insurance ? `<button class="mini-btn warn" onclick="viewInsuranceDoc('${escapeHtml(j.id)}')" title="Generate insurance claim PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Claim PDF</button>` : ''}
@@ -6279,8 +6323,80 @@ async function renderJobs(force = false) {
     </tr>`;
     }).join('')}</tbody>
   </table>`;
+  // Wire selection — rebound every render since the table is replaced wholesale.
+  wrap.querySelectorAll('[data-jb-sel]').forEach(cb => cb.onchange = () => {
+    if (cb.checked) _jbSelected.add(cb.dataset.jbSel); else _jbSelected.delete(cb.dataset.jbSel);
+    _jbRenderBulkBar();
+    const all = document.getElementById('jbSelAll');
+    if (all) all.checked = list.length > 0 && list.every(j => _jbSelected.has(j.id));
+  });
+  const selAll = document.getElementById('jbSelAll');
+  if (selAll) selAll.onchange = () => {
+    list.forEach(j => selAll.checked ? _jbSelected.add(j.id) : _jbSelected.delete(j.id));
+    wrap.querySelectorAll('[data-jb-sel]').forEach(cb => { cb.checked = selAll.checked; });
+    _jbRenderBulkBar();
+  };
+  _jbRenderBulkBar();
 }
 window.renderJobs = renderJobs;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  BULK STATUS MOVE — tick several job cards and advance them together.
+//  Deliberately does NOT fire the per-job notify()/WhatsApp prompts that the
+//  single-job flow does: moving 12 cars at 6pm would bury everyone in
+//  notifications. It DOES still publish each job to the customer tracker, so
+//  the public status page stays truthful.
+// ══════════════════════════════════════════════════════════════════════════
+let _jbSelected = new Set();
+
+function _jbRenderBulkBar() {
+  const bar = document.getElementById('jbBulkBar');
+  if (!bar) return;
+  const n = _jbSelected.size;
+  bar.style.display = n ? 'flex' : 'none';
+  if (!n) return;
+  document.getElementById('jbBulkCount').textContent = `${n} selected`;
+  const sel = document.getElementById('jbBulkStatus');
+  if (sel && !sel._built) {
+    sel.innerHTML = `<option value="">— Move all to… —</option>` +
+      JOB_STATUSES.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    sel._built = true;
+  }
+}
+
+window._jbBulkClear = function() {
+  _jbSelected = new Set();
+  renderJobs();
+};
+
+window._jbBulkApply = async function() {
+  // Supervisory action — a mechanic advancing their own single job is fine,
+  // but sweeping a batch is the floor manager's / advisor's call.
+  if (!(isServiceAdvisorRole() || currentRole() === 'floor_manager' || isAdminRole())) {
+    return showToast('Only Floor Manager / Service Advisor / Owner can bulk-move jobs', 'bad');
+  }
+  const status = document.getElementById('jbBulkStatus')?.value || '';
+  if (!status) return showToast('Pick the status to move them to', 'bad');
+  const ids = [..._jbSelected];
+  if (!ids.length) return;
+  const jobs = ids.map(id => (D.jobs || []).find(j => j.id === id)).filter(Boolean);
+  if (!jobs.length) return showToast('Those jobs are no longer available', 'bad');
+  if (!(await customConfirm(
+    `Move ${jobs.length} job card${jobs.length === 1 ? '' : 's'} to "${status}"?\n\n${jobs.slice(0, 8).map(j => '• ' + (j.plate || j.id)).join('\n')}${jobs.length > 8 ? `\n…and ${jobs.length - 8} more` : ''}`,
+    { title: 'Bulk status change', okLabel: `Move ${jobs.length}`, danger: false }
+  ))) return;
+  for (const j of jobs) {
+    j.status = status;
+    j.updated_at = nowStr();
+    audit('job-status-bulk', `${j.plate || j.id}: ${status}`, { job_id: j.id, status });
+  }
+  _jbSelected = new Set();
+  showToast(`${jobs.length} job card${jobs.length === 1 ? '' : 's'} → ${status}`, 'good');
+  await wsSave('jobs', D.jobs);
+  renderJobs();
+  // Keep the public tracker in step, one write per affected vehicle.
+  jobs.forEach(j => { if (j.booking_id) publishTracking(j.booking_id); });
+};
 
 // Fallback when older job records don't have a department — look up the linked booking
 function _jobDeptFromBooking(j) {
@@ -6288,6 +6404,121 @@ function _jobDeptFromBooking(j) {
   const b = D.bookings.find(x => x.id === j.booking_id);
   return b?.department || '';
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  PRINTABLE JOB CARD — the paper card that travels with the vehicle (clipped
+//  to the car or hung on the key hook). Deliberately printer-first: black on
+//  white, no screen chrome, everything a technician needs on one A4 side, and
+//  blank ruled space for the work actually done + signatures. Pulls the same
+//  intake checklist and damage pins captured at handover.
+// ══════════════════════════════════════════════════════════════════════════
+window.printJobCard = function(jobId) {
+  const j = (D.jobs || []).find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  // Open the tab synchronously inside the click so the popup blocker allows it.
+  const w = window.open('', '_blank');
+  const b = (D.bookings || []).find(x => x.id === j.booking_id) || {};
+  const s = D.settings || {};
+  const phone = _bookingPhone(j.booking_id) || j.cust_phone || '';
+  const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
+  const complaints = Array.isArray(b.complaints) ? b.complaints.map(c => c.text).filter(Boolean) : [];
+  const intake = j.intake || null;
+  const pins = (intake && Array.isArray(intake.damage_pins)) ? intake.damage_pins : [];
+  const present = intake ? INTAKE_DEFAULT_ITEMS.filter(i => intake.items?.[i.key]).map(i => i.label) : [];
+  const missing = intake ? INTAKE_DEFAULT_ITEMS.filter(i => !intake.items?.[i.key]).map(i => i.label) : [];
+  const esc = escapeHtml;
+  const row = (label, val) => `<tr><td class="l">${esc(label)}</td><td class="v">${esc(val || '—')}</td></tr>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8" /><title>Job card ${esc(j.plate || '')}</title>
+<style>
+  @page{size:A4;margin:12mm}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#000;background:#fff;font-size:12px;line-height:1.45}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #000;padding-bottom:8px;margin-bottom:10px}
+  .ws{font-size:17px;font-weight:800;text-transform:uppercase}
+  .ws .sub{font-size:11px;font-weight:400;color:#444;margin-top:2px}
+  .tag{text-align:right;font-size:11px;color:#444}
+  .tag b{display:block;font-size:15px;color:#000;letter-spacing:.04em}
+  .plate{display:inline-block;border:2px solid #000;border-radius:5px;padding:5px 14px;font-family:'Courier New',monospace;font-weight:800;font-size:21px;letter-spacing:2px;margin-bottom:8px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;margin-bottom:10px}
+  table.kv{width:100%;border-collapse:collapse}
+  table.kv td{padding:3px 0;vertical-align:top;border-bottom:1px solid #e3e3e3}
+  table.kv td.l{color:#555;width:42%;font-size:11px}
+  table.kv td.v{font-weight:600}
+  h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1.5px solid #000;padding-bottom:3px;margin:12px 0 6px}
+  ol,ul{margin-left:16px}
+  li{margin:2px 0}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .rule{border-bottom:1px solid #bbb;height:20px}
+  .sig{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:26px}
+  .sig div{border-top:1px solid #000;padding-top:4px;font-size:10.5px;color:#444;text-align:center}
+  .muted{color:#666;font-size:11px}
+  .dmg{display:flex;gap:14px;align-items:flex-start}
+  .dmgmap{position:relative;width:96px;height:192px;flex:none;color:#999}
+  .pin{position:absolute;transform:translate(-50%,-50%);width:15px;height:15px;border-radius:50%;background:#000;color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center}
+  .toolbar{position:fixed;top:10px;right:10px}
+  .toolbar button{font-family:inherit;font-size:12px;font-weight:700;padding:8px 14px;border-radius:6px;border:0;cursor:pointer;background:#111;color:#fff}
+  @media print{.toolbar{display:none}}
+</style></head><body>
+  <div class="toolbar"><button onclick="window.print()">Print</button></div>
+  <div class="top">
+    <div class="ws">${esc(s.workshop_name || 'Workshop')}
+      <div class="sub">${esc([s.address, s.phone].filter(Boolean).join(' · '))}</div>
+    </div>
+    <div class="tag"><b>JOB CARD</b>${esc(j.id ? 'JOB-' + j.id.slice(-7).toUpperCase() : '')}<br>${esc((j.created_at || '').slice(0, 16))}</div>
+  </div>
+
+  <div class="plate">${esc(j.plate || '—')}</div>
+
+  <div class="grid">
+    <table class="kv">
+      ${row('Customer', j.cust_name || b.cust_name)}
+      ${row('Phone', phone)}
+      ${row('Vehicle', [b.veh_make, b.veh_model, b.veh_year].filter(Boolean).join(' ') || b.vehicle)}
+      ${row('VIN', j.vin || b.vin)}
+    </table>
+    <table class="kv">
+      ${row('Service', j.type || b.service)}
+      ${row('Department', j.department || _jobDeptFromBooking(j) || 'Mechanical')}
+      ${row('Technician', mechs.join(', '))}
+      ${row('Odometer in', b.odometer_in ? b.odometer_in + ' km' : '')}
+    </table>
+  </div>
+
+  <h3>Customer complaints</h3>
+  ${complaints.length ? `<ol>${complaints.map(c => `<li>${esc(c)}</li>`).join('')}</ol>` : `<div class="muted">None recorded.</div>`}
+
+  ${intake ? `
+  <h3>Vehicle intake — items received</h3>
+  <div class="cols">
+    <div><b style="font-size:11px">Present:</b> <span class="muted">${present.length ? esc(present.join(', ')) : '—'}</span></div>
+    <div><b style="font-size:11px">Missing:</b> <span class="muted">${missing.length ? esc(missing.join(', ')) : '—'}</span></div>
+  </div>
+  <div style="margin-top:4px"><b style="font-size:11px">Fuel:</b> <span class="muted">${esc(intake.fuel_level || '—')}</span>${intake.notes ? ` &nbsp;·&nbsp; <b style="font-size:11px">Notes:</b> <span class="muted">${esc(intake.notes)}</span>` : ''}</div>
+
+  <h3>Existing damage at drop-off</h3>
+  ${pins.length ? `<div class="dmg">
+    <div class="dmgmap">${_intakeDamageSVG()}
+      ${pins.map((p, i) => `<div class="pin" style="left:${p.x}%;top:${p.y}%">${i + 1}</div>`).join('')}
+    </div>
+    <ol style="flex:1">${pins.map(p => `<li>${esc(p.type)}${p.note ? ' — ' + esc(p.note) : ''}</li>`).join('')}</ol>
+  </div>` : `<div class="muted">No damage marked at intake.</div>`}
+  ` : `<h3>Vehicle intake</h3><div class="muted">No intake checklist recorded for this job.</div>`}
+
+  <h3>Work carried out / parts fitted</h3>
+  <div class="rule"></div><div class="rule"></div><div class="rule"></div>
+  <div class="rule"></div><div class="rule"></div><div class="rule"></div>
+
+  <h3>Technician notes</h3>
+  <div class="rule"></div><div class="rule"></div>
+
+  <div class="sig">
+    <div>Technician</div><div>Floor manager / QC</div><div>Customer on delivery</div>
+  </div>
+</body></html>`;
+  if (!w) return customAlert('Browser blocked the new tab. Allow pop-ups for this site to print job cards.', { title: 'Pop-up blocked' });
+  _openDocInWindow(w, html);
+  audit('job-card-print', `${j.plate || j.id}`, { job_id: j.id });
+};
 
 // One-click status advance from the Jobs table (Mark Inspected, Mark Approved, Start work).
 // Quick-assign popup launched from the Notifications tab. Lets floor managers
@@ -6608,7 +6839,7 @@ window.openInformClient = async function(jobId) {
           <select id="ic-wash"><option value="">— Pick a worker —</option>${workerOpts}</select>
           <span class="hint" style="display:block;font-size:11.5px;color:var(--faint);margin-top:4px">Any worker can be assigned — no separate role needed.</span></div>
         <div class="f-grp"><label>Client phone</label>
-          <input id="ic-phone" type="tel" value="${escapeHtml(j.cust_phone || '')}" readonly style="background:var(--bg2);opacity:.85" /></div>
+          <input id="ic-phone" type="tel" value="${escapeHtml(_bookingPhone(j.booking_id) || j.cust_phone || '')}" readonly style="background:var(--bg2);opacity:.85" placeholder="No phone on file" /></div>
       </div>
       <div class="f-row r1">
         <div class="f-grp"><label>Note to wash team (optional)</label>
@@ -7139,29 +7370,6 @@ async function _publishFeedbackLink(job, booking) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  LOYALTY LOOKUP — publishes this customer's current point balance to a
-//  small public-read doc so loyalty.html can show it without any login. Keyed
-//  by SHA-256(normalized phone) rather than the customer's own record id, so
-//  a visitor can only look up a balance if they already know the phone number
-//  on file — mirrors the same hash-gated pattern used elsewhere in the app
-//  for public, no-login lookups.
-// ══════════════════════════════════════════════════════════════════════════
-async function _publishLoyaltyLookup(cust) {
-  if (!currentUser || !fbDb || !cust) return;
-  const phone = String(cust.phone || '').replace(/\D/g, '').slice(-10);
-  if (!phone || !(window.crypto && crypto.subtle)) return;
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phone));
-  const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-  await fbDb.collection('users').doc(currentUser.uid).collection('loyalty_lookup').doc(hash).set({
-    cust_name: cust.name || '',
-    points: Number(cust.loyalty_points || 0),
-    workshop_name: D.settings?.workshop_name || userProfile?.workshop_name || '',
-    updated_at: nowStr()
-  });
-}
-window._publishLoyaltyLookup = _publishLoyaltyLookup;
-
-// ══════════════════════════════════════════════════════════════════════════
 //  FEEDBACK TAB — read-only view of what customers submitted through the
 //  tokenized feedback links (see _publishFeedbackLink above). Docs live at
 //  users/{uid}/feedback_links/{token}; only ones with submitted === true are
@@ -7426,7 +7634,7 @@ window._hideWaPrompt = function() {
 // update manually at any time — see waSendUpdate().
 const WA_EVENT_TEXT = {
   booking_confirmed: (d) => `Hi ${d.customer_name}, your appointment at ${d.workshop_name} for ${d.plate || 'your vehicle'} is confirmed for ${d.date}${d.time ? ' at ' + d.time : ''}. See you then!${d.track_link ? '\nTrack: ' + d.track_link : ''}`,
-  thank_you:         (d) => `Thank you for choosing ${d.workshop_name}, ${d.customer_name}! We hope to see you again.${d.loyalty_note ? '\n\n🎁 ' + d.loyalty_note : ''}${d.feedback_link ? '\n\nHow did we do? We\'d love your feedback: ' + d.feedback_link : ''}`
+  thank_you:         (d) => `Thank you for choosing ${d.workshop_name}, ${d.customer_name}! We hope to see you again.${d.feedback_link ? '\n\nHow did we do? We\'d love your feedback: ' + d.feedback_link : ''}`
 };
 
 // Resolve the phone + contact preference for whatever record we have (booking
@@ -9732,9 +9940,15 @@ window.deleteCustomer = async function(id) {
     ? `Delete ${c.name}?\n\nThey have past bookings — those records stay, but the customer profile is removed from the list.`
     : `Delete ${c.name}?`;
   if (!(await customConfirm(msg, { title: 'Delete customer', okLabel: 'Delete' }))) return;
+  const _idx = D.customers.findIndex(x => x.id === id);
   D.customers = D.customers.filter(x => x.id !== id);
   await wsSave('customers', D.customers);
-  showToast('Customer deleted', 'good');
+  _showUndoToast(`Customer deleted · ${c.name || ''}`.trim(), async () => {
+    D.customers.splice(Math.max(0, _idx), 0, c);
+    await wsSave('customers', D.customers);
+    audit('undo-delete-customer', `${c.name || id} restored`, { customer_id: id });
+    await renderCustomers(true);
+  });
   await renderCustomers(true);
 };
 
@@ -9909,7 +10123,7 @@ function _vhTimelineEntry(b) {
                     : b.status === 'Cancelled' ? 'var(--red)'
                     : b.status === 'Arrived'   ? 'var(--acc2)'
                     : 'var(--blue)';
-  const ref = b.booking_ref ? `<span style="font-family:'Courier New',monospace;font-size:10.5px;color:var(--faint);margin-left:8px">${escapeHtml(b.booking_no || ('BK-' + b.booking_ref))}</span>` : '';
+  const ref = b.booking_ref ? `<span style="font-family:'Courier New',monospace;font-size:10.5px;color:var(--faint);margin-left:8px">${escapeHtml(b.booking_no || (_bookingPrefix() + '-' + b.booking_ref))}</span>` : '';
   return `<div style="display:grid;grid-template-columns:90px 1fr auto;gap:16px;padding:14px 16px;background:var(--surf);border:1px solid var(--brd);border-left:3px solid ${statusColor};border-radius:10px">
     <!-- date column -->
     <div style="border-right:1px solid var(--brd);padding-right:14px">
@@ -10045,7 +10259,8 @@ window.openWorkerForm = function(id) {
           <select id="wf-role">
             ${ROLE_OPTS.map(r => `<option value="${r}" ${(w.role || 'mechanic') === r ? 'selected' : ''}>${roleLabel(r)}</option>`).join('')}
           </select></div>
-        <div class="f-grp"><label>Username (for worker sign-in)</label><input id="wf-user" type="text" value="${escapeHtml(w.username || '')}" placeholder="e.g. raj" autocomplete="off" /></div>
+        <div class="f-grp"><label>Username <span class="req">*</span></label><input id="wf-user" type="text" value="${escapeHtml(w.username || '')}" placeholder="auto from first name if blank" autocomplete="off" autocapitalize="none" spellcheck="false" />
+          <div style="font-size:11.5px;color:var(--faint);margin-top:4px">This plus their PIN is how they sign in.</div></div>
       </div>
       <div class="f-row">
         <div class="f-grp"><label>${isNew ? 'PIN (4–6 digits) ' : 'New PIN (leave blank to keep current)'}${isNew ? '<span class="req">*</span>' : ''}</label>
@@ -10056,7 +10271,7 @@ window.openWorkerForm = function(id) {
         <div class="f-grp">
           <label style="display:flex;align-items:center;gap:9px;font-weight:500;cursor:pointer;color:var(--txt)">
             <input id="wf-active" type="checkbox" ${w.active !== false ? 'checked' : ''} />
-            <span>Active — can sign in with their PIN</span>
+            <span>Active — can sign in with their username and PIN</span>
           </label>
         </div>
       </div>
@@ -10077,6 +10292,11 @@ async function saveWorker(id) {
   if (!name) throw new Error('Name is required');
   if (!id && !/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4–6 digits');
   if (pin && !/^\d{4,6}$/.test(pin)) throw new Error('PIN must be 4–6 digits');
+  // Username is the sign-in identifier, so it has to exist and be unique here.
+  const uname = user.toLowerCase();
+  if (uname && !/^[a-z0-9._-]{2,20}$/.test(uname)) {
+    throw new Error('Username: 2–20 characters, letters/numbers/. _ - only');
+  }
   // Plan limit: count only active workers (deactivated ones don't consume a seat)
   if (!id) {
     const activeCount = D.mechanics.filter(m => m.active !== false).length;
@@ -10097,7 +10317,18 @@ async function saveWorker(id) {
     }
   }
 
-  const patch = { name, phone, role, username: user, speciality: spec, active, updated_at: nowStr() };
+  // Blank username → derive one from the first name so the worker always has
+  // something to sign in with. Checked against live data (loadAllData above).
+  let finalUser = uname;
+  if (!finalUser) {
+    const base = _slugUsername(name); let cand = base, n = 2;
+    while (D.mechanics.some(m => m.id !== id && (m.username || '').toLowerCase() === cand)) cand = base + (n++);
+    finalUser = cand;
+  } else if (D.mechanics.some(m => m.id !== id && (m.username || '').toLowerCase() === finalUser)) {
+    throw new Error(`Username "${finalUser}" is already taken by another worker`);
+  }
+
+  const patch = { name, phone, role, username: finalUser, speciality: spec, active, updated_at: nowStr() };
   if (pin) {
     patch.pin_hash = await sha256(pin);
     patch.pin_len  = pin.length;
@@ -11125,9 +11356,15 @@ window.deleteInventory = async function(id) {
   const i = D.inventory.find(x => x.id === id);
   if (!i) return;
   if (!(await customConfirm(`Delete "${i.name}" from inventory?`, { title: 'Delete item', okLabel: 'Delete' }))) return;
+  const _idx = D.inventory.findIndex(x => x.id === id);
   D.inventory = D.inventory.filter(x => x.id !== id);
   await wsSave('inventory', D.inventory);
-  showToast('Item deleted', 'good');
+  _showUndoToast(`Item deleted · ${i.name || ''}`.trim(), async () => {
+    D.inventory.splice(Math.max(0, _idx), 0, i);
+    await wsSave('inventory', D.inventory);
+    audit('undo-delete-inventory', `${i.name || id} restored`, { item_id: id });
+    await renderInventory(true);
+  });
   await renderInventory(true);
 };
 
@@ -11912,9 +12149,15 @@ window.deletePartRequest = async function(id) {
   const r = D.parts_requests.find(x => x.id === id);
   if (!r) return;
   if (!(await customConfirm(`Delete request for "${r.part_name}"?`, { title: 'Delete request', okLabel: 'Delete' }))) return;
+  const _idx = D.parts_requests.findIndex(x => x.id === id);
   D.parts_requests = D.parts_requests.filter(x => x.id !== id);
   await wsSave('parts_requests', D.parts_requests);
-  showToast('Request deleted', 'good');
+  _showUndoToast(`Request deleted · ${r.part_name || ''}`.trim(), async () => {
+    D.parts_requests.splice(Math.max(0, _idx), 0, r);
+    await wsSave('parts_requests', D.parts_requests);
+    audit('undo-delete-part-request', `${r.part_name || id} restored`, { request_id: id });
+    await _refreshActivePartsView();
+  });
   await _refreshActivePartsView();
 };
 
@@ -12268,31 +12511,22 @@ async function renderSettings(force = false) {
           <span style="font-size:12.5px;color:var(--dim)">Also send the morning briefing and end-of-day summary to your workshop's <b>Contact email</b>${s.email ? ` (${escapeHtml(s.email)})` : ''} — they still appear in the app as notifications.${s.email ? '' : ' <b style="color:var(--red)">Set a Contact email above in Workshop info first, otherwise there\'s nowhere to send them.</b>'}</span></span>
         </label>
 
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px">
+          <span style="width:18px;height:18px;display:grid;place-items:center;color:var(--acc2);flex:none;margin-top:1px"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10M7 12h6M7 17h10"/></svg></span>
+          <span><b style="font-family:var(--fd);font-size:14px">Appointment number prefix</b><br>
+          <span style="font-size:12.5px;color:var(--dim)">The letters in front of every appointment number. Up to 6 letters or digits — handy if you run more than one location and want them apart at a glance.</span>
+          <span style="display:flex;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--dim)">
+            <input type="text" id="sf-wf-prefix" maxlength="6" value="${escapeHtml(_bookingPrefix())}" onchange="_setBookingPrefix(this)" autocapitalize="characters" spellcheck="false" style="width:88px;padding:5px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:'Courier New',monospace;font-size:13px;text-transform:uppercase" />
+            <span>Next: <b id="sf-wf-prefix-eg" style="color:var(--acc2);font-family:'Courier New',monospace">${escapeHtml(_nextBookingNo())}</b></span>
+          </span>
+          <span style="display:block;font-size:11.5px;color:var(--faint);margin-top:5px">Appointments already created keep the number they were given.</span></span>
+        </div>
+
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
           <input type="checkbox" id="sf-wf-otp" ${s.pickup_otp_enabled ? 'checked' : ''} onchange="_wfToggle('pickup_otp_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
           <span><b style="font-family:var(--fd);font-size:14px">Pickup OTP</b><br>
           <span style="font-size:12.5px;color:var(--dim)">When a car goes <b>Ready for Pickup</b>, a 4-digit code is emailed straight to the customer — it's never shown anywhere else. Checkout asks for that code, so the car is only released to whoever the customer shared it with. Off = no codes, nothing extra at checkout.${s.email_enabled ? '' : ' <b style="color:var(--red)">Requires customer email notifications (below) to be turned on — otherwise there\'s no way to deliver the code.</b>'}</span></span>
         </label>
-      </div>
-
-      <!-- Loyalty program — earn points per rupee spent, redeem for a discount
-           at checkout. Customers can check their balance on the public
-           loyalty lookup page (loyalty.html) without logging in. -->
-      <div class="card" style="padding:18px">
-        <h3 style="margin:0 0 6px">Loyalty program</h3>
-        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Customers earn points on every visit and can redeem them for a discount at checkout. Changes save instantly.</div>
-        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:14px">
-          <input type="checkbox" id="sf-loy-enabled" ${s.loyalty_enabled ? 'checked' : ''} onchange="_wfToggle('loyalty_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
-          <span><b style="font-family:var(--fd);font-size:14px">Enable loyalty points</b><br>
-          <span style="font-size:12.5px;color:var(--dim)">Off = no points shown or tracked anywhere — checkout, invoices and the public lookup page all behave as if the feature doesn't exist.</span></span>
-        </label>
-        <div class="f-row">
-          <div class="f-grp"><label>Points earned per ₹100 spent</label>
-            <input type="number" id="sf-loy-earn" min="0" step="1" value="${escapeHtml(String(s.loyalty_earn_per_100 ?? 5))}" onchange="_wfToggle('loyalty_earn_per_100', Math.max(0, Number(this.value)||0))" /></div>
-          <div class="f-grp"><label>₹ value per point redeemed</label>
-            <input type="number" id="sf-loy-redeem" min="0" step="0.5" value="${escapeHtml(String(s.loyalty_redeem_value ?? 1))}" onchange="_wfToggle('loyalty_redeem_value', Math.max(0, Number(this.value)||0))" /></div>
-        </div>
-        <div style="font-size:11.5px;color:var(--faint);margin-top:6px">Example with the defaults: a ₹1,000 bill earns 50 points; each point is worth ₹1 toward a future visit.</div>
       </div>
 
 
@@ -13679,14 +13913,23 @@ window.numberToWordsIndian = numberToWordsIndian;
 // ══════════════════════════════════════════════════════════════════════════
 //  BOOKING NUMBERS / REFERENCES
 // ══════════════════════════════════════════════════════════════════════════
-// Sequential booking number across the whole workshop. Format: BK-0001
+// The workshop's booking-number prefix (Settings → Workflow extras). Defaults
+// to BK, which is what every booking created before this setting existed uses.
+function _bookingPrefix() {
+  const p = String((D.settings || {}).booking_prefix || '').trim().toUpperCase();
+  return /^[A-Z0-9]{1,6}$/.test(p) ? p : 'BK';
+}
+// Sequential booking number across the whole workshop. Format: <PREFIX>-0001
+// The counter scans EVERY prefix, not just the current one — otherwise changing
+// the prefix would restart numbering at 0001 and collide with older bookings
+// once it was changed back.
 function _nextBookingNo() {
   let max = 0;
   for (const b of D.bookings || []) {
-    const m = /^BK-(\d+)$/.exec(b.booking_no || '');
+    const m = /^[A-Z0-9]{1,6}-(\d+)$/i.exec(b.booking_no || '');
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
-  return 'BK-' + String(max + 1).padStart(4, '0');
+  return _bookingPrefix() + '-' + String(max + 1).padStart(4, '0');
 }
 // Short random reference: 4 uppercase hex chars (BK-B7BD-style suffix).
 function _shortRef(n) {
@@ -13696,7 +13939,29 @@ function _shortRef(n) {
   return out;
 }
 window._nextBookingNo = _nextBookingNo;
+window._bookingPrefix = _bookingPrefix;
 window._shortRef = _shortRef;
+
+// Settings handler for the booking prefix. Normalises to uppercase alphanumeric
+// and rejects anything else rather than silently writing a prefix that
+// _nextBookingNo would then ignore.
+window._setBookingPrefix = async function(el) {
+  const raw = String(el.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!raw) {
+    el.value = _bookingPrefix();
+    showToast('Prefix can\'t be empty', 'bad');
+    return;
+  }
+  if (raw.length > 6) {
+    el.value = _bookingPrefix();
+    showToast('Prefix can be at most 6 characters', 'bad');
+    return;
+  }
+  el.value = raw;
+  await _wfToggle('booking_prefix', raw);
+  const ex = document.getElementById('sf-wf-prefix-eg');
+  if (ex) ex.textContent = _nextBookingNo();
+};
 
 // ══════════════════════════════════════════════════════════════════════════
 //  INVOICES TAB — create / edit / view / print / delete, persisted to Firestore
@@ -13753,7 +14018,8 @@ async function renderInvoices(force = false) {
         <td class="k" style="white-space:nowrap">${escapeHtml(cur)} ${total.toLocaleString('en-IN')}${!inv.is_estimate ? (inv.payment_status === 'Paid' ? ' <span style="font-size:9px;font-weight:800;color:var(--teal)">● PAID</span>' : inv.payment_status === 'Partial' ? ' <span style="font-size:9px;font-weight:800;color:var(--acc2)">● PARTIAL</span>' : ' <span style="font-size:9px;font-weight:800;color:var(--red)">● DUE</span>') : ''}</td>
         <td>${statusPill(inv.status || 'Draft')}</td>
         <td><div class="row-act">
-          ${(!inv.is_estimate && inv.status !== 'Cancelled' && inv.payment_status !== 'Paid') ? `<button class="mini-btn" style="border-color:rgba(32,227,178,.5);color:var(--teal)" onclick="_quickMarkPaid('${escapeHtml(inv.id)}')" title="Mark this invoice fully paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M20 6 9 17l-5-5"/></svg>Paid</button>` : ''}
+          ${(!inv.is_estimate && inv.status !== 'Cancelled' && inv.payment_status !== 'Paid') ? `<button class="mini-btn" style="border-color:rgba(32,227,178,.5);color:var(--teal)" onclick="_quickMarkPaid('${escapeHtml(inv.id)}')" title="Mark this invoice fully paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M20 6 9 17l-5-5"/></svg>Paid</button>
+          <button class="mini-btn warn" onclick="chasePayment('${escapeHtml(inv.id)}')" title="Send the customer a payment reminder (WhatsApp or email)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Chase</button>` : ''}
           <button class="mini-btn good" onclick="viewInvoice('${escapeHtml(inv.id)}')" title="View / print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>
           <button class="mini-btn" onclick="openInvoiceForm('${escapeHtml(inv.id)}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
           <button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waInvoice('${escapeHtml(inv.id)}')" title="Send this invoice to the customer on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm0 1.8a8.1 8.1 0 0 1 5.73 13.83A8.1 8.1 0 0 1 6.9 18.7l-.35-.2-2.93.77.78-2.85-.23-.37A8.1 8.1 0 0 1 12.04 3.8zm4.66 11.44c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg></button>
@@ -13764,6 +14030,106 @@ async function renderInvoices(force = false) {
   </table>`;
 }
 window.renderInvoices = renderInvoices;
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CHASE PAYMENT — a polite reminder for an unpaid / part-paid invoice, on
+//  WhatsApp or email. Sends the OUTSTANDING BALANCE (not the gross total), so
+//  a partly-paid customer isn't asked for money they've already handed over,
+//  and links the same public invoice page the original message used.
+// ══════════════════════════════════════════════════════════════════════════
+function _invBalance(inv) {
+  const total = _invoiceTotals(inv).roundOff;
+  const paid = inv.payment_status === 'Paid'    ? total
+             : inv.payment_status === 'Partial' ? Math.min(total, Number(inv.amount_paid || 0))
+             : 0;
+  return Math.max(0, total - paid);
+}
+
+window.chasePayment = function(invId) {
+  const inv = (D.invoices || []).find(x => x.id === invId);
+  if (!inv) return showToast('Invoice not found', 'bad');
+  const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
+  const bal = _invBalance(inv);
+  const custName = inv.customer?.name || '';
+  const cust = (D.customers || []).find(c => (c.name || '').toLowerCase() === custName.toLowerCase());
+  const phone = inv.customer?.phone || cust?.phone || '';
+  const email = inv.customer?.email || cust?.email || '';
+  _openSubModal({
+    title: `Chase payment · ${inv.number || ''}`,
+    bodyHtml: `
+      <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);line-height:1.6;margin-bottom:14px">
+        <b style="color:var(--txt)">${escapeHtml(custName || '—')}</b>${inv.vehicle?.plate ? ' · ' + escapeHtml(inv.vehicle.plate) : ''}<br>
+        Outstanding balance: <b style="color:var(--red);font-size:15px">${cur}${bal.toLocaleString('en-IN')}</b>
+        ${inv.payment_status === 'Partial' ? `<br><span style="font-size:12px;color:var(--faint)">Partly paid — reminder asks only for the remaining balance.</span>` : ''}
+      </div>
+      <div style="display:grid;gap:8px">
+        <button type="button" class="mini-btn" id="chaseWa" style="justify-content:center;padding:11px;border-color:rgba(37,211,102,.5);color:#25d366${phone ? '' : ';opacity:.45;pointer-events:none'}">
+          ${phone ? 'Send WhatsApp reminder · ' + escapeHtml(phone) : 'No phone number on file'}
+        </button>
+        <button type="button" class="mini-btn" id="chaseEmail" style="justify-content:center;padding:11px${email && D.settings?.email_enabled ? '' : ';opacity:.45;pointer-events:none'}">
+          ${!email ? 'No email address on file' : !D.settings?.email_enabled ? 'Customer emails are turned off in Settings' : 'Send email reminder · ' + escapeHtml(email)}
+        </button>
+      </div>`,
+    footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>`
+  });
+
+  const waBtn = document.getElementById('chaseWa');
+  if (waBtn && phone) waBtn.onclick = async () => {
+    // Open the tab synchronously — the awaited publish below would otherwise
+    // burn the click's transient activation and get popup-blocked.
+    const preWin = window.open('', '_blank');
+    closeSubModal();
+    let link = '';
+    try { link = await _publishInvoiceView(inv.id); } catch (e) { console.warn('[chase] publish failed:', e); }
+    const first = (custName || 'there').split(' ')[0];
+    const msg = `Hi ${first}, a gentle reminder that ${cur}${bal.toLocaleString('en-IN')} is still outstanding on invoice ${inv.number || ''} from ${_wsName()}.`
+      + (link ? `\nView the invoice: ${link}` : '')
+      + `\n\nIf you've already paid, please ignore this — and thank you!`;
+    audit('payment-chase-wa', `${inv.number || ''} · ${cur}${bal}`, { invoice_id: inv.id });
+    _waOpen(phone, msg, preWin);
+  };
+
+  const emBtn = document.getElementById('chaseEmail');
+  if (emBtn && email && D.settings?.email_enabled) emBtn.onclick = async () => {
+    emBtn.textContent = 'Sending…';
+    emBtn.style.pointerEvents = 'none';
+    let link = '';
+    try { link = await _publishInvoiceView(inv.id); } catch (e) { console.warn('[chase] publish failed:', e); }
+    const s = D.settings || {};
+    const workshopName = s.workshop_name || 'Garage Pro';
+    const first = (custName || 'there').split(' ')[0];
+    const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;font-family:Arial,Helvetica,sans-serif">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 0"><tr><td align="center">
+        <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;max-width:520px">
+          <tr><td style="padding:28px 32px 6px;text-align:center">
+            ${s.logo ? `<img src="${s.logo}" alt="" style="max-height:44px;margin-bottom:10px" />` : ''}
+            <div style="font-weight:800;font-size:15px;color:#1a1a1a">${_esc(workshopName)}</div>
+          </td></tr>
+          <tr><td style="padding:14px 32px 4px">
+            <div style="font-size:19px;font-weight:800;color:#0a0f1a;margin-bottom:12px">Payment reminder</div>
+            <p style="font-size:15px;color:#1a1a1a;line-height:1.6;margin:0 0 12px">Hi ${_esc(first)},</p>
+            <p style="font-size:15px;color:#1a1a1a;line-height:1.6;margin:0 0 16px">This is a gentle reminder that <b>${_esc(cur)}${bal.toLocaleString('en-IN')}</b> is still outstanding on invoice <b>${_esc(inv.number || '')}</b>${inv.vehicle?.plate ? ` for ${_esc(inv.vehicle.plate)}` : ''}.</p>
+            ${link ? `<table role="presentation" width="100%"><tr><td align="center" style="padding:6px 0 14px"><a href="${_esc(link)}" style="display:inline-block;background:#6b4fbb;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px">View / download invoice</a></td></tr></table>` : ''}
+            <p style="font-size:13px;color:#5b6573;line-height:1.6;margin:0 0 18px">If you've already paid, please ignore this message — and thank you.</p>
+          </td></tr>
+          <tr><td style="padding:0 32px 26px">${_emailFooterBlock({ workshop_phone: s.phone, workshop_email: s.email }, 'center')}</td></tr>
+        </table>
+      </td></tr></table>
+    </body></html>`;
+    try {
+      const res = await _smtpSend({ to: email, subject: `Payment reminder · Invoice ${inv.number || ''} · ${workshopName}`, html, fromName: workshopName, logo: s.logo || '' });
+      if (res.ok) {
+        audit('payment-chase-email', `${inv.number || ''} → ${email} · ${cur}${bal}`, { invoice_id: inv.id });
+        closeSubModal();
+        showToast('Payment reminder emailed', 'good');
+      } else throw new Error(res.error || 'send failed');
+    } catch (e) {
+      emBtn.textContent = 'Could not send — tap to retry';
+      emBtn.style.pointerEvents = '';
+      showToast('Email failed: ' + (e?.message || e), 'bad');
+    }
+  };
+};
 
 // One-tap: mark an invoice fully paid (records amount + timestamp, mirrors the
 // payment status onto the linked booking).
@@ -13939,10 +14305,6 @@ function _seedInvoiceFromJob(jobId) {
   inv.advisor_name      = b.service_advisor || '';
   inv.job_card_no       = j.id ? ('JOB-' + (j.id || '').slice(-7).toUpperCase()) : '';
   inv.service_suggestions = (j.delivery_notes || '').split('\n').map(s => s.trim()).filter(Boolean);
-  // Loyalty summary computed at checkout (see doCheckout) — printed on the
-  // invoice as an informational line, not part of the totals math itself
-  // (the actual ₹ discount already landed as a negative service_charges line).
-  inv.loyalty_note = j.loyalty_note || '';
   // Prefer the first mechanic from the assignment list; fall back to the legacy single name
   const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
   inv.mechanic = mechs[0] || b.mechanic || '';
@@ -14581,10 +14943,16 @@ function _insuranceHTMLFromJob(j, opts) {
 window.deleteInvoice = async function(id) {
   const inv = (D.invoices || []).find(x => x.id === id);
   if (!inv) return;
-  if (!(await customConfirm(`Delete invoice ${inv.number}? This cannot be undone.`, { title: 'Delete invoice', okLabel: 'Delete' }))) return;
+  if (!(await customConfirm(`Delete invoice ${inv.number}?`, { title: 'Delete invoice', okLabel: 'Delete' }))) return;
+  const _idx = D.invoices.findIndex(x => x.id === id);
   D.invoices = D.invoices.filter(x => x.id !== id);
   await wsSave('invoices', D.invoices);
-  showToast('Invoice deleted', 'good');
+  _showUndoToast(`Invoice deleted · ${inv.number || ''}`.trim(), async () => {
+    D.invoices.splice(Math.max(0, _idx), 0, inv);
+    await wsSave('invoices', D.invoices);
+    audit('undo-delete-invoice', `${inv.number || id} restored`, { invoice_id: id });
+    await renderInvoices(true);
+  });
   audit('invoice-delete', `${inv.number} · ${inv.customer?.name || '—'}`, { invoice_id: id });
   await renderInvoices(true);
 };
@@ -14831,8 +15199,6 @@ function _invoiceHTMLFromRecord(inv, opts) {
   </div>
 
   <div class="words">Amount ( in Words ): ${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only</div>
-
-  ${inv.loyalty_note ? `<div style="margin:10px 0 16px;padding:9px 12px;background:#fff8ee;border:1px dashed #e5b869;border-radius:6px;font-size:11.5px;color:#5a4522">🎁 Loyalty: ${escapeHtml(inv.loyalty_note)}</div>` : ''}
 
   ${(inv.service_suggestions && inv.service_suggestions.length) ? `
     <div class="suggest">
@@ -15112,10 +15478,6 @@ function _buildEmailData(opts) {
     // raw HTML file (which most mail clients just showed as a downloadable
     // webpage, not a proper document).
     invoice_view_link: opts.invoice_view_link || '',
-    // Set by doCheckout right after computing the redeem/earn math — a short
-    // human-readable line like "Earned 45 pts this visit · New balance: 320
-    // pts", shown on the thank-you email/WhatsApp message.
-    loyalty_note:    opts.loyalty_note || '',
     // Receipt-style breakdown — only filled when an invoice is in scope
     items:           inv ? (inv.lines || []).map(l => ({ name: l.name || '', qty: Number(l.qty || 1), amount: Number(l.unit_price || 0) * Number(l.qty || 1) * (1 - Number(l.disc_pct||0)/100) })) : [],
     charges:         inv ? (inv.charges || []) : [],
@@ -15195,7 +15557,6 @@ function _emailTplClassic(d, evt) {
           ${d.location ? `<p style="margin:6px 0"><b>Location:</b> ${_esc(d.location)}</p>` : ''}
           ${d.invoice_no ? `<p style="margin:6px 0"><b>Invoice:</b> ${_esc(d.invoice_no)} · Total ${_esc(d.currency)}${Number(d.total||0).toLocaleString('en-IN')}</p>` : ''}
           <p style="margin:6px 0"><b>Notes:</b> ${_esc(d.notes || 'N/A')}</p>
-          ${d.loyalty_note ? `<p style="margin:6px 0"><b>🎁 Loyalty:</b> ${_esc(d.loyalty_note)}</p>` : ''}
           <p style="margin:24px 0 4px">We look forward to seeing you soon,</p>
           <p style="margin:0;font-weight:700">${_esc(d.workshop_name)}</p>
           ${d.workshop_url ? `<p style="margin:14px 0 0"><a href="${_esc(d.workshop_url)}" style="color:#1e7be0;text-decoration:underline">${_esc(d.workshop_url)}</a></p>` : ''}
@@ -15248,7 +15609,6 @@ function _emailTplFormal(d, evt) {
           ${d.invoice_no ? `<p style="margin:3px 0"><b>Invoice no.:</b> ${_esc(d.invoice_no)}</p>` : ''}
           ${d.total ? `<p style="margin:3px 0"><b>Total:</b> ${_esc(d.currency)}${Number(d.total).toLocaleString('en-IN')}</p>` : ''}
           ${d.notes ? `<p style="margin:8px 0 3px"><b>Notes:</b> ${_esc(d.notes)}</p>` : ''}
-          ${d.loyalty_note ? `<p style="margin:8px 0 3px"><b>🎁 Loyalty:</b> ${_esc(d.loyalty_note)}</p>` : ''}
           <h3 style="margin:22px 0 8px;font-size:18px;font-weight:800">II. Workshop Information</h3>
           <p style="margin:3px 0"><b>${_esc(d.workshop_name)}</b></p>
           ${d.workshop_address ? `<p style="margin:3px 0">${_esc(d.workshop_address)}</p>` : ''}
@@ -15311,7 +15671,6 @@ function _emailTplReceipt(d, evt) {
           <div style="font-size:13.5px;line-height:1.6">
             <p><b>Service:</b> ${_esc(d.service_name)}</p>
             ${d.notes ? `<p><b>Notes:</b> ${_esc(d.notes)}</p>` : ''}
-            ${d.loyalty_note ? `<p><b>🎁 Loyalty:</b> ${_esc(d.loyalty_note)}</p>` : ''}
           </div>
         </td></tr>
         `}
