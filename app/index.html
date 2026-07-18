@@ -563,6 +563,20 @@ input[list]{background:var(--bg2)}
       <button type="button" class="forgot" onclick="doForgotPassword()">Forgot password?</button>
       <div class="a-err" id="si-err"></div>
       <button type="submit" class="btn full-btn">Sign in</button>
+      <button type="button" class="forgot" style="width:100%;text-align:center;margin-top:12px" onclick="switchAuth('staff')">Setting up a shop-floor device? Staff sign-in →</button>
+    </form>
+
+    <!-- STAFF SIGN IN — the workshop's shared device credential, created by the
+         owner in Settings. Gets the device into the workshop WITHOUT the
+         owner's own email + password; each worker then signs in on top of it
+         with their own username + PIN. -->
+    <form class="auth-form" id="authFormStaff" onsubmit="doStaffSignIn(event)">
+      <div class="a-sub" style="margin:0 0 14px">Enter the staff login your workshop owner set up. You'll sign in with your own username and PIN next.</div>
+      <div><label>Workshop staff username</label><input id="st-user" type="text" placeholder="speedauto-staff" autocomplete="username" autocapitalize="none" spellcheck="false" required /></div>
+      <div><label>Password</label><input id="st-pass" type="password" placeholder="••••••••" autocomplete="current-password" required /></div>
+      <div class="a-err" id="st-err"></div>
+      <button type="submit" class="btn full-btn">Sign in</button>
+      <button type="button" class="forgot" style="width:100%;text-align:center;margin-top:12px" onclick="switchAuth('signin')">← Back to owner sign-in</button>
     </form>
 
     <!-- SIGN UP -->
@@ -590,7 +604,7 @@ input[list]{background:var(--bg2)}
       <button type="button" class="forgot" style="text-align:center" onclick="switchAuth('signin')">← Back to sign in</button>
     </form>
 
-    <div class="auth-hint">Running a chain? Create one workshop login per branch. The head can sign in to any branch with that branch's credentials.</div>
+    <div class="auth-hint" id="authChainHint">Running a chain? Create one workshop login per branch. The head can sign in to any branch with that branch's credentials.</div>
   </div>
 </div>
 
@@ -708,6 +722,21 @@ input[list]{background:var(--bg2)}
         <button type="button" class="refresh-btn" onclick="_wizAddWorker()" style="background:var(--acc);color:#170f05;border-color:var(--acc);font-weight:700;height:42px">+ Add</button>
       </div>
       <div id="setupWkList" style="margin-bottom:14px;min-height:60px"></div>
+
+      <!-- Optional shared staff login, so shop-floor devices never need the
+           owner's own email + password. Skippable — can be created later in
+           Settings → Staff login. -->
+      <div style="border-top:1px solid var(--brd);padding-top:16px;margin-top:4px">
+        <div style="font-family:var(--fd);font-size:14px;font-weight:800;color:var(--txt);margin-bottom:4px">Staff login for shop-floor devices <span style="font-family:var(--fb);font-weight:500;font-size:12px;color:var(--faint)">— optional</span></div>
+        <div style="font-size:12.5px;color:var(--dim);line-height:1.55;margin-bottom:10px">One shared username and password to get a workshop tablet into Garage Pro without your own email and password. Your workers still sign in individually with their username and PIN. You can set this up later in Settings instead.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><label style="display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase">Staff username</label>
+            <input id="fs-staffuser" type="text" placeholder="speedauto-staff" autocapitalize="none" spellcheck="false" autocomplete="off" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" /></div>
+          <div><label style="display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase">Password</label>
+            <input id="fs-staffpass" type="password" placeholder="At least 6 characters" autocomplete="new-password" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" /></div>
+        </div>
+      </div>
+
       <div class="a-err" id="setup-wk-err"></div>
       <div style="display:flex;gap:10px;margin-top:18px">
         <button type="button" class="btn full-btn" style="flex:1;background:transparent;color:var(--dim);border:1px solid var(--brd2)" onclick="_wizFinish()">Finish setup</button>
@@ -1477,9 +1506,21 @@ fbDb.enablePersistence({ synchronizeTabs: true }).catch(err => {
 // ══════════════════════════════════════════
 //  GLOBAL STATE
 // ══════════════════════════════════════════
-let currentUser    = null;   // Firebase Auth user (the WORKSHOP account)
+let currentUser    = null;   // Firebase Auth user (workshop account OR a staff login)
 let userProfile    = null;   // users/{uid} doc — workshop-level info (name, settings)
 let currentWorker  = null;   // who is currently logged in via PIN (a worker record)
+
+// ── Staff sessions ──────────────────────────────────────────────────────────
+// A device can be signed in either as the workshop owner's own account, or via
+// the workshop's shared STAFF login. In the staff case the Firebase uid is the
+// staff account's, NOT the workshop's — so every data path has to go through
+// wsUid() rather than currentUser.uid, or it would read the wrong (empty)
+// account. Resolved once at boot by _resolveStaffSession(), before anything
+// touches Firestore.
+let staffWorkshopUid = null;  // the workshop this staff session belongs to
+let isStaffSession   = false;
+function wsUid() { return staffWorkshopUid || currentUser?.uid || null; }
+window.wsUid = wsUid;
 let currentTab     = 'dashboard';
 
 // ══════════════════════════════════════════
@@ -1537,7 +1578,7 @@ async function publishTracking(bookingId) {
     if (!plateNorm) return;
     const j = (D.jobs || []).find(x => x.booking_id === b.id);
     const status = j?.status || b.status || 'Scheduled';
-    const ref = fbDb.collection('users').doc(currentUser.uid).collection('public_status').doc(plateNorm);
+    const ref = fbDb.collection('users').doc(wsUid()).collection('public_status').doc(plateNorm);
     // Read prior history (if any) and append on real status changes only.
     let history = [];
     try {
@@ -1586,7 +1627,7 @@ window.publishTracking = publishTracking;
 async function backfillPublicTracking() {
   try {
     if (!currentUser || !D.bookings?.length) return;
-    const key = 'gp_tracking_backfilled:' + currentUser.uid;
+    const key = 'gp_tracking_backfilled:' + wsUid();
     if (localStorage.getItem(key)) return;
     const targets = D.bookings.filter(b => b.plate && (b.status || 'Scheduled') !== 'Cancelled');
     if (!targets.length) { localStorage.setItem(key, '1'); return; }
@@ -1657,7 +1698,9 @@ async function _subscriptionActive() {
     // Re-read fresh in case the cached userProfile is stale
     let prof = userProfile;
     if (!prof) {
-      const d = await fbDb.collection('users').doc(currentUser.uid).get();
+      // Always the WORKSHOP's doc — a staff account has no subscription of its
+      // own and would otherwise fail the gate on every shop-floor device.
+      const d = await fbDb.collection('users').doc(wsUid()).get();
       prof = d.exists ? d.data() : null;
       userProfile = prof;
     }
@@ -1709,7 +1752,7 @@ function _showNoSub() {
 window._recheckSub = async function() {
   showOnly('overlayLoading');
   try {
-    const d = await fbDb.collection('users').doc(currentUser.uid).get();
+    const d = await fbDb.collection('users').doc(wsUid()).get();
     userProfile = d.exists ? d.data() : null;
   } catch (_) {}
   if (await _subscriptionActive()) {
@@ -1717,7 +1760,7 @@ window._recheckSub = async function() {
     if (!userProfile || !userProfile.workshop_name) { showOnly('overlayNoWorkshop'); _prefillWizard(); return; }
     await loadAllData(true);
     if (!D.mechanics.length) { showOnly('overlayNoWorkshop'); _prefillWizard(); return; }
-    const cached = sessionStorage.getItem('gp_worker:' + currentUser.uid);
+    const cached = sessionStorage.getItem('gp_worker:' + wsUid());
     if (cached) { try { currentWorker = JSON.parse(cached); } catch(_) {} }
     if (!currentWorker || !D.mechanics.find(w => w.id === currentWorker.id)) { showPinpad(); return; }
     enterApp();
@@ -1751,12 +1794,35 @@ function showOnly(overlayId) {
 fbAuth.onAuthStateChanged(async (user) => {
   if (!user) {
     unsubscribeLive();   // drop any old live listeners before we lose the uid
+    // Clear the cached worker BEFORE dropping the uid — otherwise wsUid() is
+    // already null and this removes the key "gp_worker:" instead of the real one.
+    sessionStorage.removeItem('gp_worker:' + (wsUid() || ''));
     currentUser = null; currentWorker = null;
-    sessionStorage.removeItem('gp_worker:' + (currentUser?.uid || ''));
+    staffWorkshopUid = null; isStaffSession = false;
     showOnly('overlaySignin');
     return;
   }
   currentUser = user;
+  // Work out WHICH workshop this session operates on before anything reads
+  // Firestore — for a staff login that isn't currentUser.uid, and every
+  // subscription below paths through wsUid().
+  try {
+    await _resolveStaffSession();
+  } catch (e) {
+    console.error('[staff session]', e);
+    showOnly('overlaySignin');
+    return;
+  }
+  if (isStaffSession && !staffWorkshopUid) {
+    // Staff account exists in Auth but isn't linked to a workshop — the owner
+    // never finished setup, or the link was removed.
+    await fbAuth.signOut().catch(() => {});
+    showOnly('overlaySignin');
+    switchAuth('staff');
+    const err = document.getElementById('st-err');
+    if (err) err.textContent = 'This staff login isn\'t linked to a workshop yet. Ask the owner to set it up again in Settings.';
+    return;
+  }
   subscribeLiveCollections();   // start pushing remote writes into D in real time
   subscribeApprovalResponses(); // watch shared estimate links for customer decisions
   // One-shot backfill of public_status mirror for existing bookings. Defers so
@@ -1778,14 +1844,24 @@ fbAuth.onAuthStateChanged(async (user) => {
       _showNoSub();
       return;
     }
-    // No workshop set up yet → first-run setup
+    // No workshop set up yet → first-run setup. A staff login can't provision a
+    // workshop (and its owner clearly hasn't), so send it back rather than
+    // dropping a shop-floor device into the owner's setup wizard.
     if (!userProfile || !userProfile.workshop_name) {
+      if (isStaffSession) {
+        await fbAuth.signOut().catch(() => {});
+        showOnly('overlaySignin');
+        switchAuth('staff');
+        const err = document.getElementById('st-err');
+        if (err) err.textContent = 'That workshop hasn\'t finished setup yet. Ask the owner to sign in first.';
+        return;
+      }
       showOnly('overlayNoWorkshop');
       _prefillWizard();   // auto-fill garage name + owner name from signup data
       return;
     }
     // Workshop exists → check if a worker session is already cached on this device
-    const cached = sessionStorage.getItem('gp_worker:' + user.uid);
+    const cached = sessionStorage.getItem('gp_worker:' + wsUid());
     if (cached) {
       try { currentWorker = JSON.parse(cached); }
       catch(e) { currentWorker = null; }
@@ -1793,6 +1869,14 @@ fbAuth.onAuthStateChanged(async (user) => {
     await loadAllData(true);
     // Need at least one worker to log in. If no workers exist yet, set up an owner.
     if (!D.mechanics.length) {
+      if (isStaffSession) {
+        await fbAuth.signOut().catch(() => {});
+        showOnly('overlaySignin');
+        switchAuth('staff');
+        const err = document.getElementById('st-err');
+        if (err) err.textContent = 'No workers have been added yet. Ask the owner to add staff in Settings → Workers.';
+        return;
+      }
       showOnly('overlayNoWorkshop');
       _prefillWizard();
       return;
@@ -1810,8 +1894,25 @@ fbAuth.onAuthStateChanged(async (user) => {
 });
 
 async function loadUserProfile() {
-  const doc = await fbDb.collection('users').doc(currentUser.uid).get();
+  const doc = await fbDb.collection('users').doc(wsUid()).get();
   userProfile = doc.exists ? doc.data() : null;
+}
+
+// Is this Firebase account one of the workshop staff logins, and if so which
+// workshop does it belong to? The pointer lives on the staff account's own
+// (public-read) profile doc. It is only a HINT for the client — the actual
+// authorisation lives in workshop_staff/{workshopUid}, which only the owner can
+// write and which firestore.rules checks server-side. Spoofing this pointer
+// gets you an app shell that can't read a single document.
+async function _resolveStaffSession() {
+  staffWorkshopUid = null;
+  isStaffSession   = false;
+  if (!currentUser) return;
+  if (!isStaffEmail(currentUser.email)) return;   // ordinary workshop account
+  isStaffSession = true;
+  const d = await fbDb.collection('users').doc(currentUser.uid).get();
+  const p = d.exists ? d.data() : null;
+  if (p && p.staff_of) staffWorkshopUid = p.staff_of;
 }
 
 // Prefill the first-run wizard's garage name + owner name from whatever the
@@ -1847,10 +1948,172 @@ window.switchAuth = function(which) {
   document.getElementById('authFormSignin').classList.toggle('active', which === 'signin');
   document.getElementById('authFormSignup').classList.toggle('active', which === 'signup');
   document.getElementById('authFormReset' ).classList.toggle('active', which === 'reset');
-  // Hide the top tabs row when on the reset view (it's a sub-screen)
-  document.querySelector('.auth-tabs').style.display = (which === 'reset') ? 'none' : '';
+  document.getElementById('authFormStaff' ).classList.toggle('active', which === 'staff');
+  // Hide the top tabs row on the sub-screens (reset / staff)
+  document.querySelector('.auth-tabs').style.display = (which === 'reset' || which === 'staff') ? 'none' : '';
+  const t = document.getElementById('authTitle');
+  const s = document.getElementById('authSubtitle');
+  const hint = document.getElementById('authChainHint');
+  if (which === 'staff') {
+    if (t) t.textContent = 'Staff sign-in';
+    if (s) s.style.display = 'none';
+    // The chain/branch note is owner-sign-in advice; on the shop floor it just
+    // reads as instructions the worker can't act on.
+    if (hint) hint.style.display = 'none';
+  } else {
+    if (t) t.textContent = 'Sign in to Garage Pro';
+    if (s) s.style.display = '';
+    if (hint) hint.style.display = '';
+  }
   // Clear any stale messages
-  ['si-err','su-err','rs-err','rs-ok'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
+  ['si-err','su-err','rs-err','rs-ok','st-err'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = ''; });
+};
+
+// ── Workshop staff logins ───────────────────────────────────────────────────
+// The staff credential is a REAL Firebase Auth account, so Firebase itself
+// enforces global uniqueness of the username for us. We only ever show the
+// owner the bare username; the @domain is an implementation detail.
+const STAFF_EMAIL_DOMAIN = 'staff.garagepro.me';
+function staffEmailFor(username) {
+  return String(username || '').trim().toLowerCase() + '@' + STAFF_EMAIL_DOMAIN;
+}
+function isStaffEmail(email) {
+  return String(email || '').toLowerCase().endsWith('@' + STAFF_EMAIL_DOMAIN);
+}
+function staffUsernameFromEmail(email) {
+  return String(email || '').toLowerCase().replace('@' + STAFF_EMAIL_DOMAIN, '');
+}
+
+window.doStaffSignIn = async function(e) {
+  e.preventDefault();
+  const user = document.getElementById('st-user').value.trim().toLowerCase();
+  const pass = document.getElementById('st-pass').value;
+  const err  = document.getElementById('st-err'); err.textContent = '';
+  const btn  = e.target.querySelector('button[type="submit"]');
+  if (!user) { err.textContent = 'Enter the staff username.'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    await fbAuth.signInWithEmailAndPassword(staffEmailFor(user), pass);
+    // onAuthStateChanged resolves the workshop and shows the worker PIN screen
+  } catch (e2) {
+    const code = (e2 && e2.code) || '';
+    // Don't leak whether the username exists — same message either way
+    err.textContent = /user-not-found|wrong-password|invalid-credential|invalid-login-credentials/.test(code)
+      ? 'Incorrect staff username or password.'
+      : friendlyAuthError(e2);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+};
+
+// ── Staff login management (owner only) ─────────────────────────────────────
+// The authorisation itself lives in workshop_staff/{workshopUid}.uids — a doc
+// only the workshop owner can write. Revoking is therefore just removing the
+// uid from that list; an orphaned Firebase Auth account can still sign in but
+// resolves to no workshop and can't read a single document.
+async function loadStaffLogin() {
+  try {
+    const d = await fbDb.collection('workshop_staff').doc(wsUid()).get();
+    const v = d.exists ? d.data() : null;
+    return (v && Array.isArray(v.uids) && v.uids.length) ? v : null;
+  } catch (e) {
+    console.warn('[staff login load]', e);
+    return null;
+  }
+}
+
+function _validStaffUsername(u) {
+  return /^[a-z0-9][a-z0-9._-]{2,19}$/.test(u);
+}
+
+// Creates the Firebase Auth account on a SECONDARY app instance so making it
+// doesn't sign the owner out of their own session.
+async function _provisionStaffLogin(username, password) {
+  const wsId = wsUid();
+  if (!wsId) throw new Error('No workshop signed in');
+  if (!_secondaryApp) _secondaryApp = firebase.initializeApp(FB_CONFIG, 'gp-branch-creator');
+  const secAuth = _secondaryApp.auth();
+  let cred;
+  try {
+    cred = await secAuth.createUserWithEmailAndPassword(staffEmailFor(username), password);
+  } catch (e) {
+    if ((e.code || '').includes('email-already-in-use')) {
+      throw new Error(`The username "${username}" is already taken. Try another.`);
+    }
+    if ((e.code || '').includes('weak-password')) {
+      throw new Error('Password must be at least 6 characters.');
+    }
+    throw new Error(friendlyAuthError(e));
+  }
+  const staffUid = cred.user.uid;
+  try {
+    // Pointer on the staff account's own doc — a client-side hint only.
+    await fbDb.collection('users').doc(staffUid).set({
+      is_staff_login: true,
+      staff_of:       wsId,
+      staff_username: username,
+      createdAt:      firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    // The actual grant. Replacing the array (rather than arrayUnion) means
+    // creating a new staff login automatically revokes the previous one — one
+    // live staff credential per workshop, so a leaked password can't linger.
+    await fbDb.collection('workshop_staff').doc(wsId).set({
+      uids:       [staffUid],
+      username:   username,
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } finally {
+    await secAuth.signOut().catch(() => {});
+  }
+  return { staffUid, username };
+}
+
+window.openStaffLoginForm = async function() {
+  const existing = await loadStaffLogin();
+  openModal({
+    title: existing ? 'Replace staff login' : 'Create staff login',
+    body: `
+      <div style="color:var(--dim);font-size:13.5px;line-height:1.6;margin-bottom:14px">
+        ${existing
+          ? `Your workers currently sign in with <b style="color:var(--acc2);font-family:'Courier New',monospace">${escapeHtml(existing.username || '—')}</b>. Creating a new one <b>immediately stops the old one working</b> — every device using it gets signed out.`
+          : `This is the shared credential your workers type once per device, instead of your own email and password. After it, each worker signs in with their own username and PIN.`}
+      </div>
+      <div class="f-row">
+        <div class="f-grp"><label>Staff username <span class="req">*</span></label>
+          <input id="sl-user" type="text" placeholder="speedauto-staff" autocapitalize="none" spellcheck="false" autocomplete="off" />
+          <div style="font-size:11.5px;color:var(--faint);margin-top:4px">3–20 characters: letters, numbers, dot, dash, underscore.</div></div>
+        <div class="f-grp"><label>Password <span class="req">*</span></label>
+          <input id="sl-pass" type="password" placeholder="At least 6 characters" autocomplete="new-password" />
+          <div style="font-size:11.5px;color:var(--faint);margin-top:4px">Write this down — it can't be shown again.</div></div>
+      </div>
+      <div class="f-err" id="sl-err"></div>`,
+    saveLabel: existing ? 'Replace login' : 'Create login',
+    onSave: async () => {
+      const u = (document.getElementById('sl-user').value || '').trim().toLowerCase();
+      const p = document.getElementById('sl-pass').value || '';
+      if (!_validStaffUsername(u)) throw new Error('Username: 3–20 characters, starting with a letter or number.');
+      if (p.length < 6)            throw new Error('Password must be at least 6 characters.');
+      await _provisionStaffLogin(u, p);
+      closeModal();
+      showToast('Staff login ready — workers can sign in with it now', 'good');
+      await renderSettings(false);
+    }
+  });
+};
+
+window.removeStaffLogin = async function() {
+  const existing = await loadStaffLogin();
+  if (!existing) return;
+  if (!confirm(`Turn off the staff login "${existing.username || ''}"?\n\nEvery shop-floor device using it gets signed out and will need your own email and password again.`)) return;
+  try {
+    await fbDb.collection('workshop_staff').doc(wsUid()).set({
+      uids: [], username: '', updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast('Staff login turned off', 'good');
+    await renderSettings(false);
+  } catch (e) {
+    showToast('Could not turn it off: ' + (e?.message || e), 'bad');
+  }
 };
 
 window.doEmailSignIn = async function(e) {
@@ -2103,17 +2366,38 @@ window._wizSaveWorkersAndFinish = async function() {
   })));
   D.mechanics = (D.mechanics || []).concat(hashed);
   await wsSave('mechanics', D.mechanics);
-  _wizFinish();
+  await _wizFinish();
 };
 
-window._wizFinish = function() {
+window._wizFinish = async function() {
+  // Optional shared staff login. Both wizard buttons route through here, so
+  // this covers "Finish setup" and "Save & finish" alike.
+  const su  = (document.getElementById('fs-staffuser')?.value || '').trim().toLowerCase();
+  const sp  = document.getElementById('fs-staffpass')?.value || '';
+  const err = document.getElementById('setup-wk-err');
+  if (su || sp) {
+    if (!_validStaffUsername(su)) {
+      if (err) err.textContent = 'Staff username: 3–20 characters, starting with a letter or number. Clear both staff fields to skip this.';
+      return;
+    }
+    if (sp.length < 6) {
+      if (err) err.textContent = 'Staff password must be at least 6 characters. Clear both staff fields to skip this.';
+      return;
+    }
+    try {
+      await _provisionStaffLogin(su, sp);
+    } catch (e) {
+      if (err) err.textContent = (e?.message || 'Could not create the staff login.') + ' You can also set it up later in Settings.';
+      return;
+    }
+  }
   // Mark setup complete on the user profile so we don't re-run the wizard
-  if (currentUser?.uid) {
-    fbDb.collection('users').doc(currentUser.uid)
+  if (wsUid()) {
+    fbDb.collection('users').doc(wsUid())
       .set({ setup_done_at: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
       .catch(() => {});
   }
-  showToast('All set! Sign in with your username and PIN.', 'good');
+  showToast(su ? 'All set! Staff login created.' : 'All set! Sign in with your username and PIN.', 'good');
   showPinpad();
 };
 
@@ -2254,7 +2538,7 @@ async function _pinTrySignIn() {
     return;
   }
   currentWorker = w;
-  sessionStorage.setItem('gp_worker:' + currentUser.uid, JSON.stringify({
+  sessionStorage.setItem('gp_worker:' + wsUid(), JSON.stringify({
     id: w.id, name: w.name, role: w.role
   }));
   enterApp();
@@ -2309,7 +2593,7 @@ document.addEventListener('keydown', (ev) => {
 // screen — there is no account list to return to.
 window.switchWorker = function() {
   closeAllDropdowns();
-  sessionStorage.removeItem('gp_worker:' + (currentUser?.uid || ''));
+  sessionStorage.removeItem('gp_worker:' + (wsUid() || ''));
   currentWorker = null;
   showPinpad();
 };
@@ -2342,7 +2626,7 @@ function _maybeFireMorningBriefing() {
   // Only fire for advisor + owner + manager (they're the ones planning the day).
   if (!['service_advisor','owner','manager'].includes(role)) return;
   const today = todayStr();
-  const key = `gp_briefing:${currentUser.uid}:${currentWorker.id}:${today}`;
+  const key = `gp_briefing:${wsUid()}:${currentWorker.id}:${today}`;
   if (localStorage.getItem(key)) return;
   // Wait a beat for D.bookings to be hydrated, then fire once
   setTimeout(() => {
@@ -2365,7 +2649,7 @@ function _maybeFireMorningBriefing() {
       // Also email the workshop's own inbox (if the toggle is on). Keyed
       // separately from the per-worker notify key so a second advisor signing
       // in on the same device doesn't re-send the digest email.
-      const emKey = `gp_briefing_email:${currentUser.uid}:${today}`;
+      const emKey = `gp_briefing_email:${wsUid()}:${today}`;
       if (!localStorage.getItem(emKey)) {
         localStorage.setItem(emKey, '1');
         _sendGarageSummaryEmail(
@@ -2451,7 +2735,7 @@ function _checkSlaAlerts() {
     if (!currentUser || (D.settings || {}).sla_alerts_enabled === false) return;
     const today = todayStr();
     for (const { job: j, stage, sinceMs } of _slaStuckJobs()) {
-      const key = `gp_sla:${currentUser.uid}:${j.id}:${j.status}:${today}`;
+      const key = `gp_sla:${wsUid()}:${j.id}:${j.status}:${today}`;
       if (localStorage.getItem(key)) continue;
       localStorage.setItem(key, '1');
       notify({
@@ -2473,7 +2757,7 @@ function _maybeFireClosingSummary() {
     if (s.closing_summary_enabled === false) return;
     if (new Date().getHours() < 17) return;
     const today = todayStr();
-    const key = `gp_closing:${currentUser.uid}:${today}`;
+    const key = `gp_closing:${wsUid()}:${today}`;
     if (localStorage.getItem(key)) return;
     const delivered = (D.bookings || []).filter(b => (b.delivered_at || '').slice(0, 10) === today);
     let revenue = 0;
@@ -2764,7 +3048,9 @@ window.doSignOut = function() {
             <span style="width:34px;height:34px;border-radius:8px;background:rgba(255,107,107,.14);color:var(--red);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></span>
             <span style="flex:1">
               <span style="display:block;font-weight:700;color:var(--txt);margin-bottom:2px">Sign out of workshop</span>
-              <span style="display:block;font-size:12.5px;color:var(--faint)">Full sign-out — back to the workshop login screen. You'll need email + password to come back.</span>
+              <span style="display:block;font-size:12.5px;color:var(--faint)">Full sign-out — unlinks this device from the workshop. ${isStaffSession
+                ? 'You\'ll need the workshop\'s staff username + password to come back.'
+                : 'You\'ll need email + password to come back.'}</span>
             </span>
           </span>
         </button>
@@ -2784,10 +3070,14 @@ window._signOutWorker = function() {
 window._signOutFully = async function() {
   closeModal();
   try {
-    sessionStorage.removeItem('gp_worker:' + (currentUser?.uid || ''));
+    sessionStorage.removeItem('gp_worker:' + (wsUid() || ''));
     currentWorker = null;
+    const wasStaff = isStaffSession;
     await fbAuth.signOut();
-    // onAuthStateChanged shows the sign-in screen automatically
+    // onAuthStateChanged shows the sign-in screen automatically. A shop-floor
+    // device came in via the staff form, so send it back there rather than to
+    // an owner email/password prompt nobody on the floor can answer.
+    if (wasStaff) setTimeout(() => { try { switchAuth('staff'); } catch (e) {} }, 60);
   } catch (e) {
     showToast('Sign out failed', 'bad');
   }
@@ -2849,8 +3139,9 @@ function escapeHtml(s) {
 // New model: one Firebase Auth account = one workshop. No more workshops/{wsId} layer.
 // ══════════════════════════════════════════
 function wsRef() {
-  if (!currentUser) throw new Error('No signed-in workshop');
-  return fbDb.collection('users').doc(currentUser.uid);
+  const uid = wsUid();
+  if (!uid) throw new Error('No signed-in workshop');
+  return fbDb.collection('users').doc(uid);
 }
 function wsCol(name) { return wsRef().collection(name); }
 
@@ -6042,6 +6333,10 @@ async function doCheckout(bookingId) {
   b.bay_id = null; b.bay_name = ''; b.bay_num = '';
   writes.push(wsSave('bookings', D.bookings));
 
+  // If this car was already invoiced, carry the payment recorded here onto that
+  // invoice — otherwise it keeps showing Outstanding after the customer paid.
+  if (_syncInvoicePaymentFromBooking(b)) writes.push(wsSave('invoices', D.invoices));
+
   closeModal();
   showToast(`${b.plate} delivered`, 'good');
   audit('checkout', `${b.plate} (${b.cust_name || '—'}) · ${pay}${cost ? ' · ₹' + cost : ''}${pay === 'Partial' ? ' (paid ₹' + amountPaid + ')' : ''}`, { booking_id: b.id });
@@ -6663,8 +6958,14 @@ window.markJobStatus = async function(jobId, newStatus) {
   if (newStatus === 'Inspected' && currentRole() !== 'mechanic' && currentRole() !== 'floor_manager' && !isAdminRole()) {
     return customAlert('Only the Worker (technician) or Floor Manager can mark a job Inspected.', { title: 'Not allowed' });
   }
-  if (newStatus === 'Inspected' && !(j.parts || []).length) {
-    if (!(await customConfirm('No spares are listed on this job yet. Mark as Inspected anyway?', { title: 'No spares listed', okLabel: 'Mark inspected', danger: false }))) return;
+  // At the Inspected stage the technician lists what the car NEEDS — that's the
+  // estimate (est_parts / est_services). j.parts is the actual billed parts,
+  // which is still empty this early on every job, so checking it here warned
+  // even when a full estimate had been entered.
+  if (newStatus === 'Inspected') {
+    const named = a => (a || []).filter(x => (x?.name || '').trim()).length;
+    const listed = named(j.est_parts) + named(j.est_services) + named(j.parts);
+    if (!listed && !(await customConfirm('No spares or services are listed on this job yet. Mark as Inspected anyway?', { title: 'Nothing listed', okLabel: 'Mark inspected', danger: false }))) return;
   }
   j.status = newStatus;
   j.updated_at = nowStr();
@@ -7347,7 +7648,7 @@ async function _publishInvoiceView(invId) {
     html, created_at: nowStr()
   };
   await wsCol('invoice_views').doc(token).set(doc);
-  return `${_apprSiteBase()}/invoice.html?w=${encodeURIComponent(currentUser.uid)}&t=${encodeURIComponent(token)}`;
+  return `${_apprSiteBase()}/invoice.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(token)}`;
 }
 
 // Publish a one-time, tokenized feedback link (mirrors _publishInvoiceView) —
@@ -7366,7 +7667,7 @@ async function _publishFeedbackLink(job, booking) {
     created_at: nowStr()
   };
   await wsCol('feedback_links').doc(token).set(doc);
-  return `${_apprSiteBase()}/feedback.html?w=${encodeURIComponent(currentUser.uid)}&t=${encodeURIComponent(token)}`;
+  return `${_apprSiteBase()}/feedback.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(token)}`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -7832,7 +8133,7 @@ window.shareEstimateLink = async function(jobId) {
 };
 
 function _apprShareModal(doc) {
-  const url  = `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(currentUser.uid)}&t=${encodeURIComponent(doc.token)}`;
+  const url  = `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(doc.token)}`;
   const b    = (D.bookings || []).find(x => x.id === doc.job_id) || {};
   const phone = _waDigits(b.cust_phone || doc.workshop_phone);
   const fmt  = (n) => `${doc.currency}${Number(n || 0).toLocaleString('en-IN')}`;
@@ -12288,6 +12589,8 @@ window._tsClearRange = function() {
 // ══════════════════════════════════════════
 //  SETTINGS  (workshop info + role permissions + danger zone)
 // ══════════════════════════════════════════
+let _sfStaffLogin = null;   // workshop_staff doc, loaded when Settings renders
+
 const ALL_TABS = [
   { id:'dashboard',   label:'Dashboard' },
   { id:'bookings',    label:'Appointments' },
@@ -12316,6 +12619,10 @@ async function renderSettings(force = false) {
     return;
   }
   const s = D.settings || {};
+  // Fetched up-front because the settings body is built as one HTML string.
+  // Only the owner can read workshop_staff, so skip it in a staff session
+  // (where the card is hidden anyway) rather than logging a permission error.
+  _sfStaffLogin = isStaffSession ? null : await loadStaffLogin();
   const perms = s.role_perms || {};
   const customRoles = Object.keys(perms).filter(r => !DEFAULT_ROLE_PERMS[r]);
   const allRoles = ['owner','manager','floor_manager','service_advisor','parts_dept','receptionist','mechanic', ...customRoles];
@@ -12485,6 +12792,32 @@ async function renderSettings(force = false) {
         <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Manage workers and their roles from the <b>Workers</b> tab. Their role here drives sidebar access.</div>
         <button class="refresh-btn" onclick="switchTab('workers')">Open Workers tab →</button>
       </div>
+
+      <!-- Shared staff login for shop-floor devices. Hidden during a staff
+           session so a device signed in with the credential can't read, change
+           or revoke that credential. -->
+      ${isStaffSession ? '' : `
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Staff login (shop-floor devices)</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">
+          One shared username and password that gets a workshop tablet or phone into Garage Pro <b>without your own email and password</b>. Workers then sign in individually with their own username and PIN, exactly as they do now.
+        </div>
+        ${_sfStaffLogin ? `
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 15px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:12px">
+            <span style="width:34px;height:34px;border-radius:9px;background:rgba(45,212,191,.14);color:var(--teal);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+            <span style="flex:1;min-width:180px">
+              <b style="font-family:'Courier New',monospace;font-size:15px;color:var(--acc2)">${escapeHtml(_sfStaffLogin.username || '—')}</b>
+              <span style="display:block;font-size:12px;color:var(--faint);margin-top:2px">Active — workers use this on the <b>Staff sign-in</b> screen. The password isn't stored anywhere and can't be shown again.</span>
+            </span>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="refresh-btn" onclick="openStaffLoginForm()">Change username / password</button>
+            <button class="mini-btn danger" style="padding:9px 14px" onclick="removeStaffLogin()">Turn off staff login</button>
+          </div>
+        ` : `
+          <button class="add-btn" onclick="openStaffLoginForm()">Create staff login</button>
+        `}
+      </div>`}
 
       <!-- Workflow extras — SLA alerts, closing summary, pickup OTP -->
       <div class="card" style="padding:18px">
@@ -12707,7 +13040,7 @@ window.saveWorkshopInfo = async function() {
   // Repair page (which reads only the root doc) sees the latest values.
   if (currentUser) {
     try {
-      await fbDb.collection('users').doc(currentUser.uid).set({
+      await fbDb.collection('users').doc(wsUid()).set({
         workshop_name: D.settings.workshop_name || '',
         state:         D.settings.state || '',
         city:          D.settings.city  || ''
@@ -14045,6 +14378,50 @@ function _invBalance(inv) {
   return Math.max(0, total - paid);
 }
 
+// ── Payment state: one place that keeps everything in agreement ─────────────
+// An invoice carries BOTH a document status (Draft/Issued/Paid/Cancelled) and a
+// payment status (Outstanding/Paid/Partial). They used to be set independently
+// by checkout, the quick "Paid" button and the edit form, so they drifted —
+// an invoice could read "Paid" in one column and "Outstanding" in another.
+// Everything now routes through here.
+function _normaliseInvoicePayment(inv, opts = {}) {
+  const total = _invoiceTotals(inv).roundOff;
+  const ps = opts.payment_status || inv.payment_status || 'Outstanding';
+  inv.payment_status = ps;
+  // Amount paid always follows the status, so the balance can't contradict it
+  inv.amount_paid = ps === 'Paid'    ? total
+                  : ps === 'Partial' ? Math.min(total, Math.max(0, Number(opts.amount_paid ?? inv.amount_paid ?? 0)))
+                  : 0;
+  if (ps === 'Paid') { if (!inv.paid_at) inv.paid_at = nowStr(); }
+  else inv.paid_at = '';
+  // Keep the document status in step — but never resurrect a cancelled invoice,
+  // and never promote a genuine Draft just because it's unpaid.
+  if ((inv.status || 'Draft') !== 'Cancelled') {
+    if (ps === 'Paid')                        inv.status = 'Paid';
+    else if ((inv.status || '') === 'Paid')   inv.status = 'Issued';   // un-paid again
+  }
+  return inv;
+}
+
+// Checkout records the payment on the BOOKING. If an invoice already exists for
+// that job — the common case, since invoices are usually generated at "Ready
+// for delivery", before the customer actually pays — push the payment across.
+// _resyncInvoiceFromJob only re-syncs line items, so without this the invoice
+// sat on "Outstanding" forever no matter what was recorded at checkout.
+function _syncInvoicePaymentFromBooking(b) {
+  if (!b) return null;
+  const inv = (D.invoices || []).find(x =>
+    (x.booking_id && x.booking_id === b.id) ||
+    (b.invoice_no && x.number === b.invoice_no));
+  if (!inv || inv.is_estimate) return null;
+  _normaliseInvoicePayment(inv, {
+    payment_status: b.payment_status || 'Outstanding',
+    amount_paid:    b.amount_paid
+  });
+  inv.updated_at = nowStr();
+  return inv;
+}
+
 window.chasePayment = function(invId) {
   const inv = (D.invoices || []).find(x => x.id === invId);
   if (!inv) return showToast('Invoice not found', 'bad');
@@ -14138,10 +14515,7 @@ window._quickMarkPaid = async function(invId) {
   if (!inv) return showToast('Invoice not found', 'bad');
   const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
   const total = _invoiceTotals(inv).roundOff;
-  inv.payment_status = 'Paid';
-  inv.amount_paid = total;
-  inv.paid_at = nowStr();
-  if ((inv.status || 'Draft') === 'Draft') inv.status = 'Issued';
+  _normaliseInvoicePayment(inv, { payment_status: 'Paid' });
   inv.updated_at = nowStr();
   const writes = [wsSave('invoices', D.invoices)];
   const b = inv.booking_id ? (D.bookings || []).find(x => x.id === inv.booking_id) : null;
@@ -14206,6 +14580,12 @@ window.openInvoiceForm = function(idOrSeed) {
     else inv = _blankInvoice();
   }
   _editingInvoice = JSON.parse(JSON.stringify(inv));   // deep copy for cancel-safe editing
+  // Remember what the two status fields looked like on open, so saveInvoice can
+  // tell WHICH one the user actually changed and mirror it onto the other.
+  _invEditSnapshot = {
+    status:         _editingInvoice.status || 'Draft',
+    payment_status: _editingInvoice.payment_status || 'Outstanding'
+  };
   openModal({
     title: _editingInvoice.id && (D.invoices || []).find(x => x.id === _editingInvoice.id)
       ? `Edit invoice · ${_editingInvoice.number}`
@@ -14309,7 +14689,11 @@ function _seedInvoiceFromJob(jobId) {
   const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
   inv.mechanic = mechs[0] || b.mechanic || '';
   inv.mechanics = mechs;
+  // Carry BOTH halves of the payment state from the booking. Seeding only the
+  // status left amount_paid at 0, so a Partial payment recorded at checkout
+  // showed the full amount still outstanding.
   inv.payment_status = b.payment_status || 'Outstanding';
+  inv.amount_paid    = Number(b.amount_paid || 0);
   // Carry insurance snapshot onto the invoice so the printed copy can show it
   if (j.is_insurance) {
     inv.insurance = {
@@ -14343,6 +14727,7 @@ function _seedInvoiceFromJob(jobId) {
 }
 
 let _editingInvoice = null;
+let _invEditSnapshot = null;   // status + payment_status as they were on open
 
 function _invoiceFormHTML() {
   const inv = _editingInvoice;
@@ -14525,7 +14910,7 @@ async function saveInvoice() {
   const inv = _editingInvoice;
   inv.number          = document.getElementById('if-num').value.trim() || inv.number;
   inv.issue_date      = document.getElementById('if-date').value || todayStr();
-  inv.status          = document.getElementById('if-status').value;
+  const _formStatus   = document.getElementById('if-status').value;
   inv.customer.name   = document.getElementById('if-cname').value.trim();
   inv.customer.email  = document.getElementById('if-cemail').value.trim();
   inv.customer.phone  = document.getElementById('if-cphone').value.trim();
@@ -14534,13 +14919,29 @@ async function saveInvoice() {
   inv.service         = document.getElementById('if-service').value.trim();
   inv.mechanic        = document.getElementById('if-mech').value.trim();
   inv.tax_pct         = Number(document.getElementById('if-tax').value) || 0;
-  inv.payment_status  = document.getElementById('if-pay-status').value;
   inv.payment_method  = document.getElementById('if-pay-method').value.trim();
-  // Amount paid follows the payment status — Paid = full, Partial = whatever's in the field, Outstanding = 0
-  const total = _invoiceTotals(inv).roundOff;
-  if (inv.payment_status === 'Paid')      inv.amount_paid = total;
-  else if (inv.payment_status === 'Partial') inv.amount_paid = Math.min(total, Math.max(0, Number(document.getElementById('if-amount-paid')?.value || 0)));
-  else                                    inv.amount_paid = 0;
+
+  // ── Reconcile the two status fields ──────────────────────────────────────
+  // The form has a document status (Draft/Issued/Paid/Cancelled) AND a payment
+  // status (Outstanding/Paid/Partial), and "Paid" appears in both. Setting one
+  // to Paid and leaving the other alone used to save a self-contradicting
+  // invoice. Whichever field the user actually changed now wins, and the other
+  // is brought into line.
+  const _formPay  = document.getElementById('if-pay-status').value;
+  const _snap     = _invEditSnapshot || {};
+  const statusChanged = _formStatus !== (_snap.status || 'Draft');
+  const payChanged    = _formPay    !== (_snap.payment_status || 'Outstanding');
+  let _pay = _formPay;
+  if (statusChanged && !payChanged) {
+    // They touched the document status — mirror it into the payment status.
+    if (_formStatus === 'Paid')      _pay = 'Paid';
+    else if (_formPay === 'Paid')    _pay = 'Outstanding';   // moved off Paid
+  }
+  inv.status = _formStatus;
+  _normaliseInvoicePayment(inv, {
+    payment_status: _pay,
+    amount_paid:    Number(document.getElementById('if-amount-paid')?.value || 0)
+  });
   // Bank fields no longer per-invoice — they live on settings (one workshop account).
   // Strip any stale per-invoice copies so the printed invoice always uses settings.bank_*.
   for (const k of ['bank_name','bank_branch','bank_account','bank_ifsc','bank_swift','bank_terms']) delete inv[k];
@@ -15464,8 +15865,8 @@ function _buildEmailData(opts) {
     approval_link:   (function(){
                        const tok = j?.approval_token || inv?.approval_token || '';
                        try {
-                         if (tok && typeof currentUser !== 'undefined' && currentUser?.uid)
-                           return `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(currentUser.uid)}&t=${encodeURIComponent(tok)}`;
+                         if (tok && typeof currentUser !== 'undefined' && wsUid())
+                           return `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(tok)}`;
                        } catch(_) {}
                        return '';
                      })(),
@@ -16501,7 +16902,7 @@ function _fmtDurH(h) { return h == null ? '—' : (h < 48 ? `${Math.round(h)}h` 
 async function publishBranchSummary() {
   try {
     if (!currentUser || !fbDb) return;
-    await fbDb.collection('users').doc(currentUser.uid).set({
+    await fbDb.collection('users').doc(wsUid()).set({
       branch_summary: { ..._branchLiveSummary(), updated_at: nowStr() }
     }, { merge: true });
   } catch (e) { console.warn('[branch-summary]', e); }
