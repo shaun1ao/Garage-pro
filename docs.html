@@ -226,7 +226,14 @@
     <section id="job-cards" class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l1 3H8l1-3z"/><path d="M5 6h14v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6z"/></svg></span>Job cards</h2>
       <p class="desc">The accordion sections, status flow, and who does what at each stage.</p>
-      <p>The job card is the single record that follows a car from drop-off to hand-back. It's organised into collapsible sections — Estimate, Parts, Charges, Inspection, Photos, Insurance — with a jump-bar at the top so you can get to any of them without endless scrolling.</p>
+      <p>The job card is the single record that follows a car from drop-off to hand-back. It's organised into collapsible sections — Vehicle intake, Estimate, Parts, Charges, Inspection, Photos, Insurance — with a jump-bar at the top so you can get to any of them without endless scrolling.</p>
+      <h3>Vehicle intake &amp; the damage diagram</h3>
+      <p>Right after a job card is created, the Service Advisor runs a short intake check with the customer still standing there: what's in the car (spare wheel, tool kit, documents, floor mats…), the fuel level, and any pre-existing damage.</p>
+      <ul class="doc-list">
+        <li>Damage is marked by <b>tapping a car diagram</b> rather than typed as free text — each tap drops a numbered pin you label as a scratch, dent, crack, rust or missing part, with an optional note. Tap a pin again to edit or remove it.</li>
+        <li>The pins and the checklist are shown back read-only in the job card's <b>Vehicle intake</b> section, so nothing captured at drop-off gets buried.</li>
+        <li>The same diagram is shown to the customer on the estimate-approval page and the Track page — so damage is agreed <i>before</i> work starts, rather than argued about at handover.</li>
+      </ul>
       <h3>The status flow</h3>
       <div class="status-chain">
         <span class="st">Awaiting Assignment</span><span class="arrow">→</span>
@@ -242,6 +249,10 @@
         <span class="st">Delivered</span>
       </div>
       <p>Each transition notifies whoever needs to act next — the Floor Manager when a job needs a technician, the assigned mechanic the moment they're handed a car, Parts once it's inspected, the Service Advisor once QC passes. You very rarely need to go looking for what to do next; the notification finds you.</p>
+      <h3>Moving several cars at once</h3>
+      <p>When the same thing happens to a batch of cars — everything on the ramp passing QC, five jobs going out for wash — tick the checkbox on each row in the Job Cards list and set the new status once for all of them. Selection only ever covers rows you can currently see, so a filter or search can't sweep in a car you didn't mean to touch. Bulk moves skip the per-job staff notifications (twelve at once would just bury the team) but still push each car's new status to the customer's tracking page. Available to Service Advisors, Floor Managers and Owner/Manager.</p>
+      <h3>Printing a paper job card</h3>
+      <p>The <b>Print job card</b> button produces an A4 sheet built for the shop floor rather than a screenshot of the app: plate, customer and vehicle details, the numbered customer complaints, the intake checklist and damage diagram, then ruled blank space for the technician's own findings and three signature lines (technician, quality check, customer). Useful for workshops that still want paper on the windscreen, and for handing something physical to a customer.</p>
       <h3>Sending a WhatsApp update anytime</h3>
       <p>A Service Advisor can open the <b>WhatsApp update</b> button on any job card and send a pickup-time reminder, a "ready for pickup" message, the invoice, or a fully custom message — independent of the automatic status-based sends (see <a href="#notifications" style="color:var(--acc2)">Email &amp; WhatsApp updates</a>).</p>
     </section>
@@ -270,6 +281,7 @@
       </ul>
       <h3>Sending it to the customer</h3>
       <p>The Service Advisor sends a link the customer opens on their own phone — no login. They see each line item and can approve or reject it individually, then submit their decision. That comes straight back to the workshop: a full approval moves the job to <b>Estimate Approved</b>, a partial approval flags exactly which lines were rejected, and a full rejection routes the car back to the Floor Manager to reassemble and release without repair.</p>
+      <p>Every line shows its price <b>excluding GST, the GST amount, and the final inclusive price</b> — so the customer can see exactly what tax they're paying on each part and each labour line, not just one lump figure at the bottom. The total is GST-inclusive and says so. They can also download the whole quote as a printable PDF, and if damage was pinned at intake, the diagram appears on the same page.</p>
       <div class="doc-note">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
         <div>If an estimate gets edited again after it was already marked "ready for review," the Service Advisor is notified that it changed, so a revised quote never slips out unnoticed.</div>
@@ -288,6 +300,12 @@
         <li>Scan a part's barcode with your phone camera to look it up or add it to a job in one tap.</li>
         <li>Low-stock alerts email the workshop when an item runs low, so restocking doesn't happen after you've already run out.</li>
       </ul>
+      <h3>Reserved stock</h3>
+      <p>A part promised on an open estimate isn't sold yet, but it isn't really free either. Inventory shows both numbers — <code>3 reserved · 7 free</code> — counting every part sitting on a live estimate that hasn't been billed or rejected. When you're building an estimate from inventory, the picker warns you the same way (<code>2 free of 3 — 1 reserved elsewhere</code>), so you don't quote a part that's already spoken for on another car.</p>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Reservations are worked out live from the open jobs themselves rather than kept as a running counter, so they can't drift out of sync. A rejected estimate, a cancelled job or a delivered car releases its parts automatically — there's nothing to un-reserve by hand.</div>
+      </div>
       <div class="doc-note">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
         <div>Pricing a linked parts request automatically pushes that price onto the job's Estimate — no separate "pull it into the estimate" step needed.</div>
@@ -301,9 +319,15 @@
       <h3>Checkout</h3>
       <ul class="doc-list">
         <li>Record the payment as cash, card, UPI, bank transfer or cheque — or split it as a <b>partial payment</b> with a balance still outstanding.</li>
-        <li>If the pickup security code is switched on, checkout won't release the car until the correct 4-digit code is entered.</li>
-        <li>Checking out fires the "thank you" message — with the invoice and a feedback link attached — to the customer.</li>
+        <li>If <b>Pickup OTP</b> is switched on (Settings → Workflow extras), checkout won't release the car until the customer reads out the 4-digit code that was emailed to them. Owner/Manager can override with a blank field for walk-in edge cases.</li>
+        <li>Checking out fires the "thank you" message to the customer, containing a <b>link</b> to view and download the invoice plus a feedback link.</li>
       </ul>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Invoices are sent as a secure link rather than a file attachment — mail clients often show an attached HTML invoice as a downloadable web page rather than a document, and the link opens cleanly on a phone.</div>
+      </div>
+      <h3>Chasing an unpaid invoice</h3>
+      <p>Any invoice that isn't fully paid gets a <b>Chase</b> button. It asks for the <b>outstanding balance only</b> — a customer who has already part-paid is never asked for the full amount again — and sends the reminder by WhatsApp or email, with the invoice link included. Whichever channel has no contact details on file is greyed out rather than silently failing.</p>
     </section>
 
     <section id="notifications" class="section-card">
@@ -324,6 +348,14 @@
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
         <div>Only a Service Advisor (or Owner/Manager) can send customer-facing WhatsApp messages — other roles simply don't see the button.</div>
       </div>
+      <h3>Daily summaries to the workshop's own inbox</h3>
+      <p>The morning briefing and the end-of-day summary already appear as in-app notifications. Tick <b>Email me the daily summaries</b> (Settings → Workflow extras, or the last step of the setup wizard) and the same two digests are also emailed to the workshop address — so an owner who isn't on the floor gets the day's bookings, pending jobs and closing numbers without opening the app. The in-app versions carry on regardless.</p>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>This toggle is separate from customer email notifications — you can email yourself the summaries without switching on any customer-facing email, or vice versa.</div>
+      </div>
+      <h3>Internal chat</h3>
+      <p>New messages in the team chat pop up as a banner in the corner the same way notifications do, so a message doesn't sit unread just because nobody happened to be looking at the Messages tab. Tapping the banner opens the conversation; your own messages never banner back at you.</p>
     </section>
 
     <section id="tracking" class="section-card">
@@ -332,7 +364,8 @@
       <p>A public page (<code>garagepro.me/track.html</code>) where a customer picks their workshop, enters either their <b>plate number</b> or <b>booking number</b>, and sees the car's live status plus a short history of every status change with a relative "X minutes/hours ago" timestamp.</p>
       <ul class="doc-list">
         <li>Every email and WhatsApp update that includes a track/status link auto-fills the plate or booking number, so the customer lands straight on their car's status — no typing required.</li>
-        <li>If the pickup security code is on, the customer only sees it after verifying the phone number or email on their booking — the link alone never exposes it.</li>
+        <li>If damage was marked on the car at drop-off, the page shows that diagram read-only, so the customer can see exactly what was already noted when they handed the vehicle over.</li>
+        <li>The pickup OTP is never shown here. It's emailed straight to the customer — the tracking link on its own can't reveal it.</li>
       </ul>
       <p>Cuts the "is it done yet?" phone calls to close to zero.</p>
     </section>
@@ -341,6 +374,7 @@
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 10.5c.5 2 2.5 4 4.5 4.5"/><circle cx="12" cy="12" r="10"/></svg></span>Customer feedback</h2>
       <p class="desc">Where feedback links go out, and where responses land.</p>
       <p>Every "thank-you + invoice" message at checkout — email and WhatsApp — includes a one-time feedback link. The customer opens it (no login), picks a 1–5 star rating, optionally leaves a comment, and submits.</p>
+      <p>Responses land in the workshop's own <b>Feedback tab</b>: the average rating, how many reviews you've collected, a breakdown by star count, and every individual response with the customer's name, plate and comment — newest first, filterable by rating so you can go straight to the 1- and 2-star ones. Nothing is hidden or aggregated away; you see exactly what each customer wrote about their visit.</p>
       <div class="doc-note">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
         <div>Each link is single-use and tied to that one visit — a customer can't reuse it for a different repair, and it can only be submitted once.</div>
@@ -367,7 +401,15 @@
         <li>A branch's subscription inherits from its chain parent, so you manage billing once at the top instead of per-location.</li>
         <li>The parent account gets a <b>roll-up dashboard</b>: bays, revenue, and jobs across every branch in one view, so you can compare locations at a glance without logging into each one separately.</li>
         <li>Unlinking a branch is non-destructive — it keeps working independently, only the roll-up relationship is removed.</li>
+        <li>A Chain account supports up to <b>5 branches</b>. If you need more than that, email <a href="mailto:support@garagepro.me" style="color:var(--acc2)">support@garagepro.me</a> and we'll sort out an arrangement.</li>
       </ul>
+      <h3>HQ mode</h3>
+      <p>The moment a parent account has at least one branch registered to it, signing in to the app puts it in <b>HQ mode</b>: just two tabs, <b>Reports</b> and <b>Feedback</b>, both filterable by branch or shown as a combined total.</p>
+      <p>This is deliberate. Head office shouldn't be assigning technicians or checking cars out at a location it isn't standing in — that's the branch manager's job, and two people editing the same job card from different cities is how data gets mangled. HQ gets oversight; branches keep operations.</p>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>If you run a workshop from the parent account <i>and</i> want branch oversight, register the workshop as its own branch rather than operating out of the parent login — otherwise the parent flips to HQ mode and hides its day-to-day tabs.</div>
+      </div>
     </section>
 
     <section id="reports" class="section-card">
@@ -380,7 +422,7 @@
         <li>Inventory usage — what's moving, what's sitting</li>
         <li>Per-mechanic performance</li>
       </ul>
-      <p>A daily closing summary can also land in the owner's inbox each morning — bookings, pending jobs, and yesterday's numbers, without opening the app.</p>
+      <p>A morning briefing and an end-of-day closing summary — today's bookings, pending jobs, and the day's numbers — appear as in-app notifications, and can also be emailed to the workshop address by ticking <b>Email me the daily summaries</b> in Settings (see <a href="#notifications" style="color:var(--acc2)">Email &amp; WhatsApp updates</a>).</p>
     </section>
 
     <section id="troubleshooting" class="section-card">
@@ -394,8 +436,10 @@
       <p>WhatsApp only auto-prompts for Service Advisors (and Owner/Manager) at exactly the 4 moments described in <a href="#notifications" style="color:var(--acc2)">Email &amp; WhatsApp updates</a> — other roles won't see it, and that's by design, not a bug. Use the job card's "WhatsApp update" button to send one manually at any time.</p>
       <h3>A worker forgot their PIN</h3>
       <p>An Owner/Manager can look up or reset any worker's PIN from the Workers section of Settings.</p>
-      <h3>The pickup code isn't showing on the Track page</h3>
-      <p>It only reveals itself after the customer verifies the phone number or email on file for that booking — this is deliberate, so the link alone can never leak the code to someone who intercepts it.</p>
+      <h3>The customer says they never got the pickup OTP</h3>
+      <p>The code is emailed to them the moment the car is marked Ready for Pickup — it is deliberately never shown on the Track page, so the tracking link alone can't leak it. Check the customer has an email address on file (no email means no code is generated at all), that Settings → Customer Email Notifications is on, and ask them to check spam. You can re-send it with the <b>Resend code</b> button in the checkout window.</p>
+      <h3>I deleted something by mistake</h3>
+      <p>An <b>Undo</b> button appears in the corner for two minutes after deleting an appointment, customer, inventory item, invoice or parts request. After that window it's gone for good. Deleting a job card is not undoable — it also refunds parts to stock and removes attached photos.</p>
       <h3>Still stuck?</h3>
       <p>Reach out from the <a href="index.html#faq" style="color:var(--acc2)">FAQ section</a> on the main site.</p>
     </section>
