@@ -960,6 +960,176 @@ footer{background:linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px so
   .sec{padding:68px 0}
   .cta-box{padding:40px 22px;border-radius:22px}
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MARKETING OVERHAUL — premium-dark elevation layer (v2)
+   Appended last so it overrides the base marketing styles above without
+   touching the admin / billing / track / plan-engine rules that share this
+   stylesheet. Only marketing-surface classes are targeted here.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root{
+  --glow-acc:rgba(255,122,24,.16);
+  --glow-teal:rgba(32,227,178,.12);
+  --hair:rgba(255,255,255,.09);
+  --card:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.008));
+  --shad2:0 30px 70px -28px rgba(0,0,0,.85);
+}
+
+/* ── Global rhythm & focus ─────────────────────────────────────────────── */
+.sec{padding:112px 0}
+:where(a,button,select,input,.faq-q,.quiz-opt):focus-visible{
+  outline:2px solid var(--acc2);outline-offset:3px;border-radius:8px}
+
+/* ── Eyebrow: hairline mark + refined tracking ─────────────────────────── */
+.eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:12px;letter-spacing:.16em;color:var(--acc2);margin-bottom:16px}
+.eyebrow::before{content:"";width:22px;height:1px;background:linear-gradient(90deg,transparent,var(--acc))}
+.sec-head{max-width:680px;margin:0 auto 64px}
+.sec-head h2{font-size:clamp(30px,4vw,46px);letter-spacing:-.025em;line-height:1.05}
+.sec-head p{font-size:17px;color:var(--dim);line-height:1.6}
+.sec-head .eyebrow{margin-left:auto;margin-right:auto}
+
+/* ── Nav: quieter, tighter, floats on scroll ───────────────────────────── */
+header.nav{transition:background .3s,border-color .3s,box-shadow .3s}
+header.nav.scrolled{background:rgba(9,12,18,.72);box-shadow:0 1px 0 var(--hair),0 20px 40px -30px rgba(0,0,0,.8)}
+.nav-links a{font-size:14px;letter-spacing:.01em;position:relative}
+.nav-links a::after{content:"";position:absolute;left:0;right:100%;bottom:-4px;height:1.5px;background:var(--acc);transition:right .25s ease;border-radius:2px}
+.nav-links a:hover::after{right:0}
+.nav-cta .btn-primary{box-shadow:0 8px 24px -10px rgba(255,122,24,.6)}
+
+/* ── Buttons: crisper, calmer motion ───────────────────────────────────── */
+.btn{border-radius:11px;font-weight:600;letter-spacing:.01em;transition:transform .18s cubic-bezier(.2,.7,.2,1),box-shadow .18s,background .18s,border-color .18s}
+.btn-primary{background:linear-gradient(135deg,#ff8a2b,var(--acc2));box-shadow:0 12px 34px -12px rgba(255,122,24,.6),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 18px 44px -14px rgba(255,122,24,.7),inset 0 1px 0 rgba(255,255,255,.3)}
+.btn-ghost{background:rgba(255,255,255,.04);border-color:var(--hair);backdrop-filter:blur(4px)}
+.btn-ghost:hover{background:rgba(255,255,255,.07);border-color:var(--brd2);transform:translateY(-2px)}
+
+/* ── Hero: bigger, deeper, with credibility markers ────────────────────── */
+.hero{padding:118px 0 40px}
+.hero .badge{background:rgba(255,255,255,.04);border-color:var(--hair);color:var(--dim);font-weight:600;backdrop-filter:blur(4px)}
+.hero .badge .dot{background:var(--acc)}
+.hero h1{font-size:clamp(42px,6.2vw,76px);letter-spacing:-.035em;line-height:1.02;margin-bottom:24px}
+.hero .sub{font-size:clamp(16px,1.35vw,19.5px);max-width:640px;line-height:1.62}
+.hero-note{margin-top:4px}
+
+.hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:64px auto 0;max-width:940px;
+  background:var(--hair);border:1px solid var(--hair);border-radius:18px;overflow:hidden}
+.hstat{background:var(--bg);padding:24px 22px;text-align:center;transition:background .25s}
+.hstat:hover{background:var(--bg2)}
+.hstat-n{font-family:var(--fd);font-weight:800;font-size:23px;letter-spacing:-.02em;
+  background:linear-gradient(135deg,var(--acc2),var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:7px}
+.hstat-l{font-size:12.5px;color:var(--faint);line-height:1.45}
+
+/* ── Trust strip → quiet assurance bar ─────────────────────────────────── */
+.trust{padding:28px 0 4px}
+.trust-inner{gap:12px 30px;opacity:1}
+.trust-label{color:var(--dim)!important;font-weight:700!important;letter-spacing:.02em!important}
+.trust span{color:var(--faint);font-size:12.5px}
+.trust span svg{color:var(--teal2)}
+
+/* ── Feature pillars (the curated six) ─────────────────────────────────── */
+.pillar-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.pillar{position:relative;background:var(--card);border:1px solid var(--hair);border-radius:18px;padding:30px 28px;
+  transition:transform .28s cubic-bezier(.2,.7,.2,1),border-color .28s,box-shadow .28s,background .28s;overflow:hidden}
+.pillar::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;
+  background:linear-gradient(160deg,rgba(255,122,24,.35),transparent 40%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  opacity:0;transition:opacity .28s;pointer-events:none}
+.pillar:hover{transform:translateY(-6px);border-color:transparent;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.012));box-shadow:var(--shad2)}
+.pillar:hover::before{opacity:1}
+.pillar .ic{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;margin-bottom:20px;
+  background:rgba(255,122,24,.12);color:var(--acc2);border:1px solid rgba(255,122,24,.24)}
+.pillar:nth-child(3n+2) .ic{background:rgba(32,227,178,.12);color:var(--teal);border-color:rgba(32,227,178,.24)}
+.pillar:nth-child(3n) .ic{background:rgba(120,140,255,.12);color:#9db0ff;border-color:rgba(120,140,255,.24)}
+.pillar .ic svg{width:25px;height:25px}
+.pillar h3{font-size:19px;font-weight:700;letter-spacing:-.01em;margin-bottom:11px}
+.pillar>p{color:var(--dim);font-size:14.5px;line-height:1.62;margin-bottom:18px}
+.pillar-list{list-style:none;display:grid;gap:9px;padding-top:16px;border-top:1px solid var(--hair)}
+.pillar-list li{position:relative;padding-left:24px;font-size:13.5px;color:var(--txt);font-weight:500}
+.pillar-list li::before{content:"";position:absolute;left:0;top:6px;width:15px;height:8px;
+  border-left:2px solid var(--teal);border-bottom:2px solid var(--teal);transform:rotate(-45deg);border-radius:1px}
+
+/* ── Long-tail capability strip ────────────────────────────────────────── */
+.cap-block{margin-top:56px;padding:36px 32px;border-radius:20px;
+  background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.004));border:1px solid var(--hair)}
+.cap-block-head{text-align:center;font-family:var(--fd);font-weight:700;font-size:16px;color:var(--dim);margin-bottom:26px}
+.cap-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.cap{display:flex;align-items:center;gap:11px;padding:13px 16px;border-radius:11px;
+  background:rgba(255,255,255,.02);border:1px solid var(--hair);font-size:13.5px;color:var(--txt);font-weight:500;transition:border-color .2s,background .2s}
+.cap:hover{border-color:var(--brd2);background:rgba(255,255,255,.045)}
+.cap svg{width:17px;height:17px;flex:none;color:var(--teal2)}
+
+/* ── How it works: refined nodes ───────────────────────────────────────── */
+.how{background:linear-gradient(180deg,var(--bg2),var(--bg));border-color:var(--hair)}
+.step .num{background:var(--card);border:1px solid var(--brd2);box-shadow:var(--shad2)}
+.steps .line{opacity:.28}
+
+/* ── Preview browser: heavier frame, deeper shadow ─────────────────────── */
+.browser-wrap{border-radius:14px;border-color:var(--hair);box-shadow:0 50px 100px -40px rgba(0,0,0,.9),0 0 0 1px var(--hair)}
+#screens .browser-wrap{position:relative}
+#screens .browser-wrap::after{content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+
+/* ── Pricing polish ────────────────────────────────────────────────────── */
+.plans-grid{grid-template-columns:repeat(4,1fr);max-width:1180px;gap:16px}
+.plan-card{border-radius:18px;background:var(--card);border-color:var(--hair);padding:30px 24px}
+.plan-card:hover{border-color:var(--brd2);box-shadow:var(--shad2)}
+.plan-card.featured{background:linear-gradient(180deg,rgba(255,122,24,.08),rgba(255,255,255,.01))}
+.plan-tag{min-height:0;margin-bottom:20px}
+/* Divider between price and the feature list (replaces the old limits panel) */
+.plan-features{border-top:1px solid var(--hair);padding-top:20px;margin-top:22px}
+.plan-price .pp-amt{font-size:40px}
+@media(max-width:1080px){.plans-grid{grid-template-columns:repeat(2,1fr);max-width:640px}}
+@media(max-width:560px){.plans-grid{grid-template-columns:1fr;max-width:400px}}
+
+/* ── Testimonials ──────────────────────────────────────────────────────── */
+.quote{background:var(--card);border-color:var(--hair);border-radius:18px}
+.quote:hover{border-color:var(--brd2)}
+
+/* ── FAQ ───────────────────────────────────────────────────────────────── */
+.faq-item{background:var(--card);border-color:var(--hair);border-radius:14px}
+.faq-q{font-size:16px;font-weight:600}
+
+/* ── CTA band ──────────────────────────────────────────────────────────── */
+.cta-box{border-radius:28px;padding:64px 44px;border-color:var(--hair);
+  background:radial-gradient(120% 140% at 50% 0%,rgba(255,122,24,.14),transparent 60%),linear-gradient(180deg,var(--surf),var(--bg2))}
+.cta-box .eyebrow{justify-content:center;margin-bottom:14px}
+.cta-box h2{font-size:clamp(28px,3.6vw,44px);letter-spacing:-.025em}
+
+/* ── Footer ────────────────────────────────────────────────────────────── */
+footer{border-top:1px solid var(--hair)}
+.foot-mail{display:inline-flex;align-items:center;gap:8px;margin-top:18px;font-size:13.5px;color:var(--dim);font-weight:500;transition:color .2s}
+.foot-mail svg{width:16px;height:16px;color:var(--teal2)}
+.foot-mail:hover{color:var(--acc2)}
+.foot-col a{font-size:14px}
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+@media(max-width:960px){
+  .pillar-grid{grid-template-columns:repeat(2,1fr)}
+  .cap-grid{grid-template-columns:repeat(3,1fr)}
+  .hero-stats{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:720px){
+  .sec{padding:80px 0}
+  .hero{padding:88px 0 32px}
+  .hero-stats{margin-top:44px}
+  .cap-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:560px){
+  .pillar-grid{grid-template-columns:1fr}
+  .cap-grid{grid-template-columns:1fr}
+  .hero-stats{grid-template-columns:1fr 1fr}
+  .cta-box{padding:44px 22px}
+}
+/* Mobile nav: brand + one compact CTA + hamburger. Drop the ghost/secondary
+   button (Sign In stays reachable via the auth modal's login tab) so the top
+   bar never clips on a phone. */
+@media(max-width:560px){
+  .nav-cta{gap:6px}
+  .nav-cta .btn{padding:8px 13px!important;font-size:13px!important}
+  .nav-cta .btn-ghost{display:none}
+  .nav-cta .nav-user{display:none}
+}
 </style>
 </head>
 <body>
@@ -1159,6 +1329,12 @@ footer{background:linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px so
           </div>
           <div class="form-group"><label>Active on site?</label>
             <select id="pf-active"><option value="true">Yes</option><option value="false">No (hidden)</option></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Button behaviour</label>
+            <select id="pf-contact"><option value="false">Checkout / Get started</option><option value="true">Contact us (email link)</option></select>
+            <span style="font-size:12px;color:var(--faint)">"Contact us" replaces the checkout button with a mailto to support@garagepro.me — for enterprise / Chain tiers. Tip: set the price to 0 to show a "Free" tier.</span>
           </div>
         </div>
         <div class="form-actions">
@@ -1363,6 +1539,17 @@ footer{background:linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px so
           <button class="form-btn form-btn-cancel" onclick="sendTestEmail()">Send Test Email</button>
         </div>
         <div class="success-msg" id="emailMsg"></div>
+      </div>
+
+      <div class="settings-section" style="max-width:480px">
+        <h4>Support WhatsApp</h4>
+        <p style="color:var(--dim);font-size:13.5px;margin-bottom:16px;line-height:1.6">Shown as a "Chat on WhatsApp" link in the website footer. Leave blank to hide it. Include the country code — no spaces, brackets or +.</p>
+        <div class="form-group">
+          <label>WhatsApp number (with country code)</label>
+          <input id="supportWaInput" type="text" inputmode="tel" placeholder="919876543210" />
+        </div>
+        <button class="form-btn form-btn-save" onclick="saveSupportSettings()">Save WhatsApp Number</button>
+        <div class="success-msg" id="supportWaMsg"></div>
       </div>
 
     </div>
@@ -1781,20 +1968,42 @@ footer{background:linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px so
 <section class="hero">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <span class="badge reveal"><span class="dot"></span>Built for Indian garages &amp; workshop chains</span>
+      <span class="badge reveal"><span class="dot"></span>Workshop management, built for India</span>
       <h1 class="reveal d1">Every bay. Every job.<br><span class="grad">Under control.</span></h1>
-      <p class="sub reveal d2">Garage Pro replaces paper job cards and WhatsApp invoices with one fast web app — live bay status, GST-ready invoices, parts tracking and cloud sync across every device. No install, opens straight in your browser.</p>
+      <p class="sub reveal d2">Garage Pro runs your whole workshop from one screen — live bay status, digital job cards, parts and inventory, and GST-ready invoicing that syncs across every device in real time. No install. It opens straight in your browser.</p>
       <div class="hero-cta reveal d3">
         <button class="btn btn-primary" onclick="openAuth('win')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>Open the web app
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>Start free — no card
         </button>
-        <a href="#features" class="btn btn-ghost">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>See features
+        <a href="#screens" class="btn btn-ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>See it in action
         </a>
       </div>
       <div class="hero-note reveal d4">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-        Cloud-based, always in sync · No card needed to start · Set up in minutes
+        Free to start · Set up in minutes · Cancel anytime
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Credibility markers ─── -->
+  <div class="wrap">
+    <div class="hero-stats reveal d2">
+      <div class="hstat">
+        <div class="hstat-n">1 app</div>
+        <div class="hstat-l">Front desk, floor &amp; accounts — one place</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-n">GST&nbsp;+&nbsp;HSN</div>
+        <div class="hstat-l">Compliant invoices, out of the box</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-n">Real&#8209;time</div>
+        <div class="hstat-l">Cloud sync across every device</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-n">EN&nbsp;/&nbsp;हिन्दी</div>
+        <div class="hstat-l">Every worker, in their language</div>
       </div>
     </div>
   </div>
@@ -1803,10 +2012,11 @@ footer{background:linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px so
 <!-- ═══════════════ TRUST STRIP ═══════════════ -->
 <div class="trust">
   <div class="wrap trust-inner reveal">
+    <span class="trust-label">Everything a working garage needs</span>
     <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>GST &amp; HSN/SAC ready</span>
-    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Works on any device</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Runs on any device</span>
     <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Real-time cloud sync</span>
-    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>WhatsApp &amp; email updates built in</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>WhatsApp &amp; email built in</span>
   </div>
 </div>
 
@@ -1814,155 +2024,96 @@ footer{background:linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px so
 <section class="sec" id="features">
   <div class="wrap">
     <div class="sec-head reveal">
-      <div class="eyebrow">Features</div>
-      <h2>Everything your workshop runs on — in one app</h2>
-      <p>Stop juggling notebooks, spreadsheets and chat groups. Garage Pro keeps the whole floor, every job and every rupee in one place.</p>
+      <div class="eyebrow">The platform</div>
+      <h2>One system for the whole workshop</h2>
+      <p>Six things every garage juggles across notebooks, spreadsheets and chat groups — brought into a single, real-time app.</p>
     </div>
-    <div class="feat-grid">
-      <div class="feat reveal">
+    <div class="pillar-grid">
+
+      <div class="pillar reveal">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
-        <h3>Multi-bay live status</h3>
-        <p>See every bay at a glance — free, in service or ready for collection — and move jobs across the floor in real time.</p>
+        <h3>Live floor &amp; job cards</h3>
+        <p>Every bay at a glance — free, in service, ready for collection — with digital job cards carrying itemised parts, labour and multi-mechanic assignment. Move a car across the floor and everyone sees it instantly.</p>
+        <ul class="pillar-list">
+          <li>Multi-bay status board</li>
+          <li>Digital vehicle inspection</li>
+          <li>Tap-to-mark damage diagram</li>
+        </ul>
       </div>
-      <div class="feat reveal d1">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l1 3H8l1-3z"/><path d="M5 6h14v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6z"/><path d="M9 11h6M9 15h4"/></svg></div>
-        <h3>Job cards &amp; parts tracking</h3>
-        <p>Full digital job cards with itemised parts, labour and multi-mechanic assignment — nothing falls through the cracks.</p>
-      </div>
-      <div class="feat reveal d2">
+
+      <div class="pillar reveal d1">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M13 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></div>
-        <h3>Professional GST invoices</h3>
-        <p>PDF invoices with GST, HSN/SAC codes, discount breakdown and amount in words — print or email in one tap.</p>
+        <h3>GST invoicing &amp; payments</h3>
+        <p>Proper GST invoices with HSN/SAC codes, discount breakdown and amount in words — numbered sequentially so nothing duplicates. Take partial payments, chase the outstanding balance, mark paid in one tap.</p>
+        <ul class="pillar-list">
+          <li>18% GST &amp; HSN/SAC built in</li>
+          <li>Partial payments &amp; balance chasing</li>
+          <li>Print or share as a link</li>
+        </ul>
       </div>
-      <div class="feat reveal">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10a4 4 0 0 0-.8-7.9A6 6 0 0 0 6 5a4.5 4.5 0 0 0 .5 9H18z"/><path d="M12 12v6M9 15l3-3 3 3"/></svg></div>
-        <h3>Real-time cloud sync</h3>
-        <p>Firebase-powered sync keeps the front desk, workshop and your phone perfectly in step across every device.</p>
-      </div>
-      <div class="feat reveal d1">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg></div>
-        <h3>Web-first, works anywhere</h3>
-        <p>Open Garage Pro at <a href="app/" target="_blank" rel="noopener" style="color:var(--acc2);text-decoration:underline">garagepro.me/app</a> from any device on any network — no install required. Secure two-tier login: workshop account + worker PIN.</p>
-      </div>
-      <div class="feat reveal d2">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l7-5 7 5"/><circle cx="12" cy="14" r="3"/></svg></div>
-        <h3>Customer &amp; vehicle history</h3>
-        <p>Every customer, every vehicle, every past service in one searchable database — recall a car's full history instantly.</p>
-      </div>
-      <div class="feat reveal">
+
+      <div class="pillar reveal d2">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></div>
-        <h3>Inventory &amp; auto stock</h3>
-        <p>Track parts in real time with automatic stock deduction as they're billed — never oversell a part again.</p>
+        <h3>Parts &amp; inventory</h3>
+        <p>A dedicated request workflow — workers ask, parts prices and orders, everyone tracks status. Stock deducts automatically as parts are billed, and open estimates reserve stock so you never quote a part twice.</p>
+        <ul class="pillar-list">
+          <li>Automatic stock deduction</li>
+          <li>Reserved-stock awareness</li>
+          <li>Barcode &amp; QR scanning</li>
+        </ul>
       </div>
-      <div class="feat reveal d1">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/><path d="m9.5 9 1.5 1.5L14 7.5"/></svg></div>
-        <h3>Customer estimate approval</h3>
-        <p>Send a link the customer approves or rejects on their phone — line by line, no login. Their decision flows straight to your team, so no more chasing calls before starting work.</p>
-      </div>
-      <div class="feat reveal d2">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div>
-        <h3>Email notifications</h3>
-        <p>Auto emails when a job starts, a car's ready for collection or an invoice is attached — customers stay in the loop.</p>
-      </div>
-      <div class="feat reveal">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg></div>
-        <h3>Daily morning briefing</h3>
-        <p>A summary email lands in the manager's inbox each morning — bookings, pending jobs and yesterday's numbers.</p>
-      </div>
-      <div class="feat reveal d1">
+
+      <div class="pillar reveal">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 3.5a10 10 0 0 0-16.9 9.8L2 22l8.9-1.6a10 10 0 0 0 9.6-16.9z"/><path d="M8.5 9.5c.3 2.5 3.5 5.7 6 6 .8.1 1.5-.1 2-.6"/></svg></div>
-        <h3>WhatsApp customer updates</h3>
-        <p>Booking confirmed, pickup time set, thank-you with the invoice — sent straight from the workshop's own WhatsApp, one tap, no typing. Send an update whenever you want, not just on autopilot.</p>
+        <h3>Customer experience</h3>
+        <p>Customers approve estimates line by line on their own phone, watch their car's live status on a Track Repair page, and hear from you over WhatsApp and email — right up to the thank-you with the invoice attached.</p>
+        <ul class="pillar-list">
+          <li>Tap-to-approve estimates</li>
+          <li>Live "Track Repair" page</li>
+          <li>WhatsApp &amp; email updates</li>
+        </ul>
       </div>
 
-      <div class="feat reveal d2">
+      <div class="pillar reveal d1">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0-3-3.87"/></svg></div>
-        <h3>Role-based access</h3>
-        <p>Owner, Manager and Receptionist roles built in — plus custom roles. Pick which tabs each role can see. Owners stay protected from accidental demotion.</p>
+        <h3>Your team, in control</h3>
+        <p>Seven built-in roles plus custom ones, each seeing only the tabs they should. Workers sign in with a personal PIN on a shared shop-floor device, clock hours for payroll, and every action lands in a searchable audit log.</p>
+        <ul class="pillar-list">
+          <li>Role-based access &amp; worker PINs</li>
+          <li>Timesheets for payroll</li>
+          <li>Full audit trail</li>
+        </ul>
       </div>
 
-      <div class="feat reveal">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>
-        <h3>Photos &amp; job reports</h3>
-        <p>Attach before / after photos to any job card with captions. One-click PDF report — perfect for insurance claims and customer follow-ups.</p>
-      </div>
-
-      <div class="feat reveal d1">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
-        <h3>Worker timesheets</h3>
-        <p>Clock in / clock out per mechanic from any device. Search and filter hours for payroll — no separate punch-clock needed.</p>
-      </div>
-
-      <div class="feat reveal d2">
+      <div class="pillar reveal d2">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg></div>
-        <h3>Built-in reports</h3>
-        <p>Revenue trends, jobs completed, inventory usage and per-mechanic performance — with date-range filtering. See your shop's pulse at a glance.</p>
+        <h3>Reports &amp; multi-branch</h3>
+        <p>Revenue trends, turnaround times, inventory usage and per-mechanic performance over any date range — with a morning briefing and end-of-day summary by email. Run a chain? Roll every branch up into one dashboard.</p>
+        <ul class="pillar-list">
+          <li>Revenue &amp; performance analytics</li>
+          <li>Daily briefing &amp; closing summary</li>
+          <li>Chain HQ roll-up</li>
+        </ul>
       </div>
 
-      <div class="feat reveal">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-        <h3>Audit log</h3>
-        <p>Every meaningful action — bookings, check-ins, job status changes, invoices, settings — logged with timestamp and user. Search and export when you need to investigate.</p>
-      </div>
+    </div>
 
-      <div class="feat reveal d1">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg></div>
-        <h3>Customer "Track Repair" page</h3>
-        <p>Share a link and customers watch their car's live status — checked in, in service, ready for pickup — from any phone. Cuts the "is it done yet?" calls to zero.</p>
-      </div>
-
-      <div class="feat reveal d2">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14M7 5v14M11 5v14M15 5v14M19 5v14"/></svg></div>
-        <h3>Barcode scanning</h3>
-        <p>Scan a part's barcode to look it up or add it to a job in one tap, and scan vehicle QR codes to pull up a car instantly — right from your phone camera.</p>
-      </div>
-
-      <div class="feat reveal">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg></div>
-        <h3>Works in Hindi</h3>
-        <p>One tap switches the whole app between English and हिन्दी, so every worker on the floor reads it in the language they're comfortable with.</p>
-      </div>
-
-      <div class="feat reveal d1">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 3v18M3 8h5M3 16h5"/><path d="M13 8h5M13 12h5M13 16h5"/></svg></div>
-        <h3>Digital vehicle inspection</h3>
-        <p>A structured checklist per car — tyres, brakes, fluids and more — with a condition flag and photo on any item that needs attention. Nothing gets missed between drop-off and the estimate.</p>
-      </div>
-
-      <div class="feat reveal d2">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/></svg></div>
-        <h3>Insurance claim handling</h3>
-        <p>Track claim number, surveyor and approval status right on the job card, and generate an insurance-ready PDF report with photos in one click.</p>
-      </div>
-
-      <div class="feat reveal">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9M14 17H5M17 3l3 4-3 4M7 21l-3-4 3-4"/></svg></div>
-        <h3>Dedicated parts-request workflow</h3>
-        <p>Workers request what they need, the parts department prices and orders it, everyone sees real-time status — no more shouting across the workshop floor.</p>
-      </div>
-
-      <div class="feat reveal d1">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2z"/><path d="M8.5 10.5c.5 2 2.5 4 4.5 4.5"/></svg></div>
-        <h3>Customer feedback, one tap away</h3>
-        <p>A star rating and comment box lands in every checkout message — see what customers really think without ever having to ask.</p>
-      </div>
-
-      <div class="feat reveal d2">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg></div>
-        <h3>Secure pickup code</h3>
-        <p>An optional 4-digit code the customer only sees after verifying their phone or email — checkout won't release the car without it.</p>
-      </div>
-
-      <div class="feat reveal">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
-        <h3>Stuck-job alerts</h3>
-        <p>If a car sits too long at any stage — awaiting assignment, estimate sent, ready for pickup — the right person gets nudged automatically, so nothing quietly stalls.</p>
-      </div>
-
-      <div class="feat reveal d1">
-        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
-        <h3>Multi-branch roll-up dashboard</h3>
-        <p>Running more than one workshop? See every branch's bays, revenue and jobs from one chain-level dashboard, with each location still logging in on its own.</p>
+    <!-- ─── Long-tail capabilities, curated into one strip ─── -->
+    <div class="cap-block reveal">
+      <div class="cap-block-head">And the details that keep a busy shop honest</div>
+      <div class="cap-grid">
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/></svg><span>Insurance claim reports</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg><span>Pickup OTP at checkout</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>Stuck-job alerts</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2z"/><path d="M8.5 10.5c.5 2 2.5 4 4.5 4.5"/></svg><span>Customer feedback &amp; ratings</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><span>Before / after job photos</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l7-5 7 5"/><circle cx="12" cy="14" r="3"/></svg><span>Customer &amp; vehicle history</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg><span>English &amp; हिन्दी</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 12l2 2 4-4"/></svg><span>Printable job cards</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H5.2L4 18z"/></svg><span>Team chat, built in</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/><path d="M12 7v5l3 2"/></svg><span>Appointment scheduling</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Bulk status updates</span></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6a2 2 0 0 0 2 2h9M3 7l3-3h6l3 3M9 20l3-3-3-3"/></svg><span>120-second undo on delete</span></div>
       </div>
     </div>
   </div>
@@ -2215,12 +2366,16 @@ footer{background:linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px so
 <section class="sec cta-band">
   <div class="wrap">
     <div class="cta-box reveal">
-      <h2>Ready to get your floor under control?</h2>
-      <p>Open Garage Pro in your browser and run your next job card digitally — paper-free, GST-ready and synced everywhere.</p>
+      <div class="eyebrow" style="color:var(--acc2)">Get started</div>
+      <h2>Get your floor under control today</h2>
+      <p>Create your workshop, add your bays and take your first booking — most shops are running within the hour. Free to start, no card required.</p>
       <div class="hero-cta" style="justify-content:center">
         <button class="btn btn-primary" onclick="openAuth('win')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>Open the web app
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>Start free — no card
         </button>
+        <a href="#pricing" class="btn btn-ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>See pricing
+        </a>
       </div>
     </div>
   </div>
@@ -2234,13 +2389,15 @@ footer{background:linear-gradient(180deg,var(--bg2),var(--bg));border-top:1px so
       <div class="foot-brand">
         <a href="#top" class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>Garage&nbsp;Pro</a>
         <p>Every bay. Every job. Under control. Garage management software for independent garages and workshop chains across India.</p>
+        <a href="mailto:support@garagepro.me" class="foot-mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>support@garagepro.me</a>
+        <a id="footWa" href="#" target="_blank" rel="noopener" class="foot-mail" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 3.5a10 10 0 0 0-16.9 9.8L2 22l8.9-1.6a10 10 0 0 0 9.6-16.9z"/><path d="M8.5 9.5c.3 2.5 3.5 5.7 6 6 .8.1 1.5-.1 2-.6"/></svg>Chat on WhatsApp</a>
       </div>
       <div class="foot-col"><h4>Product</h4><a href="#features">Features</a><a href="#how">How it works</a><a href="#screens">Preview</a><a href="#pricing">Pricing</a></div>
-      <div class="foot-col"><h4>Company</h4><a href="#reviews">Reviews</a><a href="#faq">FAQ</a><a href="#">About</a><a href="#">Contact</a></div>
+      <div class="foot-col"><h4>Company</h4><a href="#reviews">Reviews</a><a href="#faq">FAQ</a><a href="mailto:support@garagepro.me">Contact</a></div>
       <div class="foot-col"><h4>App</h4><a href="app/" target="_blank" rel="noopener">Open the web app</a><a href="docs.html">Docs</a><a href="track.html">Track repair</a><a href="#faq">Requirements</a></div>
     </div>
     <div class="foot-bottom">
-      <p>© <span id="year"></span> Garage Pro. All rights reserved. Made in UAE 🇦🇪</p>
+      <p>© <span id="year"></span> Garage Pro. All rights reserved. · Built in the UAE, made for India.</p>
       <div class="foot-social">
         <a href="#" aria-label="X"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.5 8.6L23 22h-6.9l-5.4-7-6.2 7H1.4l8-9.1L1 2h7l4.9 6.5L18.9 2zm-2.4 18h1.9L7.6 4H5.6l10.9 16z"/></svg></a>
         <a href="#" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
@@ -2284,7 +2441,7 @@ const KEYS = {
   downloadName:'gp_downloadName', downloadVersion:'gp_downloadVersion',
   plans:'gp_plans', currency:'gp_currency', cycle:'gp_cycle',
   credsChanged:'gp_credsChanged', cloudFnUrl:'gp_cloudFnUrl',
-  demo:'gp_demo', email:'gp_email'
+  demo:'gp_demo', email:'gp_email', supportWa:'gp_supportWa'
 };
 
 // Fallback admin credentials. These work ONLY while S.credsChanged is false.
@@ -2321,55 +2478,76 @@ const COUNTRY_CURRENCY = {
 // Default plans — admin can edit / add more. Prices are in INR (base);
 // the website converts to local currency at display time. Yearly defaults
 // to 10x monthly (so customers save 2 months by paying annually).
+// Every field here is editable from the admin panel (Plans tab). "Free" is just
+// monthly:0 — set a price and it becomes a paid tier again. `contact:true` swaps
+// the checkout button for a "Contact us" mailto (used by the Chain tier).
 const DEFAULT_PLANS = [
   {
     id:'solo',
     name:'Solo',
-    tag:'For one-person workshops just getting started',
-    monthly: 999, weekly: 299, yearly: 9990,
+    tag:'For the one-bay operation',
+    monthly: 0, weekly: 0, yearly: 0,
     cycles: ['monthly','weekly','yearly'],
     maxBays: 1, maxWorkers: 2, maxBookings: 5,
     features: [
-      'Single-bay job cards',
+      '1 bay',
+      '2 workers',
       'GST invoices',
-      'Customer & vehicle history',
-      'Mobile/web access from any device'
+      'Cloud sync'
+    ],
+    featured: false, active: true
+  },
+  {
+    id:'standard',
+    name:'Standard',
+    tag:'Growing workshop',
+    monthly: 999, weekly: 299, yearly: 9990,
+    cycles: ['monthly','weekly','yearly'],
+    maxBays: 3, maxWorkers: 5, maxBookings: 10,
+    features: [
+      'Up to 3 bays',
+      '5 workers',
+      'Everything in Solo',
+      'WhatsApp updates'
     ],
     featured: false, active: true
   },
   {
     id:'workshop',
     name:'Workshop',
-    tag:'The full Garage Pro for busy independent garages',
-    monthly: 2999, weekly: 899, yearly: 29990,
+    tag:'Full-floor control',
+    monthly: 2499, weekly: 749, yearly: 24990,
     cycles: ['monthly','weekly','yearly'],
-    maxBays: 6, maxWorkers: 8, maxBookings: 20,
+    maxBays: 6, maxWorkers: 10, maxBookings: 20,
     features: [
-      'Up to 6 bays + multi-mechanic',
-      'Full GST + HSN/SAC invoices',
-      'Inventory with auto stock deduction',
-      'Real-time cloud sync',
-      'Daily morning briefing email'
+      'Up to 6 bays',
+      '10 workers',
+      'Everything in Standard',
+      'Reports & timesheets'
     ],
     featured: true, active: true
   },
   {
     id:'chain',
     name:'Chain',
-    tag:'Multi-branch and high-volume workshops',
-    monthly: 6999, weekly: 1999, yearly: 69990,
+    tag:'Multi-branch operation',
+    monthly: 4999, weekly: 1499, yearly: 49990,
     cycles: ['monthly','weekly','yearly'],
     maxBays: 999, maxWorkers: 999, maxBookings: 999,
     features: [
-      'Unlimited bays, workers and bookings',
+      'Unlimited bays & workers',
       'Up to 5 branches',
-      'HQ oversight: reports & feedback across every branch',
-      'Priority email/phone support',
-      'API access + priority onboarding'
+      'Everything in Workshop',
+      'Roll-up dashboard'
     ],
-    featured: false, active: true
+    featured: false, active: true, contact: true
   }
 ];
+// Bump this whenever DEFAULT_PLANS changes in a way that should REPLACE any
+// previously-saved catalogue (localStorage or Firestore siteConfig/plans).
+// A saved catalogue is only kept if its stored version matches; otherwise the
+// new defaults win once, then the admin can edit freely from there.
+const PLANS_VERSION = 2;
 
 // Tiny helpers for the cycle-aware price + duration logic
 function planCyclePrice(plan, cycle) {
@@ -2434,6 +2612,7 @@ let S = {
   currency: 'INR',                  // current display currency
   billingCycle: 'monthly',          // 'monthly' | 'weekly'
   detectedCountry: null,            // ISO-2 from IP lookup
+  supportWhatsApp: '',              // support WhatsApp number (admin-set) — shown in footer as a wa.me link
   credsChanged: false,              // true once admin updates username or password
   cloudFnUrl: '',                   // Base URL for Firebase Cloud Functions (e.g. https://us-central1-xxxx.cloudfunctions.net)
   demo: {
@@ -2485,13 +2664,19 @@ function load() {
     const lic = localStorage.getItem(KEYS.licenses); if(lic) S.licenses = JSON.parse(lic);
     const bil = localStorage.getItem(KEYS.billing); if(bil) S.billing = JSON.parse(bil);
     const fbc = localStorage.getItem(KEYS.fbConfig); if(fbc) S.fbConfig = JSON.parse(fbc);
-    const pls = localStorage.getItem(KEYS.plans); if(pls) S.plans = JSON.parse(pls);
+    // Only keep a saved catalogue if it matches the current PLANS_VERSION;
+    // otherwise the new DEFAULT_PLANS win (a one-time replace after an update).
+    const plsVer = parseInt(localStorage.getItem('gp_plansVersion') || '0', 10);
+    const pls = localStorage.getItem(KEYS.plans);
+    if (pls && plsVer >= PLANS_VERSION) S.plans = JSON.parse(pls);
+    else S.plans = DEFAULT_PLANS.map(p => ({ ...p }));
     const cur = localStorage.getItem(KEYS.currency); if(cur) S.currency = cur;
     const cyc = localStorage.getItem(KEYS.cycle); if(cyc) S.billingCycle = cyc;
     const cch = localStorage.getItem(KEYS.credsChanged); if(cch === 'true') S.credsChanged = true;
     const cfu = localStorage.getItem(KEYS.cloudFnUrl); if(cfu) S.cloudFnUrl = cfu;
     const dmo = localStorage.getItem(KEYS.demo); if(dmo) S.demo = Object.assign({}, S.demo, JSON.parse(dmo));
     const eml = localStorage.getItem(KEYS.email); if(eml) S.email = Object.assign({}, S.email, JSON.parse(eml));
+    const swa = localStorage.getItem(KEYS.supportWa); if(swa !== null) S.supportWhatsApp = swa;
     const sess = sessionStorage.getItem('gp_user'); if(sess) currentUser = JSON.parse(sess);
   } catch(e){}
 }
@@ -2510,12 +2695,14 @@ function save() {
     localStorage.setItem(KEYS.billing, JSON.stringify(S.billing));
     if (S.fbConfig) localStorage.setItem(KEYS.fbConfig, JSON.stringify(S.fbConfig));
     localStorage.setItem(KEYS.plans, JSON.stringify(S.plans));
+    localStorage.setItem('gp_plansVersion', String(PLANS_VERSION));
     localStorage.setItem(KEYS.currency, S.currency);
     localStorage.setItem(KEYS.cycle, S.billingCycle);
     localStorage.setItem(KEYS.credsChanged, S.credsChanged ? 'true' : 'false');
     localStorage.setItem(KEYS.cloudFnUrl, S.cloudFnUrl || '');
     localStorage.setItem(KEYS.demo, JSON.stringify(S.demo || {}));
     localStorage.setItem(KEYS.email, JSON.stringify(S.email || {}));
+    localStorage.setItem(KEYS.supportWa, S.supportWhatsApp || '');
   } catch(e){}
 }
 function logPurchase(action, user) {
@@ -3152,6 +3339,7 @@ function renderAdminPricing() {
   document.getElementById('priceInput').value = S.price;
   document.getElementById('priceNote').value = S.priceNote;
   document.getElementById('pricePreview').textContent = S.price || '₹—';
+  if (document.getElementById('supportWaInput')) document.getElementById('supportWaInput').value = S.supportWhatsApp || '';
   // (Installer / download settings removed — Garage Pro is web-only now.)
   // ── Demo settings ──
   const d = S.demo || {};
@@ -3183,6 +3371,27 @@ function savePrice() {
   syncSiteSettingsToFirebase();
   document.getElementById('priceMsg').textContent = 'Saved!';
   setTimeout(()=>{ document.getElementById('priceMsg').textContent=''; }, 2500);
+}
+// Support WhatsApp number (admin) → footer "Chat on WhatsApp" link.
+function saveSupportSettings() {
+  // Keep digits only; wa.me needs a bare international number (no +, spaces or symbols).
+  const raw = (document.getElementById('supportWaInput').value || '').replace(/[^\d]/g, '');
+  S.supportWhatsApp = raw;
+  document.getElementById('supportWaInput').value = raw;
+  save(); renderSupportContact();
+  syncSiteSettingsToFirebase();
+  const m = document.getElementById('supportWaMsg');
+  m.textContent = raw ? 'Saved!' : 'Cleared — WhatsApp link hidden.';
+  setTimeout(() => { m.textContent = ''; }, 2500);
+}
+// Show / hide the footer WhatsApp link based on the admin-set number.
+function renderSupportContact() {
+  const el = document.getElementById('footWa');
+  if (!el) return;
+  const num = (S.supportWhatsApp || '').replace(/[^\d]/g, '');
+  if (!num) { el.style.display = 'none'; el.removeAttribute('href'); return; }
+  el.style.display = '';
+  el.href = 'https://wa.me/' + num;
 }
 // ══════════════════════════════════════════
 //  PLAN RECOMMENDATION QUIZ
@@ -3239,7 +3448,7 @@ function recommendPlan() {
   const el = document.getElementById('quizResult');
   el.innerHTML = `
     <div class="quiz-result-head">Our recommendation</div>
-    <div class="quiz-result-name">${pick.name} <span style="color:var(--acc2);font-size:18px;font-weight:700">· ${formatPrice(price)}${cycleLabel}</span></div>
+    <div class="quiz-result-name">${pick.name} <span style="color:var(--acc2);font-size:18px;font-weight:700">· ${price === 0 ? 'Free' : formatPrice(price) + cycleLabel}</span></div>
     <div class="quiz-result-reason">${reasons.join(', ')}.</div>
     <button class="btn btn-primary" onclick="selectPlan('${pick.id}')">Choose ${pick.name}</button>
     <button class="btn btn-ghost" style="margin-left:8px" onclick="resetQuiz()">Pick different answers</button>
@@ -3321,15 +3530,32 @@ function renderComparisonTable() {
   if (active.length < 2) { wrap.style.display = 'none'; return; }
   wrap.style.display = '';
   const rows = comparisonRows();
+  // Only show rows that actually DIFFER between plans. A row where every plan
+  // gets the same tick tells the customer nothing and just makes the table huge,
+  // so we drop those — and any section header left with no rows under it.
+  const isTick = h => typeof h === 'string' && h.includes('compare-yes');
+  const kept = [];
+  rows.forEach(r => {
+    if (r.section) { kept.push(r); return; }
+    const cells = active.map(p => r.render(p));
+    if (cells.every(isTick)) return;          // every plan ticks it → not worth a row
+    kept.push({ label: r.label, cells });
+  });
+  const pruned = kept.filter((r, i) => {
+    if (!r.section) return true;
+    // keep the header only if a data row follows before the next section
+    const next = kept[i + 1];
+    return next && !next.section;
+  });
   let html = '<thead><tr><th>Feature</th>' + active.map(p =>
     `<th class="feat-th${p.featured ? ' featured' : ''}">${p.name}</th>`
   ).join('') + '</tr></thead><tbody>';
-  rows.forEach(r => {
+  pruned.forEach(r => {
     if (r.section) {
       html += `<tr class="compare-section-h"><td colspan="${active.length + 1}">${r.section}</td></tr>`;
       return;
     }
-    html += `<tr><td>${r.label}</td>${active.map(p => `<td class="feat-val">${r.render(p)}</td>`).join('')}</tr>`;
+    html += `<tr><td>${r.label}</td>${r.cells.map(v => `<td class="feat-val">${v}</td>`).join('')}</tr>`;
   });
   // Bottom CTA row — links straight to choosing each plan
   html += `<tr class="compare-cta-row"><td></td>${active.map(p =>
@@ -3516,7 +3742,13 @@ async function sendEmail(to, subject, body, html) {
       body: JSON.stringify({
         to, subject, html: html || body,
         fromName: S.email.fromName || 'Garage Pro',
-        replyTo:  S.email.replyTo  || ''
+        replyTo:  S.email.replyTo  || '',
+        // Selects the relay's SEND_FROM_ADDRESS_MARKETING address, keeping
+        // platform mail (welcome, license keys) on its own sender rather than
+        // the one the garage app uses for customer notifications. This is a
+        // key, not an address — the relay resolves it server-side so this
+        // static file can't be edited to send as an arbitrary address.
+        sender: 'marketing'
       })
     });
     const data = await res.json().catch(() => null);
@@ -3932,9 +4164,12 @@ function renderPlansGrid() {
   g.innerHTML = active.map(p => {
     const supportsCycle = planSupportsCycle(p, cycle);
     const price = planCyclePrice(p, cycle);
+    // A plan priced at 0 across every cycle is a free tier → shows "Free".
+    const isFree = !((p.monthly||0) || (p.weekly||0) || (p.yearly||0));
+    const isContact = !!p.contact;
     const monthlyEquiv = cycle === 'weekly' ? p.weekly * 4 : (cycle === 'yearly' ? Math.round(p.yearly / 12) : null);
-    let strikeHtml = '<div class="plan-price-strike">&nbsp;</div>';
-    if (cycle === 'weekly' && monthlyEquiv && monthlyEquiv > p.monthly) {
+    let strikeHtml = '';
+    if (!isFree && cycle === 'weekly' && monthlyEquiv && monthlyEquiv > p.monthly) {
       strikeHtml = `<div class="plan-price-strike">${formatPrice(monthlyEquiv)}/mo equivalent</div>`;
     } else if (cycle === 'yearly' && p.monthly) {
       const yearlyVsMonthly = p.monthly * 12;
@@ -3945,39 +4180,45 @@ function renderPlansGrid() {
         strikeHtml = `<div class="plan-price-strike" style="color:var(--teal);font-weight:700"><span style="text-decoration:none">💰 Save ${formatPrice(saved)}/yr — ${monthsFree} month${monthsFree === 1 ? '' : 's'} free</span></div>`;
       }
     }
-    const limits = `<div class="plan-limits">
-      <div class="plan-limit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><b>${p.maxBays >= 999 ? 'Unlimited' : p.maxBays}</b> bay${p.maxBays===1?'':'s'}</div>
-      <div class="plan-limit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg><b>${p.maxWorkers >= 999 ? 'Unlimited' : p.maxWorkers}</b> worker${p.maxWorkers===1?'':'s'}</div>
-      <div class="plan-limit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b>${p.maxBookings >= 999 ? 'Unlimited' : p.maxBookings}</b> concurrent bookings</div>
-    </div>`;
     const features = p.features.map(f => `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>${f}</li>`).join('');
     const isCurrent = sub && sub.plan === p.id && sub.billingCycle === cycle;
     const currentTag = isCurrent ? '<div class="plan-current-tag">● Your current plan</div>' : '';
 
-    // Cycle the plan doesn't support
+    // Price block — free tiers read "Free / to start"; unsupported cycles show —.
+    let priceHtml;
+    if (!supportsCycle)   priceHtml = `<span class="pp-amt">—</span><span class="pp-cycle">${cycleSuffix}</span>`;
+    else if (isFree)      priceHtml = `<span class="pp-amt">Free</span><span class="pp-cycle">to start</span>`;
+    else                  priceHtml = `<span class="pp-amt">${formatPrice(price)}</span><span class="pp-cycle">${cycleSuffix}</span>`;
+
+    // Button. Contact-sales plans get a mailto instead of checkout; free tiers say
+    // "Start free"; paid tiers "Get started". Existing subscribers still see the
+    // upgrade/downgrade preview so account management is unchanged.
     let btn;
     if (!supportsCycle) {
       btn = `<button class="btn btn-ghost" disabled style="opacity:.5;cursor:not-allowed">Not available ${cycle === 'yearly' ? 'yearly' : (cycle === 'weekly' ? 'weekly' : 'monthly')}</button>`;
     } else if (isCurrent) {
       btn = `<button class="btn btn-ghost" disabled style="opacity:.7;cursor:default">Current plan</button>`;
+    } else if (isContact) {
+      btn = `<a class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" style="justify-content:center" href="mailto:support@garagepro.me?subject=${encodeURIComponent('Garage Pro — ' + p.name + ' plan enquiry')}">Contact us</a>`;
     } else if (sub) {
-      // Compute upgrade vs downgrade preview
       const isUpgrade = price > currentPrice;
       const diff = Math.abs(price - currentPrice);
       const previewLabel = isUpgrade
         ? `Upgrade · +${formatPrice(diff)} now`
         : `Downgrade · ${formatPrice(price)} (starts at renewal)`;
       btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="selectPlan('${p.id}')">${previewLabel}</button>`;
+    } else if (isFree) {
+      // Free tier — go straight to sign-up / open the app, not the card checkout.
+      btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="openAuth('win')">Start free</button>`;
     } else {
-      btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="selectPlan('${p.id}')">Choose ${p.name}</button>`;
+      btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="selectPlan('${p.id}')">Get started</button>`;
     }
     return `<div class="plan-card ${p.featured ? 'featured' : ''}${supportsCycle ? '' : ' unsupported'}">
       ${currentTag}
       <div class="plan-name">${p.name}</div>
       <div class="plan-tag">${p.tag}</div>
       ${strikeHtml}
-      <div class="plan-price"><span class="pp-amt">${supportsCycle ? formatPrice(price) : '—'}</span><span class="pp-cycle">${cycleSuffix}</span></div>
-      ${limits}
+      <div class="plan-price">${priceHtml}</div>
       <ul class="plan-features">${features}</ul>
       ${btn}
     </div>`;
@@ -4010,11 +4251,13 @@ function renderAdminPlansGrid() {
     <h4>${p.name} ${p.featured ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,122,24,.16);color:var(--acc2);margin-left:6px;vertical-align:middle">FEATURED</span>' : ''} ${!p.active ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,107,107,.14);color:#ff6b6b;margin-left:6px;vertical-align:middle">HIDDEN</span>' : ''}</h4>
     <div class="pa-tag">${p.tag}</div>
     <div class="pa-price">
+      ${!(p.monthly || p.weekly || p.yearly) ? 'Free' : ''}
       ${p.monthly ? `${formatPrice(p.monthly, 'INR')} / mo` : ''}
       ${p.monthly && p.yearly ? ' · ' : ''}
       ${p.yearly  ? `${formatPrice(p.yearly,  'INR')} / yr` : ''}
       ${(p.monthly || p.yearly) && p.weekly ? ' · ' : ''}
       ${p.weekly  ? `${formatPrice(p.weekly,  'INR')} / wk` : ''}
+      ${p.contact ? ' <span style="color:var(--acc2)">· Contact us</span>' : ''}
     </div>
     <div class="pa-limits">
       <div><b>${p.maxBays >= 999 ? '∞' : p.maxBays}</b> bays · <b>${p.maxWorkers >= 999 ? '∞' : p.maxWorkers}</b> workers · <b>${p.maxBookings >= 999 ? '∞' : p.maxBookings}</b> concurrent bookings</div>
@@ -4045,6 +4288,7 @@ function openPlanForm(id) {
     document.getElementById('pf-features').value = p.features.join('\n');
     document.getElementById('pf-featured').value = p.featured ? 'true' : 'false';
     document.getElementById('pf-active').value   = p.active   ? 'true' : 'false';
+    document.getElementById('pf-contact').value  = p.contact  ? 'true' : 'false';
     const cycles = Array.isArray(p.cycles) ? p.cycles : ['monthly','yearly','weekly'];
     document.getElementById('pf-cycle-monthly').checked = cycles.includes('monthly');
     document.getElementById('pf-cycle-yearly').checked  = cycles.includes('yearly');
@@ -4054,6 +4298,7 @@ function openPlanForm(id) {
     ['planEditId','pf-name','pf-tag','pf-monthly','pf-weekly','pf-yearly','pf-bays','pf-workers','pf-bookings','pf-features'].forEach(i => document.getElementById(i).value = '');
     document.getElementById('pf-featured').value = 'false';
     document.getElementById('pf-active').value   = 'true';
+    document.getElementById('pf-contact').value  = 'false';
     document.getElementById('pf-cycle-monthly').checked = true;
     document.getElementById('pf-cycle-yearly').checked  = true;
     document.getElementById('pf-cycle-weekly').checked  = true;
@@ -4089,6 +4334,7 @@ function savePlan() {
   const featuresArr= document.getElementById('pf-features').value.split('\n').map(s => s.trim()).filter(Boolean);
   const featured = document.getElementById('pf-featured').value === 'true';
   const active   = document.getElementById('pf-active').value === 'true';
+  const contact  = document.getElementById('pf-contact').value === 'true';
   const cycles   = [];
   if (document.getElementById('pf-cycle-monthly').checked) cycles.push('monthly');
   if (document.getElementById('pf-cycle-yearly').checked)  cycles.push('yearly');
@@ -4102,7 +4348,7 @@ function savePlan() {
   if (editId) {
     const idx = S.plans.findIndex(p => p.id === editId);
     if (idx !== -1) {
-      S.plans[idx] = { ...S.plans[idx], name, tag, monthly, weekly, yearly, cycles, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active };
+      S.plans[idx] = { ...S.plans[idx], name, tag, monthly, weekly, yearly, cycles, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active, contact };
     }
   } else {
     const id = name.toLowerCase().replace(/[^a-z0-9]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || ('plan-' + Date.now().toString(36));
@@ -6737,6 +6983,7 @@ function syncSiteSettingsToFirebase() {
     detectedCountry: S.detectedCountry || null,
     demo: S.demo || {},
     email: S.email || {},
+    supportWhatsApp: S.supportWhatsApp || '',
     updatedAt: new Date().toISOString()
   }).catch(e => handleFirebaseError('Site settings write', e));
 }
@@ -6758,9 +7005,11 @@ function subscribeSiteSettingsFromFirebase() {
       if (d.priceNote       !== undefined && d.priceNote       !== S.priceNote)       { S.priceNote       = d.priceNote;       changed = true; }
       if (d.demo            !== undefined && JSON.stringify(d.demo)  !== JSON.stringify(S.demo))  { S.demo  = d.demo  || {}; changed = true; }
       if (d.email           !== undefined && JSON.stringify(d.email) !== JSON.stringify(S.email)) { S.email = d.email || {}; changed = true; }
+      if (d.supportWhatsApp !== undefined && d.supportWhatsApp !== S.supportWhatsApp) { S.supportWhatsApp = d.supportWhatsApp || ''; changed = true; }
       if (changed) {
         save();
         renderDemoCta();
+        renderSupportContact();
         // Re-render anywhere site settings show up
         if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
         if (document.getElementById('tab-pricing') && document.getElementById('tab-pricing').classList.contains('active')) renderAdminPricing();
@@ -6778,12 +7027,22 @@ function subscribePlansFromFirebase() {
     fbPlansUnsub = fbDb.collection('siteConfig').doc('plans').onSnapshot(doc => {
       if (!doc.exists) return;
       const d = doc.data() || {};
-      if (Array.isArray(d.plans) && d.plans.length) {
+      if (!Array.isArray(d.plans) || !d.plans.length) return;
+      if ((d.version || 0) >= PLANS_VERSION) {
+        // Firestore catalogue is current — adopt it.
         S.plans = d.plans;
         save();
         renderPlansGrid();
         renderComparisonTable();
         if (document.getElementById('tab-plans') && document.getElementById('tab-plans').classList.contains('active')) renderAdminPlansGrid();
+      } else {
+        // Stale catalogue in Firestore (pre-dates this update) — replace it once
+        // with the new defaults and push them back up so every device converges.
+        S.plans = DEFAULT_PLANS.map(p => ({ ...p }));
+        save();
+        renderPlansGrid();
+        renderComparisonTable();
+        syncPlansToFirebase();
       }
     }, err => console.warn('Plans listener error:', err));
   } catch(e) { console.warn('subscribe plans failed:', e); }
@@ -6792,6 +7051,7 @@ function syncPlansToFirebase() {
   if (!fbDb) return;
   fbDb.collection('siteConfig').doc('plans').set({
     plans: S.plans || [],
+    version: PLANS_VERSION,
     updatedAt: new Date().toISOString()
   }).catch(e => handleFirebaseError('Plans write', e));
 }
@@ -6891,6 +7151,7 @@ function bootstrapFirebaseCollections() {
     currency: S.currency || 'INR',
     billingCycle: S.billingCycle || 'monthly',
     detectedCountry: S.detectedCountry || null,
+    supportWhatsApp: S.supportWhatsApp || '',
     updatedAt: now
   }));
 
@@ -7062,6 +7323,7 @@ renderPlansGrid();
 renderComparisonTable();
 initQuiz();
 renderDemoCta();
+renderSupportContact();
 detectCountry().then(() => {
   populateCurrencySelect();
   renderPlansGrid();
