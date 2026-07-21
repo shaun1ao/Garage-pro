@@ -2613,7 +2613,7 @@ function enterApp() {
   _maybeFireMorningBriefing();
   // Workflow extras — stuck-job nudges + end-of-day digest (both wait a beat
   // for D to hydrate; both are toggleable in Settings → Workflow extras).
-  setTimeout(() => { _checkSlaAlerts(); _maybeFireClosingSummary(); publishBranchSummary(); }, 2500);
+  setTimeout(() => { _checkSlaAlerts(); _maybeFireClosingSummary(); publishBranchSummary(); _startSummaryScheduler(); }, 2500);
 }
 
 // Send a "today at a glance" notification on the first login of the day
@@ -2646,19 +2646,9 @@ function _maybeFireMorningBriefing() {
         message: `Good morning — ${todaysAppts.length} appointment${todaysAppts.length === 1 ? '' : 's'} today${earliest ? `, first at ${earliest}` : ''}: ${plates}${more}`,
         target: { role: 'service_advisor' }
       });
-      // Also email the workshop's own inbox (if the toggle is on). Keyed
-      // separately from the per-worker notify key so a second advisor signing
-      // in on the same device doesn't re-send the digest email.
-      const emKey = `gp_briefing_email:${wsUid()}:${today}`;
-      if (!localStorage.getItem(emKey)) {
-        localStorage.setItem(emKey, '1');
-        _sendGarageSummaryEmail(
-          `Morning briefing · ${todaysAppts.length} appointment${todaysAppts.length === 1 ? '' : 's'} today`,
-          'Good morning',
-          [`${todaysAppts.length} appointment${todaysAppts.length === 1 ? '' : 's'} scheduled today${earliest ? `, first at ${earliest}` : ''}.`,
-           `Vehicles: ${plates}${more}`]
-        ).catch(() => {});
-      }
+      // The EMAIL version is sent by the timezone-aware scheduler at the
+      // workshop's configured morning time (_maybeSendScheduledSummaries),
+      // not here on first login.
       localStorage.setItem(key, '1');
     } catch (e) { console.warn('[morning-briefing]', e); }
   }, 1200);
@@ -2778,19 +2768,163 @@ function _maybeFireClosingSummary() {
       message: `End of day: ${delivered.length} car${delivered.length === 1 ? '' : 's'} delivered · ${cur}${revenue.toLocaleString('en-IN')} billed · ${onFloor} still on the floor · ${pendingEst} estimate${pendingEst === 1 ? '' : 's'} awaiting customer approval.`,
       target: { roles: ['owner', 'manager'] }
     });
-    // Also email the workshop's own inbox (if the toggle is on). The `key`
-    // here is already workshop+date scoped (not per-worker), so this fires at
-    // most once/device/day alongside the notify.
-    _sendGarageSummaryEmail(
-      `End-of-day summary · ${cur}${revenue.toLocaleString('en-IN')} billed`,
-      'End of day',
-      [`${delivered.length} car${delivered.length === 1 ? '' : 's'} delivered today.`,
-       `${cur}${revenue.toLocaleString('en-IN')} billed.`,
-       `${onFloor} vehicle${onFloor === 1 ? '' : 's'} still on the floor.`,
-       `${pendingEst} estimate${pendingEst === 1 ? '' : 's'} awaiting customer approval.`]
-    ).catch(() => {});
+    // The EMAIL version is sent by the timezone-aware scheduler at the
+    // workshop's configured end-of-day time (_maybeSendScheduledSummaries).
     localStorage.setItem(key, '1');
   } catch (e) { console.warn('[closing-summary]', e); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  TIMEZONE-AWARE DAILY SUMMARY EMAILS
+//  The workshop picks a timezone + a morning time + an end-of-day time in
+//  Settings. Whenever a device is open, this checks the clock IN THAT TIMEZONE
+//  and emails the morning briefing / end-of-day summary once per local day at
+//  or after the set times. All timezone math is client-side (Intl) — no backend
+//  needed. (A send even when every device is off would need a server that can
+//  read the gated workshop data; see the note in Settings.)
+// ══════════════════════════════════════════════════════════════════════════
+// Common IANA zones, India first. The workshop's own zone is added if missing.
+const SUMMARY_TZ_OPTIONS = [
+  'Asia/Kolkata','Asia/Karachi','Asia/Dhaka','Asia/Kathmandu','Asia/Colombo',
+  'Asia/Dubai','Asia/Riyadh','Asia/Singapore','Asia/Bangkok','Asia/Jakarta',
+  'Asia/Manila','Asia/Hong_Kong','Asia/Shanghai','Asia/Tokyo','Asia/Seoul',
+  'Australia/Perth','Australia/Sydney','Pacific/Auckland',
+  'Europe/London','Europe/Paris','Europe/Berlin','Europe/Moscow',
+  'Africa/Nairobi','Africa/Johannesburg','Africa/Lagos',
+  'America/New_York','America/Chicago','America/Denver','America/Los_Angeles',
+  'America/Sao_Paulo','UTC'
+];
+function _deviceTz() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata'; }
+  catch (_) { return 'Asia/Kolkata'; }
+}
+// The zone the summaries run on — the admin's pick, else this device's zone.
+function _summaryTz() {
+  const t = (D.settings || {}).summary_tz;
+  return (t && typeof t === 'string') ? t : _deviceTz();
+}
+// A short "GMT+5:30"-style label for a zone, computed live so it's DST-correct.
+function _tzOffsetLabel(tz) {
+  try {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
+      .formatToParts(new Date()).find(x => x.type === 'timeZoneName');
+    return p ? p.value : '';
+  } catch (_) { return ''; }
+}
+function _tzSelectLabel(tz) {
+  const off = _tzOffsetLabel(tz);
+  return tz.replace(/_/g, ' ') + (off ? ` (${off})` : '');
+}
+// { dateKey:'YYYY-MM-DD', minutes:<mins since midnight> } in the given zone.
+function _tzNowParts(tz) {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  let hh = parseInt(p.hour, 10); if (hh === 24) hh = 0;
+  return { dateKey: `${p.year}-${p.month}-${p.day}`, minutes: hh * 60 + parseInt(p.minute, 10) };
+}
+function _hhmmToMin(str) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(str || '').trim());
+  if (!m) return null;
+  const h = Math.min(23, parseInt(m[1], 10)), mm = Math.min(59, parseInt(m[2], 10));
+  return h * 60 + mm;
+}
+function _minToHhmm(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+// Compose the morning email for a given workshop-local day (or null if nothing
+// meaningful to say). Mirrors the in-app briefing but scoped to the tz day.
+function _composeMorningSummary(dateKey) {
+  const appts = (D.bookings || []).filter(b =>
+    (b.date || '') === dateKey && (b.status || 'Scheduled') !== 'Cancelled');
+  const earliest = appts.map(b => b.time_start || b.time || '').filter(Boolean).sort()[0] || '';
+  const plates = appts.map(b => b.plate || '—').filter(Boolean).slice(0, 8).join(', ');
+  const more = appts.length > 8 ? ` +${appts.length - 8} more` : '';
+  const n = appts.length;
+  return {
+    subject: `Morning briefing · ${n} appointment${n === 1 ? '' : 's'} today`,
+    headline: 'Good morning',
+    lines: [
+      `${n} appointment${n === 1 ? '' : 's'} scheduled today${earliest ? `, first at ${earliest}` : ''}.`,
+      n ? `Vehicles: ${plates}${more}` : 'No appointments booked yet — walk-ins welcome.'
+    ]
+  };
+}
+// Compose the end-of-day email for a given workshop-local day.
+function _composeEodSummary(dateKey) {
+  const s = D.settings || {};
+  const cur = s.currency || '₹';
+  const delivered = (D.bookings || []).filter(b => (b.delivered_at || '').slice(0, 10) === dateKey);
+  let revenue = 0;
+  for (const inv of (D.invoices || [])) {
+    if (inv.status === 'Cancelled' || inv.is_estimate) continue;
+    if ((inv.updated_at || inv.created_at || '').slice(0, 10) !== dateKey) continue;
+    try { revenue += Number(_invoiceTotals(inv).roundOff || 0); } catch (_) {}
+  }
+  const activeJobBk = new Set((D.jobs || [])
+    .filter(j => !['Delivered', 'Cancelled', 'Returned to Advisor'].includes(j.status || ''))
+    .map(j => j.booking_id).filter(Boolean));
+  const onFloor = (D.bookings || []).filter(b => b.status !== 'Delivered' && b.status !== 'Cancelled'
+    && (b.status === 'Arrived' || activeJobBk.has(b.id))).length;
+  const pendingEst = (D.jobs || []).filter(j => j.status === 'Estimate Sent').length;
+  return {
+    subject: `End-of-day summary · ${cur}${revenue.toLocaleString('en-IN')} billed`,
+    headline: 'End of day',
+    lines: [
+      `${delivered.length} car${delivered.length === 1 ? '' : 's'} delivered today.`,
+      `${cur}${revenue.toLocaleString('en-IN')} billed.`,
+      `${onFloor} vehicle${onFloor === 1 ? '' : 's'} still on the floor.`,
+      `${pendingEst} estimate${pendingEst === 1 ? '' : 's'} awaiting customer approval.`
+    ]
+  };
+}
+
+// The heartbeat: called on entry and every 60s. Sends each email at most once
+// per workshop-local day, once its set time has passed in the workshop's zone.
+function _maybeSendScheduledSummaries() {
+  try {
+    if (!currentUser || !currentWorker) return;
+    const s = D.settings || {};
+    if (!s.summary_emails_enabled) return;   // this schedule only drives the EMAILS
+    const tz = _summaryTz();
+    const { dateKey, minutes } = _tzNowParts(tz);
+    const morningMin = _hhmmToMin(s.summary_morning_time || '08:00');
+    const eodMin     = _hhmmToMin(s.summary_eod_time     || '18:00');
+    if (morningMin == null || eodMin == null) return;
+
+    // Morning: between the morning time and the end-of-day time (so a device
+    // opened late-evening doesn't fire a "good morning" at 9pm).
+    if (minutes >= morningMin && minutes < eodMin) {
+      const k = `gp_sum_m:${wsUid()}:${dateKey}`;
+      if (!localStorage.getItem(k)) {
+        localStorage.setItem(k, '1');   // mark first so the 60s tick can't double-send
+        const m = _composeMorningSummary(dateKey);
+        _sendGarageSummaryEmail(m.subject, m.headline, m.lines).catch(() => {});
+      }
+    }
+    // End of day: at or after the set time, and only if that toggle is on.
+    if (minutes >= eodMin && s.closing_summary_enabled !== false) {
+      const k = `gp_sum_e:${wsUid()}:${dateKey}`;
+      if (!localStorage.getItem(k)) {
+        localStorage.setItem(k, '1');
+        const e = _composeEodSummary(dateKey);
+        _sendGarageSummaryEmail(e.subject, e.headline, e.lines).catch(() => {});
+      }
+    }
+  } catch (e) { console.warn('[summary-schedule]', e); }
+}
+window._maybeSendScheduledSummaries = _maybeSendScheduledSummaries;
+
+// Start the once-a-minute heartbeat (idempotent — safe across re-logins).
+function _startSummaryScheduler() {
+  _maybeSendScheduledSummaries();
+  if (!window._summarySchedTimer) {
+    window._summarySchedTimer = setInterval(_maybeSendScheduledSummaries, 60000);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -12835,14 +12969,41 @@ async function renderSettings(force = false) {
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:12px">
           <input type="checkbox" id="sf-wf-closing" ${s.closing_summary_enabled !== false ? 'checked' : ''} onchange="_wfToggle('closing_summary_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
           <span><b style="font-family:var(--fd);font-size:14px">Daily closing summary</b><br>
-          <span style="font-size:12.5px;color:var(--dim)">After 5 pm, the owner/manager gets a once-a-day digest: cars delivered, revenue billed, cars still on the floor, estimates awaiting approval.</span></span>
+          <span style="font-size:12.5px;color:var(--dim)">At your end-of-day time (set below), the owner/manager gets a once-a-day digest: cars delivered, revenue billed, cars still on the floor, estimates awaiting approval.</span></span>
         </label>
 
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin-bottom:12px">
           <input type="checkbox" id="sf-wf-summaryemail" ${s.summary_emails_enabled ? 'checked' : ''} onchange="_wfToggle('summary_emails_enabled', this.checked)" style="width:18px;height:18px;cursor:pointer;margin-top:1px" />
           <span><b style="font-family:var(--fd);font-size:14px">Email me the daily summaries</b><br>
-          <span style="font-size:12.5px;color:var(--dim)">Also send the morning briefing and end-of-day summary to your workshop's <b>Contact email</b>${s.email ? ` (${escapeHtml(s.email)})` : ''} — they still appear in the app as notifications.${s.email ? '' : ' <b style="color:var(--red)">Set a Contact email above in Workshop info first, otherwise there\'s nowhere to send them.</b>'}</span></span>
+          <span style="font-size:12.5px;color:var(--dim)">Send the morning briefing and end-of-day summary to your workshop's <b>Contact email</b>${s.email ? ` (${escapeHtml(s.email)})` : ''}, on the timezone and times below — they still appear in the app as notifications too.${s.email ? '' : ' <b style="color:var(--red)">Set a Contact email above in Workshop info first, otherwise there\'s nowhere to send them.</b>'}</span></span>
         </label>
+
+        <!-- Timezone + send-time schedule for the daily summary emails -->
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px">
+          <span style="width:18px;height:18px;display:grid;place-items:center;color:var(--acc2);flex:none;margin-top:1px"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+          <span style="flex:1">
+            <b style="font-family:var(--fd);font-size:14px">Summary schedule</b><br>
+            <span style="font-size:12.5px;color:var(--dim)">Your timezone decides when "morning" and "end of day" happen. Emails are sent by whichever device is open around those times.</span>
+            <div style="display:flex;flex-wrap:wrap;gap:14px 18px;margin-top:10px;align-items:flex-end">
+              <label style="display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:var(--faint);font-weight:600">Timezone
+                <select id="sf-wf-tz" onchange="_wfToggle('summary_tz', this.value)" style="min-width:230px;padding:8px 10px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px">
+                  ${(() => {
+                    const cur = s.summary_tz || _deviceTz();
+                    const opts = SUMMARY_TZ_OPTIONS.includes(cur) ? SUMMARY_TZ_OPTIONS : [cur, ...SUMMARY_TZ_OPTIONS];
+                    return opts.map(tz => `<option value="${escapeHtml(tz)}" ${tz === cur ? 'selected' : ''}>${escapeHtml(_tzSelectLabel(tz))}</option>`).join('');
+                  })()}
+                </select>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:var(--faint);font-weight:600">Morning briefing
+                <input type="time" id="sf-wf-morningtime" value="${escapeHtml(s.summary_morning_time || '08:00')}" onchange="_wfToggle('summary_morning_time', this.value || '08:00')" style="padding:7px 10px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" />
+              </label>
+              <label style="display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:var(--faint);font-weight:600">End of day
+                <input type="time" id="sf-wf-eodtime" value="${escapeHtml(s.summary_eod_time || '18:00')}" onchange="_wfToggle('summary_eod_time', this.value || '18:00')" style="padding:7px 10px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" />
+              </label>
+            </div>
+            <span style="display:block;font-size:11.5px;color:var(--faint);margin-top:8px">A device needs to be open around these times to send. A true send-when-closed schedule would need a paid server plan — ask support if you want that.</span>
+          </span>
+        </div>
 
         <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px">
           <span style="width:18px;height:18px;display:grid;place-items:center;color:var(--acc2);flex:none;margin-top:1px"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10M7 12h6M7 17h10"/></svg></span>
