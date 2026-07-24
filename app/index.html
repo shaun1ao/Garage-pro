@@ -523,6 +523,80 @@ input[list]{background:var(--bg2)}
   .gp-modal-foot{flex-direction:column-reverse}
   .gp-modal-foot .fbtn{width:100%}
 }
+
+/* ════════════════════════════════════════════════
+   iPad — TOUCH-ONLY tablet optimisation.
+
+   Every rule below is gated on `any-pointer:coarse`, i.e. a device
+   with a touch screen. This is deliberate: it means a *desktop* browser
+   resized down to an iPad-ish width keeps the normal fixed-sidebar
+   desktop layout (mouse users don't want big finger targets), and only
+   an actual iPad (or other touch tablet) gets this treatment — matching
+   "optimise for iPad only when the user is actually on an iPad".
+
+   The ≤760px phone rules above are width-only and unchanged; no iPad is
+   ≤760 in portrait (the smallest, iPad mini, is 768), so the two never
+   collide.
+   ════════════════════════════════════════════════ */
+
+/* ── iPad PORTRAIT & small touch tablets (768–1024, touch) ──
+   The desktop sidebar would eat ~240px of an already-narrow screen, so
+   turn it into the same slide-in drawer the phone layout uses and give
+   the content the full width. Tap targets grow for fingers. */
+@media (min-width:761px) and (max-width:1024px) and (any-pointer:coarse){
+  .sidebar{
+    position:fixed; top:0; left:0; bottom:0;
+    width:300px; max-width:82vw;
+    z-index:100;
+    transform:translateX(-100%);
+    transition:transform .25s ease;
+    border-right:1px solid var(--brd); border-bottom:0;
+    box-shadow:0 12px 40px rgba(0,0,0,.6);
+  }
+  .sidebar.open{transform:translateX(0)}
+  .app-body{flex-direction:column}
+  .content{padding:26px 30px; width:100%}
+  .hamburger{display:inline-flex}
+  .app-header{padding:0 16px; gap:10px}
+  /* Keep the global search, just don't let it hog the header row */
+  .app-header .header-spacer{flex:0 1 260px; max-width:260px; margin:0 10px}
+
+  /* Roomier drawer nav for finger taps */
+  .snav{padding:12px 14px; font-size:15px; gap:13px}
+  .snav svg{width:18px; height:18px}
+
+  /* 3 stat tiles per row sits well on an iPad portrait */
+  .stat-row{grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px}
+  .stat-card{padding:18px 20px}
+
+  /* Plenty of width for 2-col forms; only 3-col rows need collapsing */
+  .f-row.r3{grid-template-columns:1fr 1fr}
+
+  /* Comfortable centred modals (override the ≤960 max-width:560) */
+  .gp-modal{padding:40px 28px}
+  .gp-modal-box{max-width:680px}
+
+  /* Finger-friendly controls & denser-but-tappable table rows */
+  .add-btn{padding:12px 20px}
+  .fbtn{padding:12px 20px}
+  .mini-btn{padding:8px 13px; font-size:12px}
+  .list-tbl th, .list-tbl td{padding:14px 18px}
+
+  /* Wide data tables scroll horizontally rather than crush */
+  .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch}
+}
+
+/* ── iPad LANDSCAPE (1025–1366, touch) ──
+   There's room to keep the sidebar here, so just size things for
+   fingers — bigger nav rows, buttons and table padding. */
+@media (min-width:1025px) and (max-width:1366px) and (any-pointer:coarse){
+  .snav{padding:11px 13px; font-size:14.5px}
+  .snav svg{width:17px; height:17px}
+  .add-btn, .fbtn{padding:11px 19px}
+  .mini-btn{padding:7px 12px}
+  .list-tbl th, .list-tbl td{padding:14px 18px}
+  .content{padding:28px 34px}
+}
 </style>
 </head>
 <body>
