@@ -6986,6 +6986,8 @@ window.printJobCard = function(jobId) {
   .sig{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:26px}
   .sig div{border-top:1px solid #000;padding-top:4px;font-size:10.5px;color:#444;text-align:center}
   .muted{color:#666;font-size:11px}
+  .dmg-row{display:grid;grid-template-columns:1.1fr 1fr;gap:22px;align-items:start}
+  .dmg-row h3{margin-top:0}
   .dmg{display:flex;gap:14px;align-items:flex-start}
   .dmgmap{position:relative;width:96px;height:192px;flex:none;color:#999}
   .pin{position:absolute;transform:translate(-50%,-50%);width:15px;height:15px;border-radius:50%;background:#000;color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center}
@@ -7029,13 +7031,23 @@ window.printJobCard = function(jobId) {
   </div>
   <div style="margin-top:4px"><b style="font-size:11px">Fuel:</b> <span class="muted">${esc(intake.fuel_level || '—')}</span>${intake.notes ? ` &nbsp;·&nbsp; <b style="font-size:11px">Notes:</b> <span class="muted">${esc(intake.notes)}</span>` : ''}</div>
 
-  <h3>Existing damage at drop-off</h3>
-  ${pins.length ? `<div class="dmg">
-    <div class="dmgmap">${_intakeDamageSVG()}
-      ${pins.map((p, i) => `<div class="pin" style="left:${p.x}%;top:${p.y}%">${i + 1}</div>`).join('')}
+  <div class="dmg-row">
+    <div>
+      <h3>Existing damage at drop-off</h3>
+      ${pins.length ? `<div class="dmg">
+        <div class="dmgmap">${_intakeDamageSVG()}
+          ${pins.map((p, i) => `<div class="pin" style="left:${p.x}%;top:${p.y}%">${i + 1}</div>`).join('')}
+        </div>
+        <ol style="flex:1">${pins.map(p => `<li>${esc(p.type)}${p.note ? ' — ' + esc(p.note) : ''}</li>`).join('')}</ol>
+      </div>` : `<div class="muted">No damage marked at intake.</div>`}
     </div>
-    <ol style="flex:1">${pins.map(p => `<li>${esc(p.type)}${p.note ? ' — ' + esc(p.note) : ''}</li>`).join('')}</ol>
-  </div>` : `<div class="muted">No damage marked at intake.</div>`}
+    <div>
+      <h3>Extra findings</h3>
+      <div class="rule"></div><div class="rule"></div><div class="rule"></div><div class="rule"></div>
+      <h3>Parts required</h3>
+      <div class="rule"></div><div class="rule"></div><div class="rule"></div><div class="rule"></div>
+    </div>
+  </div>
   ` : `<h3>Vehicle intake</h3><div class="muted">No intake checklist recorded for this job.</div>`}
 
   <h3>Work carried out / parts fitted</h3>
