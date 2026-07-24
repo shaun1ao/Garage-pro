@@ -865,6 +865,10 @@ input[list]{background:var(--bg2)}
         <button class="pin-key" type="button" data-d="0">0</button>
         <button class="pin-key act" type="button" data-d="go" style="font-size:13px">Sign in</button>
       </div>
+      <label for="pinStay" style="display:flex;align-items:center;gap:9px;margin-top:12px;font-size:13.5px;color:var(--dim);cursor:pointer;user-select:none">
+        <input type="checkbox" id="pinStay" style="width:17px;height:17px;flex:none;accent-color:var(--acc);cursor:pointer" />
+        Stay signed in on this device
+      </label>
     </div>
 
     <div style="display:flex;gap:10px;margin-top:6px">
@@ -1834,7 +1838,7 @@ window._recheckSub = async function() {
     if (!userProfile || !userProfile.workshop_name) { showOnly('overlayNoWorkshop'); _prefillWizard(); return; }
     await loadAllData(true);
     if (!D.mechanics.length) { showOnly('overlayNoWorkshop'); _prefillWizard(); return; }
-    const cached = sessionStorage.getItem('gp_worker:' + wsUid());
+    const cached = _readWorkerCache();
     if (cached) { try { currentWorker = JSON.parse(cached); } catch(_) {} }
     if (!currentWorker || !D.mechanics.find(w => w.id === currentWorker.id)) { showPinpad(); return; }
     enterApp();
@@ -1862,6 +1866,33 @@ function showOnly(overlayId) {
   document.getElementById('appFrame').classList.toggle('ready', overlayId === null);
 }
 
+// ── Worker (PIN) session cache ─────────────────────────────────────────────
+// A worker's identity is cached per-device so they don't re-key their PIN on
+// every reload. Two lifetimes, chosen by the "Stay signed in" box:
+//   • sessionStorage — default; wiped when the browser/tab closes.
+//   • localStorage   — "Stay signed in"; survives a full browser restart
+//     (the workshop's Firebase session already persists, so on relaunch we can
+//     go straight into the app without the PIN screen).
+// Writing one store always clears the other, so unticking the box on a later
+// sign-in can't leave a stale persistent copy behind.
+function _workerCacheKey() { return 'gp_worker:' + (wsUid() || ''); }
+function _saveWorkerCache(w, persist) {
+  const key = _workerCacheKey();
+  const val = JSON.stringify({ id: w.id, name: w.name, role: w.role });
+  try {
+    if (persist) { localStorage.setItem(key, val); sessionStorage.removeItem(key); }
+    else         { sessionStorage.setItem(key, val); localStorage.removeItem(key); }
+  } catch (_) {}
+}
+function _readWorkerCache() {
+  const key = _workerCacheKey();
+  try { return localStorage.getItem(key) || sessionStorage.getItem(key); } catch (_) { return null; }
+}
+function _clearWorkerCache() {
+  const key = _workerCacheKey();
+  try { sessionStorage.removeItem(key); localStorage.removeItem(key); } catch (_) {}
+}
+
 // ══════════════════════════════════════════
 //  AUTH GATE  (Firebase Auth = workshop login)
 // ══════════════════════════════════════════
@@ -1870,7 +1901,7 @@ fbAuth.onAuthStateChanged(async (user) => {
     unsubscribeLive();   // drop any old live listeners before we lose the uid
     // Clear the cached worker BEFORE dropping the uid — otherwise wsUid() is
     // already null and this removes the key "gp_worker:" instead of the real one.
-    sessionStorage.removeItem('gp_worker:' + (wsUid() || ''));
+    _clearWorkerCache();
     currentUser = null; currentWorker = null;
     staffWorkshopUid = null; isStaffSession = false;
     showOnly('overlaySignin');
@@ -1935,7 +1966,8 @@ fbAuth.onAuthStateChanged(async (user) => {
       return;
     }
     // Workshop exists → check if a worker session is already cached on this device
-    const cached = sessionStorage.getItem('gp_worker:' + wsUid());
+    // (either a "stay signed in" persistent cache or a this-session-only one)
+    const cached = _readWorkerCache();
     if (cached) {
       try { currentWorker = JSON.parse(cached); }
       catch(e) { currentWorker = null; }
@@ -2612,9 +2644,8 @@ async function _pinTrySignIn() {
     return;
   }
   currentWorker = w;
-  sessionStorage.setItem('gp_worker:' + wsUid(), JSON.stringify({
-    id: w.id, name: w.name, role: w.role
-  }));
+  const persist = !!document.getElementById('pinStay')?.checked;
+  _saveWorkerCache(w, persist);
   enterApp();
 }
 window._pinTrySignIn = _pinTrySignIn;
@@ -2667,7 +2698,7 @@ document.addEventListener('keydown', (ev) => {
 // screen — there is no account list to return to.
 window.switchWorker = function() {
   closeAllDropdowns();
-  sessionStorage.removeItem('gp_worker:' + (wsUid() || ''));
+  _clearWorkerCache();
   currentWorker = null;
   showPinpad();
 };
@@ -3278,7 +3309,7 @@ window._signOutWorker = function() {
 window._signOutFully = async function() {
   closeModal();
   try {
-    sessionStorage.removeItem('gp_worker:' + (wsUid() || ''));
+    _clearWorkerCache();
     currentWorker = null;
     const wasStaff = isStaffSession;
     await fbAuth.signOut();
