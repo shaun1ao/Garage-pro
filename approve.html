@@ -26,6 +26,9 @@
   .item{border:1px solid var(--brd);border-radius:12px;padding:13px 14px;margin-bottom:10px;transition:border-color .15s,background .15s}
   .item.approved{border-color:rgba(32,227,178,.55);background:rgba(32,227,178,.07)}
   .item.rejected{border-color:rgba(255,107,107,.5);background:rgba(255,107,107,.07)}
+  .item.locked{border-color:rgba(32,227,178,.35);background:rgba(32,227,178,.05);opacity:.9}
+  .locked-tag{margin-top:9px;font-size:12px;font-weight:700;color:var(--teal);display:flex;align-items:center;gap:6px}
+  .revnote{background:rgba(32,227,178,.08);border:1px solid rgba(32,227,178,.3);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.5}
   .item-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
   .item-name{font-weight:700;font-size:14.5px}
   .item-meta{font-size:12px;color:var(--faint);margin-top:2px}
@@ -120,12 +123,25 @@ function brandHead(){
   </div>`;
 }
 
-function itemHTML(kind, i, name, meta, exclGst, gstAmt, amount){
+function itemHTML(kind, i, name, meta, exclGst, gstAmt, amount, state){
+  state = state || 'pending';
+  // Items dropped by the workshop when revising are no longer part of the quote.
+  if (state !== 'pending' && state !== 'approved') return '';
   const key = kind + ':' + i;
-  const st = decisions[key] || '';
   const gstLine = gstAmt > 0
     ? `<div class="item-meta">${meta ? esc(meta) + ' · ' : ''}${fmt(exclGst)} + GST ${fmt(gstAmt)}</div>`
     : (meta ? `<div class="item-meta">${esc(meta)}</div>` : '');
+  // Already approved in an earlier round → shown read-only for context, no buttons.
+  if (state === 'approved'){
+    return `<div class="item locked" id="it-${esc(key)}">
+      <div class="item-top">
+        <div><div class="item-name">${esc(name)}</div>${gstLine}</div>
+        <div class="amt">${fmt(amount)}</div>
+      </div>
+      <div class="locked-tag">✓ Already approved</div>
+    </div>`;
+  }
+  const st = decisions[key] || '';
   return `<div class="item ${st}" id="it-${esc(key)}">
     <div class="item-top">
       <div><div class="item-name">${esc(name)}</div>${gstLine}</div>
@@ -136,6 +152,21 @@ function itemHTML(kind, i, name, meta, exclGst, gstAmt, amount){
       <button class="btn reject ${st==='rejected'?'on':''}" onclick="setDec('${esc(key)}','rejected')">✕ Reject</button>
     </div>
   </div>`;
+}
+
+// Which items the customer is actually being asked about this round (state
+// 'pending'); locked-approved and dropped items are excluded from the gate.
+function askableCount(){
+  let n = 0;
+  (DATA.lines||[]).forEach(l => { if ((l.state||'pending')==='pending') n++; });
+  (DATA.charges||[]).forEach(c => { if ((c.state||'pending')==='pending') n++; });
+  return n;
+}
+function lockedApprovedCount(){
+  let n = 0;
+  (DATA.lines||[]).forEach(l => { if (l.state==='approved') n++; });
+  (DATA.charges||[]).forEach(c => { if (c.state==='approved') n++; });
+  return n;
 }
 
 // Top-down car outline — matches the workshop app's intake diagram so pins
@@ -179,6 +210,9 @@ function render(){
     ${brandHead()}
     <h1>Hi${DATA.cust_name ? ' ' + esc(DATA.cust_name) : ''}, please review your estimate</h1>
     <div class="lead">We've inspected your vehicle and prepared the estimate below. Approve the work you'd like us to carry out and reject anything you'd prefer to skip. Your choices are sent straight to our team.</div>
+    ${((DATA.revision||1) > 1 || lockedApprovedCount() > 0)
+      ? `<div class="revnote"><b>Updated estimate.</b> We've revised the item(s) you'd asked us to look at again — please review just those below. Anything marked <b style="color:var(--teal)">✓ Already approved</b> is confirmed and shown only for your reference.</div>`
+      : ''}
 
     <div class="vehcard">
       ${DATA.plate ? `<span class="plate">${esc(DATA.plate)}</span>` : ''}
@@ -197,8 +231,8 @@ function render(){
     </div>
 
     <div id="items">
-      ${lines.map((l,i) => itemHTML('line', i, l.name + (l.qty>1?' × '+l.qty:''), 'Part', l.amount_excl_gst ?? l.amount, l.gst_amount || 0, l.amount)).join('')}
-      ${charges.map((c,i) => itemHTML('charge', i, c.name, 'Service / labour', c.amount_excl_gst ?? c.amount, c.gst_amount || 0, c.amount)).join('')}
+      ${lines.map((l,i) => itemHTML('line', i, l.name + (l.qty>1?' × '+l.qty:''), 'Part', l.amount_excl_gst ?? l.amount, l.gst_amount || 0, l.amount, l.state)).join('')}
+      ${charges.map((c,i) => itemHTML('charge', i, c.name, 'Service / labour', c.amount_excl_gst ?? c.amount, c.gst_amount || 0, c.amount, c.state)).join('')}
     </div>
 
     <div class="totrow"><span style="color:var(--dim)">Estimate total</span><span class="amt">${fmt(DATA.total)}</span></div>
@@ -218,9 +252,11 @@ window.zoom = function(src){ document.getElementById('lbImg').src = src; documen
 // Blob URL so the tab has a real URL (no "about:blank" in the print footer);
 // the customer can print or save-as-PDF from the browser.
 window.viewQuote = function(){
+  // Dropped items are no longer part of the quote — leave them off the printout.
+  const inScope = x => (x.state || 'pending') !== 'dropped';
   const rows = []
-    .concat((DATA.lines||[]).map(l => ({ name: l.name + (l.qty>1 ? ' × '+l.qty : ''), kind:'Part', exclGst: l.amount_excl_gst ?? l.amount, gst: l.gst_amount || 0, amount:l.amount })))
-    .concat((DATA.charges||[]).map(c => ({ name: c.name, kind:'Service / labour', exclGst: c.amount_excl_gst ?? c.amount, gst: c.gst_amount || 0, amount:c.amount })));
+    .concat((DATA.lines||[]).filter(inScope).map(l => ({ name: l.name + (l.qty>1 ? ' × '+l.qty : ''), kind:'Part', exclGst: l.amount_excl_gst ?? l.amount, gst: l.gst_amount || 0, amount:l.amount })))
+    .concat((DATA.charges||[]).filter(inScope).map(c => ({ name: c.name, kind:'Service / labour', exclGst: c.amount_excl_gst ?? c.amount, gst: c.gst_amount || 0, amount:c.amount })));
   const today = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Estimate ${esc(DATA.invoice_no || '')} · ${esc(DATA.workshop_name || '')}</title>
   <style>
@@ -281,10 +317,11 @@ window.setDec = function(key, val){
 };
 
 window.bulk = function(val){
-  (DATA.lines||[]).forEach((_,i) => decisions['line:'+i] = val);
-  (DATA.charges||[]).forEach((_,i) => decisions['charge:'+i] = val);
+  // Only the items being asked about (pending) — locked-approved rows stay put.
+  (DATA.lines||[]).forEach((l,i) => { if ((l.state||'pending')==='pending') decisions['line:'+i] = val; });
+  (DATA.charges||[]).forEach((c,i) => { if ((c.state||'pending')==='pending') decisions['charge:'+i] = val; });
   document.querySelectorAll('.item').forEach(el => {
-    const key = el.id.slice(3);
+    if (el.classList.contains('locked')) return;
     el.classList.remove('approved','rejected'); el.classList.add(val);
     el.querySelectorAll('.btn').forEach(b => b.classList.remove('on'));
     el.querySelector('.btn.' + (val==='approved'?'approve':'reject')).classList.add('on');
@@ -292,28 +329,30 @@ window.bulk = function(val){
   refresh();
 };
 
-function totalItems(){ return (DATA.lines||[]).length + (DATA.charges||[]).length; }
 function decidedCount(){ return Object.keys(decisions).length; }
 
 function refresh(){
   const btn = document.getElementById('submitBtn');
   const hint = document.getElementById('hint');
   if (!btn) return;
-  const all = decidedCount() === totalItems() && totalItems() > 0;
+  const total = askableCount();
+  const all = decidedCount() === total && total > 0;
   btn.disabled = !all;
-  if (!all){ hint.textContent = `Choose Approve or Reject for every item (${decidedCount()}/${totalItems()} done).`; return; }
+  if (!all){ hint.textContent = `Choose Approve or Reject for every item (${decidedCount()}/${total} done).`; return; }
   const app = Object.values(decisions).filter(v=>v==='approved').length;
-  const rej = totalItems() - app;
-  btn.textContent = app === 0 ? 'Submit — reject all work' : (rej === 0 ? 'Approve all & submit' : `Submit — approve ${app}, reject ${rej}`);
-  hint.textContent = app === 0 ? 'You are rejecting the whole estimate.' : (rej ? 'Only the approved items will be carried out.' : 'All work approved.');
+  const rej = total - app;
+  const totalApp = app + lockedApprovedCount();   // include items approved in an earlier round
+  btn.textContent = totalApp === 0 ? 'Submit — reject all work' : (rej === 0 ? 'Approve all & submit' : `Submit — approve ${app}, reject ${rej}`);
+  hint.textContent = totalApp === 0 ? 'You are rejecting the whole estimate.' : (rej ? 'Only the approved items will be carried out.' : 'All work approved.');
 }
 
 window.submit = async function(){
   const btn = document.getElementById('submitBtn');
   btn.disabled = true; btn.textContent = 'Submitting…';
   const app = Object.values(decisions).filter(v=>v==='approved').length;
-  const rej = totalItems() - app;
-  const status = app === 0 ? 'rejected' : (rej === 0 ? 'approved' : 'partial');
+  const rej = askableCount() - app;
+  const totalApp = app + lockedApprovedCount();
+  const status = totalApp === 0 ? 'rejected' : (rej === 0 ? 'approved' : 'partial');
   try {
     await docRef.update({
       decisions,
