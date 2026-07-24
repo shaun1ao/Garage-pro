@@ -6818,9 +6818,9 @@ async function renderJobs(force = false) {
               : status === 'Estimate Sent'
                 ? `${_isSA ? `<button class="mini-btn warn" onclick="openClientDecision('${escapeHtml(j.id)}')" title="Capture client's per-line decision (approve / reject)">Client decision</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>` : ''}`
                 : (status === 'Estimate Approved' || status === 'Estimate Approved (Partial)')
-                  ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','In Progress')" title="Parts readied, technician notified">Start repair</button>`
+                  ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','In Progress')" title="Parts readied, technician notified">Start repair</button>${status === 'Estimate Approved (Partial)' && _isSA ? `<button class="mini-btn warn" onclick="reviseRejectedEstimate('${escapeHtml(j.id)}')" title="Revise the not-approved items and re-send a link, or drop them (no work)">Revise rejected</button>` : ''}`
                   : status === 'Rejected — Reassembly'
-                    ? `<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Returned to Advisor')" title="Car reassembled, no repair done — handed back to advisor">Mark reassembled</button>`
+                    ? `${_isSA ? `<button class="mini-btn warn" onclick="reviseRejectedEstimate('${escapeHtml(j.id)}')" title="Revise the estimate and send the customer a new link">Revise &amp; resend</button>` : ''}<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Returned to Advisor')" title="Car reassembled, no repair done — handed back to advisor">Mark reassembled</button>`
                     : status === 'In Progress'
                       ? `<button class="mini-btn good" onclick="markRepairDone('${escapeHtml(j.id)}')" title="Technician finished — hand over for QC">Repair done</button>`
                       : status === 'Awaiting QC'
@@ -7652,13 +7652,13 @@ function _cdTally(inv) {
       approved++;
       const taxable = Math.max(0, (l.unit_price * l.qty) * (1 - (l.disc_pct || 0) / 100));
       approvedValue += taxable * (1 + taxPct / 100);
-    } else if (ap === 'rejected') rejected++;
+    } else if (ap === 'rejected' || ap === 'dropped') rejected++;   // dropped = declined, no work
     else pending++;
   }
   for (const c of (inv.charges || [])) {
     const ap = c.approval || 'pending';
     if (ap === 'approved') { approved++; approvedValue += Number(c.amount || 0); }
-    else if (ap === 'rejected') rejected++;
+    else if (ap === 'rejected' || ap === 'dropped') rejected++;
     else pending++;
   }
   return { approved, rejected, pending, approvedValue: Math.round(approvedValue) };
@@ -7736,8 +7736,13 @@ async function _cdSubmit(invId) {
       job_id: j.id
     });
   }
+  // Mirror the per-line decisions onto any linked parts-request items so the
+  // Parts team sees Approved / Declined in Manage Requests — same as the
+  // customer-link flow (_applyCustomerDecision).
+  const partsChanged = _syncPartsRequestApprovals(j, inv);
   writes.push(wsSave('invoices', D.invoices));
   writes.push(wsSave('jobs', D.jobs));
+  if (partsChanged) writes.push(wsSave('parts_requests', D.parts_requests));
   closeModal();
   renderJobs();
   await Promise.all(writes);
@@ -8299,6 +8304,11 @@ async function _apprBuildDoc(j, inv, token) {
   // amount_excl_gst is the pre-tax price, gst_amount is what GST adds, and
   // amount (tax-inclusive) is what's actually billed — approve.html shows all
   // three per item instead of a single collapsed figure.
+  // Each line carries its decision `state` so approve.html knows what to do on a
+  // RE-SENT link: 'approved' items already cleared in a prior round render locked
+  // ("already approved", no buttons); 'dropped' items are excluded entirely; only
+  // 'pending' items get Approve/Reject buttons. On a first send everything is
+  // 'pending', so the customer is asked about all of it exactly as before.
   const lines = (inv.lines || []).map(l => {
     const taxable = Math.max(0, (Number(l.unit_price || 0) * Number(l.qty || 1)) * (1 - (Number(l.disc_pct || 0)) / 100));
     const exclGst = Math.round(taxable);
@@ -8307,12 +8317,13 @@ async function _apprBuildDoc(j, inv, token) {
       name: l.name || '', qty: Number(l.qty || 1),
       amount_excl_gst: exclGst,
       gst_amount: gstAmt,
-      amount: exclGst + gstAmt
+      amount: exclGst + gstAmt,
+      state: l.approval || 'pending'
     };
   });
   const charges = (inv.charges || []).map(c => {
     const amt = Math.round(Number(c.amount || 0));
-    return { name: c.name || '', amount_excl_gst: amt, gst_amount: 0, amount: amt };
+    return { name: c.name || '', amount_excl_gst: amt, gst_amount: 0, amount: amt, state: c.approval || 'pending' };
   });
 
   // Attach up to 3 job photos as small JPEG thumbnails. Downscaling keeps the
@@ -8335,8 +8346,11 @@ async function _apprBuildDoc(j, inv, token) {
 
   const b = (D.bookings || []).find(x => x.id === j.booking_id) || {};
   const s = D.settings || {};
-  const total    = lines.reduce((a, l) => a + l.amount, 0) + charges.reduce((a, c) => a + c.amount, 0);
-  const totalGst = lines.reduce((a, l) => a + l.gst_amount, 0) + charges.reduce((a, c) => a + c.gst_amount, 0);
+  // Dropped items are no longer part of the quote, so they don't count toward
+  // the total the customer sees on a re-sent link.
+  const inScope  = x => x.state !== 'dropped';
+  const total    = lines.filter(inScope).reduce((a, l) => a + l.amount, 0) + charges.filter(inScope).reduce((a, c) => a + c.amount, 0);
+  const totalGst = lines.filter(inScope).reduce((a, l) => a + l.gst_amount, 0) + charges.filter(inScope).reduce((a, c) => a + c.gst_amount, 0);
 
   return {
     token,
@@ -8360,6 +8374,9 @@ async function _apprBuildDoc(j, inv, token) {
     // already there BEFORE approving any work, not disputes them at pickup.
     damage_pins: Array.isArray(j.intake?.damage_pins) ? j.intake.damage_pins.map(p => ({ x: p.x, y: p.y, type: p.type || '', note: p.note || '' })) : [],
     status: 'pending',
+    // >1 once the advisor has revised rejected items and re-sent — approve.html
+    // switches to "updated estimate" copy and locks the already-approved lines.
+    revision: Number(inv.revision || 1),
     decisions: {},
     customer_note: '',
     created_at: nowStr(),
@@ -8397,6 +8414,23 @@ window.shareEstimateLink = async function(jobId) {
   inv.payment_status = 'Outstanding';
   inv.updated_at = nowStr();
 
+  const doc = await _publishApprovalDoc(j, inv);
+  if (!doc) return;
+  const shareWrites = [wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)];
+  if (isNewShareInv) shareWrites.push(wsSave('settings', [D.settings]));
+  await Promise.all(shareWrites);
+  publishTracking(j.booking_id);
+  audit('estimate-link-shared', `${inv.number || ''} · ${j.plate} · ${j.cust_name || '—'}`, { invoice_id: inv.id, job_id: jobId });
+  renderJobs();
+  _apprShareModal(doc);
+};
+
+// Mint a fresh token, build the approval doc from the invoice's CURRENT lines
+// (whatever their per-line approval state is) and publish it. Shared by the
+// first "Share link" send and the "revise rejected & resend" flow — the only
+// difference between them is how inv.lines were prepared beforehand. Returns
+// the published doc, or null (and alerts) on failure.
+async function _publishApprovalDoc(j, inv) {
   // Fresh token each publish so an old shared link can't be reused after
   // re-pricing. Store it on the invoice so we can find the response later.
   const token = _apprToken();
@@ -8413,22 +8447,157 @@ window.shareEstimateLink = async function(jobId) {
   j.estimate_sent_by_id = currentWorker?.id   || j.estimate_sent_by_id || '';
   j.updated_at = nowStr();
 
-  let doc;
   try {
-    doc = await _apprBuildDoc(j, inv, token);
+    const doc = await _apprBuildDoc(j, inv, token);
     await wsCol('estimate_approvals').doc(token).set(doc);
+    return doc;
   } catch (e) {
-    console.error('[shareEstimateLink]', e);
-    return customAlert('Could not publish the approval link: ' + (e.message || e), { title: 'Publish failed' });
+    console.error('[publishApprovalDoc]', e);
+    customAlert('Could not publish the approval link: ' + (e.message || e), { title: 'Publish failed' });
+    return null;
   }
-  const shareWrites = [wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)];
-  if (isNewShareInv) shareWrites.push(wsSave('settings', [D.settings]));
-  await Promise.all(shareWrites);
-  publishTracking(j.booking_id);
-  audit('estimate-link-shared', `${inv.number || ''} · ${j.plate} · ${j.cust_name || '—'}`, { invoice_id: inv.id, job_id: jobId });
-  renderJobs();
-  _apprShareModal(doc);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  REVISE REJECTED ITEMS & RE-SEND  (after a partial / full rejection)
+//  The customer rejected some (or all) items. The advisor can, per item,
+//  either adjust the price/qty and re-ask (a fresh link goes out covering ONLY
+//  the revised items — already-approved work is left untouched), or drop it
+//  (no work, not billed). If nothing is re-asked and nothing else was
+//  approved, the car is routed to reassembly & return.
+// ══════════════════════════════════════════════════════════════════════════
+let _reviseCtx = null;
+window.reviseRejectedEstimate = function(jobId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can revise estimates', 'bad');
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  const inv = (D.invoices || []).find(x => x.job_id === jobId);
+  if (!inv) return showToast('No estimate found for this job', 'bad');
+  const rej = [];
+  (inv.lines   || []).forEach((l, i) => { if (l.approval === 'rejected') rej.push({ kind: 'line',   idx: i, name: l.name, qty: Number(l.qty || 1), price: Number(l.unit_price || 0) }); });
+  (inv.charges || []).forEach((c, i) => { if (c.approval === 'rejected') rej.push({ kind: 'charge', idx: i, name: c.name, qty: 1,               price: Number(c.amount || 0) }); });
+  if (!rej.length) return customAlert('There are no rejected items to revise on this estimate.', { title: 'Nothing to revise' });
+  _reviseCtx = { jobId };
+  const cur = D.settings?.currency || '₹';
+  const rows = rej.map(r => `
+    <div class="rev-row" data-kind="${r.kind}" data-idx="${r.idx}" data-action="reask" style="border:1px solid var(--brd);border-radius:10px;padding:12px 13px;margin-bottom:9px;background:var(--bg2)">
+      <div style="font-weight:700;font-size:13.5px;color:var(--txt);margin-bottom:9px">${escapeHtml(r.name || '—')}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        ${r.kind === 'line' ? `<div class="f-grp" style="flex:0 0 68px"><label>Qty</label><input type="number" min="1" class="rev-qty" value="${r.qty}" /></div>` : ''}
+        <div class="f-grp" style="flex:1;min-width:110px"><label>${r.kind === 'line' ? 'Unit price' : 'Amount'} (${escapeHtml(cur)})</label><input type="number" min="0" class="rev-price" value="${r.price}" /></div>
+        <div style="display:flex;gap:6px;flex:0 0 auto">
+          <button type="button" class="mini-btn good rev-reask" onclick="_reviseSetAction(this,'reask')">⟳ Revise &amp; re-ask</button>
+          <button type="button" class="mini-btn rev-drop" onclick="_reviseSetAction(this,'drop')">✕ Drop</button>
+        </div>
+      </div>
+    </div>`).join('');
+  openModal({
+    title: `Revise rejected items · ${j.plate || '—'}`,
+    body: `
+      <div style="color:var(--dim);font-size:13px;line-height:1.55;margin-bottom:14px">
+        These are the items the customer did <b>not</b> approve. For each: adjust the price/qty and <b style="color:var(--teal)">re-ask</b> (a fresh link goes out covering only these — the already-approved work is untouched), or <b>drop</b> it (no work, not billed).
+      </div>
+      ${rows}
+      <div style="margin-top:8px;font-size:11.5px;color:var(--faint)">If you drop everything and nothing else was approved, the car is marked for reassembly &amp; return to the customer.</div>`,
+    saveLabel: 'Apply',
+    onSave: () => _reviseSubmit(_reviseCtx.jobId)
+  });
 };
+
+window._reviseSetAction = function(btn, action) {
+  const row = btn.closest('.rev-row');
+  if (!row) return;
+  row.dataset.action = action;
+  row.querySelector('.rev-reask')?.classList.toggle('good', action === 'reask');
+  row.querySelector('.rev-drop')?.classList.toggle('danger', action === 'drop');
+  row.querySelectorAll('.rev-qty, .rev-price').forEach(inp => { inp.disabled = (action === 'drop'); inp.style.opacity = action === 'drop' ? '.45' : '1'; });
+};
+
+// Keep the job's estimate SOURCE (est_parts / est_services — what plain "Share
+// link" rebuilds inv.lines from) in step with a revise edit, so a later re-share
+// doesn't resurrect a dropped item or lose an edited price. patch === null removes.
+function _reviseMirrorEst(j, kind, name, patch) {
+  const arr = kind === 'line' ? (j.est_parts || (j.est_parts = [])) : (j.est_services || (j.est_services = []));
+  const key = (name || '').trim().toLowerCase();
+  const i = arr.findIndex(x => (x.name || '').trim().toLowerCase() === key);
+  if (i < 0) return;
+  if (patch === null) { arr.splice(i, 1); return; }
+  if (patch.qty   != null) arr[i].qty   = patch.qty;
+  if (patch.price != null) arr[i].price = patch.price;
+}
+
+async function _reviseSubmit(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  const inv = j && (D.invoices || []).find(x => x.job_id === jobId);
+  if (!j || !inv) return;
+  let reaskCount = 0, dropCount = 0;
+  [...document.querySelectorAll('.rev-row')].forEach(row => {
+    const kind = row.dataset.kind, idx = Number(row.dataset.idx), action = row.dataset.action || 'reask';
+    const target = kind === 'line' ? (inv.lines || [])[idx] : (inv.charges || [])[idx];
+    if (!target) return;
+    if (action === 'drop') {
+      target.approval = 'dropped';
+      dropCount++;
+      _reviseMirrorEst(j, kind, target.name, null);
+    } else {
+      const price = Math.max(0, Number(row.querySelector('.rev-price')?.value || 0));
+      if (kind === 'line') {
+        const qty = Math.max(1, Number(row.querySelector('.rev-qty')?.value || 1));
+        target.qty = qty; target.unit_price = price;
+        _reviseMirrorEst(j, 'line', target.name, { qty, price });
+      } else {
+        target.amount = price;
+        _reviseMirrorEst(j, 'charge', target.name, { price });
+      }
+      target.approval = 'pending';
+      reaskCount++;
+    }
+  });
+  inv.updated_at = nowStr();
+  const partsChanged = _syncPartsRequestApprovals(j, inv);
+
+  if (reaskCount > 0) {
+    // Re-send a fresh link for the revised items only (locked-approved lines
+    // ride along read-only so the customer sees the full picture + total).
+    inv.revision = Number(inv.revision || 1) + 1;
+    if (inv.status === 'Cancelled') inv.status = 'Issued';
+    j.status = 'Estimate Sent';
+    j.updated_at = nowStr();
+    const doc = await _publishApprovalDoc(j, inv);
+    if (!doc) return;
+    const writes = [wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)];
+    if (partsChanged) writes.push(wsSave('parts_requests', D.parts_requests));
+    await Promise.all(writes);
+    publishTracking(j.booking_id);
+    audit('estimate-revised', `${inv.number || ''} · ${j.plate} — ${reaskCount} re-asked${dropCount ? `, ${dropCount} dropped` : ''}`, { invoice_id: inv.id, job_id: j.id });
+    renderJobs();
+    _apprShareModal(doc);   // reuses the modal to show the new share sheet
+    return;
+  }
+
+  // Nothing re-asked → every rejected item was dropped.
+  const counts = _cdTally(inv);
+  if (counts.approved > 0) {
+    j.status = 'Estimate Approved';   // proceed with the approved work
+    j.updated_at = nowStr();
+    showToast(`${dropCount} item(s) dropped · proceeding with approved work`, 'good');
+  } else {
+    j.status = 'Rejected — Reassembly';
+    j.visit_outcome = 'rejected';
+    j.updated_at = nowStr();
+    inv.status = 'Cancelled';
+    notify({ kind: 'client-rejected', message: `${j.plate} (${j.cust_name || '—'}) — no work approved. Reassemble the car and release without repair.`, target: { role: 'floor_manager' }, job_id: j.id });
+    showToast(`${j.plate} → no work · reassembling`, 'good');
+  }
+  const writes = [wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)];
+  if (partsChanged) writes.push(wsSave('parts_requests', D.parts_requests));
+  await Promise.all(writes);
+  publishTracking(j.booking_id);
+  audit('estimate-revised', `${inv.number || ''} · ${j.plate} — ${dropCount} dropped, none re-asked`, { invoice_id: inv.id, job_id: j.id });
+  closeModal();
+  renderJobs();
+}
+window._reviseSubmit = _reviseSubmit;
 
 function _apprShareModal(doc) {
   const url  = `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(doc.token)}`;
@@ -8509,8 +8678,21 @@ function _applyCustomerDecision(appr) {
   if (!inv || !j) { console.warn('[appr] no matching invoice/job for', appr.token); return; }
 
   const dec = appr.decisions || {};
-  (inv.lines   || []).forEach((l, i) => { l.approval = dec['line:' + i]   || 'rejected'; });
-  (inv.charges || []).forEach((c, i) => { c.approval = dec['charge:' + i] || 'rejected'; });
+  // Only overwrite lines the customer was actually asked about this round. On a
+  // REVISED re-send the link locks already-approved lines and drops removed ones
+  // (no decision comes back for those), so we must keep their existing state
+  // rather than default it to 'rejected'. A pending line with no decision (the
+  // customer somehow skipped it) still defaults to rejected, as before.
+  (inv.lines || []).forEach((l, i) => {
+    const d = dec['line:' + i];
+    if (d) l.approval = d;
+    else if (l.approval == null || l.approval === 'pending') l.approval = 'rejected';
+  });
+  (inv.charges || []).forEach((c, i) => {
+    const d = dec['charge:' + i];
+    if (d) c.approval = d;
+    else if (c.approval == null || c.approval === 'pending') c.approval = 'rejected';
+  });
 
   const counts = _cdTally(inv);
   inv.client_decision_at = nowStr();
@@ -12659,7 +12841,12 @@ function _syncPartsRequestApprovals(j, inv) {
       if (!it.customer_approval) continue; // never part of a sent estimate
       const line = (inv.lines || []).find(l => (l.name || '').trim().toLowerCase() === (it.name || '').trim().toLowerCase());
       if (!line) continue;
-      const newVal = line.approval === 'approved' ? 'Approved' : 'Declined';
+      // approved → Approved (cleared to order); pending → Pending (awaiting the
+      // customer's response on a freshly revised/re-sent estimate); everything
+      // else (rejected / dropped) → Declined.
+      const newVal = line.approval === 'approved' ? 'Approved'
+                   : line.approval === 'pending'  ? 'Pending'
+                   : 'Declined';
       if (it.customer_approval !== newVal) { it.customer_approval = newVal; changed = true; }
     }
   }
