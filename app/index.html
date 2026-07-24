@@ -9280,12 +9280,14 @@ window._toggleInsurance = function() {
 // Multi-select part picker: tap rows to select/deselect any number, then one
 // "Add N" click commits them all at once — no per-item Add round-trip.
 let _pickPartSelected = new Set();
+let _pickRestOpen = false;   // is the "rest of inventory" group expanded?
 window._jobAddPart = function() {
   if (!canApproveParts()) return showToast('Only Parts department / Owner can add Parts Used', 'bad');
   if (!(D.inventory || []).length) {
     return customAlert('Inventory is empty. Add items via the Inventory tab or fulfil a parts request first.', { title: 'No inventory items yet' });
   }
   _pickPartSelected = new Set();
+  _pickRestOpen = false;
   _openSubModal({
     title: 'Pick parts from inventory',
     bodyHtml: `
@@ -9295,6 +9297,18 @@ window._jobAddPart = function() {
       <div style="font-size:11.5px;color:var(--faint);margin-top:8px">Tap any number of parts, then "Add" below. Need a part that's not stocked? Send a parts request — it'll appear here once it's marked fulfilled.</div>`,
     footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button><button class="fbtn fbtn-save" id="_pickAddBtn" disabled onclick="_jobConfirmAddParts()">Add</button>`
   });
+  // Names of the parts that were requested/ordered for THIS job (non-cancelled
+  // items on any parts request linked to it). Received requests auto-stock into
+  // inventory matched by name, so these line up with inventory items — we use
+  // them to float this job's own parts to the top of the picker.
+  const jobOrderedNames = new Set(
+    (D.parts_requests || [])
+      .filter(r => r.job_id === _editingJob?.id)
+      .flatMap(r => (typeof _prRequestItems === 'function' ? _prRequestItems(r) : (r.items || [])))
+      .filter(it => (it.status || 'Pending') !== 'Cancelled')
+      .map(it => (it.name || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
   const render = (q) => {
     q = (q || '').toLowerCase().trim();
     const onJob = new Set((_editingJob?.parts || []).map(p => (p.name || '').toLowerCase()));
@@ -9307,8 +9321,8 @@ window._jobAddPart = function() {
       (i.barcode || '').toLowerCase().includes(q));
     list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     const wrap = document.getElementById('_pickList');
-    if (!list.length) { wrap.innerHTML = `<div style="padding:24px;color:var(--faint);text-align:center;font-size:13px">No inventory items match.</div>`; return; }
-    wrap.innerHTML = list.map(i => {
+
+    const rowHTML = (i) => {
       const id     = i.id || i.name;
       const onHand = Number(i.qty || 0);
       const low    = onHand <= Number(i.low_stock_threshold || 0);
@@ -9329,7 +9343,37 @@ window._jobAddPart = function() {
               <div style="font-size:11px;color:var(--faint)">${cur}${Number(i.sell_price || 0).toLocaleString('en-IN')}</div>
             </div>
         </button>`;
-    }).join('');
+    };
+    const secHead = (t) => `<div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:2px 0 8px">${t}</div>`;
+
+    const isOrdered = i => jobOrderedNames.has((i.name || '').trim().toLowerCase());
+    const ordered = list.filter(isOrdered);
+    const rest    = list.filter(i => !isOrdered(i));
+
+    if (!jobOrderedNames.size) {
+      // No parts were ordered for this job → plain flat inventory list (as before).
+      wrap.innerHTML = list.length ? list.map(rowHTML).join('')
+        : `<div style="padding:24px;color:var(--faint);text-align:center;font-size:13px">No inventory items match.</div>`;
+    } else {
+      const restOpen = _pickRestOpen || !!q;   // a search always reveals the rest
+      let html = '';
+      html += secHead('Ordered for this job');
+      html += ordered.length ? ordered.map(rowHTML).join('')
+        : `<div style="padding:12px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:12.5px;margin-bottom:8px">${q ? 'No ordered parts match your search.' : 'None of this job’s ordered parts are in stock yet.'}</div>`;
+      html += `<button type="button" id="_pickRestToggle"
+          style="display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px 12px;margin:12px 0 8px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--dim);cursor:pointer;font-family:var(--fb);font-weight:700;font-size:12.5px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="transition:transform .2s;transform:rotate(${restOpen ? 90 : 0}deg)"><path d="M9 18l6-6-6-6"/></svg>
+          Rest of inventory (${rest.length})
+        </button>`;
+      html += `<div id="_pickRestWrap" style="display:${restOpen ? 'block' : 'none'}">${
+        rest.length ? rest.map(rowHTML).join('')
+          : `<div style="padding:16px;color:var(--faint);text-align:center;font-size:12.5px">No other inventory items${q ? ' match' : ''}.</div>`
+      }</div>`;
+      wrap.innerHTML = html;
+      const toggle = document.getElementById('_pickRestToggle');
+      if (toggle) toggle.onclick = () => { _pickRestOpen = !_pickRestOpen; render(document.getElementById('_pickQ')?.value || ''); };
+    }
+
     wrap.querySelectorAll('[data-itemid]').forEach(btn => {
       btn.onclick = () => {
         if (btn.disabled) return;
@@ -13432,7 +13476,7 @@ async function renderSettings(force = false) {
         <!-- Per-event triggers -->
         <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
           <div style="font-family:var(--fd);font-weight:700;font-size:13.5px;margin-bottom:4px">When to send</div>
-          <div style="font-size:12px;color:var(--faint);margin-bottom:10px">Tick the events that should trigger an email. Untick to skip. You can always send manually from the booking row.</div>
+          <div style="font-size:12px;color:var(--faint);margin-bottom:10px">Tick the events that should trigger an email. Untick to skip. You can always send manually from the booking row. <b style="color:var(--dim)">Customers who chose “Email” or “Both” as their preferred contact get every update automatically, regardless of these ticks.</b></div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
             ${EMAIL_EVENTS.map(e => {
               const triggers = s.email_triggers || {};
@@ -16611,11 +16655,28 @@ function _emailTplReceipt(d, evt) {
 //
 // The actual send goes through the Vercel/Resend relay (see _smtpSend below).
 // ──────────────────────────────────────────────────────────────────────────
+// Does this customer prefer email (or both)? A customer who explicitly asked
+// for email updates should get them automatically — their preference is the
+// trigger, so we don't also require the workshop's per-event "When to send"
+// toggle to be on for them. (Customers with no email preference still respect
+// those toggles.) Mirrors _waResolveContact's preference lookup.
+function _custPrefersEmail(opts) {
+  const j = opts.job || null;
+  const b = opts.booking || (j ? (D.bookings || []).find(x => x.id === j.booking_id) : null) || null;
+  const inv = opts.invoice || null;
+  const name = b?.cust_name || j?.cust_name || inv?.customer?.name || '';
+  const cust = name ? (D.customers || []).find(c => (c.name || '').toLowerCase() === name.toLowerCase()) : null;
+  const pref = (b?.contact_pref || cust?.contact_pref || '').toLowerCase();
+  return pref === 'email' || pref === 'both';
+}
+
 async function sendCustomerNotification(eventId, opts = {}) {
   const s = D.settings || {};
   if (!s.email_enabled) return { ok: false, skipped: 'disabled' };
   const triggers = s.email_triggers || {};
-  if (!opts.force && triggers[eventId] === false) return { ok: false, skipped: 'event-off' };
+  // Per-event toggle gates the default case, but a customer who explicitly
+  // prefers email overrides it — they opted in, so every wired update auto-fires.
+  if (!opts.force && !_custPrefersEmail(opts) && triggers[eventId] === false) return { ok: false, skipped: 'event-off' };
   const evt = EMAIL_EVENTS.find(e => e.id === eventId);
   if (!evt) return { ok: false, skipped: 'unknown-event' };
   // Link to view/download the invoice instead of attaching it — a raw HTML
