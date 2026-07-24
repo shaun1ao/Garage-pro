@@ -6727,7 +6727,7 @@ async function renderJobs(force = false) {
                           : status === 'Client Informed' || status === 'Washing'
                             ? `<button class="mini-btn good" onclick="markWashReady('${escapeHtml(j.id)}')" title="Washing done — car ready for pickup">Ready for pickup</button>`
                             : status === 'Ready for Pickup'
-                              ? `${currentRole() === 'mechanic' ? '' : `<button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waReady('${escapeHtml(j.id)}')" title="Tell the customer their car is ready, on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>Notify</button>`}${_isSA ? `<button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>` : ''}`
+                              ? `${_isSA ? `<button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waReady('${escapeHtml(j.id)}')" title="Tell the customer their car is ready, on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>Notify</button>` : ''}${_isSA ? `<button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>` : ''}`
                               : status === 'Returned to Advisor'
                                 ? `${_isSA ? `<button class="mini-btn good" onclick="_billReturnedJob('${escapeHtml(j.id)}')" title="Bill an inspection / diagnostic charge if required, then invoice">Create invoice</button>` : ''}`
                                 : ''}`;
@@ -7900,6 +7900,7 @@ window.renderFeedback = renderFeedback;
 // Send an invoice summary on WhatsApp, with a tappable link to view/download
 // the actual invoice (see _publishInvoiceView — wa.me itself can't attach a PDF).
 window.waInvoice = async function(invId) {
+  if (!isServiceAdvisorRole()) return showToast('Only the Service Advisor can send WhatsApp updates', 'bad');
   const inv = (D.invoices || []).find(x => x.id === invId);
   if (!inv) return showToast('Invoice not found', 'bad');
   // Open the tab NOW, synchronously inside the click — the awaited Firestore
@@ -7929,11 +7930,11 @@ window.waInvoice = async function(invId) {
 // "Your car is ready for pickup" on WhatsApp (mentions that a pickup OTP was
 // emailed, if the toggle is on — never the code itself).
 window.waReady = function(jobId) {
-  // Defense-in-depth only — notifyWhatsAppForEvent() already never prompts a
-  // mechanic to reach this, and the dashboard button that calls it directly
-  // is hidden for mechanics too. Silent no-op (no lecturing dialog) covers
-  // any path we've missed instead of blocking with a message.
-  if (currentRole() === 'mechanic') return;
+  // Only the Service Advisor (and Owner/Manager) may send customer-facing
+  // WhatsApp updates. Everyone else is nudged via a "wa-pending" notification
+  // to the SA instead (see notifyWhatsAppForEvent). Silent no-op — the button
+  // is hidden for them anyway, this just backstops any missed path.
+  if (!isServiceAdvisorRole()) return;
   const j = (D.jobs || []).find(x => x.id === jobId);
   if (!j) return showToast('Job not found', 'bad');
   const name = (j.cust_name || 'there').split(' ')[0];
@@ -7954,7 +7955,7 @@ window.waReady = function(jobId) {
 // when the SA confirms the pickup date/time with the customer (see
 // _saveInformClient), before the wash/detail even starts.
 window.waPickupScheduled = function(jobId) {
-  if (currentRole() === 'mechanic') return;   // defense-in-depth, see waReady
+  if (!isServiceAdvisorRole()) return;   // SA-only, see waReady
   const j = (D.jobs || []).find(x => x.id === jobId);
   if (!j) return showToast('Job not found', 'bad');
   const name = (j.cust_name || 'there').split(' ')[0];
@@ -8018,6 +8019,7 @@ window.waBookingReminder = function(bookingId) {
 
 // Friendly payment reminder for an outstanding invoice.
 window.waPaymentReminder = function(invId) {
+  if (!isServiceAdvisorRole()) return showToast('Only the Service Advisor can send WhatsApp updates', 'bad');
   const inv = (D.invoices || []).find(x => x.id === invId);
   if (!inv) return showToast('Invoice not found', 'bad');
   const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
@@ -8090,40 +8092,97 @@ function _waResolveContact(opts) {
 // at every status-change trigger point. No-ops quietly (same spirit as
 // sendCustomerNotification) when the feature's off, the customer prefers
 // email-only, or there's no phone number on file.
+// Human label for the SA-facing "please send this" notification.
+const WA_EVENT_LABEL = {
+  ready_for_pickup: 'ready for pickup',
+  invoice_ready:    'invoice + thank-you',
+  pickup_time_set:  'pickup time confirmed',
+  booking_confirmed:'booking confirmed',
+  thank_you:        'thank-you'
+};
+
 function notifyWhatsAppForEvent(eventId, opts = {}) {
   try {
     if (D.settings?.whatsapp_updates_enabled === false) return;
-    // Sending customer-facing WhatsApp updates is the Service Advisor's job
-    // (same boundary as the dashboard's "Notify" button, which is hidden for
-    // mechanics). Bail silently here BEFORE prompting — a mechanic finishing
-    // their own step (e.g. marking a job Ready for Pickup) would otherwise get
-    // asked "Send a WhatsApp update?", say yes, and then hit a wall telling
-    // them it's not their job. The SA already gets an in-app notify() for
-    // every one of these transitions and can send it themselves from there.
-    if (currentRole() === 'mechanic') return;
     const { job: j, booking: b, invoice: inv, pref, phone } = _waResolveContact(opts);
     if (pref !== 'whatsapp' && pref !== 'both') return;
     if (!phone) return;
+
+    const custName = j?.cust_name || b?.cust_name || inv?.customer?.name || 'the customer';
+    const plate    = j?.plate || b?.plate || inv?.vehicle?.plate || '';
+    const canSend  = isServiceAdvisorRole();
+
+    // For the two simple text events we build the message once, now, while all
+    // the context is fresh, and stash it on the notification so it can be sent
+    // later verbatim. The richer events delegate to their bespoke senders
+    // (waReady / waInvoice / waPickupScheduled) by id at send time.
+    let stashMsg = '';
+    if (eventId === 'booking_confirmed' || eventId === 'thank_you') {
+      const textFn = WA_EVENT_TEXT[eventId];
+      if (!textFn) return;
+      const d = _buildEmailData({ event: eventId, job: j, booking: b, invoice: inv, to: opts.to, notes: opts.notes, feedback_link: opts.feedback_link });
+      stashMsg = textFn(d);
+    }
+
+    // Always leave the Service Advisor a "send this on WhatsApp" notification so
+    // whoever's on the desk can fire it off from the bell — even when the person
+    // who triggered the transition (a mechanic marking a job Ready) can't send
+    // it themselves. The SA/Owner/Manager see it via the service_advisor target.
+    const label = WA_EVENT_LABEL[eventId] || 'update';
+    notify({
+      kind: 'wa-pending',
+      message: `WhatsApp ${label} → ${custName}${plate ? ' (' + plate + ')' : ''}`,
+      target: { role: 'service_advisor' },
+      job_id: j?.id || '',
+      booking_id: b?.id || '',
+      meta: { wa_event: eventId, invoice_id: inv?.id || '', wa_phone: phone, wa_message: stashMsg }
+    });
+
+    // If the current user IS the Service Advisor, keep the old convenience:
+    // pop the inline prompt so they can send in one tap right now. Non-SA users
+    // just get the notification queued for the SA above.
+    if (!canSend) return;
     if (eventId === 'ready_for_pickup' && j) {
-      return _showWaPrompt(`Send a "ready for pickup" WhatsApp update to ${j.cust_name || b?.cust_name || 'the customer'}?`, () => waReady(j.id));
+      return _showWaPrompt(`Send a "ready for pickup" WhatsApp update to ${custName}?`, () => waReady(j.id));
     }
     if (eventId === 'invoice_ready' && inv) {
-      return _showWaPrompt(`Send the invoice to ${inv.customer?.name || 'the customer'} on WhatsApp?`, () => waInvoice(inv.id));
+      return _showWaPrompt(`Send the invoice to ${custName} on WhatsApp?`, () => waInvoice(inv.id));
     }
     if (eventId === 'pickup_time_set' && j) {
-      return _showWaPrompt(`Send the pickup time to ${j.cust_name || b?.cust_name || 'the customer'} on WhatsApp?`, () => waPickupScheduled(j.id));
+      return _showWaPrompt(`Send the pickup time to ${custName} on WhatsApp?`, () => waPickupScheduled(j.id));
     }
-    const textFn = WA_EVENT_TEXT[eventId];
-    if (!textFn) return;
-    const d = _buildEmailData({ event: eventId, job: j, booking: b, invoice: inv, to: opts.to, notes: opts.notes, feedback_link: opts.feedback_link });
-    const msg = textFn(d);
-    _showWaPrompt(`Send a WhatsApp update to ${d.customer_name}?`, () => {
-      audit('wa-status-update', `${eventId} → ${d.customer_name}`, { event: eventId });
-      _waOpen(phone, msg);
-    });
+    if (stashMsg) {
+      _showWaPrompt(`Send a WhatsApp update to ${custName}?`, () => {
+        audit('wa-status-update', `${eventId} → ${custName}`, { event: eventId });
+        _waOpen(phone, stashMsg);
+      });
+    }
   } catch (e) { console.warn('[notifyWhatsAppForEvent]', eventId, e); }
 }
 window.notifyWhatsAppForEvent = notifyWhatsAppForEvent;
+
+// Send the WhatsApp update captured in a "wa-pending" notification. SA-gated —
+// the button only shows for those who can send, this backstops any other path.
+window._waSendFromNotif = function(notifId) {
+  if (!isServiceAdvisorRole()) return showToast('Only the Service Advisor can send WhatsApp updates', 'bad');
+  const n = (D.notifications || []).find(x => x.id === notifId);
+  if (!n) return showToast('Notification not found', 'bad');
+  const ev = n.meta?.wa_event || '';
+  // Mark this one read so the bell clears once it's been actioned.
+  if (currentWorker && !(n.read_by || []).includes(currentWorker.id)) {
+    n.read_by = [...(n.read_by || []), currentWorker.id];
+    wsSave('notifications', D.notifications).catch(() => {});
+    _renderNotifBadge();
+  }
+  if (ev === 'ready_for_pickup' && n.job_id) return waReady(n.job_id);
+  if (ev === 'pickup_time_set' && n.job_id) return waPickupScheduled(n.job_id);
+  if (ev === 'invoice_ready' && n.meta?.invoice_id) return waInvoice(n.meta.invoice_id);
+  if (n.meta?.wa_phone && n.meta?.wa_message) {
+    audit('wa-status-update', `${ev} (from notif)`, { event: ev });
+    return _waOpen(n.meta.wa_phone, n.meta.wa_message);
+  }
+  showToast('Could not rebuild this WhatsApp message', 'bad');
+};
 
 // Build the self-contained approval payload from a job's estimate + an invoice.
 // Photos are embedded as data URLs (the customer can't read the sub-gated
@@ -16585,6 +16644,13 @@ function _renderNotifAction(n) {
     const fromWorker = (D.mechanics || []).find(m => m.id === fromId);
     const fromName = (fromWorker?.name || n.by || 'them').replace(/'/g, "\\'");
     return `<button class="mini-btn good" onclick="switchTab('chat'); setTimeout(()=>_chatOpenThread('${escapeHtml(fromId)}','${escapeHtml(fromName)}'),200)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Reply</button>`;
+  }
+  // wa-pending → the Service Advisor sends the customer WhatsApp update right
+  // from the notification. Only shown to those who can actually send (SA /
+  // Owner / Manager) — everyone else just sees the reminder text.
+  if (kind === 'wa-pending') {
+    if (!isServiceAdvisorRole()) return '';
+    return `<button class="mini-btn good" onclick="_waSendFromNotif('${escapeHtml(n.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Send on WhatsApp</button>`;
   }
   // car-arrived → Appointments tab, opened straight to this booking (check-in
   // is now an action on the appointment row, not a separate tab)
