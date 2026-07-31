@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy · Garage Pro</title>
+<meta name="description" content="Garage Pro privacy policy — how we collect, use, and protect your data." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0e14; --bg2:#0e131c; --surf:#141b26; --surf2:#1a2330;
+    --brd:rgba(255,255,255,0.08); --brd2:rgba(255,255,255,0.14);
+    --txt:#eef2f7; --dim:#9aa7b8; --faint:#6b7888;
+    --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2; --teal2:#16c79a;
+    --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:var(--fb);background:var(--bg);color:var(--txt);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--acc);color:#14100a}
+
+  header.nav{position:sticky;top:0;z-index:50;background:rgba(10,14,20,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--brd)}
+  .nav-inner{max-width:900px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:800;font-size:17px}
+  .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;flex:none}
+  .back-link{display:flex;align-items:center;gap:6px;color:var(--dim);font-weight:500;font-size:14px;transition:color .2s}
+  .back-link:hover{color:var(--txt)}
+
+  .wrap{max-width:900px;margin:0 auto;padding:48px 24px 90px}
+  .lead{font-size:15.5px;color:var(--dim);margin:0 0 6px}
+  .updated{font-size:13px;color:var(--faint);margin:0 0 36px}
+  h1{font-family:var(--fd);font-size:34px;font-weight:800;margin:0 0 12px}
+  h2{font-family:var(--fd);font-size:19px;font-weight:700;margin:34px 0 12px;color:var(--txt)}
+  h2 .num{color:var(--acc2);margin-right:8px}
+  p{font-size:14.5px;color:var(--dim);margin:0 0 14px}
+  ul{margin:0 0 14px;padding:0 0 0 4px;list-style:none}
+  li{position:relative;padding:0 0 10px 20px;font-size:14.5px;color:var(--dim)}
+  li::before{content:'';position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  li:last-child{padding-bottom:0}
+  b,strong{color:var(--txt)}
+  .card{background:var(--surf);border:1px solid var(--brd);border-radius:16px;padding:26px 28px;margin-bottom:8px}
+  .note{display:flex;gap:10px;background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:14px 16px;font-size:13.5px;color:var(--dim);margin:20px 0 30px}
+  .note svg{flex:none;color:var(--acc2);margin-top:2px}
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 34px}
+  .toc a{font-size:12.5px;font-weight:600;color:var(--dim);background:var(--surf);border:1px solid var(--brd2);padding:6px 12px;border-radius:100px;transition:color .15s,border-color .15s}
+  .toc a:hover{color:var(--acc2);border-color:var(--acc2)}
+  table{width:100%;border-collapse:collapse;margin:0 0 16px;font-size:13.5px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--brd)}
+  th{color:var(--txt);font-family:var(--fd);font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+  td{color:var(--dim)}
+  .foot-note{margin-top:44px;padding-top:24px;border-top:1px solid var(--brd);font-size:13px;color:var(--faint);text-align:center}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+      Garage&nbsp;Pro
+    </a>
+    <a href="index.html" class="back-link">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back to garagepro.me
+    </a>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1>Privacy Policy</h1>
+  <p class="lead">How Garage Pro collects, uses, stores, and protects the data that passes through the platform.</p>
+  <p class="updated">Last updated: <span id="lastUpdated"></span></p>
+
+  <div class="note">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <span>This policy covers the Garage Pro marketing site (garagepro.me), the workshop web app, and the Garage Pro mobile app. If any term here conflicts with a signed enterprise agreement, the signed agreement controls.</span>
+  </div>
+
+  <div class="toc">
+    <a href="#overview">1. Overview</a>
+    <a href="#data-we-collect">2. Data we collect</a>
+    <a href="#how-we-use-it">3. How we use it</a>
+    <a href="#sharing">4. Sharing &amp; disclosure</a>
+    <a href="#storage">5. Storage &amp; security</a>
+    <a href="#retention">6. Retention &amp; deletion</a>
+    <a href="#your-rights">7. Your rights &amp; choices</a>
+    <a href="#customer-data">8. End-customer data (your customers)</a>
+    <a href="#cookies">9. Cookies &amp; tracking</a>
+    <a href="#children">10. Children's data</a>
+    <a href="#changes">11. Changes to this policy</a>
+    <a href="#contact">12. Contact us</a>
+  </div>
+
+  <div class="card">
+    <h2 id="overview"><span class="num">1.</span>Overview</h2>
+    <p>Garage Pro ("Garage Pro", "we", "us", "our") provides workshop management software for independent garages and workshop chains, used through <b>garagepro.me</b>, the workshop web app, and the Garage Pro mobile app (together, the "Service"). This policy explains what personal data we collect from workshop owners and staff who use the Service ("you", "your workshop"), and — separately — how workshop data about vehicle owners is handled on your behalf.</p>
+    <p>By using the Service you agree to the collection and use of information as described here. If you don't agree, please don't use the Service.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="data-we-collect"><span class="num">2.</span>Data we collect</h2>
+    <p><b>Account &amp; workshop data</b> — when you sign up, we collect your name, email address, phone number, garage/company name, city/state, and password (stored hashed, never in plain text).</p>
+    <p><b>Operational data you enter</b> — appointments, job cards, vehicle details, inspection checklists, estimates, invoices, parts/inventory records, staff roster and roles, and chat messages between your staff, all created and stored so the Service can function.</p>
+    <p><b>Photos</b> — vehicle intake/inspection photos you or your staff upload, hosted via our image-hosting provider (Cloudinary) or embedded directly in your records.</p>
+    <p><b>Device &amp; usage data</b> — IP address, browser/device type, app version, and basic usage/log data (e.g. pages visited, feature usage, error logs) used to keep the Service reliable and to improve it.</p>
+    <p><b>Payment data</b> — if you subscribe to a paid plan, billing details are processed by our payment provider; we do not store full card numbers on our own servers.</p>
+    <p><b>Communications</b> — messages you send us via email, WhatsApp, or the in-app feedback tool.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="how-we-use-it"><span class="num">3.</span>How we use it</h2>
+    <ul>
+      <li>To provide, operate, and maintain the Service — syncing your data live across your devices and staff.</li>
+      <li>To authenticate accounts and enforce role-based access within your workshop.</li>
+      <li>To send transactional notifications (job status updates, SLA alerts, parts requests) to your staff and, where you've enabled it, to your customers via WhatsApp.</li>
+      <li>To send service-related emails (e.g. daily closing summaries, invoice links) that you or your workshop configure.</li>
+      <li>To monitor, troubleshoot, and improve the Service, and to detect and prevent fraud or abuse.</li>
+      <li>To communicate with you about your account, updates, or support requests.</li>
+      <li>To enforce our subscription/billing terms.</li>
+    </ul>
+    <p>We do <b>not</b> sell your data or your customers' data to third parties, and we do not use your workshop's operational data to train third-party AI models.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="sharing"><span class="num">4.</span>Sharing &amp; disclosure</h2>
+    <p>We share data only with the service providers that make Garage Pro work, and only to the extent needed:</p>
+    <table>
+      <thead><tr><th>Provider</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>Google Firebase</td><td>Authentication, database (Firestore), and hosting</td></tr>
+        <tr><td>Cloudinary</td><td>Photo hosting for vehicle intake/inspection images</td></tr>
+        <tr><td>EmailJS / Google Apps Script</td><td>Transactional email delivery</td></tr>
+        <tr><td>WhatsApp (via wa.me links)</td><td>Optional customer status-update messages, sent from your own device/number</td></tr>
+        <tr><td>Payment processor</td><td>Subscription billing, if applicable</td></tr>
+      </tbody>
+    </table>
+    <p>We may also disclose data if required by law, to protect the rights and safety of Garage Pro, our users, or the public, or in connection with a merger, acquisition, or sale of assets (with notice to you).</p>
+  </div>
+
+  <div class="card">
+    <h2 id="storage"><span class="num">5.</span>Storage &amp; security</h2>
+    <p>Data is stored on Google Firebase infrastructure with per-workshop access isolation enforced at the database rules level — one workshop's account cannot read another workshop's data. Passwords are never stored in plain text. Access to your workshop's data within the Service is gated by the roles you assign to your own staff.</p>
+    <p>No method of transmission or storage is 100% secure. We work to protect your data but can't guarantee absolute security.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="retention"><span class="num">6.</span>Retention &amp; deletion</h2>
+    <p>We retain your account and operational data for as long as your account is active, and for a reasonable period after cancellation in case you reactivate or need an export. You can request deletion of your workshop's account and associated data at any time by contacting us — we'll delete it within a reasonable timeframe, except where we're required to retain records by law (e.g. financial/invoice records).</p>
+  </div>
+
+  <div class="card">
+    <h2 id="your-rights"><span class="num">7.</span>Your rights &amp; choices</h2>
+    <ul>
+      <li><b>Access &amp; correction</b> — you can view and edit most of your data directly within the app (Settings, My Account).</li>
+      <li><b>Export</b> — reasonable data-export requests can be made by contacting support.</li>
+      <li><b>Deletion</b> — request account/data deletion at any time (see Retention above).</li>
+      <li><b>Marketing communications</b> — you can opt out of non-essential emails at any time; transactional/operational messages tied to using the Service can't be turned off without disabling the underlying feature.</li>
+    </ul>
+    <p>Depending on where you're located, you may have additional rights under local law (e.g. India's Digital Personal Data Protection Act, or the EU/UK GDPR). We'll honor applicable rights requests — contact us to exercise them.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="customer-data"><span class="num">8.</span>End-customer data (your customers)</h2>
+    <p>As a workshop using Garage Pro, <b>you</b> are the data controller for the vehicle-owner data you enter into the Service (names, phone numbers, vehicle details, service history). Garage Pro acts as your data processor — we store and process that data on your behalf, under your instructions, to run the Service. You're responsible for having the appropriate basis (e.g. notice/consent) to collect and store your customers' data under applicable law, and for responding to your customers' own privacy requests about their data.</p>
+    <p>Public-facing features — the Track Repair page and estimate-approval links — expose only the specific job/estimate details behind a unique link or reference number, not a directory of your full customer list.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="cookies"><span class="num">9.</span>Cookies &amp; tracking</h2>
+    <p>The marketing site and web app use essential cookies/local storage to keep you signed in and remember preferences (e.g. theme, language). We don't use third-party advertising trackers. Browser local storage / IndexedDB is used by the app for offline-friendly performance, not for tracking.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="children"><span class="num">10.</span>Children's data</h2>
+    <p>Garage Pro is a business tool intended for workshop owners and staff. It's not directed at children, and we don't knowingly collect data from anyone under 18.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="changes"><span class="num">11.</span>Changes to this policy</h2>
+    <p>We may update this policy from time to time. Material changes will be reflected by updating the "Last updated" date above; continued use of the Service after a change means you accept the revised policy.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="contact"><span class="num">12.</span>Contact us</h2>
+    <p>Questions about this policy or your data? Reach us at <a href="mailto:support@garagepro.me" style="color:var(--acc2);font-weight:600">support@garagepro.me</a>.</p>
+  </div>
+
+  <p class="foot-note">© <span id="year"></span> Garage Pro. All rights reserved. See also our <a href="terms.html" style="color:var(--acc2)">Terms &amp; Conditions</a>.</p>
+</div>
+
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+  document.getElementById('lastUpdated').textContent = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+</script>
+</body>
+</html>
