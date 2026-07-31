@@ -18,15 +18,19 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <style>
-/* ── tokens ── (matches main site + tablet) */
+/* ── tokens ── (matches main site + tablet)
+   Monochrome ink system: --ink/--ink-soft/--tint-rgb/--ink-text swap between
+   dark (default) and body.light, and --acc/--acc2/--teal/--teal2 alias to
+   them so every existing var()-based usage below recolors automatically. */
 :root{
-  --bg:#0a0e14; --bg2:#0e131c; --surf:#141b26; --surf2:#1a2330;
+  --bg:#0c0c0b; --bg2:#141412; --surf:#1b1b18; --surf2:#232320;
   --brd:rgba(255,255,255,.08); --brd2:rgba(255,255,255,.14);
-  --txt:#eef2f7; --dim:#9aa7b8; --faint:#6b7888;
-  --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2; --teal2:#16c79a;
-  --red:#ff6b6b; --amber:#ffb347; --blue:#9db0ff;
+  --txt:#f2f1ec; --dim:#a5a39a; --faint:#726f65;
+  --ink:#f5f4ef; --ink-soft:#c7c5ba; --ink-text:#111110; --tint-rgb:245,244,239;
+  --acc:var(--ink); --acc2:var(--ink); --teal:var(--ink-soft); --teal2:var(--ink-soft);
+  --red:#ff6b6b; --amber:var(--ink-soft); --blue:#9db0ff;
   --r:12px; --rs:8px;
-  --shad:0 24px 60px -20px rgba(0,0,0,.7);
+  --shad:0 24px 60px -20px rgba(0,0,0,.6);
   --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif;
 
   /* layout */
@@ -36,9 +40,11 @@
 
 /* ── Light-mode override ── */
 body.light{
-  --bg:#f5f6f8; --bg2:#ffffff; --surf:#ffffff; --surf2:#f0f2f6;
-  --brd:rgba(0,0,0,.06); --brd2:rgba(0,0,0,.12);
-  --txt:#1a1f29; --dim:#5a6573; --faint:#8a96a8;
+  --bg:#faf9f5; --bg2:#f1efe8; --surf:#ffffff; --surf2:#f5f3ec;
+  --brd:rgba(17,17,15,.09); --brd2:rgba(17,17,15,.16);
+  --txt:#17170f; --dim:#57554b; --faint:#8a8778;
+  --ink:#141412; --ink-soft:#4b4943; --ink-text:#faf9f5; --tint-rgb:20,20,17;
+  --shad:0 24px 60px -22px rgba(17,17,15,.16);
 }
 body.light .sidebar{background:#fafbfc}
 body.light .stat-card{background:#fff}
@@ -62,18 +68,18 @@ h1,h2,h3,h4{font-family:var(--fd);font-weight:800;letter-spacing:-.01em;line-hei
    center" falls back to start-alignment instead of clipping when the
    content doesn't fit. */
 .overlay{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:safe center;justify-content:center;flex-direction:column;padding:24px;overflow-y:auto}
-.overlay::before{content:"";position:absolute;inset:0;background:radial-gradient(800px 500px at 75% -10%,rgba(255,122,24,.16),transparent 60%),radial-gradient(700px 500px at 5% 100%,rgba(32,227,178,.10),transparent 55%);pointer-events:none}
+.overlay::before{content:"";position:absolute;inset:0;background:radial-gradient(800px 500px at 75% -10%,rgba(var(--tint-rgb),.16),transparent 60%),radial-gradient(700px 500px at 5% 100%,rgba(var(--tint-rgb),.10),transparent 55%);pointer-events:none}
 .overlay > *{position:relative;z-index:1}
-.overlay .logo{width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;margin-bottom:22px;box-shadow:0 8px 24px -6px rgba(255,122,24,.6)}
+.overlay .logo{width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;margin-bottom:22px;box-shadow:0 8px 24px -6px rgba(var(--tint-rgb),.6)}
 .overlay .logo svg{width:30px;height:30px}
 .overlay h1{font-size:24px;margin-bottom:8px}
 .overlay p{color:var(--dim);font-size:15px;text-align:center;max-width:380px;margin-bottom:24px}
-.overlay .spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,122,24,.15);border-top-color:var(--acc);animation:spin 1s linear infinite}
+.overlay .spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(var(--tint-rgb),.15);border-top-color:var(--acc);animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── AUTH CARD (sign-in / sign-up) ── */
 .auth-card{position:relative;z-index:1;width:100%;max-width:420px;background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd2);border-radius:18px;padding:34px 32px;box-shadow:var(--shad)}
-.auth-card .a-logo{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;margin-bottom:18px;box-shadow:0 6px 20px -4px rgba(255,122,24,.6)}
+.auth-card .a-logo{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;margin-bottom:18px;box-shadow:0 6px 20px -4px rgba(var(--tint-rgb),.6)}
 .auth-card .a-logo svg{width:24px;height:24px}
 .auth-card h2{font-family:var(--fd);font-size:22px;margin-bottom:6px}
 .auth-card .a-sub{color:var(--dim);font-size:14px;margin-bottom:22px;line-height:1.5}
@@ -104,35 +110,35 @@ h1,h2,h3,h4{font-family:var(--fd);font-weight:800;letter-spacing:-.01em;line-hei
 .worker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;width:100%;max-width:680px}
 .worker-tile{background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd2);border-radius:14px;padding:22px 18px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:all .15s}
 .worker-tile:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.22);box-shadow:0 12px 28px -10px rgba(0,0,0,.6)}
-.worker-tile .av{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:20px;color:#170f05;background:linear-gradient(135deg,var(--acc),var(--acc2))}
+.worker-tile .av{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:20px;color:var(--ink-text);background:linear-gradient(135deg,var(--acc),var(--acc2))}
 .worker-tile .nm{font-weight:700;font-size:14px;color:var(--txt);text-align:center;line-height:1.3}
 .worker-tile .rl{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
 .worker-tile.admin .av{background:linear-gradient(135deg,#9db0ff,#6b82e0);color:#fff}
-.worker-tile.manager .av{background:linear-gradient(135deg,#20e3b2,#16c79a);color:#0a0e14}
+.worker-tile.manager .av{background:linear-gradient(135deg,var(--ink-soft),var(--ink-soft));color:#0a0e14}
 
 .pin-entry{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:340px}
 .pin-entry .nm{font-family:var(--fd);font-size:18px;font-weight:800;color:var(--txt)}
 .pin-entry .nm small{display:block;font-family:var(--fb);font-size:13px;font-weight:500;color:var(--dim);margin-top:4px}
 .pin-dots{display:flex;gap:14px;justify-content:center;margin:6px 0 4px}
 .pin-dot{width:14px;height:14px;border-radius:50%;background:transparent;border:2px solid var(--brd2);transition:all .15s}
-.pin-dot.filled{background:var(--acc);border-color:var(--acc);box-shadow:0 0 8px rgba(255,122,24,.5)}
+.pin-dot.filled{background:var(--acc);border-color:var(--acc);box-shadow:0 0 8px rgba(var(--tint-rgb),.5)}
 .pin-err{font-size:13px;color:var(--red);min-height:18px;text-align:center}
 .pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%}
 .pin-key{aspect-ratio:1.5/1;background:var(--surf);border:1px solid var(--brd2);border-radius:11px;font-family:var(--fd);font-weight:800;font-size:22px;color:var(--txt);cursor:pointer;transition:all .1s;user-select:none}
 .pin-key:hover{background:var(--surf2);border-color:rgba(255,255,255,.22)}
 .pin-key:active{transform:scale(.95);background:var(--bg2)}
-.pin-key.act{background:rgba(255,122,24,.10);border-color:rgba(255,122,24,.32);color:var(--acc2)}
+.pin-key.act{background:rgba(var(--tint-rgb),.10);border-color:rgba(var(--tint-rgb),.32);color:var(--acc2)}
 .pin-back{background:none;border:0;color:var(--dim);font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 14px;border-radius:7px;transition:color .15s}
 .pin-back:hover{color:var(--txt)}
 
 /* signed-in worker pill in header */
-.worker-pill{display:flex;align-items:center;gap:9px;background:rgba(255,122,24,.10);border:1px solid rgba(255,122,24,.28);border-radius:100px;padding:5px 14px 5px 6px;font-size:13px;font-weight:600;color:var(--acc2);cursor:pointer;transition:border-color .15s}
+.worker-pill{display:flex;align-items:center;gap:9px;background:rgba(var(--tint-rgb),.10);border:1px solid rgba(var(--tint-rgb),.28);border-radius:100px;padding:5px 14px 5px 6px;font-size:13px;font-weight:600;color:var(--acc2);cursor:pointer;transition:border-color .15s}
 .worker-pill:hover{border-color:var(--acc)}
-.worker-pill .pav{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:11px;color:#170f05}
+.worker-pill .pav{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:11px;color:var(--ink-text)}
 .worker-pill svg{width:13px;height:13px;color:var(--acc2)}
 
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;font-weight:700;font-size:15px;padding:12px 22px;border-radius:10px;border:0;cursor:pointer;transition:transform .15s,box-shadow .2s;box-shadow:0 8px 22px -8px rgba(255,122,24,.55)}
-.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px -8px rgba(255,122,24,.7)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--ink-text);font-weight:700;font-size:15px;padding:12px 22px;border-radius:10px;border:0;cursor:pointer;transition:transform .15s,box-shadow .2s;box-shadow:0 8px 22px -8px rgba(var(--tint-rgb),.55)}
+.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px -8px rgba(var(--tint-rgb),.7)}
 .btn-ghost{background:var(--surf);color:var(--txt);border:1px solid var(--brd2);box-shadow:none}
 .btn-ghost:hover{background:var(--surf2);border-color:var(--brd2)}
 .btn svg{width:16px;height:16px}
@@ -160,7 +166,7 @@ header.app-header{
 
 .user-menu{display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--surf);border:1px solid var(--brd2);border-radius:9px;cursor:pointer;transition:border-color .2s;position:relative}
 .user-menu:hover{border-color:rgba(255,255,255,.22)}
-.user-menu .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;color:#170f05;font-weight:800;font-size:13px}
+.user-menu .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;color:var(--ink-text);font-weight:800;font-size:13px}
 .user-menu .name{font-size:13.5px;font-weight:600;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .user-menu svg{width:13px;height:13px;color:var(--dim)}
 
@@ -188,12 +194,12 @@ header.app-header{
 .snav svg{width:16px;height:16px;flex:none;opacity:.8}
 .snav .snav-icon-plus{width:14px;height:14px;color:var(--acc2);opacity:1}
 .snav:hover{background:var(--surf);color:var(--txt)}
-.snav.active{background:rgba(255,122,24,.10);color:var(--acc2);border-left-color:var(--acc)}
+.snav.active{background:rgba(var(--tint-rgb),.10);color:var(--acc2);border-left-color:var(--acc)}
 .snav.active svg{opacity:1}
 
 .sidebar-foot{flex:none;border-top:1px solid var(--brd);padding:6px 10px 10px}
 .sidebar-foot .snav.user-row{margin:6px 0 2px}
-.sidebar-foot .snav.user-row .av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:10.5px;color:#170f05;flex:none}
+.sidebar-foot .snav.user-row .av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:10.5px;color:var(--ink-text);flex:none}
 .sidebar-foot .snav.danger:hover{color:var(--red);background:rgba(255,107,107,.06)}
 .sidebar-foot .snav.danger:hover svg{color:var(--red);opacity:1}
 
@@ -201,7 +207,7 @@ header.app-header{
 .app-header{justify-content:space-between}
 .app-header .tab-title{font-family:var(--fd);font-weight:700;font-size:16px;color:var(--txt);padding-left:6px}
 .sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--teal);font-weight:600}
-.sync-pill .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(32,227,178,.55);animation:pulse 2.2s infinite}
+.sync-pill .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(var(--tint-rgb),.55);animation:pulse 2.2s infinite}
 .sync-pill.syncing{color:var(--acc2)}
 .sync-pill.syncing .sync-dot{background:var(--acc2);animation:spinFast 1s linear infinite;box-shadow:none;border:2px solid var(--acc2);border-top-color:transparent;border-radius:50%;background:transparent}
 .sync-pill.bad{color:var(--red)}
@@ -219,7 +225,7 @@ header.app-header{
 .scan-overlay.open{display:flex}
 .scan-overlay .scan-video-wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .scan-overlay video{width:100%;height:100%;object-fit:cover;background:#000}
-.scan-overlay .scan-frame{position:absolute;width:78vmin;max-width:520px;height:36vmin;max-height:260px;border:3px solid rgba(255,122,24,.85);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.55);pointer-events:none}
+.scan-overlay .scan-frame{position:absolute;width:78vmin;max-width:520px;height:36vmin;max-height:260px;border:3px solid rgba(var(--tint-rgb),.85);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.55);pointer-events:none}
 .scan-overlay .scan-frame::before,.scan-overlay .scan-frame::after{content:"";position:absolute;left:50%;right:50%;height:2px;background:linear-gradient(90deg,transparent,var(--acc),transparent);top:50%;animation:scanLine 2s ease-in-out infinite;width:0}
 .scan-overlay .scan-frame::before{animation-direction:normal}
 .scan-overlay .scan-frame::after{animation-direction:reverse}
@@ -234,13 +240,13 @@ header.app-header{
 .scan-overlay .scan-manual{display:flex;gap:8px;justify-content:center;margin-top:14px}
 .scan-overlay .scan-manual input{flex:1;max-width:280px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:10px 13px;color:#fff;font-family:var(--fb);font-size:14px;outline:none}
 .scan-overlay .scan-manual input::placeholder{color:rgba(255,255,255,.5)}
-.scan-overlay .scan-manual button{background:var(--acc);color:#170f05;border:0;padding:10px 18px;border-radius:8px;font-family:var(--fb);font-weight:700;font-size:13.5px;cursor:pointer}
+.scan-overlay .scan-manual button{background:var(--acc);color:var(--ink-text);border:0;padding:10px 18px;border-radius:8px;font-family:var(--fb);font-weight:700;font-size:13.5px;cursor:pointer}
 
 .scan-result{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:90%;max-width:420px;background:var(--surf);border:1px solid var(--brd2);border-radius:14px;padding:24px;color:var(--txt);box-shadow:0 32px 80px -16px rgba(0,0,0,.9);display:none}
 .scan-result.open{display:block;animation:modalIn .25s cubic-bezier(.2,.7,.2,1)}
 .scan-result .r-icon{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;margin-bottom:14px}
-.scan-result .r-icon.good{background:rgba(32,227,178,.18);color:var(--teal);border:1px solid rgba(32,227,178,.32)}
-.scan-result .r-icon.unknown{background:rgba(255,179,71,.18);color:var(--acc2);border:1px solid rgba(255,179,71,.32)}
+.scan-result .r-icon.good{background:rgba(var(--tint-rgb),.18);color:var(--teal);border:1px solid rgba(var(--tint-rgb),.32)}
+.scan-result .r-icon.unknown{background:rgba(var(--tint-rgb),.18);color:var(--acc2);border:1px solid rgba(var(--tint-rgb),.32)}
 .scan-result h4{font-family:var(--fd);font-size:17px;font-weight:800;margin-bottom:6px}
 .scan-result .r-meta{font-size:13px;color:var(--dim);margin-bottom:14px;line-height:1.55}
 .scan-result .r-code{font-family:'Courier New',monospace;font-size:13px;color:var(--acc2);background:var(--bg2);border:1px dashed var(--brd2);border-radius:6px;padding:8px 12px;display:block;margin:8px 0 18px;word-break:break-all}
@@ -276,8 +282,8 @@ header.app-header{
 .status-pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:5px;letter-spacing:.04em}
 .status-pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .status-pill.s-progress{background:rgba(120,140,255,.14);color:var(--blue)}
-.status-pill.s-ready{background:rgba(32,227,178,.14);color:var(--teal)}
-.status-pill.s-arrived{background:rgba(255,179,71,.14);color:var(--acc2)}
+.status-pill.s-ready{background:rgba(var(--tint-rgb),.14);color:var(--teal)}
+.status-pill.s-arrived{background:rgba(var(--tint-rgb),.14);color:var(--acc2)}
 .status-pill.s-scheduled{background:rgba(157,176,255,.10);color:#cbd2dc}
 .status-pill.s-done{background:rgba(255,255,255,.06);color:var(--faint)}
 .status-pill.s-warn{background:rgba(255,107,107,.14);color:var(--red)}
@@ -287,12 +293,12 @@ header.app-header{
 .mini-btn svg{width:11px;height:11px}
 .mini-btn:hover{color:var(--txt);border-color:rgba(255,255,255,.22);background:var(--surf2)}
 /* Status-tinted action buttons — color is visible at rest, not just on hover */
-.mini-btn.good   {color:var(--teal); border-color:rgba(32,227,178,.40);  background:rgba(32,227,178,.10)}
-.mini-btn.warn   {color:var(--acc2); border-color:rgba(255,179,71,.42);  background:rgba(255,179,71,.10)}
+.mini-btn.good   {color:var(--teal); border-color:rgba(var(--tint-rgb),.40);  background:rgba(var(--tint-rgb),.10)}
+.mini-btn.warn   {color:var(--acc2); border-color:rgba(var(--tint-rgb),.42);  background:rgba(var(--tint-rgb),.10)}
 .mini-btn.danger {color:var(--red);  border-color:rgba(255,107,107,.42); background:rgba(255,107,107,.10)}
 .mini-btn.info   {color:var(--blue); border-color:rgba(99,159,255,.42);  background:rgba(99,159,255,.10)}
-.mini-btn.good:hover  {background:rgba(32,227,178,.20);  border-color:var(--teal)}
-.mini-btn.warn:hover  {background:rgba(255,179,71,.22);  border-color:var(--acc2)}
+.mini-btn.good:hover  {background:rgba(var(--tint-rgb),.20);  border-color:var(--teal)}
+.mini-btn.warn:hover  {background:rgba(var(--tint-rgb),.22);  border-color:var(--acc2)}
 .mini-btn.danger:hover{background:rgba(255,107,107,.22); border-color:var(--red)}
 .mini-btn.info:hover  {background:rgba(99,159,255,.20);  border-color:var(--blue)}
 
@@ -302,8 +308,8 @@ header.app-header{
 .refresh-btn.spinning svg{animation:spin 1s linear infinite}
 
 .dash-meta{font-size:12.5px;color:var(--faint);display:flex;align-items:center;gap:8px;margin-top:4px}
-.dash-meta .live-dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(32,227,178,.5);animation:pulse 2s infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(32,227,178,.55)}70%{box-shadow:0 0 0 8px rgba(32,227,178,0)}100%{box-shadow:0 0 0 0 rgba(32,227,178,0)}}
+.dash-meta .live-dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(var(--tint-rgb),.5);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(var(--tint-rgb),.55)}70%{box-shadow:0 0 0 8px rgba(var(--tint-rgb),0)}100%{box-shadow:0 0 0 0 rgba(var(--tint-rgb),0)}}
 
 @media(max-width:960px){.stat-row{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:520px){
@@ -323,8 +329,8 @@ header.app-header{
 .toolbar .pill{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:var(--surf);border:1px solid var(--brd2);border-radius:100px;font-size:12.5px;color:var(--dim);font-weight:600}
 .toolbar .pill b{color:var(--txt)}
 
-.add-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;font-weight:700;font-size:13.5px;border:0;cursor:pointer;transition:transform .15s,box-shadow .2s;box-shadow:0 6px 18px -6px rgba(255,122,24,.5)}
-.add-btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px -6px rgba(255,122,24,.7)}
+.add-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--ink-text);font-weight:700;font-size:13.5px;border:0;cursor:pointer;transition:transform .15s,box-shadow .2s;box-shadow:0 6px 18px -6px rgba(var(--tint-rgb),.5)}
+.add-btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px -6px rgba(var(--tint-rgb),.7)}
 .add-btn svg{width:15px;height:15px}
 
 /* ── MODAL ── */
@@ -365,8 +371,8 @@ header.app-header{
 .jf-acc-panel{max-height:0;overflow:hidden;transition:max-height .28s cubic-bezier(.2,.7,.2,1)}
 .jf-acc-panel-inner{padding-bottom:16px}
 .fbtn{padding:10px 18px;border-radius:9px;font-family:var(--fb);font-weight:700;font-size:13.5px;cursor:pointer;border:1px solid;transition:all .15s}
-.fbtn-save{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;border-color:transparent}
-.fbtn-save:hover{transform:translateY(-1px);box-shadow:0 6px 16px -4px rgba(255,122,24,.55)}
+.fbtn-save{background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--ink-text);border-color:transparent}
+.fbtn-save:hover{transform:translateY(-1px);box-shadow:0 6px 16px -4px rgba(var(--tint-rgb),.55)}
 .fbtn-save:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
 .fbtn-cancel{background:transparent;color:var(--dim);border-color:var(--brd2)}
 .fbtn-cancel:hover{color:var(--txt)}
@@ -610,7 +616,7 @@ input[list]{background:var(--bg2)}
 <div class="overlay" id="overlaySignin" style="display:none">
   <div class="auth-card">
     <div class="a-logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
     </div>
     <h2 id="authTitle">Sign in to Garage Pro</h2>
     <div class="a-sub" id="authSubtitle">Use your workshop / branch credentials. Each branch in a chain has its own login.</div>
@@ -685,7 +691,7 @@ input[list]{background:var(--bg2)}
 <!-- ═══════════════ SUBSCRIPTION REQUIRED (no active plan) ═══════════════ -->
 <div class="overlay" id="overlayNoSub" style="display:none">
   <div class="auth-card" style="max-width:480px;text-align:center">
-    <div class="a-logo" style="background:linear-gradient(135deg,#ff7a18,#ff5252)">
+    <div class="a-logo" style="background:linear-gradient(135deg,var(--ink),#ff5252)">
       <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     </div>
     <h2>Subscription required</h2>
@@ -704,7 +710,7 @@ input[list]{background:var(--bg2)}
 <div class="overlay" id="overlayNoWorkshop" style="display:none">
   <div class="auth-card" style="max-width:520px">
     <div class="a-logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 9h6M9 13h6M9 17h6"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 9h6M9 13h6M9 17h6"/></svg>
     </div>
 
     <!-- Wizard step dots -->
@@ -763,7 +769,7 @@ input[list]{background:var(--bg2)}
       <div style="display:flex;gap:8px;margin:14px 0 10px">
         <input id="setupBayName" type="text" placeholder="Mechanical bay" autocomplete="off" style="flex:1;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" />
         <input id="setupBayCount" type="number" min="1" step="1" value="2" autocomplete="off" style="width:80px;padding:11px 12px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" />
-        <button type="button" class="refresh-btn" onclick="_wizAddBay()" style="background:var(--acc);color:#170f05;border-color:var(--acc);font-weight:700">+ Add</button>
+        <button type="button" class="refresh-btn" onclick="_wizAddBay()" style="background:var(--acc);color:var(--ink-text);border-color:var(--acc);font-weight:700">+ Add</button>
       </div>
       <div id="setupBayList" style="margin-bottom:14px;min-height:60px"></div>
       <div class="a-err" id="setup-bays-err"></div>
@@ -793,7 +799,7 @@ input[list]{background:var(--bg2)}
           </select></div>
         <div><label style="display:block;font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.06em;margin-bottom:4px;text-transform:uppercase">PIN</label>
           <input id="setupWkPin" type="text" inputmode="numeric" maxlength="6" placeholder="0000" autocomplete="off" style="width:100%;padding:11px 12px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px" /></div>
-        <button type="button" class="refresh-btn" onclick="_wizAddWorker()" style="background:var(--acc);color:#170f05;border-color:var(--acc);font-weight:700;height:42px">+ Add</button>
+        <button type="button" class="refresh-btn" onclick="_wizAddWorker()" style="background:var(--acc);color:var(--ink-text);border-color:var(--acc);font-weight:700;height:42px">+ Add</button>
       </div>
       <div id="setupWkList" style="margin-bottom:14px;min-height:60px"></div>
 
@@ -822,8 +828,8 @@ input[list]{background:var(--bg2)}
 <style>
   /* Active vs inactive wizard step pip */
   #setupSteps .step-num{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--surf2);color:var(--faint);border:1px solid var(--brd2);font-size:11px;font-weight:800}
-  #setupSteps span[data-step].active .step-num{background:var(--acc);color:#170f05;border-color:var(--acc)}
-  #setupSteps span[data-step].done .step-num{background:rgba(32,227,178,.18);color:var(--teal);border-color:rgba(32,227,178,.4)}
+  #setupSteps span[data-step].active .step-num{background:var(--acc);color:var(--ink-text);border-color:var(--acc)}
+  #setupSteps span[data-step].done .step-num{background:rgba(var(--tint-rgb),.18);color:var(--teal);border-color:rgba(var(--tint-rgb),.4)}
   #setupSteps span[data-step].active{color:var(--txt)}
   #setupSteps span[data-step].done{color:var(--teal)}
 </style>
@@ -908,7 +914,7 @@ input[list]{background:var(--bg2)}
       <!-- Brand at the top of the sidebar (matches screenshot) -->
       <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--brd)">
         <span style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;flex:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
         </span>
         <span style="font-family:var(--fd);font-weight:800;font-size:15px">Garage Pro</span>
       </div>
@@ -1077,14 +1083,14 @@ input[list]{background:var(--bg2)}
           <div style="display:flex;gap:8px">
             <button class="refresh-btn" onclick="renderBookings(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
             <button class="add-btn" onclick="openQuickBooking()" title="5-field fast booking — name, phone, plate, service, time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>Quick add</button>
-            <button class="add-btn" onclick="openWalkin()" style="background:var(--teal,#20e3b2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Walk-in</button>
+            <button class="add-btn" onclick="openWalkin()" style="background:var(--teal,var(--ink-soft))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Walk-in</button>
             <button class="add-btn" onclick="openBookingForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New appointment</button>
           </div>
         </div>
         <div class="toolbar">
           <!-- List / Calendar view toggle -->
           <div style="display:inline-flex;gap:0;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;overflow:hidden">
-            <button id="bkViewListBtn" class="refresh-btn" style="border-radius:0;border:0;background:var(--acc);color:#170f05" onclick="_bkSetView('list')">List</button>
+            <button id="bkViewListBtn" class="refresh-btn" style="border-radius:0;border:0;background:var(--acc);color:var(--ink-text)" onclick="_bkSetView('list')">List</button>
             <button id="bkViewCalBtn"  class="refresh-btn" style="border-radius:0;border:0;background:transparent" onclick="_bkSetView('calendar')">Calendar</button>
           </div>
           <input type="text" id="bkSearch" placeholder="Search plate, customer, ref…" oninput="renderBookings()" />
@@ -2997,8 +3003,19 @@ function _composeEodSummary(dateKey) {
 }
 
 // The heartbeat: called on entry and every 60s. Sends each email at most once
-// per workshop-local day, once its set time has passed in the workshop's zone.
-function _maybeSendScheduledSummaries() {
+// per workshop-LOCAL day, once its set time has passed in the workshop's zone.
+//
+// Dedupe lives on the settings doc itself (last_morning_summary_date /
+// last_eod_summary_date), NOT localStorage — localStorage is per-browser, so
+// the old approach let two open devices each send their own copy of the same
+// morning email. The settings doc is live-synced (subscribeLiveCollections),
+// so as soon as ANY device — or api/cron-send.js, running server-side on a
+// schedule with no device involved at all — sends today's summary, every
+// other open device sees the field flip and skips it. The cron job is what
+// actually guarantees delivery on a day nobody opens the app at all; this
+// client heartbeat just grabs it first when someone's already online, for
+// no added delay.
+async function _maybeSendScheduledSummaries() {
   try {
     if (!currentUser || !currentWorker) return;
     const s = D.settings || {};
@@ -3010,23 +3027,28 @@ function _maybeSendScheduledSummaries() {
     if (morningMin == null || eodMin == null) return;
 
     // Morning: between the morning time and the end-of-day time (so a device
-    // opened late-evening doesn't fire a "good morning" at 9pm).
-    if (minutes >= morningMin && minutes < eodMin) {
-      const k = `gp_sum_m:${wsUid()}:${dateKey}`;
-      if (!localStorage.getItem(k)) {
-        localStorage.setItem(k, '1');   // mark first so the 60s tick can't double-send
-        const m = _composeMorningSummary(dateKey);
-        _sendGarageSummaryEmail(m.subject, m.headline, m.lines).catch(() => {});
-      }
+    // opened late-evening doesn't fire a "good morning" at 9pm). The dedupe
+    // field is marked AND persisted BEFORE the send is even attempted — the
+    // send itself durably queues (see _sendGarageSummaryEmail), so the queue
+    // entry existing is what matters, not whether this immediate attempt
+    // happens to succeed. Marking early is what stops this device's own next
+    // tick — or another open device — from composing a second, duplicate
+    // queue entry for the same day while the first is still in flight.
+    if (minutes >= morningMin && minutes < eodMin && s.last_morning_summary_date !== dateKey) {
+      s.last_morning_summary_date = dateKey;
+      // Awaited (not fire-and-forget) so the window where api/cron-send.js
+      // could read the OLD value and also send today's copy is just the one
+      // write's round-trip, not this function's entire compose+send tail.
+      await wsSave('settings', [D.settings]).catch(() => {});
+      const m = _composeMorningSummary(dateKey);
+      _sendGarageSummaryEmail(m.subject, m.headline, m.lines).catch(() => {});
     }
     // End of day: at or after the set time, and only if that toggle is on.
-    if (minutes >= eodMin && s.closing_summary_enabled !== false) {
-      const k = `gp_sum_e:${wsUid()}:${dateKey}`;
-      if (!localStorage.getItem(k)) {
-        localStorage.setItem(k, '1');
-        const e = _composeEodSummary(dateKey);
-        _sendGarageSummaryEmail(e.subject, e.headline, e.lines).catch(() => {});
-      }
+    if (minutes >= eodMin && s.closing_summary_enabled !== false && s.last_eod_summary_date !== dateKey) {
+      s.last_eod_summary_date = dateKey;
+      await wsSave('settings', [D.settings]).catch(() => {});
+      const e = _composeEodSummary(dateKey);
+      _sendGarageSummaryEmail(e.subject, e.headline, e.lines).catch(() => {});
     }
   } catch (e) { console.warn('[summary-schedule]', e); }
 }
@@ -3283,7 +3305,7 @@ window.doSignOut = function() {
       <div style="display:grid;gap:10px">
         <button type="button" class="snav" style="background:var(--bg2);border:1px solid var(--brd2);padding:14px;border-radius:10px;text-align:left;cursor:pointer;font-family:var(--fb)" onclick="_signOutWorker()">
           <span style="display:flex;align-items:center;gap:12px;width:100%">
-            <span style="width:34px;height:34px;border-radius:8px;background:rgba(255,179,71,.14);color:var(--acc2);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M16 17l5-5-5-5M21 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg></span>
+            <span style="width:34px;height:34px;border-radius:8px;background:rgba(var(--tint-rgb),.14);color:var(--acc2);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M16 17l5-5-5-5M21 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg></span>
             <span style="flex:1">
               <span style="display:block;font-weight:700;color:var(--txt);margin-bottom:2px">Sign out of my account</span>
               <span style="display:block;font-size:12.5px;color:var(--faint)">Log <b>${escapeHtml(workerName)}</b> out. Back to the username + PIN screen so the next person can sign in with their own account.</span>
@@ -4679,9 +4701,9 @@ window._bkSetView = function(view) {
   const cbtn = document.getElementById('bkViewCalBtn');
   if (lbtn && cbtn) {
     lbtn.style.background = view === 'list' ? 'var(--acc)' : 'transparent';
-    lbtn.style.color      = view === 'list' ? '#170f05' : '';
+    lbtn.style.color      = view === 'list' ? 'var(--ink-text)' : '';
     cbtn.style.background = view === 'calendar' ? 'var(--acc)' : 'transparent';
-    cbtn.style.color      = view === 'calendar' ? '#170f05' : '';
+    cbtn.style.color      = view === 'calendar' ? 'var(--ink-text)' : '';
   }
   if (view === 'calendar') _bkRenderCalendar();
 };
@@ -4750,7 +4772,7 @@ function _bkRenderCalendar() {
               const t1 = b.time_start || b.time || '';
               const t2 = b.time_end || '';
               const status = b.status || 'Scheduled';
-              const tint = status === 'Arrived' ? 'var(--acc2)' : status === 'Delivered' ? 'var(--teal,#20e3b2)' : 'var(--blue,#639fff)';
+              const tint = status === 'Arrived' ? 'var(--acc2)' : status === 'Delivered' ? 'var(--teal,var(--ink-soft))' : 'var(--blue,#639fff)';
               return `<button onclick="openBookingForm('${escapeHtml(b.id)}')" style="cursor:pointer;text-align:left;background:rgba(99,159,255,.10);border:1px solid ${tint};border-left:3px solid ${tint};border-radius:6px;padding:7px 9px;font-size:11.5px;color:var(--txt);line-height:1.4">
                 <div style="font-family:var(--fd);font-weight:700;font-size:11px;color:${tint}">${escapeHtml(t1)}${t2 ? '–' + escapeHtml(t2) : ''}</div>
                 <div style="font-weight:600;margin-top:2px">${escapeHtml(b.plate || '—')}</div>
@@ -4970,7 +4992,7 @@ function _bookingFormHTML(b) {
       <div style="display:inline-flex;gap:4px;padding:3px;background:var(--bg2);border:1px solid var(--brd);border-radius:100px;font-size:12px;font-weight:600">
         ${['individual','corporate'].map(t => `
           <button type="button" data-ctype="${t}" onclick="_bookingSetCustType('${t}')"
-            style="padding:7px 14px;border-radius:100px;border:0;cursor:pointer;font-family:var(--fb);font-size:12px;font-weight:600;background:${custType === t ? 'var(--acc)' : 'transparent'};color:${custType === t ? '#170f05' : 'var(--dim)'}">
+            style="padding:7px 14px;border-radius:100px;border:0;cursor:pointer;font-family:var(--fb);font-size:12px;font-weight:600;background:${custType === t ? 'var(--acc)' : 'transparent'};color:${custType === t ? 'var(--ink-text)' : 'var(--dim)'}">
             ${t === 'individual' ? 'Individual' : t === 'corporate' ? 'Corporate / Fleet' : 'SEZ'}
           </button>`).join('')}
       </div>
@@ -5018,7 +5040,7 @@ function _bookingFormHTML(b) {
     <datalist id="dlCustomers">${D.customers.map(c => `<option value="${escapeHtml(c.name || '')}">`).join('')}</datalist>
     <datalist id="dlMechanics">${D.mechanics.map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
     <datalist id="dlFloorManagers">${D.mechanics.filter(m => (m.role || '').toLowerCase() === 'floor_manager').map(m => `<option value="${escapeHtml(m.name || '')}">`).join('')}</datalist>
-    <div style="display:flex;align-items:center;gap:10px;background:rgba(32,227,178,.06);border:1px solid rgba(32,227,178,.28);border-radius:10px;padding:10px 14px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:10px;background:rgba(var(--tint-rgb),.06);border:1px solid rgba(var(--tint-rgb),.28);border-radius:10px;padding:10px 14px;margin-bottom:14px">
       <div style="flex:1;font-size:12.5px;color:var(--dim);line-height:1.45">Returning customer with a Garage&nbsp;Pro QR? Scan it to auto-fill the car &amp; owner — works even if it was issued at another workshop.</div>
       <button type="button" class="mini-btn good" style="white-space:nowrap" onclick="_scanIntoBooking()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M15 15h3M18 15v6M21 18h-3"/></svg>Scan QR</button>
     </div>
@@ -5092,8 +5114,8 @@ window.openCreateJobCardForm = function(bookingId) {
           Department: ${escapeHtml(existing.department || 'Mechanical')}
         </div>
 
-        <div style="margin-bottom:14px;padding:12px 14px;background:rgba(32,227,178,.05);border:1px solid rgba(32,227,178,.30);border-radius:9px">
-          <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--teal,#20e3b2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Customer concerns (from appointment)</div>
+        <div style="margin-bottom:14px;padding:12px 14px;background:rgba(var(--tint-rgb),.05);border:1px solid rgba(var(--tint-rgb),.30);border-radius:9px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--teal,var(--ink-soft));text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Customer concerns (from appointment)</div>
           ${complaintsRows ? `<ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.5;color:var(--txt)">${complaintsRows}</ul>` : '<div style="font-size:12.5px;color:var(--faint)">No complaints recorded yet.</div>'}
           <div style="display:flex;gap:8px;margin-top:10px">
             <input id="cjc-cmp-input" type="text" placeholder="Add a complaint at intake…" style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:13px" />
@@ -5445,7 +5467,7 @@ function _intakeFormHTML(j) {
       <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Fuel level at intake</div>
       <div style="display:inline-flex;gap:0;background:var(--surf);border:1px solid var(--brd2);border-radius:100px;padding:3px;font-size:13px;font-weight:600">
         ${INTAKE_FUEL_LEVELS.map(lvl => `
-          <button type="button" data-intake-fuel="${escapeHtml(lvl)}" onclick="_intakePickFuel('${escapeHtml(lvl)}')" style="padding:8px 18px;border-radius:100px;border:0;cursor:pointer;font-family:var(--fb);font-size:13px;font-weight:600;background:${_intakeBuffer.fuel === lvl ? 'var(--acc)' : 'transparent'};color:${_intakeBuffer.fuel === lvl ? '#170f05' : 'var(--dim)'}">${lvl}</button>
+          <button type="button" data-intake-fuel="${escapeHtml(lvl)}" onclick="_intakePickFuel('${escapeHtml(lvl)}')" style="padding:8px 18px;border-radius:100px;border:0;cursor:pointer;font-family:var(--fb);font-size:13px;font-weight:600;background:${_intakeBuffer.fuel === lvl ? 'var(--acc)' : 'transparent'};color:${_intakeBuffer.fuel === lvl ? 'var(--ink-text)' : 'var(--dim)'}">${lvl}</button>
         `).join('')}
       </div>
     </div>
@@ -5481,7 +5503,7 @@ window._intakePickFuel = function(lvl) {
   document.querySelectorAll('[data-intake-fuel]').forEach(b => {
     const on = b.dataset.intakeFuel === lvl;
     b.style.background = on ? 'var(--acc)' : 'transparent';
-    b.style.color      = on ? '#170f05' : 'var(--dim)';
+    b.style.color      = on ? 'var(--ink-text)' : 'var(--dim)';
   });
 };
 
@@ -5727,7 +5749,7 @@ window._bookingSetCustType = function(t) {
   document.querySelectorAll('[data-ctype]').forEach(btn => {
     const on = btn.dataset.ctype === t;
     btn.style.background = on ? 'var(--acc)' : 'transparent';
-    btn.style.color = on ? '#170f05' : 'var(--dim)';
+    btn.style.color = on ? 'var(--ink-text)' : 'var(--dim)';
   });
   if (t !== 'individual') _bookingValidateGstin();
 };
@@ -6387,11 +6409,11 @@ window.openCheckinForm = async function(bookingId) {
           </select>
           <span class="hint">A bay is required to check a car in.${matching.length ? '' : ' No ' + escapeHtml(b.bay_type || 'suitable') + ' bay is free right now — you can put an available bay to use or queue the car.'} ${bays.length} ${matching.length ? 'matching ' + (b.bay_type || '') : 'available'} bay${bays.length === 1 ? '' : 's'} · ${occupiedCount} occupied${maintCount ? ` · ${maintCount} in maintenance` : ''}</span>
         </div>` : !hasBaysConfigured ? `
-        <div style="background:rgba(255,179,71,.10);border:1px solid rgba(255,179,71,.32);border-radius:9px;padding:14px 16px;color:var(--acc2);font-size:13.5px;line-height:1.55;margin-bottom:10px">
+        <div style="background:rgba(var(--tint-rgb),.10);border:1px solid rgba(var(--tint-rgb),.32);border-radius:9px;padding:14px 16px;color:var(--acc2);font-size:13.5px;line-height:1.55;margin-bottom:10px">
           <b>No bays configured yet.</b> Go to the <b>Bays</b> tab and click "Manage bay types" to set up your workshop's bays. For now this car will go to the queue.
         </div>
         <button class="refresh-btn" onclick="closeModal();switchTab('bays')">Open Bays tab →</button>` : `
-        <div style="background:rgba(255,179,71,.10);border:1px solid rgba(255,179,71,.32);border-radius:9px;padding:14px 16px;color:var(--acc2);font-size:13.5px;line-height:1.55">
+        <div style="background:rgba(var(--tint-rgb),.10);border:1px solid rgba(var(--tint-rgb),.32);border-radius:9px;padding:14px 16px;color:var(--acc2);font-size:13.5px;line-height:1.55">
           All ${D.bays.length} bay${D.bays.length === 1 ? '' : 's'} ${D.bays.length === 1 ? 'is' : 'are'} unavailable right now (${occupiedCount} occupied${maintCount ? ', ' + maintCount + ' in maintenance' : ''}). This car will go into the queue and get the next free bay.
         </div>`}
       <div class="f-grp" style="margin-top:14px">
@@ -6814,9 +6836,9 @@ async function renderJobs(force = false) {
       const mechCell = mechs.length
         ? escapeHtml(mechs[0]) + (mechs.length > 1 ? ` <span style="color:var(--faint);font-size:11px">+${mechs.length - 1}</span>` : '')
         : `<button class="mini-btn warn" onclick="openJobForm('${escapeHtml(j.id)}')" style="font-size:10.5px">Assign</button>`;
-      const insBadge = j.is_insurance ? ` <span title="Insurance job · ${escapeHtml(j.insurance_approval || 'Pending')}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:100px;background:rgba(255,179,71,.14);color:var(--acc2);font-size:10.5px;font-weight:700;margin-left:6px">🛡 ${escapeHtml((j.insurance_approval || 'Pending').toUpperCase())}</span>` : '';
+      const insBadge = j.is_insurance ? ` <span title="Insurance job · ${escapeHtml(j.insurance_approval || 'Pending')}" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:100px;background:rgba(var(--tint-rgb),.14);color:var(--acc2);font-size:10.5px;font-weight:700;margin-left:6px">🛡 ${escapeHtml((j.insurance_approval || 'Pending').toUpperCase())}</span>` : '';
       const dept = j.department || _jobDeptFromBooking(j) || 'Mechanical';
-      const deptTint = dept === 'Bodyshop' ? 'rgba(255,107,107,.14);color:var(--red)' : dept === 'Both' ? 'rgba(255,179,71,.14);color:var(--acc2)' : 'rgba(99,159,255,.14);color:var(--blue)';
+      const deptTint = dept === 'Bodyshop' ? 'rgba(255,107,107,.14);color:var(--red)' : dept === 'Both' ? 'rgba(var(--tint-rgb),.14);color:var(--acc2)' : 'rgba(99,159,255,.14);color:var(--blue)';
       const status = j.status || 'Awaiting Assignment';
       // Stage-2 quick actions visible inline so floor managers / techs can advance the job in one click.
       // Estimate/inform-client/checkout/invoice actions are Service Advisor (+owner/manager) exclusive.
@@ -7624,7 +7646,7 @@ function _renderClientDecision(inv) {
   const lineRow = (kind, idx, name, hint, amount) => {
     const it = (kind === 'line' ? inv.lines : inv.charges)[idx];
     const ap = it.approval || 'pending';
-    const stateColor = ap === 'approved' ? 'rgba(32,227,178,.10);border-color:rgba(32,227,178,.40)' :
+    const stateColor = ap === 'approved' ? 'rgba(var(--tint-rgb),.10);border-color:rgba(var(--tint-rgb),.40)' :
                        ap === 'rejected' ? 'rgba(255,107,107,.10);border-color:rgba(255,107,107,.40)' :
                                            'var(--bg2);border-color:var(--brd)';
     return `<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid;border-radius:10px;margin-bottom:7px;background:${stateColor}">
@@ -8030,7 +8052,7 @@ async function renderFeedback(force = false) {
         <div class="card" style="padding:14px 16px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
             <div>
-              <span style="color:#ffb347;font-size:16px;letter-spacing:1px">${stars(f.rating)}</span>
+              <span style="color:var(--ink);font-size:16px;letter-spacing:1px">${stars(f.rating)}</span>
               <span style="margin-left:8px;font-weight:700;color:var(--txt)">${escapeHtml(f.cust_name || 'Customer')}</span>
               ${f.plate ? `<span style="color:var(--faint);font-size:12.5px;margin-left:6px">· ${escapeHtml(f.plate)}</span>` : ''}
               ${f._location && scope === 'all' ? `<span style="color:var(--faint);font-size:11.5px;margin-left:6px">(${escapeHtml(f._location)})</span>` : ''}
@@ -8919,8 +8941,8 @@ const DVI_CATEGORIES = [
   { cat: 'Other',                       items: ['Wiper blades', 'Exhaust system', 'AC cooling'] }
 ];
 const DVI_CONDITIONS = [
-  { id: 'good',    label: 'Good',    fg: 'var(--teal)', bg: 'rgba(32,227,178,.16)' },
-  { id: 'fair',    label: 'Fair',    fg: 'var(--acc2)', bg: 'rgba(255,179,71,.16)' },
+  { id: 'good',    label: 'Good',    fg: 'var(--teal)', bg: 'rgba(var(--tint-rgb),.16)' },
+  { id: 'fair',    label: 'Fair',    fg: 'var(--acc2)', bg: 'rgba(var(--tint-rgb),.16)' },
   { id: 'replace', label: 'Replace', fg: 'var(--red)',  bg: 'rgba(255,107,107,.16)' },
   { id: 'na',      label: 'N/A',     fg: 'var(--faint)', bg: 'rgba(255,255,255,.06)' }
 ];
@@ -9112,8 +9134,8 @@ window.openJobForm = function(id) {
         const fromJob = Array.isArray(j.complaints) ? j.complaints : [];
         const list    = fromBk.length ? fromBk : fromJob;
         if (!list.length) return '';
-        return `<div style="margin:14px 0;padding:12px 14px;background:rgba(32,227,178,.05);border:1px solid rgba(32,227,178,.30);border-radius:9px">
-          <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--teal,#20e3b2);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Customer concerns from appointment</div>
+        return `<div style="margin:14px 0;padding:12px 14px;background:rgba(var(--tint-rgb),.05);border:1px solid rgba(var(--tint-rgb),.30);border-radius:9px">
+          <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--teal,var(--ink-soft));letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Customer concerns from appointment</div>
           <ul style="margin:0;padding-left:20px;color:var(--txt);font-size:13px;line-height:1.6">
             ${list.map(c => `<li>${escapeHtml(c.text || c)}</li>`).join('')}
           </ul>
@@ -9125,7 +9147,7 @@ window.openJobForm = function(id) {
         const d = j.last_customer_decision;
         if (!d || !(d.note || '').trim()) return '';
         const when = d.at ? ' · ' + escapeHtml((d.at || '').slice(0, 16)) : '';
-        return `<div style="margin:14px 0;padding:12px 14px;background:rgba(255,179,71,.06);border:1px solid rgba(255,179,71,.32);border-radius:9px">
+        return `<div style="margin:14px 0;padding:12px 14px;background:rgba(var(--tint-rgb),.06);border:1px solid rgba(var(--tint-rgb),.32);border-radius:9px">
           <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--acc2);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">💬 Note from the customer${when}</div>
           <div style="color:var(--txt);font-size:13.5px;line-height:1.55;font-style:italic">“${escapeHtml(d.note)}”</div>
         </div>`;
@@ -9280,7 +9302,7 @@ window.openJobForm = function(id) {
             <input type="checkbox" id="jf-ins-on" ${_editingJob.is_insurance ? 'checked' : ''} onchange="_toggleInsurance()" style="width:18px;height:18px;cursor:pointer" />
             <span style="font-family:var(--fd);font-weight:700;font-size:14px;color:var(--acc2)">This is an insurance job</span>
           </label>
-          <div id="jf-ins-fields" style="${_editingJob.is_insurance ? '' : 'display:none'};margin-top:12px;padding:14px;background:rgba(255,179,71,.08);border:1px solid rgba(255,179,71,.30);border-radius:10px">
+          <div id="jf-ins-fields" style="${_editingJob.is_insurance ? '' : 'display:none'};margin-top:12px;padding:14px;background:rgba(var(--tint-rgb),.08);border:1px solid rgba(var(--tint-rgb),.30);border-radius:10px">
             <div class="f-row r3">
               <div class="f-grp"><label>Insurer name</label><input id="jf-ins-name" type="text" value="${escapeHtml(_editingJob.insurer_name)}" placeholder="ICICI Lombard" /></div>
               <div class="f-grp"><label>Claim number</label><input id="jf-ins-claim" type="text" value="${escapeHtml(_editingJob.claim_number)}" placeholder="CLM-2025-XXXX" /></div>
@@ -9296,7 +9318,7 @@ window.openJobForm = function(id) {
             <div class="f-row r1">
               <div class="f-grp"><label>Notes / remarks</label><textarea id="jf-ins-notes" placeholder="Photos submitted, partial settlement reasons, follow-ups…">${escapeHtml(_editingJob.insurance_notes)}</textarea></div>
             </div>
-            <div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(255,179,71,.30);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(var(--tint-rgb),.30);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
               <div style="font-size:12px;color:var(--dim);line-height:1.5;max-width:480px">Generate a branded claim document with the customer, vehicle, parts, labour, and uploaded photos — ready to print or save as PDF for the insurer.</div>
               <button type="button" class="mini-btn good" onclick="viewInsuranceDoc('${escapeHtml(j.id)}')" style="white-space:nowrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg>Generate insurance PDF</button>
             </div>
@@ -9399,8 +9421,8 @@ window._jobAddPart = function() {
       const cur    = D.settings?.currency || '₹';
       return `
         <button type="button" data-itemid="${escapeHtml(id)}" ${out || already ? 'disabled' : ''}
-          style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${out ? 'var(--bg2)' : picked ? 'rgba(32,227,178,.10)' : 'var(--surf)'};cursor:${out || already ? 'not-allowed' : 'pointer'};color:${out ? 'var(--faint)' : 'var(--txt)'};opacity:${already ? '.55' : '1'};font-family:var(--fb)">
-            <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'var(--teal,#20e3b2)' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
+          style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${out ? 'var(--bg2)' : picked ? 'rgba(var(--tint-rgb),.10)' : 'var(--surf)'};cursor:${out || already ? 'not-allowed' : 'pointer'};color:${out ? 'var(--faint)' : 'var(--txt)'};opacity:${already ? '.55' : '1'};font-family:var(--fb)">
+            <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${picked ? 'var(--teal,var(--ink-soft))' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
             <div style="flex:1">
               <div style="font-weight:700;font-size:13.5px">${escapeHtml(i.name)}${already ? ' <span style="color:var(--faint);font-size:11px;font-weight:500">· already on this job</span>' : ''}</div>
               <div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(i.category || '—')}${i.hsn ? ' · HSN ' + escapeHtml(i.hsn) : ''}${i.supplier ? ' · ' + escapeHtml(i.supplier) : ''}</div>
@@ -9532,8 +9554,8 @@ window._jobAddEstFromInventory = function() {
     wrap.innerHTML = list.map(i => {
       const id = i.id || i.name;
       const picked = _pickEstInvSelected.has(id);
-      return `<button type="button" data-eid="${escapeHtml(id)}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'rgba(32,227,178,.10)' : 'var(--surf)'};cursor:pointer;color:var(--txt);font-family:var(--fb)">
-      <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'var(--teal,#20e3b2)' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
+      return `<button type="button" data-eid="${escapeHtml(id)}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${picked ? 'rgba(var(--tint-rgb),.10)' : 'var(--surf)'};cursor:pointer;color:var(--txt);font-family:var(--fb)">
+      <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${picked ? 'var(--teal,var(--ink-soft))' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
       <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(i.name)}</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(i.category || '—')} · ${(() => {
         const reserved = _reservedQtyFor(i.name, _editingJob?.id);
         const free = Number(i.qty || 0) - reserved;
@@ -9625,8 +9647,8 @@ window._jobAddEstFromApproved = function() {
     document.getElementById('gpSubModalBody').querySelector('[data-approved-list]').innerHTML =
       candidates.map((c,i) => {
         const picked = window._pickApprovedSelected.has(i);
-        return `<button type="button" data-ci="${i}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'rgba(32,227,178,.10)' : 'var(--surf)'};cursor:pointer;color:var(--txt);font-family:var(--fb)">
-        <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,#20e3b2)' : 'var(--brd2)'};background:${picked ? 'var(--teal,#20e3b2)' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
+        return `<button type="button" data-ci="${i}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${picked ? 'rgba(var(--tint-rgb),.10)' : 'var(--surf)'};cursor:pointer;color:var(--txt);font-family:var(--fb)">
+        <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${picked ? 'var(--teal,var(--ink-soft))' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
         <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(c.name)} <span style="color:var(--faint);font-weight:500">× ${c.qty}</span></div>${c.plate ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">for ${escapeHtml(c.plate)}${(c.plate||'').toUpperCase().replace(/\s+/g,'')===plate?' · this car':''}</div>` : ''}</div>
         <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:var(--teal)">${cur}${c.price.toLocaleString('en-IN')}</div>
       </button>`;
@@ -9678,9 +9700,9 @@ window._jobRemoveEstService = function(i) { if (!isServiceAdvisorRole()) return 
 function _concernStatusPill(c) {
   const map = {
     draft:    ['Draft',           'var(--faint)', 'rgba(255,255,255,.06)'],
-    sent:     ['Sent · awaiting', 'var(--acc2)',  'rgba(255,179,71,.14)'],
-    approved: ['Approved',        'var(--teal)',  'rgba(32,227,178,.14)'],
-    partial:  ['Partial',         'var(--acc2)',  'rgba(255,179,71,.14)'],
+    sent:     ['Sent · awaiting', 'var(--acc2)',  'rgba(var(--tint-rgb),.14)'],
+    approved: ['Approved',        'var(--teal)',  'rgba(var(--tint-rgb),.14)'],
+    partial:  ['Partial',         'var(--acc2)',  'rgba(var(--tint-rgb),.14)'],
     rejected: ['Rejected',        'var(--red)',   'rgba(255,107,107,.14)']
   };
   const [label, fg, bg] = map[c.status || 'draft'] || map.draft;
@@ -9968,9 +9990,9 @@ function _drawJobPhotos() {
     return;
   }
   // Group by label so before/after/etc photos sit together
-  const labelTint = (l) => l === 'After' ? 'rgba(32,227,178,.18);color:var(--teal)'
+  const labelTint = (l) => l === 'After' ? 'rgba(var(--tint-rgb),.18);color:var(--teal)'
                       : l === 'Damage' ? 'rgba(255,107,107,.18);color:var(--red)'
-                      : l === 'Insurance' ? 'rgba(255,179,71,.18);color:var(--acc2)'
+                      : l === 'Insurance' ? 'rgba(var(--tint-rgb),.18);color:var(--acc2)'
                       : 'rgba(99,159,255,.18);color:var(--blue)';
   wrap.innerHTML = photos.map(p => `
     <div style="position:relative;border-radius:9px;overflow:hidden;border:1px solid var(--brd);background:var(--bg2);aspect-ratio:1;cursor:zoom-in" onclick="_jobZoomPhoto('${escapeHtml(p.id)}')">
@@ -10609,7 +10631,7 @@ window.openCustomerForm = function(id) {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
         <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em">Customer details</div>
         <div style="display:inline-flex;gap:4px;padding:3px;background:var(--bg2);border:1px solid var(--brd);border-radius:100px;font-size:12px;font-weight:600">
-          ${['individual','corporate'].map(t => `<button type="button" data-cf-type="${t}" onclick="_cfSetType('${t}')" style="padding:7px 14px;border-radius:100px;border:0;cursor:pointer;font-family:var(--fb);font-size:12px;font-weight:600;background:${custType === t ? 'var(--acc)' : 'transparent'};color:${custType === t ? '#170f05' : 'var(--dim)'}">${t === 'individual' ? 'Individual' : 'Corporate / Fleet'}</button>`).join('')}
+          ${['individual','corporate'].map(t => `<button type="button" data-cf-type="${t}" onclick="_cfSetType('${t}')" style="padding:7px 14px;border-radius:100px;border:0;cursor:pointer;font-family:var(--fb);font-size:12px;font-weight:600;background:${custType === t ? 'var(--acc)' : 'transparent'};color:${custType === t ? 'var(--ink-text)' : 'var(--dim)'}">${t === 'individual' ? 'Individual' : 'Corporate / Fleet'}</button>`).join('')}
         </div>
       </div>
       <input type="hidden" id="cf-type" value="${escapeHtml(custType)}" />
@@ -10683,7 +10705,7 @@ window._cfSetType = function(t) {
   document.querySelectorAll('[data-cf-type]').forEach(btn => {
     const on = btn.dataset.cfType === t;
     btn.style.background = on ? 'var(--acc)' : 'transparent';
-    btn.style.color      = on ? '#170f05' : 'var(--dim)';
+    btn.style.color      = on ? 'var(--ink-text)' : 'var(--dim)';
   });
 };
 
@@ -11649,8 +11671,8 @@ function _renderSubBadge() {
   const tint = !sub.active || expired
     ? 'background:rgba(255,107,107,.10);border-color:rgba(255,107,107,.30);color:var(--red)'
     : expSoon
-      ? 'background:rgba(255,179,71,.10);border-color:rgba(255,179,71,.30);color:var(--acc2)'
-      : 'background:rgba(32,227,178,.08);border-color:rgba(32,227,178,.25);color:var(--teal)';
+      ? 'background:rgba(var(--tint-rgb),.10);border-color:rgba(var(--tint-rgb),.30);color:var(--acc2)'
+      : 'background:rgba(var(--tint-rgb),.08);border-color:rgba(var(--tint-rgb),.25);color:var(--teal)';
   el.style.cssText = `display:block;text-decoration:none;padding:9px 11px;margin:0 0 6px;border-radius:9px;border:1px solid;font-size:11.5px;line-height:1.4;${tint}`;
   el.innerHTML = `
     <div style="font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">
@@ -11785,10 +11807,10 @@ function _statCard(label, val, color) {
 function _renderBayChip(b) {
   const state = _bayState(b);
   const palette = state === 'maintenance'
-    ? { bg:'rgba(255,179,71,.10)', fg:'var(--acc2)', border:'rgba(255,179,71,.32)' }
+    ? { bg:'rgba(var(--tint-rgb),.10)', fg:'var(--acc2)', border:'rgba(var(--tint-rgb),.32)' }
     : state === 'occupied'
     ? { bg:'rgba(255,107,107,.10)', fg:'var(--red)', border:'rgba(255,107,107,.30)' }
-    : { bg:'rgba(32,227,178,.10)',  fg:'var(--teal)', border:'rgba(32,227,178,.28)' };
+    : { bg:'rgba(var(--tint-rgb),.10)',  fg:'var(--teal)', border:'rgba(var(--tint-rgb),.28)' };
   const statusText = state === 'maintenance' ? 'MAINTENANCE'
     : state === 'occupied' ? (b.plate || 'Occupied')
     : 'Available';
@@ -11836,7 +11858,7 @@ window.moveCarToBay = async function(fromBayId) {
           <button type="button" class="snav" data-tobay="${escapeHtml(b.id)}"
             style="background:var(--bg2);border:1px solid var(--brd2);padding:13px;border-radius:10px;text-align:left;cursor:pointer;font-family:var(--fb)">
             <div style="display:flex;align-items:center;gap:10px">
-              <span class="plate" style="background:rgba(32,227,178,.14);color:var(--teal);border-color:rgba(32,227,178,.28)">Bay ${escapeHtml(String(b.num))}</span>
+              <span class="plate" style="background:rgba(var(--tint-rgb),.14);color:var(--teal);border-color:rgba(var(--tint-rgb),.28)">Bay ${escapeHtml(String(b.num))}</span>
               <div style="flex:1"><b style="color:var(--txt)">${escapeHtml(b.type)}</b>${b.type === from.type ? ' <span style="font-size:11px;color:var(--teal)">· same type</span>' : ''}</div>
             </div>
           </button>`).join('')}
@@ -12121,7 +12143,7 @@ window.qAssignNow = async function(qid) {
           <button type="button" class="snav" data-bayid="${escapeHtml(b.id)}"
             style="background:var(--bg2);border:1px solid var(--brd2);padding:13px;border-radius:10px;text-align:left;cursor:pointer;font-family:var(--fb)">
             <div style="display:flex;align-items:center;gap:10px">
-              <span class="plate" style="background:rgba(32,227,178,.14);color:var(--teal);border-color:rgba(32,227,178,.28)">Bay ${escapeHtml(String(b.num))}</span>
+              <span class="plate" style="background:rgba(var(--tint-rgb),.14);color:var(--teal);border-color:rgba(var(--tint-rgb),.28)">Bay ${escapeHtml(String(b.num))}</span>
               <div style="flex:1"><b style="color:var(--txt)">${escapeHtml(b.type)}</b></div>
             </div>
           </button>`).join('')}
@@ -12464,9 +12486,9 @@ function _prStyleScopeButtons() {
   const ab = document.getElementById('prScopeAllBtn');
   if (mb && ab) {
     mb.style.background = _prScope === 'mine' ? 'var(--acc)' : 'transparent';
-    mb.style.color      = _prScope === 'mine' ? '#170f05' : '';
+    mb.style.color      = _prScope === 'mine' ? 'var(--ink-text)' : '';
     ab.style.background = _prScope === 'all'  ? 'var(--acc)' : 'transparent';
-    ab.style.color      = _prScope === 'all'  ? '#170f05' : '';
+    ab.style.color      = _prScope === 'all'  ? 'var(--ink-text)' : '';
   }
 }
 // User clicks a scope tab → set + re-render ONCE. (Was recursing into renderParts
@@ -12541,8 +12563,8 @@ async function renderParts(force = false) {
 function _prStatusTint(s) {
   return {
     Pending:   { bg:'rgba(255,255,255,.06)',   fg:'var(--faint)' },
-    Ordered:   { bg:'rgba(255,179,71,.16)',    fg:'var(--acc2)' },
-    Received:  { bg:'rgba(32,227,178,.16)',    fg:'var(--teal)' },
+    Ordered:   { bg:'rgba(var(--tint-rgb),.16)',    fg:'var(--acc2)' },
+    Received:  { bg:'rgba(var(--tint-rgb),.16)',    fg:'var(--teal)' },
     Cancelled: { bg:'rgba(255,107,107,.16)',   fg:'var(--red)' }
   }[s] || { bg:'rgba(255,255,255,.06)', fg:'var(--faint)' };
 }
@@ -12553,8 +12575,8 @@ function _prStatusTint(s) {
 function _prCustomerApprovalPill(ca) {
   if (!ca) return '';
   const tint = {
-    Pending:  { bg:'rgba(255,179,71,.16)',  fg:'var(--acc2)', label:'Awaiting customer' },
-    Approved: { bg:'rgba(32,227,178,.16)',  fg:'var(--teal)', label:'Customer approved' },
+    Pending:  { bg:'rgba(var(--tint-rgb),.16)',  fg:'var(--acc2)', label:'Awaiting customer' },
+    Approved: { bg:'rgba(var(--tint-rgb),.16)',  fg:'var(--teal)', label:'Customer approved' },
     Declined: { bg:'rgba(255,107,107,.16)', fg:'var(--red)',  label:'Customer declined' }
   }[ca];
   if (!tint) return '';
@@ -13223,7 +13245,7 @@ function _prItemsCell(r) {
   const tooltip = items.map(it => `${it.name} × ${it.qty}`).join(' · ');
   return `${escapeHtml(first.name)} <span style="color:var(--faint);font-size:11.5px">× ${first.qty}</span>` +
     (more > 0
-      ? ` <span title="${escapeHtml(tooltip)}" style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:100px;background:rgba(255,179,71,.16);color:var(--acc2);font-size:10.5px;font-weight:700">+${more} more</span>`
+      ? ` <span title="${escapeHtml(tooltip)}" style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:100px;background:rgba(var(--tint-rgb),.16);color:var(--acc2);font-size:10.5px;font-weight:700">+${more} more</span>`
       : '');
 }
 window._prItemsCell = _prItemsCell;
@@ -13489,7 +13511,7 @@ async function renderSettings(force = false) {
           const host = 'garagepro.me';
           const pathUrl = slug ? `https://${host}/track/${slug}` : '';
           const hashUrl = slug ? `https://${host}/#track/${slug}`  : '';
-          if (!slug) return `<div style="margin-top:14px;padding:12px 14px;background:rgba(255,179,71,.08);border:1px solid rgba(255,179,71,.30);border-radius:9px;font-size:12.5px;color:var(--dim)">Set your workshop name above to generate a shareable Track Repair link.</div>`;
+          if (!slug) return `<div style="margin-top:14px;padding:12px 14px;background:rgba(var(--tint-rgb),.08);border:1px solid rgba(var(--tint-rgb),.30);border-radius:9px;font-size:12.5px;color:var(--dim)">Set your workshop name above to generate a shareable Track Repair link.</div>`;
           return `<div style="margin-top:14px;padding:12px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px">
             <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Customer Track Repair link</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -13701,7 +13723,7 @@ async function renderSettings(force = false) {
           <div id="sf-em-tpls" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
             ${EMAIL_TEMPLATES.map(t => {
               const selected = (s.email_template || 'classic') === t.id;
-              return `<div data-em-tile="${t.id}" style="border:2px solid ${selected ? 'var(--acc2)' : 'var(--brd2)'};border-radius:10px;padding:14px;background:${selected ? 'rgba(255,179,71,.07)' : 'var(--bg2)'};display:flex;flex-direction:column;gap:8px;position:relative">
+              return `<div data-em-tile="${t.id}" style="border:2px solid ${selected ? 'var(--acc2)' : 'var(--brd2)'};border-radius:10px;padding:14px;background:${selected ? 'rgba(var(--tint-rgb),.07)' : 'var(--bg2)'};display:flex;flex-direction:column;gap:8px;position:relative">
                 <label style="cursor:pointer;display:flex;flex-direction:column;gap:8px;margin:0">
                   <div style="display:flex;align-items:center;justify-content:space-between">
                     <span style="font-family:var(--fd);font-weight:700;font-size:13.5px">${escapeHtml(t.label)}</span>
@@ -14144,7 +14166,7 @@ window._selectEmailTemplate = function(id) {
     const r = tile.querySelector('input[type="radio"]');
     const on = !!(r && r.checked);
     tile.style.borderColor = on ? 'var(--acc2)' : 'var(--brd2)';
-    tile.style.background  = on ? 'rgba(255,179,71,.07)' : 'var(--bg2)';
+    tile.style.background  = on ? 'rgba(var(--tint-rgb),.07)' : 'var(--bg2)';
   });
 };
 
@@ -14433,7 +14455,7 @@ function _renderBranchList() {
         <div style="font-weight:700;color:var(--txt);font-size:13.5px">${escapeHtml(b.name)}</div>
         <div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(b.email)} · created ${escapeHtml((b.created_at || '').slice(0,10))}</div>
       </div>
-      <span style="font-size:10.5px;color:var(--teal);background:rgba(32,227,178,.10);border:1px solid rgba(32,227,178,.28);padding:3px 9px;border-radius:100px;font-weight:700;letter-spacing:.05em">BRANCH</span>
+      <span style="font-size:10.5px;color:var(--teal);background:rgba(var(--tint-rgb),.10);border:1px solid rgba(var(--tint-rgb),.28);padding:3px 9px;border-radius:100px;font-weight:700;letter-spacing:.05em">BRANCH</span>
       <button class="mini-btn danger" onclick="unlinkBranch('${escapeHtml(b.uid)}')">Unlink</button>
     </div>`).join('')}</div>`;
 }
@@ -14966,11 +14988,11 @@ function _attachScanFab() {
   if (document.getElementById('scanFab')) return;
   const fab = document.createElement('button');
   fab.id = 'scanFab';
-  fab.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:100;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;border:0;border-radius:50%;width:58px;height:58px;cursor:pointer;box-shadow:0 12px 32px -8px rgba(255,122,24,.6);display:grid;place-items:center;transition:transform .15s,box-shadow .2s';
+  fab.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:100;background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--ink-text);border:0;border-radius:50%;width:58px;height:58px;cursor:pointer;box-shadow:0 12px 32px -8px rgba(var(--tint-rgb),.6);display:grid;place-items:center;transition:transform .15s,box-shadow .2s';
   fab.title = 'Scan barcode or QR code';
   fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><path d="M21 15v3a3 3 0 0 1-3 3h-3M15 18h.01M15 12h6M12 3v6M12 12v3"/></svg>';
-  fab.onmouseenter = () => { fab.style.transform = 'scale(1.06)'; fab.style.boxShadow = '0 18px 40px -8px rgba(255,122,24,.75)'; };
-  fab.onmouseleave = () => { fab.style.transform = ''; fab.style.boxShadow = '0 12px 32px -8px rgba(255,122,24,.6)'; };
+  fab.onmouseenter = () => { fab.style.transform = 'scale(1.06)'; fab.style.boxShadow = '0 18px 40px -8px rgba(var(--tint-rgb),.75)'; };
+  fab.onmouseleave = () => { fab.style.transform = ''; fab.style.boxShadow = '0 12px 32px -8px rgba(var(--tint-rgb),.6)'; };
   fab.onclick = () => openScanner();
   document.body.appendChild(fab);
 }
@@ -15151,7 +15173,7 @@ async function renderInvoices(force = false) {
       const cur = inv.workshop_snapshot?.currency || D.settings.currency || '₹';
       const typeBadge = inv.is_estimate
         ? `<span style="font-size:9.5px;font-weight:800;letter-spacing:.05em;padding:2px 7px;border-radius:100px;background:rgba(99,159,255,.16);color:var(--blue);margin-left:6px;vertical-align:middle">ESTIMATE</span>`
-        : `<span style="font-size:9.5px;font-weight:800;letter-spacing:.05em;padding:2px 7px;border-radius:100px;background:rgba(32,227,178,.14);color:var(--teal);margin-left:6px;vertical-align:middle">FINAL</span>`;
+        : `<span style="font-size:9.5px;font-weight:800;letter-spacing:.05em;padding:2px 7px;border-radius:100px;background:rgba(var(--tint-rgb),.14);color:var(--teal);margin-left:6px;vertical-align:middle">FINAL</span>`;
       return `<tr>
         <td class="k">${escapeHtml(inv.number || '—')}${typeBadge}</td>
         <td style="white-space:nowrap;font-size:12.5px;color:var(--faint)">${escapeHtml((inv.issue_date || (inv.created_at || '').slice(0, 10)))}</td>
@@ -15160,7 +15182,7 @@ async function renderInvoices(force = false) {
         <td class="k" style="white-space:nowrap">${escapeHtml(cur)} ${total.toLocaleString('en-IN')}${!inv.is_estimate ? (inv.payment_status === 'Paid' ? ' <span style="font-size:9px;font-weight:800;color:var(--teal)">● PAID</span>' : inv.payment_status === 'Partial' ? ' <span style="font-size:9px;font-weight:800;color:var(--acc2)">● PARTIAL</span>' : ' <span style="font-size:9px;font-weight:800;color:var(--red)">● DUE</span>') : ''}</td>
         <td>${statusPill(inv.status || 'Draft')}</td>
         <td><div class="row-act">
-          ${(!inv.is_estimate && inv.status !== 'Cancelled' && inv.payment_status !== 'Paid') ? `<button class="mini-btn" style="border-color:rgba(32,227,178,.5);color:var(--teal)" onclick="_quickMarkPaid('${escapeHtml(inv.id)}')" title="Mark this invoice fully paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M20 6 9 17l-5-5"/></svg>Paid</button>
+          ${(!inv.is_estimate && inv.status !== 'Cancelled' && inv.payment_status !== 'Paid') ? `<button class="mini-btn" style="border-color:rgba(var(--tint-rgb),.5);color:var(--teal)" onclick="_quickMarkPaid('${escapeHtml(inv.id)}')" title="Mark this invoice fully paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M20 6 9 17l-5-5"/></svg>Paid</button>
           <button class="mini-btn warn" onclick="chasePayment('${escapeHtml(inv.id)}')" title="Send the customer a payment reminder (WhatsApp or email)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Chase</button>` : ''}
           <button class="mini-btn good" onclick="viewInvoice('${escapeHtml(inv.id)}')" title="View / print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>
           <button class="mini-btn" onclick="openInvoiceForm('${escapeHtml(inv.id)}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
@@ -16931,6 +16953,24 @@ function _custPrefersEmail(opts) {
   return pref === 'email' || pref === 'both';
 }
 
+// Durable record of an email we've decided to send. Written BEFORE the
+// immediate client-side attempt below, so that if the attempt never completes
+// — tab closed mid-fetch, phone locks, a network blip — the send isn't lost:
+// api/cron-send.js (a server-side job that runs on a schedule, independent of
+// any browser) scans every workshop's pending mail_queue docs and finishes
+// the job. If the immediate attempt DOES succeed, we mark it sent right away
+// so the cron never re-sends it. See email-relay/README.md for the cron side.
+async function _enqueueMail({ to, subject, html, fromName, logo, kind, event }) {
+  try {
+    return await wsCol('mail_queue').add({
+      to, subject, html, fromName: fromName || '', logo: logo || '',
+      kind: kind || '', event: event || '',
+      status: 'pending', attempts: 0, created_at: nowStr(),
+      sent_at: '', sent_by: '', error: ''
+    });
+  } catch (e) { console.warn('[enqueueMail]', e); return null; }
+}
+
 async function sendCustomerNotification(eventId, opts = {}) {
   const s = D.settings || {};
   if (!s.email_enabled) return { ok: false, skipped: 'disabled' };
@@ -16953,14 +16993,26 @@ async function sendCustomerNotification(eventId, opts = {}) {
   const data = _buildEmailData({ ...opts, event: eventId, headline: evt.headline, invoice_view_link: invoiceViewLink });
   if (!data.customer_email) return { ok: false, skipped: 'no-recipient' };
   const { subject, html } = _renderEmailTemplate(s.email_template || 'classic', data);
+  const mailArgs = { to: data.customer_email, subject, html, fromName: data.workshop_name, logo: data.workshop_logo };
+  // Queue FIRST (durable) — see _enqueueMail's comment for why.
+  const queueRef = await _enqueueMail({ ...mailArgs, kind: 'customer', event: eventId });
   try {
-    const res = await _smtpSend({ to: data.customer_email, subject, html, fromName: data.workshop_name, logo: data.workshop_logo });
-    if (res.ok) audit('email-sent', `${eventId} → ${data.customer_email}`, { event: eventId, to: data.customer_email });
-    return res;
+    const res = await _smtpSend(mailArgs);
+    if (res.ok) {
+      audit('email-sent', `${eventId} → ${data.customer_email}`, { event: eventId, to: data.customer_email });
+      if (queueRef) queueRef.update({ status: 'sent', sent_at: nowStr(), sent_by: 'client' }).catch(() => {});
+    }
+    // res.ok === false here (relay rejected it, not a network failure) — leave
+    // the queue doc pending; the cron will retry a handful of times before
+    // giving up, in case it was transient on the relay's end.
+    return { ...res, queued: !!queueRef };
   } catch (e) {
+    // The client-side attempt didn't complete at all — network drop, tab
+    // closed, etc. The queue doc is still 'pending', so nothing is lost: the
+    // cron job will send it next time it runs, independent of any device.
     console.warn('[email]', eventId, e);
     audit('email-failed', `${eventId} → ${data.customer_email}: ${e?.message || e}`, { event: eventId, to: data.customer_email, error: String(e?.message || e) });
-    return { ok: false, error: e?.message || String(e) };
+    return { ok: false, error: e?.message || String(e), queued: !!queueRef };
   }
 }
 window.sendCustomerNotification = sendCustomerNotification;
@@ -17051,7 +17103,7 @@ async function _sendPickupOtpEmail(job, booking) {
           </td></tr>
           <tr><td style="padding:8px 32px 0;text-align:center">
             <div style="font-size:16px;color:#1a1a1a;margin-bottom:18px">Your vehicle is ready for pickup. Share this code with our team to collect it:</div>
-            <div style="font-family:'Courier New',monospace;font-weight:800;font-size:36px;letter-spacing:10px;color:#ff7a18;background:#fff3e8;border-radius:10px;padding:18px 0;margin-bottom:18px">${_esc(job.pickup_otp)}</div>
+            <div style="font-family:'Courier New',monospace;font-weight:800;font-size:36px;letter-spacing:10px;color:var(--ink);background:#fff3e8;border-radius:10px;padding:18px 0;margin-bottom:18px">${_esc(job.pickup_otp)}</div>
             <div style="font-size:12.5px;color:#8892a0;margin-bottom:24px">Only share this with whoever is picking up ${_esc(job.plate || 'the vehicle')} in person. We will never ask for this code by phone or message.</div>
           </td></tr>
           <tr><td style="padding:0 32px 28px">${_emailFooterBlock({ workshop_phone: s.phone, workshop_email: s.email }, 'center')}</td></tr>
@@ -17104,13 +17156,22 @@ async function _sendGarageSummaryEmail(subject, headline, lines) {
       </td></tr>
     </table>
   </body></html>`;
+  const mailArgs = { to, subject, html, fromName: workshopName, logo: s.logo || '' };
+  // Queue FIRST — same durability reasoning as sendCustomerNotification. The
+  // scheduler that calls this has already marked today's dedupe field before
+  // getting here, so getting this into the queue is what actually matters;
+  // whether the immediate attempt below happens to succeed is secondary.
+  const queueRef = await _enqueueMail({ ...mailArgs, kind: 'garage_summary', event: 'garage_summary' });
   try {
-    const res = await _smtpSend({ to, subject, html, fromName: workshopName, logo: s.logo || '' });
-    if (res.ok) audit('email-sent', `garage_summary → ${to}`, { event: 'garage_summary', to });
-    return res;
+    const res = await _smtpSend(mailArgs);
+    if (res.ok) {
+      audit('email-sent', `garage_summary → ${to}`, { event: 'garage_summary', to });
+      if (queueRef) queueRef.update({ status: 'sent', sent_at: nowStr(), sent_by: 'client' }).catch(() => {});
+    }
+    return { ...res, queued: !!queueRef };
   } catch (e) {
     audit('email-failed', `garage_summary → ${to}: ${e?.message || e}`, { event: 'garage_summary', to, error: String(e?.message || e) });
-    return { ok: false, error: e?.message || String(e) };
+    return { ok: false, error: e?.message || String(e), queued: !!queueRef };
   }
 }
 window._sendGarageSummaryEmail = _sendGarageSummaryEmail;
@@ -17528,7 +17589,7 @@ async function renderChat(force = false) {
       const unread = _chatUnreadFrom(c.id);
       const active = _chatOpenWith?.id === c.id;
       return `<div onclick="_chatOpenThread('${escapeHtml(c.id)}','${escapeHtml((c.name||'').replace(/'/g,"\\'"))}')"
-        style="padding:12px 14px;border-bottom:1px solid var(--brd);cursor:pointer;background:${active ? 'rgba(255,179,71,.08)' : 'transparent'};display:flex;align-items:center;gap:10px">
+        style="padding:12px 14px;border-bottom:1px solid var(--brd);cursor:pointer;background:${active ? 'rgba(var(--tint-rgb),.08)' : 'transparent'};display:flex;align-items:center;gap:10px">
         <div style="width:36px;height:36px;border-radius:50%;background:var(--bg2);display:grid;place-items:center;font-weight:800;font-size:13px;color:var(--acc2);flex:none">${escapeHtml((c.name||'?').slice(0,1).toUpperCase())}</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:13.5px;display:flex;justify-content:space-between;gap:6px">
@@ -17537,7 +17598,7 @@ async function renderChat(force = false) {
           </div>
           <div style="display:flex;justify-content:space-between;gap:6px;align-items:center">
             <span style="font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${last ? escapeHtml((last.from_id===currentWorker.id?'You: ':'')+last.text) : escapeHtml(c.role ? roleLabel(c.role) : '—')}</span>
-            ${unread ? `<span style="background:var(--teal,#20e3b2);color:#04231c;font-size:10px;font-weight:800;padding:1px 6px;border-radius:100px;flex:none">${unread}</span>` : ''}
+            ${unread ? `<span style="background:var(--teal,var(--ink-soft));color:#04231c;font-size:10px;font-weight:800;padding:1px 6px;border-radius:100px;flex:none">${unread}</span>` : ''}
           </div>
         </div>
       </div>`;
@@ -17576,7 +17637,7 @@ function _chatRenderThread() {
   } else {
     body.innerHTML = msgs.map(m => {
       const mine = m.from_id === currentWorker.id;
-      return `<div style="align-self:${mine ? 'flex-end' : 'flex-start'};max-width:72%;background:${mine ? 'var(--acc)' : 'var(--bg2)'};color:${mine ? '#170f05' : 'var(--txt)'};padding:9px 13px;border-radius:14px;${mine ? 'border-bottom-right-radius:3px' : 'border-bottom-left-radius:3px'};font-size:13.5px;line-height:1.4;word-break:break-word">
+      return `<div style="align-self:${mine ? 'flex-end' : 'flex-start'};max-width:72%;background:${mine ? 'var(--acc)' : 'var(--bg2)'};color:${mine ? 'var(--ink-text)' : 'var(--txt)'};padding:9px 13px;border-radius:14px;${mine ? 'border-bottom-right-radius:3px' : 'border-bottom-left-radius:3px'};font-size:13.5px;line-height:1.4;word-break:break-word">
         ${escapeHtml(m.text)}
         <div style="font-size:10px;opacity:.65;margin-top:3px;text-align:right">${escapeHtml((m.at||'').slice(11,16))}</div>
       </div>`;
@@ -17906,7 +17967,7 @@ async function renderReports(force = false) {
       <h3 style="margin:0 0 4px;font-size:15px">Revenue trend</h3>
       <div style="color:var(--faint);font-size:12px;margin-bottom:16px">Daily billed revenue · last ${trendDays} days · peak ${inr(trendMax)}</div>
       <div style="display:flex;align-items:flex-end;gap:3px;height:120px">
-        ${trend.map(x => `<div title="${escapeHtml(x.d)} · ${inr(x.v)}" style="flex:1;min-width:0;height:${Math.max(2, Math.round((x.v / trendMax) * 116))}px;border-radius:4px 4px 0 0;background:${x.v ? 'linear-gradient(180deg,var(--acc2),rgba(255,122,24,.35))' : 'var(--brd)'};transition:opacity .15s;cursor:default" onmouseover="this.style.opacity=.7" onmouseout="this.style.opacity=1"></div>`).join('')}
+        ${trend.map(x => `<div title="${escapeHtml(x.d)} · ${inr(x.v)}" style="flex:1;min-width:0;height:${Math.max(2, Math.round((x.v / trendMax) * 116))}px;border-radius:4px 4px 0 0;background:${x.v ? 'linear-gradient(180deg,var(--acc2),rgba(var(--tint-rgb),.35))' : 'var(--brd)'};transition:opacity .15s;cursor:default" onmouseover="this.style.opacity=.7" onmouseout="this.style.opacity=1"></div>`).join('')}
       </div>
       <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);margin-top:8px">
         <span>${escapeHtml(trend[0]?.d || '')}</span><span>Today</span>
@@ -17916,11 +17977,11 @@ async function renderReports(force = false) {
     ${cTotal ? `<div class="card" style="padding:18px;margin-bottom:18px">
       <h3 style="margin:0 0 14px;font-size:15px">Client decisions on estimates</h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
-        <div style="padding:14px;border-radius:10px;background:rgba(32,227,178,.08);border:1px solid rgba(32,227,178,.30)">
+        <div style="padding:14px;border-radius:10px;background:rgba(var(--tint-rgb),.08);border:1px solid rgba(var(--tint-rgb),.30)">
           <div style="font-family:var(--fd);font-weight:800;font-size:22px;color:var(--teal)">${cFull}</div>
           <div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:4px">Fully approved</div>
         </div>
-        <div style="padding:14px;border-radius:10px;background:rgba(255,179,71,.08);border:1px solid rgba(255,179,71,.30)">
+        <div style="padding:14px;border-radius:10px;background:rgba(var(--tint-rgb),.08);border:1px solid rgba(var(--tint-rgb),.30)">
           <div style="font-family:var(--fd);font-weight:800;font-size:22px;color:var(--acc2)">${cPartial}</div>
           <div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:4px">Partially approved</div>
         </div>
