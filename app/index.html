@@ -44,6 +44,13 @@ body.light{
   --brd:rgba(17,17,15,.09); --brd2:rgba(17,17,15,.16);
   --txt:#17170f; --dim:#57554b; --faint:#8a8778;
   --ink:#141412; --ink-soft:#4b4943; --ink-text:#faf9f5; --tint-rgb:20,20,17;
+  /* --acc/--acc2/--teal/--teal2/--amber alias var(--ink) on :root (the <html>
+     element) — since body is a DIFFERENT element, that var(--ink) reference
+     resolves once against html's own (dark) --ink and inherits into body as
+     a frozen value, never picking up this override. Re-declaring the same
+     aliases here forces them to re-resolve against body's own light --ink. */
+  --acc:var(--ink); --acc2:var(--ink); --teal:var(--ink-soft); --teal2:var(--ink-soft);
+  --amber:var(--ink-soft);
   --shad:0 24px 60px -22px rgba(17,17,15,.16);
 }
 body.light .sidebar{background:#fafbfc}
@@ -2137,8 +2144,12 @@ async function loadStaffLogin() {
     const v = d.exists ? d.data() : null;
     return (v && Array.isArray(v.uids) && v.uids.length) ? v : null;
   } catch (e) {
+    // Distinguish "failed to load" from "genuinely never configured" — a
+    // swallowed error here used to return null either way, which made a
+    // permission-denied (e.g. stale/undeployed firestore.rules) look
+    // identical to "no staff login exists", silently hiding an existing one.
     console.warn('[staff login load]', e);
-    return null;
+    return { _loadError: e.message || String(e) };
   }
 }
 
@@ -3178,7 +3189,7 @@ function renderHeader() {
 // text between staff, no financial/customer data, so no gating needed.
 const DEFAULT_ROLE_PERMS = {
   owner:         ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','feedback','timesheets','notifications','chat','audit','settings'],
-  manager:       ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','feedback','timesheets','notifications','chat','audit'],
+  manager:       ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','feedback','timesheets','notifications','chat','audit','settings'],
   floor_manager: ['dashboard','bookings','jobs','queue','customers','bays','inventory','request_parts','parts','notifications','chat','timesheets'],
   // Service advisor — owns customer-facing intake, job cards, estimates, QC hand-off and invoices.
   // 'parts' (Manage Requests) added so the Service Advisor can see requests
@@ -13606,7 +13617,16 @@ async function renderSettings(force = false) {
         <div style="color:var(--faint);font-size:13px;margin-bottom:14px">
           One shared username and password that gets a workshop tablet or phone into Garage Pro <b>without your own email and password</b>. Workers then sign in individually with their own username and PIN, exactly as they do now.
         </div>
-        ${_sfStaffLogin ? `
+        ${_sfStaffLogin && _sfStaffLogin._loadError ? `
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 15px;background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.3);border-radius:10px;margin-bottom:12px">
+            <span style="width:34px;height:34px;border-radius:9px;background:rgba(255,107,107,.14);color:var(--red);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg></span>
+            <span style="flex:1;min-width:180px">
+              <b style="font-size:14px;color:var(--red)">Couldn't load your staff login</b>
+              <span style="display:block;font-size:12px;color:var(--faint);margin-top:2px">This doesn't mean it's gone — the read failed (${escapeHtml(_sfStaffLogin._loadError)}). Check your connection and reload; if it keeps happening, the workshop's Firestore security rules may need redeploying.</span>
+            </span>
+          </div>
+          <button class="refresh-btn" onclick="renderSettings(true)">Retry</button>
+        ` : _sfStaffLogin ? `
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 15px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:12px">
             <span style="width:34px;height:34px;border-radius:9px;background:rgba(45,212,191,.14);color:var(--teal);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
             <span style="flex:1;min-width:180px">
