@@ -2533,8 +2533,7 @@ window._wizFinish = async function() {
 };
 
 async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details = {}) {
-  // 1) Workshop profile at users/{uid}. Mirror state/city here too — the public
-  //    Track Repair page reads them from this (public-read) root doc.
+  // 1) Workshop profile at users/{uid}.
   await fbDb.collection('users').doc(uid).set({
     uid, email,
     name:           ownerName,
@@ -2544,6 +2543,14 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
     createdAt:      firebase.firestore.FieldValue.serverTimestamp(),
     settings_done:  false
   }, { merge: true });
+  // 1b) Public-safe mirror for Track Repair's workshop picker — see
+  // public_workshops in firestore.rules for why this exists instead of
+  // Track Repair reading the full (now-restricted) users collection.
+  fbDb.collection('public_workshops').doc(uid).set({
+    workshop_name: garage,
+    ...(details.state ? { state: details.state } : {}),
+    ...(details.city  ? { city:  details.city }  : {})
+  }, { merge: true }).catch(e => console.warn('[public_workshops mirror]', e));
   // 2) Initial owner worker so they can immediately PIN-in
   const pinHash = await sha256(pin);
   await fbDb.collection('users').doc(uid).collection('mechanics').doc('data').set({
@@ -13887,16 +13894,21 @@ window.saveWorkshopInfo = async function() {
   D.settings.bank_swift    = document.getElementById('sf-bank-swift').value.trim();
   D.settings.bank_terms    = document.getElementById('sf-bank-terms').value.trim() || 'WIRE';
   await wsSaveSettings();
-  // Mirror name + location to the ROOT users/{uid} doc so the public Track
-  // Repair page (which reads only the root doc) sees the latest values.
+  // Mirror name + location to the ROOT users/{uid} doc (kept for anything
+  // still reading it directly) AND to public_workshops — the latter is what
+  // the public Track Repair page actually reads now (see firestore.rules).
   if (currentUser) {
+    const locationMirror = {
+      workshop_name: D.settings.workshop_name || '',
+      state:         D.settings.state || '',
+      city:          D.settings.city  || ''
+    };
     try {
-      await fbDb.collection('users').doc(wsUid()).set({
-        workshop_name: D.settings.workshop_name || '',
-        state:         D.settings.state || '',
-        city:          D.settings.city  || ''
-      }, { merge: true });
+      await fbDb.collection('users').doc(wsUid()).set(locationMirror, { merge: true });
     } catch (e) { console.warn('[saveWorkshopInfo] root mirror failed:', e); }
+    try {
+      await fbDb.collection('public_workshops').doc(wsUid()).set(locationMirror, { merge: true });
+    } catch (e) { console.warn('[saveWorkshopInfo] public_workshops mirror failed:', e); }
   }
   showToast('Workshop info saved', 'good');
   await renderSettings(true);   // refresh so the share-link reflects any name change
@@ -14422,6 +14434,13 @@ window.createBranch = async function(ev) {
       branch: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
+    // Public-safe mirror for Track Repair's workshop picker (see
+    // public_workshops in firestore.rules).
+    fbDb.collection('public_workshops').doc(newUid).set({
+      workshop_name: name,
+      branch: true,
+      chain_parent_name: userProfile?.workshop_name || ''
+    }, { merge: true }).catch(e => console.warn('[public_workshops mirror]', e));
     // Default owner worker so the branch can sign in via PIN-pad. PIN = last 4 of the password.
     const initialPin = (pass.match(/\d/g) || ['1','2','3','4']).join('').slice(-4).padStart(4, '0');
     const pinHash = await sha256(initialPin);
