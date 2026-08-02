@@ -6,6 +6,27 @@
 <title>Garage Pro — Every bay. Every job. Under control.</title>
 <meta name="description" content="Garage Pro is garage management software for independent garages and workshop chains in India." />
 
+<!-- Content-Security-Policy: defense-in-depth against XSS — even with the
+     escapeHtml() fixes, this stops a script tag from EVER loading from an
+     unexpected origin. 'unsafe-inline' is required for script/style since
+     this is a single-file app with no build step (all logic is inline
+     <script>/<style> and style="" attributes, not externally hashable).
+     connect-src is broad (https:) because the admin can point Cloud
+     Function / webhook URLs at arbitrary hosts via Settings — a fixed
+     allowlist there would silently break those integrations. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.noupe.com;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src 'self' https://fonts.gstatic.com data:;
+  img-src 'self' data: blob: https:;
+  connect-src 'self' https: wss:;
+  frame-src 'self' https://www.google.com https://apis.google.com;
+  object-src 'none';
+  base-uri 'self';
+  frame-ancestors 'self';
+" />
+
 <!-- Theme: applied before first paint so there's no flash of the wrong mode.
      Stored choice wins; otherwise falls back to the OS-level preference. -->
 <script>
@@ -91,7 +112,7 @@ header.nav.scrolled{background:rgba(12,12,11,.86);backdrop-filter:blur(14px);bor
 .brand{display:flex;align-items:center;gap:11px;font-family:var(--fd);font-weight:800;font-size:19px;letter-spacing:-.02em;flex-shrink:0;white-space:nowrap}
 .brand .logo{width:38px;height:38px;border-radius:11px;background:var(--ink);display:grid;place-items:center;flex-shrink:0}
 .brand .logo svg{width:22px;height:22px;stroke:var(--ink-text)!important}
-.nav-links{display:flex;align-items:center;gap:22px;min-width:0;flex-wrap:nowrap}
+.nav-links{display:flex;align-items:center;gap:22px;min-width:0;flex-wrap:nowrap;flex-shrink:0;overflow:hidden}
 .nav-links a{color:var(--dim);font-weight:500;font-size:16px;transition:color .2s;white-space:nowrap;position:relative}
 .nav-links a::after{content:"";position:absolute;left:0;right:100%;bottom:-4px;height:1.5px;background:var(--txt);transition:right .25s ease}
 .nav-links a:hover{color:var(--txt)}
@@ -673,7 +694,7 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
   .cap-grid{grid-template-columns:repeat(3,1fr)}
   .hero-stats{grid-template-columns:repeat(2,1fr)}
 }
-@media(max-width:980px){
+@media(max-width:1400px){
   .nav-links{display:none}.menu-btn{display:inline-flex}
   .nav-links.mobile-open{display:flex;flex-direction:column;align-items:flex-start;gap:4px;position:absolute;top:72px;left:0;right:0;background:var(--bg2);border-bottom:1px solid var(--brd);padding:16px 24px 22px;z-index:60}
   .nav-links.mobile-open a{padding:10px 0;width:100%}
@@ -2142,6 +2163,19 @@ html,body{max-width:100%;overflow-x:hidden}
 
 <script>
 // ══════════════════════════════════════════
+//  SECURITY: escape user-controlled strings before they go into innerHTML.
+//  Signup name/email/garage-name, review text, etc. are all attacker-
+//  controlled — without this, a signup like `<img src=x onerror=alert(1)>`
+//  as a workshop name runs arbitrary JS in the admin's browser the next
+//  time they open the Customers tab.
+// ══════════════════════════════════════════
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// ══════════════════════════════════════════
 //  THEME (light/dark)
 // ══════════════════════════════════════════
 function toggleGpTheme() {
@@ -2724,6 +2758,12 @@ async function doSignup(e) {
       profile:    { phone: '', address: '' },
       bankDetails: { holderName: '', accountNumber: '', ifsc: '', bankName: '' }
     }, { merge: true });
+    // 3b) Public-safe mirror for Track Repair's workshop picker — see
+    // public_workshops in firestore.rules for why this exists instead of
+    // Track Repair reading the full (now-restricted) users collection.
+    fbDb.collection('public_workshops').doc(cred.user.uid).set({
+      workshop_name: garageName
+    }, { merge: true }).catch(e => console.warn('[public_workshops mirror]', e));
     // 4) Log the sign-up event for the admin
     logPurchase(`Sign Up · ${garageName}`, { name, email });
     // 5) Send welcome email (no-op if disabled / not configured)
@@ -2833,7 +2873,7 @@ function renderPurchasesTab() {
     document.getElementById('purchaseTable').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg><p>No purchase events yet. They'll appear here when visitors click download or sign up.</p></div>`;
     return;
   }
-  document.getElementById('purchaseTable').innerHTML = `<table class="ptable"><thead><tr><th>Name</th><th>Email</th><th>Action</th><th>Time</th><th style="text-align:right">Actions</th></tr></thead><tbody>${S.purchases.map(p=>`<tr><td>${p.name}</td><td>${p.email}</td><td><span class="p-action">${p.action}</span></td><td style="color:var(--faint)">${p.ts}</td><td><div class="row-actions"><button class="tiny-btn danger" onclick="deletePurchase(${p.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Delete</button></div></td></tr>`).join('')}</tbody></table><div style="margin-top:16px;display:flex;justify-content:flex-end"><button class="tiny-btn danger" onclick="clearAllPurchases()">Clear all events</button></div>`;
+  document.getElementById('purchaseTable').innerHTML = `<table class="ptable"><thead><tr><th>Name</th><th>Email</th><th>Action</th><th>Time</th><th style="text-align:right">Actions</th></tr></thead><tbody>${S.purchases.map(p=>`<tr><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.email)}</td><td><span class="p-action">${escapeHtml(p.action)}</span></td><td style="color:var(--faint)">${escapeHtml(p.ts)}</td><td><div class="row-actions"><button class="tiny-btn danger" onclick="deletePurchase(${p.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Delete</button></div></td></tr>`).join('')}</tbody></table><div style="margin-top:16px;display:flex;justify-content:flex-end"><button class="tiny-btn danger" onclick="clearAllPurchases()">Clear all events</button></div>`;
 }
 async function deletePurchase(id) {
   const ok = await customConfirm({title:'Delete this event?', body:'It will be removed from the admin log.', okText:'Delete'});
@@ -2959,10 +2999,10 @@ function renderCustomersTab() {
       <th onclick="setCustomerSort('createdAt')"  style="cursor:pointer">Joined ${arrow('createdAt')}</th>
     </tr></thead>
     <tbody>${list.map(c => `<tr>
-      <td>${c.name}</td>
-      <td><a href="mailto:${c.email}" style="color:var(--acc2)">${c.email}</a></td>
-      <td>${c.garageName || '<span style="color:var(--faint)">—</span>'}</td>
-      <td>${c.plan}</td>
+      <td>${escapeHtml(c.name)}</td>
+      <td><a href="mailto:${escapeHtml(c.email)}" style="color:var(--acc2)">${escapeHtml(c.email)}</a></td>
+      <td>${c.garageName ? escapeHtml(c.garageName) : '<span style="color:var(--faint)">—</span>'}</td>
+      <td>${escapeHtml(c.plan)}</td>
       <td>${statusPill(c.status)}</td>
       <td style="color:var(--faint)">${fmtCustomerDate(c.expiry)}</td>
       <td style="color:var(--faint)">${fmtCustomerDate(c.createdAt)}</td>
@@ -4752,7 +4792,7 @@ function populateManualCustomerList() {
   const dl = document.getElementById('customerList');
   if (!dl) return;
   dl.innerHTML = manualCustomers.map(c =>
-    `<option value="${c.name} — ${c.email}" data-uid="${c.uid}">`).join('');
+    `<option value="${escapeHtml(c.name)} — ${escapeHtml(c.email)}" data-uid="${escapeHtml(c.uid)}">`).join('');
 }
 function populateManualPlanList() {
   const sel = document.getElementById('ml-plan');
@@ -5695,7 +5735,7 @@ async function _udFetchAndRenderBranches() {
         <button class="tiny-btn danger" onclick="udUnlinkBranch('${_esc(b.uid)}')" title="Remove from chain (branch keeps its own data)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Unlink</button>
       </div>`).join('');
   } catch (e) {
-    wrap.innerHTML = `<div style="color:var(--red);font-size:13px;padding:14px">Couldn't load branches: ${_esc(e.message || String(e))}</div>`;
+    wrap.innerHTML = `<div style="color:#ff6b6b;font-size:13px;padding:14px">Couldn't load branches: ${_esc(e.message || String(e))}</div>`;
   }
 }
 
@@ -5739,6 +5779,13 @@ window.udCreateBranch = async function() {
       branch: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
+    // Public-safe mirror for Track Repair's workshop picker (see
+    // public_workshops in firestore.rules).
+    fbDb.collection('public_workshops').doc(newUid).set({
+      workshop_name: name,
+      branch: true,
+      chain_parent_name: (await fbDb.collection('users').doc(fbAuth.currentUser.uid).get()).data()?.workshop_name || ''
+    }, { merge: true }).catch(e => console.warn('[public_workshops mirror]', e));
     // Initial owner mechanic so the branch can immediately PIN in to the app.
     // PIN = last 4 digits of the password, padded to 4 chars (matches the in-app flow).
     const initialPin = (pass.match(/\d/g) || ['1','2','3','4']).join('').slice(-4).padStart(4, '0');
@@ -6221,21 +6268,84 @@ function renderFirebaseTab() {
     </button>
     <div class="success-msg" id="fbBootstrapMsg"></div>
 
-    <h4 style="margin-top:28px">Required Firestore security rules</h4>
+    <h4 style="margin-top:28px">Firestore security rules</h4>
     <p style="color:var(--dim);font-size:13.5px;margin-bottom:10px;line-height:1.6">
-      If writes are failing, the most likely reason is that your Firestore rules are blocking them. Open Firebase Console &rarr; Firestore Database &rarr; Rules and paste this (replace what's there):
+      If writes are failing, check <code style="background:var(--bg2);padding:1px 6px;border-radius:4px">firestore.rules</code> in the project repo — that's the deployed source of truth, not a snippet to paste here. It's per-collection (customer data, licenses, admin identity, etc.), not a single blanket rule, so there's nothing generic to copy-paste anymore. Deploy changes with <code style="background:var(--bg2);padding:1px 6px;border-radius:4px">firebase deploy --only firestore:rules</code>.
     </p>
-    <pre style="background:var(--bg2);padding:14px 16px;border-radius:9px;font-size:12.5px;color:var(--acc2);font-family:'Courier New',monospace;overflow-x:auto;line-height:1.6;border:1px solid var(--brd)">rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    <div id="adminIdentityCard"></div>`;
+  renderAdminIdentityStatus();
+}
+
+// ══════════════════════════════════════════
+//  REAL ADMIN IDENTITY (admin_uids)
+// ══════════════════════════════════════════
+// The admin login above (username/password against S.creds) is a purely
+// client-side check with no Firebase Auth behind it — which is exactly why
+// users/{uid} in firestore.rules used to have to be world-readable/writable
+// (a rule can only check request.auth, and there was none to check). This
+// section links the signed-in admin to a REAL Firebase Auth identity, which
+// firestore.rules' isRealAdmin() checks via the admin_uids collection —
+// letting users/{uid} finally be locked down without breaking the admin
+// panel's ability to see customers or issue licenses.
+async function linkAdminIdentity() {
+  if (!fbAuth || !fbDb) { showToast('Site not connected to Firebase yet.', 'bad'); return; }
+  try {
+    if (!fbAuth.currentUser) {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await fbAuth.signInWithPopup(provider);
     }
+  } catch (e) {
+    showToast('Google sign-in failed: ' + (e.message || e), 'bad');
+    return;
   }
-}</pre>
-    <p style="color:var(--faint);font-size:12px;margin-top:10px;line-height:1.5">
-      This is open-access — fine for testing and a free-tier website with no sensitive data. Tighten before going live (e.g. lock writes to admin SDK only).
-    </p>`;
+  await renderAdminIdentityStatus();
+}
+async function renderAdminIdentityStatus() {
+  const card = document.getElementById('adminIdentityCard');
+  if (!card) return;
+  if (!fbAuth || !fbAuth.currentUser) {
+    card.innerHTML = `
+      <div style="background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:16px">
+        <b style="font-size:14px">Real admin identity: not linked</b>
+        <p style="color:var(--dim);font-size:13px;margin:8px 0 12px;line-height:1.6">
+          Sign in with the Google account you want treated as a real admin. This is separate from the username/password above — it's what lets Firestore rules verify "this is genuinely an admin session" instead of trusting the client.
+        </p>
+        <button class="form-btn form-btn-save" onclick="linkAdminIdentity()">Sign in with Google to link</button>
+      </div>`;
+    return;
+  }
+  const uid = fbAuth.currentUser.uid;
+  let linked = false;
+  try {
+    const doc = await fbDb.collection('admin_uids').doc(uid).get();
+    linked = doc.exists;
+  } catch (e) { /* permission-denied means not linked — fall through */ }
+  if (linked) {
+    card.innerHTML = `
+      <div style="background:rgba(var(--tint-rgb),.06);border:1px solid var(--brd2);border-radius:10px;padding:16px">
+        <b style="font-size:14px">✓ Real admin identity linked</b>
+        <p style="color:var(--dim);font-size:13px;margin:8px 0 0;line-height:1.6">
+          Signed in as <b>${escapeHtml(fbAuth.currentUser.email || uid)}</b>, recognised by firestore.rules as a genuine admin. Once every admin who needs access has done this, the restricted users/{uid} rule (commented out in firestore.rules, marked RESTRICTED) can be deployed.
+        </p>
+      </div>`;
+  } else {
+    card.innerHTML = `
+      <div style="background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.28);border-radius:10px;padding:16px">
+        <b style="font-size:14px;color:#ff6b6b">Signed in, but not yet linked</b>
+        <p style="color:var(--dim);font-size:13px;margin:8px 0 12px;line-height:1.6">
+          Signed in as <b>${escapeHtml(fbAuth.currentUser.email || '')}</b>. One manual, one-time step left — this can't be done from the app itself by design (so it can't be self-granted by anyone else either):
+        </p>
+        <ol style="color:var(--dim);font-size:13px;line-height:1.8;margin:0 0 12px 18px;padding:0">
+          <li>Open <a href="https://console.firebase.google.com/project/garage-pro-874c6/firestore" target="_blank" rel="noopener" style="color:var(--acc2)">Firebase Console → Firestore</a></li>
+          <li>Create collection <code style="background:var(--bg2);padding:1px 6px;border-radius:4px">admin_uids</code> (if it doesn't exist yet)</li>
+          <li>Add a document with ID exactly: <code style="background:var(--bg2);padding:2px 8px;border-radius:4px;color:var(--acc2);font-family:'Courier New',monospace;user-select:all">${escapeHtml(uid)}</code></li>
+          <li>Any single field inside it is fine (e.g. <code style="background:var(--bg2);padding:1px 6px;border-radius:4px">note: "primary admin"</code>) — only its existence is checked</li>
+        </ol>
+        <button class="refresh-btn" onclick="renderAdminIdentityStatus()">I've added it — check again</button>
+      </div>`;
+  }
 }
 function manualBootstrap() {
   if (!fbDb) { showToast('Connect Firebase first', 'bad'); return; }
