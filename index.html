@@ -20,14 +20,17 @@
      <script>/<style> and style="" attributes, not externally hashable).
      connect-src is broad (https:) because the admin can point Cloud
      Function / webhook URLs at arbitrary hosts via Settings — a fixed
-     allowlist there would silently break those integrations. frame-src
-     includes *.firebaseapp.com because Firebase Auth's signInWithPopup
-     (Google sign-in) loads a hidden helper iframe at your project's
-     authDomain to coordinate the popup — without it, Google sign-in fails
-     with a generic "auth/internal-error" (found the hard way). -->
+     allowlist there would silently break those integrations. frame-src AND
+     script-src both need www.google.com/apis.google.com/accounts.google.com/
+     *.firebaseapp.com — Firebase Auth's signInWithPopup (Google sign-in)
+     loads both a helper iframe (frame-src) AND a script (script-src) from
+     these origins to coordinate the popup. Missing either one makes Google
+     sign-in fail with a generic "auth/internal-error" that gives no hint
+     it's a CSP problem — first found the frame-src gap the hard way, then
+     the script-src gap the harder way. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
-  script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.noupe.com;
+  script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.noupe.com https://www.google.com https://apis.google.com https://accounts.google.com https://*.firebaseapp.com;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com data:;
   img-src 'self' data: blob: https:;
