@@ -1489,12 +1489,12 @@ input[list]{background:var(--bg2)}
 //  FIREBASE INIT (same project as the marketing site)
 // ══════════════════════════════════════════
 const FB_CONFIG = {
-  apiKey: "AIzaSyD4rRHyT3NOxTfwQDy3mjv9HVYUH3riGDA",
-  authDomain: "garage-pro-874c6.firebaseapp.com",
-  projectId: "garage-pro-874c6",
-  storageBucket: "garage-pro-874c6.firebasestorage.app",
-  messagingSenderId: "714982026183",
-  appId: "1:714982026183:web:95401fffb0a93151b407e2"
+  apiKey: "AIzaSyA1PzbhboU9Qdlpqs5cbLR3hsvFpWXCI54",
+  authDomain: "garagepro26.firebaseapp.com",
+  projectId: "garagepro26",
+  storageBucket: "garagepro26.firebasestorage.app",
+  messagingSenderId: "605094681607",
+  appId: "1:605094681607:web:095fbfb8ff0446faaedea2"
 };
 
 // ── Cloudinary (job photo storage) ──────────────────────────────────────
@@ -14469,7 +14469,7 @@ window.createBranch = async function(ev) {
     if (code === 'auth/email-already-in-use')         err.innerHTML = 'That email is already in use. Pick another address.';
     else if (code === 'auth/invalid-email')           err.innerHTML = 'That email format is invalid — check for typos.';
     else if (code === 'auth/weak-password')           err.innerHTML = 'Password too weak — Firebase requires at least 6 characters.';
-    else if (code === 'auth/operation-not-allowed')   err.innerHTML = '<b>Email/Password sign-in is disabled in your Firebase project.</b><br>Open <a href="https://console.firebase.google.com/project/garage-pro-874c6/authentication/providers" target="_blank" rel="noopener" style="color:var(--blue)">Firebase Console → Authentication → Sign-in method</a> and enable the Email/Password provider, then try again.';
+    else if (code === 'auth/operation-not-allowed')   err.innerHTML = '<b>Email/Password sign-in is disabled in your Firebase project.</b><br>Open <a href="https://console.firebase.google.com/project/garagepro26/authentication/providers" target="_blank" rel="noopener" style="color:var(--blue)">Firebase Console → Authentication → Sign-in method</a> and enable the Email/Password provider, then try again.';
     else if (code === 'permission-denied')            err.innerHTML = 'Firestore rules blocked the write. Make sure the latest <code>firestore.rules</code> are deployed.';
     else                                              err.textContent = (e.message || String(e)) + (code ? ' (' + code + ')' : '');
     console.warn('[createBranch] failed', e);
