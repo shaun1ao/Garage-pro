@@ -6306,6 +6306,27 @@ async function linkAdminIdentity() {
   }
   await renderAdminIdentityStatus();
 }
+// Fallback path — Google sign-in depends on OAuth config in Google Cloud
+// Console (consent screen, authorized origins) that this app can't see or
+// fix from code. Email/password doesn't have that external dependency: it's
+// the same Firebase Auth provider your regular customer signup already uses
+// successfully, so it works today regardless of what's wrong with Google.
+async function linkAdminIdentityWithEmail(mode) {
+  if (!fbAuth || !fbDb) { showToast('Site not connected to Firebase yet.', 'bad'); return; }
+  const email = document.getElementById('adminLinkEmail').value.trim();
+  const pass  = document.getElementById('adminLinkPass').value;
+  const errEl = document.getElementById('adminLinkErr');
+  if (errEl) errEl.textContent = '';
+  if (!email || !pass) { if (errEl) errEl.textContent = 'Enter both email and password.'; return; }
+  try {
+    if (mode === 'signup') await fbAuth.createUserWithEmailAndPassword(email, pass);
+    else                   await fbAuth.signInWithEmailAndPassword(email, pass);
+  } catch (e) {
+    if (errEl) errEl.textContent = e.message || String(e);
+    return;
+  }
+  await renderAdminIdentityStatus();
+}
 async function renderAdminIdentityStatus() {
   const card = document.getElementById('adminIdentityCard');
   if (!card) return;
@@ -6314,9 +6335,22 @@ async function renderAdminIdentityStatus() {
       <div style="background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:16px">
         <b style="font-size:14px">Real admin identity: not linked</b>
         <p style="color:var(--dim);font-size:13px;margin:8px 0 12px;line-height:1.6">
-          Sign in with the Google account you want treated as a real admin. This is separate from the username/password above — it's what lets Firestore rules verify "this is genuinely an admin session" instead of trusting the client.
+          Sign in with a real Firebase account — separate from the username/password above — so Firestore rules can verify "this is genuinely an admin session" instead of trusting the client.
         </p>
         <button class="form-btn form-btn-save" onclick="linkAdminIdentity()">Sign in with Google to link</button>
+        <p style="color:var(--faint);font-size:11.5px;margin:6px 0 14px">Currently failing with auth/internal-error? That's a Google OAuth config issue in Firebase/Google Cloud Console, not this app — use email/password below instead while you sort that out.</p>
+        <div style="border-top:1px solid var(--brd);padding-top:14px">
+          <label style="font-size:12.5px;font-weight:600;color:var(--dim);display:block;margin-bottom:5px">Email</label>
+          <input id="adminLinkEmail" type="email" autocomplete="username" style="width:100%;background:var(--surf);border:1px solid var(--brd2);border-radius:9px;padding:10px 12px;color:var(--txt);font-family:var(--fb);font-size:14px;margin-bottom:10px" />
+          <label style="font-size:12.5px;font-weight:600;color:var(--dim);display:block;margin-bottom:5px">Password</label>
+          <input id="adminLinkPass" type="password" autocomplete="current-password" style="width:100%;background:var(--surf);border:1px solid var(--brd2);border-radius:9px;padding:10px 12px;color:var(--txt);font-family:var(--fb);font-size:14px;margin-bottom:10px" />
+          <div id="adminLinkErr" style="color:#ff6b6b;font-size:12.5px;min-height:16px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="linkAdminIdentityWithEmail('signin')">Sign in</button>
+            <button class="refresh-btn" onclick="linkAdminIdentityWithEmail('signup')">Create this account</button>
+          </div>
+          <p style="color:var(--faint);font-size:11.5px;margin-top:8px">Already have a regular Garage Pro customer account? Sign in with those same credentials — any real Firebase account works, it just needs the admin_uids doc afterward. Otherwise, pick a dedicated email + password just for this and use "Create this account".</p>
+        </div>
       </div>`;
     return;
   }
