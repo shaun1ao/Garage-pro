@@ -243,9 +243,14 @@ async function _trackLoadWorkshops() {
   if (_trackAllWorkshops) return _trackAllWorkshops;
   if (!fbDb) throw new Error('Site not connected to Firebase yet. Refresh in a moment.');
   let snap;
-  try { snap = await fbDb.collection('users').get(); }
+  // Reads the public-safe directory (name/city/state/chain-label only), not
+  // the full users collection — that used to mean every visitor of this
+  // page fetched every customer's full profile (email, subscription status,
+  // everything) just to populate a "pick your workshop" dropdown. See
+  // public_workshops in firestore.rules.
+  try { snap = await fbDb.collection('public_workshops').get(); }
   catch (e) {
-    console.error('[track] users list failed:', e);
+    console.error('[track] workshop directory load failed:', e);
     throw new Error('Couldn\'t load workshops: ' + (e.code || e.message));
   }
   const list = [];
