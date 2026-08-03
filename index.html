@@ -544,6 +544,31 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 .quiz-result-reason{color:var(--dim);font-size:14px;line-height:1.55;margin-bottom:18px}
 .quiz-result .btn{padding:10px 20px;font-size:14px}
 
+/* ── BUILD YOUR OWN PLAN ── */
+.byop-wrap{max-width:900px;margin:48px auto 0;background:var(--surf);border:1px solid var(--brd);border-radius:18px;padding:34px 32px;box-shadow:var(--shad)}
+.byop-head{text-align:center;margin-bottom:28px}
+.byop-head .eyebrow{margin-bottom:8px}
+.byop-head h3{font-family:var(--fd);font-size:22px;margin-bottom:6px}
+.byop-head p{color:var(--dim);font-size:14.5px}
+.byop-body{display:grid;grid-template-columns:1fr 300px;gap:32px}
+@media(max-width:760px){.byop-body{grid-template-columns:1fr}}
+.byop-sliders{display:grid;gap:22px;align-content:start}
+.byop-row label{display:flex;justify-content:space-between;align-items:center;font-family:var(--fd);font-weight:700;font-size:14.5px;color:var(--txt);margin-bottom:10px}
+.byop-val{background:rgba(var(--tint-rgb),.14);color:var(--acc2);padding:3px 11px;border-radius:100px;font-size:13px;font-weight:800;font-family:var(--fb)}
+.byop-row input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:100px;background:var(--surf2);outline:none;cursor:pointer}
+.byop-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--ink);border:3px solid var(--surf);box-shadow:0 1px 4px rgba(0,0,0,.3);cursor:pointer}
+.byop-row input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--ink);border:3px solid var(--surf);box-shadow:0 1px 4px rgba(0,0,0,.3);cursor:pointer;border:none}
+.byop-summary{background:rgba(var(--tint-rgb),.05);border:1px solid var(--brd2);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px}
+.byop-cycle{display:flex;gap:6px;background:var(--surf2);border-radius:10px;padding:4px}
+.byop-cyc-btn{flex:1;background:transparent;border:none;color:var(--dim);font-family:var(--fb);font-weight:700;font-size:12.5px;padding:8px 6px;border-radius:8px;cursor:pointer}
+.byop-cyc-btn.active{background:var(--ink);color:var(--ink-text)}
+.byop-price{text-align:center;padding:6px 0}
+.byop-price span:first-child{font-family:var(--fd);font-size:30px;font-weight:800;color:var(--txt)}
+.byop-price-cycle{font-size:13px;color:var(--faint);margin-left:4px}
+.byop-features{display:grid;gap:8px;font-size:13px;color:var(--dim)}
+.byop-features li{display:flex;align-items:center;gap:8px}
+.byop-features svg{width:15px;height:15px;color:var(--teal);flex-shrink:0}
+
 /* ── PLAN EDITOR (admin) ── */
 .plan-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:18px}
 .plan-acard{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:20px;position:relative}
@@ -952,6 +977,9 @@ html,body{max-width:100%;overflow-x:hidden}
       <button class="anav active" onclick="switchAdminTab('purchases')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Purchases
       </button>
+      <button class="anav" onclick="switchAdminTab('leads')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>Leads
+      </button>
       <button class="anav" onclick="switchAdminTab('licenses')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Licenses
       </button>
@@ -994,6 +1022,14 @@ html,body{max-width:100%;overflow-x:hidden}
       <div class="atab-sub">Every download click and account created on the site.</div>
       <div class="atab-stat-row" id="purchaseStats"></div>
       <div id="purchaseTable"></div>
+    </div>
+
+    <!-- LEADS TAB -->
+    <div class="admin-tab" id="tab-leads">
+      <div class="atab-title">Chain Plan Leads</div>
+      <div class="atab-sub">Enquiries submitted from the "Contact us" button on Chain-tier plans.</div>
+      <div class="atab-stat-row" id="leadStats"></div>
+      <div id="leadTable"></div>
     </div>
 
     <!-- CUSTOMERS TAB -->
@@ -1498,6 +1534,51 @@ html,body{max-width:100%;overflow-x:hidden}
     <div class="form-actions" style="margin-top:6px">
       <button class="form-btn form-btn-save" onclick="submitManualLicense()">Generate Key</button>
       <button class="form-btn form-btn-cancel" onclick="closeManualLicense()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CHAIN PLAN CONTACT MODAL ═══════════════ -->
+<div class="modal-overlay" id="chainLeadModal">
+  <div class="modal-box" style="max-width:480px">
+    <button class="modal-close" onclick="closeChainLeadForm()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="modal-brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+      <span id="chainLeadTitle">Chain plan enquiry</span>
+    </div>
+    <p style="color:var(--dim);font-size:13.5px;line-height:1.5;margin-bottom:18px">Tell us about your operation and we'll get back to you with pricing and setup within a day.</p>
+    <div class="form-group">
+      <label>Your name</label>
+      <input id="cl-name" type="text" placeholder="Full name" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Email</label>
+        <input id="cl-email" type="email" placeholder="you@example.com" />
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input id="cl-phone" type="tel" placeholder="Optional" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Garage / chain name</label>
+        <input id="cl-garage" type="text" placeholder="Your business name" />
+      </div>
+      <div class="form-group">
+        <label>Number of branches</label>
+        <input id="cl-branches" type="number" min="1" placeholder="e.g. 4" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Anything else we should know?</label>
+      <textarea id="cl-message" rows="3" placeholder="Optional — locations, timeline, questions…" style="width:100%;background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:11px 14px;color:var(--txt);font-family:var(--fb);font-size:14px;outline:none;resize:vertical"></textarea>
+    </div>
+    <div class="modal-err" id="cl-err"></div>
+    <div class="form-actions" style="margin-top:6px">
+      <button class="form-btn form-btn-save" onclick="submitChainLead()">Send enquiry</button>
+      <button class="form-btn form-btn-cancel" onclick="closeChainLeadForm()">Cancel</button>
     </div>
   </div>
 </div>
@@ -2069,6 +2150,41 @@ html,body{max-width:100%;overflow-x:hidden}
         <div class="quiz-result" id="quizResult"></div>
       </div>
     </div>
+
+    <!-- ─── Build your own plan ─── -->
+    <div class="byop-wrap reveal" id="byopWrap">
+      <div class="byop-head">
+        <div class="eyebrow">Custom pricing</div>
+        <h3>Build your own plan</h3>
+        <p>Set the sliders to match your workshop — the price updates live, and you can check out immediately.</p>
+      </div>
+      <div class="byop-body">
+        <div class="byop-sliders">
+          <div class="byop-row">
+            <label>Bays / service points <span class="byop-val" id="byopBaysVal">3</span></label>
+            <input type="range" id="byopBays" min="1" max="20" value="3" oninput="updateByopPrice()" />
+          </div>
+          <div class="byop-row">
+            <label>Workers / mechanics <span class="byop-val" id="byopWorkersVal">5</span></label>
+            <input type="range" id="byopWorkers" min="1" max="60" value="5" oninput="updateByopPrice()" />
+          </div>
+          <div class="byop-row">
+            <label>Branches <span class="byop-val" id="byopBranchesVal">0</span></label>
+            <input type="range" id="byopBranches" min="0" max="10" value="0" oninput="updateByopPrice()" />
+          </div>
+        </div>
+        <div class="byop-summary">
+          <div class="byop-cycle">
+            <button class="byop-cyc-btn active" data-cyc="monthly" onclick="setByopCycle('monthly')">Monthly</button>
+            <button class="byop-cyc-btn" data-cyc="yearly" onclick="setByopCycle('yearly')">Yearly</button>
+          </div>
+          <div class="byop-price"><span id="byopPrice">₹0</span><span class="byop-price-cycle" id="byopPriceCycle">/month</span></div>
+          <ul class="byop-features" id="byopFeatures"></ul>
+          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="startByopCheckout()">Get started with this plan</button>
+        </div>
+      </div>
+    </div>
+
     <div class="reveal" id="demoCta" style="display:none;margin:48px auto 0;max-width:680px;text-align:center;padding:32px 28px;border-radius:18px;background:linear-gradient(135deg,rgba(var(--tint-rgb),.08),rgba(120,140,255,.06));border:1px dashed rgba(var(--tint-rgb),.32)">
       <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--teal);background:rgba(var(--tint-rgb),.16);border:1px solid rgba(var(--tint-rgb),.32);padding:5px 12px;border-radius:100px;margin-bottom:14px;letter-spacing:.06em;text-transform:uppercase">
         <span style="width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 currentColor;animation:pulse 2.2s infinite"></span>Free demo available
@@ -2630,6 +2746,30 @@ async function doGoogleSignIn() {
     const result = await fbAuth.signInWithPopup(provider);
     const user   = result.user;
     const isNew  = result.additionalUserInfo && result.additionalUserInfo.isNewUser;
+
+    // ── Real-admin shortcut ──────────────────────────────────────────────
+    // If this Google account is in admin_uids (linked via the Firebase tab's
+    // "Sign in with Google to link" card), treat this as an admin sign-in
+    // instead of a customer one — skip the customer-profile/branch logic
+    // below entirely. This is an ALTERNATIVE to the username/password admin
+    // login, not a replacement for it — either still works independently.
+    try {
+      const adminDoc = await fbDb.collection('admin_uids').doc(user.uid).get();
+      if (adminDoc.exists) {
+        currentUser = { name: user.displayName || user.email || 'Admin', isAdmin: true, isGoogleAdmin: true };
+        sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
+        closeAuth();
+        renderNav();
+        auditLog('admin_signin', user.email || user.uid, 'google (admin_uids)');
+        showToast(`Signed in as admin (${currentUser.name})`, 'good');
+        openAdminPanel();
+        return;
+      }
+    } catch (e) {
+      // Not an admin (permission-denied reading someone else's admin_uids
+      // doc is expected/fine) — fall through to the normal customer flow.
+    }
+
     // Always make sure there's a profile doc — for brand-new users, populate it
     // with what Google gave us; for returning users, leave existing fields intact.
     const userRef = fbDb.collection('users').doc(user.uid);
@@ -2863,14 +3003,76 @@ function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.anav').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-  // sidebar order: purchases, licenses, customers, reviews, plans, pricing, firebase, audit, account
-  const idx = {purchases:0,licenses:1,customers:2,reviews:3,plans:4,pricing:5,firebase:6,audit:7,account:8}[tab];
+  // sidebar order: purchases, leads, licenses, customers, reviews, plans, pricing, firebase, audit, account
+  const idx = {purchases:0,leads:1,licenses:2,customers:3,reviews:4,plans:5,pricing:6,firebase:7,audit:8,account:9}[tab];
   document.querySelectorAll('.anav')[idx].classList.add('active');
+  if (tab === 'leads')     renderLeadsTab();
   if (tab === 'licenses')  renderLicensesTab();
   if (tab === 'customers') renderCustomersTab();
   if (tab === 'firebase')  renderFirebaseTab();
   if (tab === 'plans')     renderAdminPlansGrid();
   if (tab === 'audit')     renderAuditTab();
+}
+
+// ── Chain plan leads ──
+let chainLeads = [];
+async function renderLeadsTab() {
+  if (!fbDb) {
+    document.getElementById('leadTable').innerHTML = `<div class="empty-state"><p>Connect Firebase first.</p></div>`;
+    return;
+  }
+  document.getElementById('leadTable').innerHTML = `<div class="empty-state"><p>Loading…</p></div>`;
+  try {
+    const snap = await fbDb.collection('chain_leads').orderBy('createdAt', 'desc').get();
+    chainLeads = [];
+    snap.forEach(doc => chainLeads.push({ id: doc.id, ...doc.data() }));
+  } catch (e) {
+    document.getElementById('leadTable').innerHTML = `<div class="empty-state"><p>Couldn't load leads: ${escapeHtml(e.message || String(e))}</p></div>`;
+    return;
+  }
+  const newCount = chainLeads.filter(l => l.status !== 'handled').length;
+  document.getElementById('leadStats').innerHTML = `
+    <div class="atab-stat"><div class="n">${chainLeads.length}</div><div class="l">Total leads</div></div>
+    <div class="atab-stat"><div class="n">${newCount}</div><div class="l">Awaiting reply</div></div>`;
+  if (!chainLeads.length) {
+    document.getElementById('leadTable').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg><p>No enquiries yet. They'll appear here when someone hits "Contact us" on a Chain-tier plan.</p></div>`;
+    return;
+  }
+  document.getElementById('leadTable').innerHTML = `<table class="ptable"><thead><tr><th>Name</th><th>Contact</th><th>Garage</th><th>Branches</th><th>Message</th><th>Plan</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody>${chainLeads.map(l => {
+    const ts = l.createdAt && l.createdAt.toDate ? l.createdAt.toDate().toLocaleString('en-IN') : '';
+    const handled = l.status === 'handled';
+    return `<tr>
+      <td>${escapeHtml(l.name || '')}<div style="color:var(--faint);font-size:11.5px">${escapeHtml(ts)}</div></td>
+      <td>${escapeHtml(l.email || '')}${l.phone ? `<div style="color:var(--faint);font-size:12px">${escapeHtml(l.phone)}</div>` : ''}</td>
+      <td>${escapeHtml(l.garage || '')}</td>
+      <td>${escapeHtml(l.branches || '')}</td>
+      <td style="max-width:240px;white-space:normal">${escapeHtml(l.message || '')}</td>
+      <td><span class="p-action">${escapeHtml(l.planName || '')}</span></td>
+      <td>${handled ? '<span style="color:var(--teal);font-weight:700">Handled</span>' : '<span style="color:var(--acc2);font-weight:700">New</span>'}</td>
+      <td><div class="row-actions">
+        <button class="tiny-btn" onclick="toggleLeadHandled('${l.id}', ${!handled})">${handled ? 'Mark new' : 'Mark handled'}</button>
+        <button class="tiny-btn" onclick="createManualLicense()">Issue license</button>
+        <button class="tiny-btn danger" onclick="deleteLead('${l.id}')">Delete</button>
+      </div></td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+}
+async function toggleLeadHandled(id, handled) {
+  if (!fbDb) return;
+  try {
+    await fbDb.collection('chain_leads').doc(id).update({ status: handled ? 'handled' : 'new' });
+    showToast(handled ? 'Marked as handled' : 'Marked as new', 'good');
+    renderLeadsTab();
+  } catch (e) { showToast('Couldn\'t update lead', 'bad'); }
+}
+async function deleteLead(id) {
+  const ok = await customConfirm({ title: 'Delete this lead?', body: 'This removes the enquiry from the admin log.', okText: 'Delete', danger: true });
+  if (!ok || !fbDb) return;
+  try {
+    await fbDb.collection('chain_leads').doc(id).delete();
+    showToast('Lead deleted', 'good');
+    renderLeadsTab();
+  } catch (e) { showToast('Couldn\'t delete lead', 'bad'); }
 }
 
 // ── Purchases ──
@@ -3979,7 +4181,7 @@ function renderPlansGrid() {
     } else if (isCurrent) {
       btn = `<button class="btn btn-ghost" disabled style="opacity:.7;cursor:default">Current plan</button>`;
     } else if (isContact) {
-      btn = `<a class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" style="justify-content:center" href="mailto:support@garagepro.me?subject=${encodeURIComponent('Garage Pro — ' + p.name + ' plan enquiry')}">Contact us</a>`;
+      btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" style="justify-content:center" onclick="openChainLeadForm('${p.id}')">Contact us</button>`;
     } else if (sub) {
       const isUpgrade = price > currentPrice;
       const diff = Math.abs(price - currentPrice);
@@ -4017,6 +4219,128 @@ function selectPlan(planId) {
     upgradeUserPlan(planId);
     return;
   }
+  openBilling();
+}
+
+// ══════════════════════════════════════════
+//  CHAIN PLAN CONTACT FORM
+// ══════════════════════════════════════════
+let chainLeadPlanId = null;
+function openChainLeadForm(planId) {
+  chainLeadPlanId = planId || null;
+  const plan = S.plans.find(p => p.id === planId);
+  document.getElementById('chainLeadTitle').textContent = plan ? `${plan.name} plan enquiry` : 'Plan enquiry';
+  ['cl-name','cl-email','cl-phone','cl-garage','cl-branches','cl-message'].forEach(id => document.getElementById(id).value = '');
+  if (currentUser && !currentUser.isAdmin) {
+    document.getElementById('cl-name').value  = currentUser.name  || '';
+    document.getElementById('cl-email').value = currentUser.email || '';
+  }
+  document.getElementById('cl-err').textContent = '';
+  document.getElementById('chainLeadModal').classList.add('open');
+}
+function closeChainLeadForm() {
+  document.getElementById('chainLeadModal').classList.remove('open');
+}
+async function submitChainLead() {
+  const err = document.getElementById('cl-err');
+  err.textContent = '';
+  const name     = document.getElementById('cl-name').value.trim();
+  const email    = document.getElementById('cl-email').value.trim();
+  const phone    = document.getElementById('cl-phone').value.trim();
+  const garage   = document.getElementById('cl-garage').value.trim();
+  const branches = document.getElementById('cl-branches').value.trim();
+  const message  = document.getElementById('cl-message').value.trim();
+  if (!name)  { err.textContent = 'Your name is required.'; return; }
+  if (!email || !email.includes('@')) { err.textContent = 'A valid email is required.'; return; }
+  if (!fbDb) { err.textContent = 'Site not connected to Firebase yet. Email support@garagepro.me directly.'; return; }
+  const plan = S.plans.find(p => p.id === chainLeadPlanId);
+  try {
+    await fbDb.collection('chain_leads').add({
+      name, email, phone, garage, branches,
+      message, planId: chainLeadPlanId || null, planName: plan ? plan.name : null,
+      status: 'new',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closeChainLeadForm();
+    showToast('Thanks — we\'ll be in touch shortly.', 'good');
+  } catch (e) {
+    err.textContent = 'Couldn\'t send your enquiry. Please try again or email support@garagepro.me.';
+  }
+}
+
+// ══════════════════════════════════════════
+//  BUILD YOUR OWN PLAN
+// ══════════════════════════════════════════
+// Per-unit rates tuned to land near the existing catalogue tiers (see
+// DEFAULT_PLANS above) — a 3-bay/5-worker/0-branch build should price close
+// to Standard, a 6-bay/10-worker build close to Workshop, etc. Yearly = 10x
+// monthly and weekly ≈ 30% of monthly, matching the discount pattern already
+// used across every plan in DEFAULT_PLANS.
+const BYOP_BASE = 399;
+const BYOP_PER_BAY = 300;
+const BYOP_PER_WORKER = 100;
+const BYOP_PER_BRANCH = 1200;
+let byopCycle = 'monthly';
+function computeByopPlan() {
+  const bays     = parseInt(document.getElementById('byopBays').value, 10) || 1;
+  const workers  = parseInt(document.getElementById('byopWorkers').value, 10) || 1;
+  const branches = parseInt(document.getElementById('byopBranches').value, 10) || 0;
+  const monthly = BYOP_BASE + bays * BYOP_PER_BAY + workers * BYOP_PER_WORKER + branches * BYOP_PER_BRANCH;
+  const yearly  = monthly * 10;
+  const weekly  = Math.round(monthly * 0.3);
+  const isChainLike = branches > 0;
+  return {
+    id: `custom_${Date.now()}`,
+    name: 'Custom Plan',
+    tag: 'Built for your workshop',
+    monthly, weekly, yearly,
+    cycles: ['monthly','yearly'],
+    // Unlimited bays/workers when branches are involved unlocks the same
+    // chain-tier features (isChainTier() checks maxBays >= 999) as the Chain plan.
+    maxBays:     isChainLike ? 999 : bays,
+    maxWorkers:  isChainLike ? 999 : workers,
+    maxBookings: Math.max(bays * 3, workers * 2, 5),
+    features: [
+      `${bays} bay${bays === 1 ? '' : 's'}`,
+      `${workers} worker${workers === 1 ? '' : 's'}`,
+      branches > 0 ? `${branches} branch${branches === 1 ? '' : 'es'}` : 'Single workshop',
+      'GST invoices · Cloud sync'
+    ],
+    featured: false, active: false, custom: true
+  };
+}
+function setByopCycle(cycle) {
+  byopCycle = cycle;
+  document.querySelectorAll('.byop-cyc-btn').forEach(b => b.classList.toggle('active', b.dataset.cyc === cycle));
+  updateByopPrice();
+}
+function updateByopPrice() {
+  const bays     = document.getElementById('byopBays').value;
+  const workers  = document.getElementById('byopWorkers').value;
+  const branches = document.getElementById('byopBranches').value;
+  document.getElementById('byopBaysVal').textContent = bays;
+  document.getElementById('byopWorkersVal').textContent = workers;
+  document.getElementById('byopBranchesVal').textContent = branches;
+  const plan = computeByopPlan();
+  const price = byopCycle === 'yearly' ? plan.yearly : plan.monthly;
+  document.getElementById('byopPrice').textContent = formatPrice(price);
+  document.getElementById('byopPriceCycle').textContent = byopCycle === 'yearly' ? '/year' : '/month';
+  document.getElementById('byopFeatures').innerHTML = plan.features.map(f =>
+    `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>${f}</li>`
+  ).join('');
+}
+function startByopCheckout() {
+  const plan = computeByopPlan();
+  // Push into the in-memory catalogue only (never synced to Firestore) so the
+  // existing billing/checkout flow — which resolves plans by id — can find it.
+  // The purchased subscription bakes in maxBays/maxWorkers/maxBookings/price
+  // directly, so this ephemeral entry doesn't need to survive a page reload.
+  S.plans.push(plan);
+  S.billingCycle = byopCycle;
+  pendingPlanId = plan.id;
+  pendingPlatform = 'windows';
+  if (!currentUser) { openAuth('win'); return; }
+  if (currentUser.isAdmin) { showToast('Admins cannot buy plans (sign in as a user)', 'bad'); return; }
   openBilling();
 }
 
@@ -7206,6 +7530,7 @@ populateCurrencySelect();
 renderPlansGrid();
 renderComparisonTable();
 initQuiz();
+updateByopPrice();
 renderDemoCta();
 renderSupportContact();
 detectCountry().then(() => {
