@@ -295,6 +295,62 @@ header.app-header{
 .status-pill.s-done{background:rgba(255,255,255,.06);color:var(--faint)}
 .status-pill.s-warn{background:rgba(255,107,107,.14);color:var(--red)}
 
+/* ── Bay status row ── */
+.bay-status-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:24px}
+.bay-status-card{background:linear-gradient(180deg,var(--surf),var(--bg2));border:1px solid var(--brd);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:2px}
+.bay-status-card .bsc-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bay-status-card .bsc-icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none}
+.bay-status-card .bsc-name{font-family:var(--fd);font-weight:800;font-size:14.5px;color:var(--txt)}
+.bay-status-card .bsc-type{font-size:11.5px;color:var(--faint)}
+.bay-status-card .bsc-status{font-family:var(--fd);font-weight:700;font-size:14px;margin-top:2px}
+.bay-status-card .bsc-sub{font-size:12.5px;color:var(--dim);margin-top:2px;min-height:16px}
+.bay-status-card .bsc-bar{height:3px;border-radius:100px;margin-top:12px;background:var(--brd)}
+
+/* ── Overview grid: Recent Jobs | Revenue Overview | GST Summary ── */
+.dash-overview-grid{display:grid;grid-template-columns:1.05fr 1.55fr 1fr;gap:16px;margin-bottom:24px;align-items:start}
+@media(max-width:1180px){.dash-overview-grid{grid-template-columns:1fr}}
+.ov-card{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:18px 20px}
+.ov-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.ov-card-head h4{font-family:var(--fd);font-size:14.5px;font-weight:800;color:var(--txt)}
+.ov-period-sel{font-size:12px;font-weight:600;padding:5px 8px;border-radius:7px;border:1px solid var(--brd2);background:var(--bg2);color:var(--dim);cursor:pointer;outline:none}
+
+.recent-job-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--brd)}
+.recent-job-row:last-child{border-bottom:0;padding-bottom:0}
+.recent-job-row .rj-id{font-family:var(--fd);font-weight:700;font-size:13px;color:var(--txt)}
+.recent-job-row .rj-sub{font-size:11.5px;color:var(--faint);margin-top:1px}
+.recent-job-row .rj-right{text-align:right;flex:none}
+.recent-job-row .rj-amt{font-weight:700;font-size:13px;color:var(--txt)}
+.recent-job-row .rj-date{font-size:11px;color:var(--faint);margin-top:2px}
+.ov-view-all{display:block;text-align:center;font-size:12.5px;font-weight:700;color:var(--acc2);cursor:pointer;margin-top:12px;background:none;border:0;width:100%;padding:4px}
+.ov-view-all:hover{text-decoration:underline}
+
+.rev-total{font-family:var(--fd);font-size:26px;font-weight:800;color:var(--txt);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.rev-delta{font-size:12.5px;font-weight:700}
+.rev-delta.up{color:var(--teal)} .rev-delta.down{color:var(--red)}
+.rev-vs{font-size:11.5px;color:var(--faint)}
+.rev-chart-wrap{margin:14px 0 6px}
+.rev-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--brd)}
+.rev-stat-row div{text-align:left}
+.rev-stat-row .n{font-family:var(--fd);font-weight:800;font-size:14.5px;color:var(--txt)}
+.rev-stat-row .l{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-top:2px}
+@media(max-width:520px){.rev-stat-row{grid-template-columns:repeat(2,1fr);row-gap:12px}}
+
+.gst-line{display:flex;justify-content:space-between;align-items:center;padding:7px 0;font-size:13px;color:var(--dim)}
+.gst-line .v{font-weight:700;color:var(--txt)}
+.gst-grand{margin-top:10px;padding:12px 14px;border-radius:10px;background:rgba(var(--tint-rgb),.08);border:1px solid rgba(var(--tint-rgb),.25)}
+.gst-grand .l{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.gst-grand .v{font-family:var(--fd);font-size:19px;font-weight:800;color:var(--acc2);margin-top:2px}
+
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px}
+.kpi-card{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px}
+.kpi-icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex:none}
+.kpi-n{font-family:var(--fd);font-weight:800;font-size:19px;color:var(--txt);line-height:1.1}
+.kpi-l{font-size:11px;color:var(--faint);margin-top:2px}
+.kpi-delta{font-size:11px;font-weight:700;margin-top:2px}
+.kpi-delta.up{color:var(--teal)} .kpi-delta.down{color:var(--red)}
+@media(max-width:960px){.kpi-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:520px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
+
 .row-act{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
 .mini-btn{font-size:11.5px;font-weight:600;padding:6px 11px;border-radius:7px;border:1px solid var(--brd2);background:transparent;color:var(--dim);cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
 .mini-btn svg{width:11px;height:11px}
@@ -1050,6 +1106,12 @@ input[list]{background:var(--bg2)}
           </button>
         </div>
 
+        <div class="section-h" style="border:0;background:none;padding:0 0 12px;margin-top:4px">
+          <h3 style="font-size:15px">Service Bay Status</h3>
+          <span class="meta"><a href="#" onclick="switchTab('bays');return false" style="color:var(--acc2);text-decoration:none;font-weight:700">Manage Bays</a></span>
+        </div>
+        <div class="bay-status-row" id="dashBayStatus"></div>
+
         <div class="stat-row" id="dashStats">
           <div class="stat-card"><div class="n b" id="statExpected">—</div><div class="l">Expected today</div></div>
           <div class="stat-card"><div class="n a" id="statInShop">—</div><div class="l">Cars in workshop</div></div>
@@ -1057,6 +1119,45 @@ input[list]{background:var(--bg2)}
           <div class="stat-card"><div class="n" id="statActiveJobs">—</div><div class="l">Active jobs</div></div>
           <div class="stat-card"><div class="n r" id="statQueue">—</div><div class="l">In queue</div></div>
         </div>
+
+        <div class="dash-overview-grid">
+          <div class="ov-card">
+            <div class="ov-card-head">
+              <h4>Recent Jobs</h4>
+              <button class="ov-view-all" style="width:auto;margin:0" onclick="switchTab('jobs')">View All</button>
+            </div>
+            <div id="dashRecentJobs"></div>
+          </div>
+
+          <div class="ov-card">
+            <div class="ov-card-head">
+              <h4>Revenue Overview</h4>
+              <select class="ov-period-sel" id="dashRevPeriod" onchange="_renderRevenueOverview()">
+                <option value="7">This week</option>
+                <option value="30">Last 30 days</option>
+                <option value="month">This month</option>
+              </select>
+            </div>
+            <div class="rev-total"><span id="revTotal">—</span><span class="rev-delta" id="revDelta"></span></div>
+            <div class="rev-vs" id="revVs"></div>
+            <div class="rev-chart-wrap" id="revChart"></div>
+            <div class="rev-stat-row" id="revStatRow"></div>
+          </div>
+
+          <div class="ov-card">
+            <div class="ov-card-head">
+              <h4>GST Invoice Summary</h4>
+              <select class="ov-period-sel" id="dashGstPeriod" onchange="_renderGstSummary()">
+                <option value="month">This month</option>
+                <option value="lastmonth">Last month</option>
+                <option value="year">This year</option>
+              </select>
+            </div>
+            <div id="dashGstSummary"></div>
+          </div>
+        </div>
+
+        <div class="kpi-row" id="dashKpiRow"></div>
 
         <div class="section">
           <div class="section-h">
@@ -3784,6 +3885,12 @@ async function renderDashboard(force = false) {
   document.getElementById('dashTitle').textContent = `Dashboard — ${fmtToday()}`;
   document.getElementById('dashCrumb').textContent = `${(userProfile && userProfile.workshop_name) || 'Workshop'} · live data from Firestore`;
 
+  _renderBayStatusRow();
+  _renderRecentJobs();
+  _renderRevenueOverview();
+  _renderGstSummary();
+  _renderKpiRow();
+
   const today = todayStr();
 
   // ── Stats ──────────────────────────────────────────────
@@ -3913,6 +4020,222 @@ window._dashInvoice = async function(bookingId) {
   // No job yet — open a blank invoice form seeded with the booking's basics
   openInvoiceForm(null);
 };
+
+// ══════════════════════════════════════════
+//  DASHBOARD — reworked overview widgets (bay status, recent jobs,
+//  revenue overview + GST summary, trend KPIs)
+// ══════════════════════════════════════════
+function _bayIconSvg(type) {
+  const t = (type || '').toLowerCase();
+  if (t.includes('paint'))  return '<path d="M9 3h6l1 4H8z"/><path d="M8 7l-1 5a5 5 0 0 0 10 0l-1-5"/><path d="M12 16v5"/>';
+  if (t.includes('align'))  return '<circle cx="12" cy="12" r="8"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/>';
+  if (t.includes('diagnos')) return '<path d="M3 12h4l2-7 4 14 2-7h6"/>';
+  if (t.includes('wash'))   return '<path d="M7 16.3c2 1 3 2.7 3 4.2M12 16.3c2 1 3 2.7 3 4.2M17 16.3c2 1 3 2.7 3 4.2M5 13a7 7 0 0 1 14 0"/>';
+  return '<rect x="3" y="11" width="18" height="7" rx="2"/><path d="M5 11l1.5-5h11L19 11M7 18v2M17 18v2"/>';
+}
+function _renderBayStatusRow() {
+  const wrap = document.getElementById('dashBayStatus');
+  if (!wrap) return;
+  const bays = (D.bays || []).slice().sort((a, b) => (a.type || '').localeCompare(b.type || '') || (a.num || 0) - (b.num || 0));
+  if (!bays.length) {
+    wrap.innerHTML = `<div class="placeholder" style="grid-column:1/-1"><p>No bays configured yet. Set them up in the Bays tab.</p></div>`;
+    return;
+  }
+  const waitingFamily = ['Awaiting Assignment', 'Awaiting Approval', 'Estimate Sent', 'Awaiting QC', ''];
+  const readyFamily   = ['Ready for Pickup', 'Client Informed', 'QC Passed'];
+  wrap.innerHTML = bays.slice(0, 10).map(b => {
+    const state = _bayState(b);
+    let statusText = 'Available', barColor = 'var(--teal)', sub = '';
+    if (state === 'maintenance') {
+      statusText = 'Maintenance'; barColor = 'var(--red)';
+    } else if (state === 'occupied') {
+      const job = b.booking_id ? D.jobs.find(j => j.booking_id === b.booking_id) : null;
+      const jstatus = job ? (job.status || '') : '';
+      if (!job || waitingFamily.includes(jstatus))      { statusText = 'Waiting';     barColor = 'var(--acc2)'; }
+      else if (readyFamily.includes(jstatus))           { statusText = 'Ready';       barColor = 'var(--teal)'; }
+      else                                               { statusText = 'In Progress'; barColor = 'var(--blue)'; }
+      const bk = b.booking_id ? D.bookings.find(x => x.id === b.booking_id) : null;
+      sub = [b.plate, bk ? bk.cust_name : ''].filter(Boolean).join(' · ');
+    }
+    return `<div class="bay-status-card">
+      <div class="bsc-head">
+        <span class="bsc-icon" style="background:rgba(var(--tint-rgb),.12);color:${barColor}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">${_bayIconSvg(b.type)}</svg>
+        </span>
+        <div>
+          <div class="bsc-name">Bay ${escapeHtml(String(b.num || ''))}</div>
+          <div class="bsc-type">${escapeHtml(b.type || 'General Service')}</div>
+        </div>
+      </div>
+      <div class="bsc-status" style="color:${barColor}">${statusText}</div>
+      <div class="bsc-sub">${escapeHtml(sub)}</div>
+      <div class="bsc-bar" style="background:${barColor}"></div>
+    </div>`;
+  }).join('');
+}
+
+function _renderRecentJobs() {
+  const wrap = document.getElementById('dashRecentJobs');
+  if (!wrap) return;
+  const jobs = (D.jobs || []).slice().sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, 5);
+  if (!jobs.length) { wrap.innerHTML = `<div class="placeholder"><p>No job cards yet.</p></div>`; return; }
+  const cur = (D.settings || {}).currency || '₹';
+  wrap.innerHTML = jobs.map(j => {
+    const inv = (D.invoices || []).find(i => i.job_id === j.id);
+    const amt = inv ? _invoiceTotals(inv).roundOff : null;
+    const shortId = 'JOB-' + (j.id || '').slice(-5).toUpperCase();
+    const date = (j.created_at || '').slice(0, 10) || '—';
+    return `<div class="recent-job-row">
+      <div>
+        <div class="rj-id">${escapeHtml(shortId)}</div>
+        <div class="rj-sub">${j.plate ? `<span class="plate">${escapeHtml(j.plate)}</span> · ` : ''}${escapeHtml(j.cust_name || '—')}</div>
+      </div>
+      <div class="rj-right">
+        ${statusPill(j.status || 'Awaiting Assignment')}
+        <div class="rj-amt">${amt != null ? cur + ' ' + amt.toLocaleString('en-IN') : '—'}</div>
+        <div class="rj-date">${escapeHtml(date)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _dashDateKeyDaysAgo(n) {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function _renderRevenueOverview() {
+  const sel = document.getElementById('dashRevPeriod');
+  const period = sel ? sel.value : '7';
+  const cur = (D.settings || {}).currency || '₹';
+  const days = period === 'month' ? new Date().getDate() : (parseInt(period, 10) || 7);
+  const invAll = (D.invoices || []).filter(i => !i.is_estimate && (i.status || 'Draft') !== 'Cancelled');
+  const keyOf = i => i.issue_date || (i.created_at || '').slice(0, 10);
+  const dayTotal = n => {
+    const key = _dashDateKeyDaysAgo(n);
+    return invAll.filter(i => keyOf(i) === key).reduce((s, i) => s + _invoiceTotals(i).roundOff, 0);
+  };
+  const series = [];
+  for (let n = days - 1; n >= 0; n--) series.push(dayTotal(n));
+  const total = series.reduce((a, b) => a + b, 0);
+  let prevTotal = 0;
+  for (let n = days * 2 - 1; n >= days; n--) prevTotal += dayTotal(n);
+  const deltaPct = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : (total > 0 ? 100 : 0);
+
+  const totalEl = document.getElementById('revTotal');
+  const deltaEl = document.getElementById('revDelta');
+  if (totalEl) totalEl.textContent = `${cur} ${total.toLocaleString('en-IN')}`;
+  if (deltaEl) {
+    deltaEl.textContent = (deltaPct >= 0 ? '↑ ' : '↓ ') + Math.abs(deltaPct) + '%';
+    deltaEl.className = 'rev-delta ' + (deltaPct >= 0 ? 'up' : 'down');
+  }
+  const vsEl = document.getElementById('revVs');
+  if (vsEl) vsEl.textContent = `vs previous ${days} day${days === 1 ? '' : 's'}`;
+
+  const chartEl = document.getElementById('revChart');
+  if (chartEl) {
+    const w = 100, h = 60;
+    const max = Math.max(1, ...series);
+    const pts = series.map((v, i) => {
+      const x = series.length > 1 ? (i / (series.length - 1)) * w : w / 2;
+      const y = h - (v / max) * (h - 6) - 3;
+      return `${x},${y}`;
+    });
+    const line = pts.join(' ');
+    const area = `0,${h} ${line} ${w},${h}`;
+    chartEl.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:70px;display:block">
+      <polygon points="${area}" fill="rgba(var(--tint-rgb),.14)" />
+      <polyline points="${line}" fill="none" stroke="var(--acc2)" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>`;
+  }
+
+  const periodInvoices = invAll.filter(i => {
+    const key = keyOf(i);
+    return key && key >= _dashDateKeyDaysAgo(days - 1);
+  });
+  const paidAmt = periodInvoices.filter(i => i.payment_status === 'Paid').reduce((s, i) => s + _invoiceTotals(i).roundOff, 0);
+  const outstanding = periodInvoices.reduce((s, i) => s + (i.payment_status === 'Paid' ? 0 : _invoiceTotals(i).roundOff), 0);
+  const statRow = document.getElementById('revStatRow');
+  if (statRow) statRow.innerHTML = `
+    <div><div class="n">${cur} ${total.toLocaleString('en-IN')}</div><div class="l">Total Revenue</div></div>
+    <div><div class="n">${periodInvoices.length}</div><div class="l">Total Invoices</div></div>
+    <div><div class="n">${cur} ${paidAmt.toLocaleString('en-IN')}</div><div class="l">Paid Amount</div></div>
+    <div><div class="n">${cur} ${outstanding.toLocaleString('en-IN')}</div><div class="l">Outstanding</div></div>`;
+}
+
+function _renderGstSummary() {
+  const sel = document.getElementById('dashGstPeriod');
+  const period = sel ? sel.value : 'month';
+  const cur = (D.settings || {}).currency || '₹';
+  const now = new Date();
+  const invAll = (D.invoices || []).filter(i => !i.is_estimate && (i.status || 'Draft') !== 'Cancelled');
+  const keyOf = i => i.issue_date || (i.created_at || '').slice(0, 10);
+  const inRange = invAll.filter(i => {
+    const key = keyOf(i);
+    if (!key) return false;
+    const d = new Date(key);
+    if (period === 'month')     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    if (period === 'lastmonth') { const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1); return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth(); }
+    if (period === 'year')      return d.getFullYear() === now.getFullYear();
+    return true;
+  });
+  let taxable = 0, gst = 0, grand = 0;
+  inRange.forEach(i => { const t = _invoiceTotals(i); taxable += t.partsTaxable; gst += t.gst; grand += t.roundOff; });
+  const taxPct = Number((D.settings || {}).tax_pct ?? 18);
+  const wrap = document.getElementById('dashGstSummary');
+  if (wrap) wrap.innerHTML = `
+    <div class="gst-line"><span>Total Invoices</span><span class="v">${inRange.length}</span></div>
+    <div class="gst-line"><span>Taxable Value</span><span class="v">${cur} ${Math.round(taxable).toLocaleString('en-IN')}</span></div>
+    <div class="gst-line"><span>GST (${taxPct}%)</span><span class="v">${cur} ${Math.round(gst).toLocaleString('en-IN')}</span></div>
+    <div class="gst-grand"><div class="l">Grand Total</div><div class="v">${cur} ${Math.round(grand).toLocaleString('en-IN')}</div></div>`;
+}
+
+function _dashCountSince(arr, daysAgo) {
+  const cutoff = _dashDateKeyDaysAgo(daysAgo - 1);
+  return (arr || []).filter(x => ((x.created_at || '').slice(0, 10)) >= cutoff).length;
+}
+const _KPI_ICONS = {
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  check:     '<path d="M20 6 9 17l-5-5"/>',
+  clock:     '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+  hourglass: '<path d="M5 22h14M5 2h14M5 2v4a7 8 0 0 0 6 8 7 8 0 0 0 6-8V2M5 22v-4a7 8 0 0 1 6-8 7 8 0 0 1 6 8v4"/>',
+  users:     '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'
+};
+function _renderKpiRow() {
+  const wrap = document.getElementById('dashKpiRow');
+  if (!wrap) return;
+  const jobs = D.jobs || [];
+  const completedSet = ['Delivered', 'Ready for Pickup', 'Cancelled'];
+  const waitingSet    = ['Awaiting Assignment', 'Awaiting Approval', 'Estimate Sent', 'Awaiting QC'];
+  const completed  = jobs.filter(j => completedSet.includes(j.status)).length;
+  const waiting    = jobs.filter(j => waitingSet.includes(j.status)).length;
+  const inProgress = Math.max(0, jobs.length - completed - waiting);
+  const customers  = (D.customers || []).length;
+
+  const jobsThisWeek = _dashCountSince(jobs, 7);
+  const jobsPrevWeek = _dashCountSince(jobs, 14) - jobsThisWeek;
+  const custThisWeek = _dashCountSince(D.customers, 7);
+  const custPrevWeek = _dashCountSince(D.customers, 14) - custThisWeek;
+  const pctDelta = (cur, prev) => prev > 0 ? Math.round(((cur - prev) / prev) * 100) : (cur > 0 ? 100 : 0);
+
+  const cards = [
+    { icon: 'briefcase', color: 'var(--blue)', n: jobs.length, l: 'Total Jobs',      delta: pctDelta(jobsThisWeek, jobsPrevWeek) },
+    { icon: 'check',     color: 'var(--teal)', n: completed,   l: 'Completed Jobs',  delta: null },
+    { icon: 'clock',     color: 'var(--acc2)', n: inProgress,  l: 'In Progress',     delta: null },
+    { icon: 'hourglass', color: 'var(--red)',  n: waiting,     l: 'Waiting Jobs',    delta: null },
+    { icon: 'users',     color: 'var(--blue)', n: customers,   l: 'Customers',       delta: pctDelta(custThisWeek, custPrevWeek) }
+  ];
+  wrap.innerHTML = cards.map(c => `
+    <div class="kpi-card">
+      <span class="kpi-icon" style="background:rgba(var(--tint-rgb),.12);color:${c.color}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">${_KPI_ICONS[c.icon]}</svg>
+      </span>
+      <div>
+        <div class="kpi-n">${c.n}</div>
+        <div class="kpi-l">${escapeHtml(c.l)}</div>
+        ${c.delta != null ? `<div class="kpi-delta ${c.delta >= 0 ? 'up' : 'down'}">${c.delta >= 0 ? '↑' : '↓'} ${Math.abs(c.delta)}% vs last week</div>` : ''}
+      </div>
+    </div>`).join('');
+}
 
 window.renderDashboard = renderDashboard;
 
