@@ -1749,6 +1749,18 @@ function serviceTypesFor(dept) {
 }
 window.serviceTypesFor = serviceTypesFor;
 
+// Star-rating criteria a customer scores their Service Advisor on (Settings →
+// Feedback criteria). Falls back to these defaults until the workshop
+// customises the list — snapshotted onto each feedback_links doc at send
+// time (see _publishFeedbackLink) so editing the list later never changes
+// the labels on feedback a customer already submitted.
+const _DEFAULT_FEEDBACK_CRITERIA = ['Helpfulness', 'Communication', 'Professionalism', 'Timeliness'];
+function feedbackCriteria() {
+  const list = D.settings && D.settings.feedback_criteria;
+  return (Array.isArray(list) && list.length) ? list : _DEFAULT_FEEDBACK_CRITERIA;
+}
+window.feedbackCriteria = feedbackCriteria;
+
 // ──────────────────────────────────────────────────────────────────────────
 //  PUBLIC TRACKING MIRROR
 //  Writes a minimal status doc per vehicle plate at
@@ -3312,7 +3324,11 @@ const DEFAULT_ROLE_PERMS = {
   parts_dept:    ['dashboard','jobs','inventory','request_parts','parts','notifications','chat','timesheets'],
   receptionist:  ['dashboard','bookings','queue','customers','invoices','notifications','chat','timesheets'],
   // Mechanics can REQUEST parts only — they don't get the Manage Requests tab.
-  mechanic:      ['dashboard','bookings','jobs','queue','bays','inventory','request_parts','notifications','chat','timesheets']
+  // No 'dashboard' by default — the overview/revenue/GST widgets there are an
+  // owner/manager-facing summary, not something a shop-floor worker needs;
+  // they land on Bookings instead (see the fallback list in
+  // renderSidebarVisibility()).
+  mechanic:      ['bookings','jobs','queue','bays','inventory','request_parts','notifications','chat','timesheets']
 };
 const ADMIN_ROLES = ['owner','manager'];
 
@@ -8295,9 +8311,18 @@ async function _publishInvoiceView(invId) {
 }
 
 // Publish a one-time, tokenized feedback link (mirrors _publishInvoiceView) —
-// the customer opens it (no login), leaves a star rating + optional comment,
-// which writes back to this same doc. Sent alongside the thank-you + invoice
-// message/email, the one moment after checkout where it's appropriate to ask.
+// the customer opens it (no login), leaves feedback, which writes back to
+// this same doc. Sent alongside the thank-you + invoice message/email, the
+// one moment after checkout where it's appropriate to ask.
+//
+// Two independent ratings live on one doc:
+//   - Service Advisor: per-criterion stars (criteria snapshotted from
+//     Settings → Feedback criteria at send time, so a later edit to the list
+//     never relabels feedback a customer already gave) + a written review.
+//     Attributed to whichever SA sent this job's estimate (job.estimate_sent_by),
+//     since that's the advisor who actually worked the customer's case —
+//     omitted entirely if the job never went through an estimate send.
+//   - Workshop: one overall star rating + comment, owner/manager only.
 async function _publishFeedbackLink(job, booking) {
   if (!currentUser) return '';
   const token = _apprToken();
@@ -8306,7 +8331,12 @@ async function _publishFeedbackLink(job, booking) {
     job_id: job?.id || '', booking_id: booking?.id || job?.booking_id || '',
     workshop_name: (D.settings || {}).workshop_name || 'Garage Pro',
     plate: job?.plate || booking?.plate || '', cust_name: job?.cust_name || booking?.cust_name || '',
-    submitted: false, rating: 0, comment: '', submitted_at: '',
+    service_advisor:    job?.estimate_sent_by    || '',
+    service_advisor_id: job?.estimate_sent_by_id || '',
+    criteria: feedbackCriteria(),
+    sa_ratings: {}, sa_review: '',
+    workshop_rating: 0, workshop_comment: '',
+    submitted: false, submitted_at: '',
     created_at: nowStr()
   };
   await wsCol('feedback_links').doc(token).set(doc);
@@ -8374,33 +8404,135 @@ async function renderFeedback(force = false) {
     body.innerHTML = `<div class="placeholder"><h3>No feedback yet</h3><p>Feedback links go out with the thank-you message after checkout — submitted ratings and comments will show up here.</p></div>`;
     return;
   }
-  const avg = list.reduce((s, f) => s + (Number(f.rating) || 0), 0) / list.length;
-  crumb.textContent = `${list.length} response${list.length === 1 ? '' : 's'} · ${avg.toFixed(1)} ★ average`;
   const stars = (n) => { n = Math.max(0, Math.min(5, Math.round(Number(n) || 0))); return '★'.repeat(n) + '☆'.repeat(5 - n); };
+  const locTag = f => (f._location && scope === 'all') ? `<span style="color:var(--faint);font-size:11.5px;margin-left:6px">(${escapeHtml(f._location)})</span>` : '';
+  const entryMeta = f => `<div>
+      <span style="font-weight:700;color:var(--txt)">${escapeHtml(f.cust_name || 'Customer')}</span>
+      ${f.plate ? `<span style="color:var(--faint);font-size:12.5px;margin-left:6px">· ${escapeHtml(f.plate)}</span>` : ''}
+      ${locTag(f)}
+    </div>
+    <div style="color:var(--faint);font-size:12px;white-space:nowrap">${escapeHtml((f.submitted_at || '').slice(0,16))}</div>`;
+  // Per-criterion average across a set of entries. Skips a criterion on an
+  // entry that never rated it (0/missing), rather than dragging the average
+  // down with a fake zero.
+  const critAverages = (entries, criteriaList) => {
+    const out = {};
+    criteriaList.forEach(c => {
+      const vals = entries.map(f => Number((f.sa_ratings || {})[c] || 0)).filter(v => v > 0);
+      out[c] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    });
+    return out;
+  };
+  const critRow = avgs => Object.entries(avgs).map(([c, v]) => `
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--dim);padding:3px 0">
+      <span>${escapeHtml(c)}</span><span style="color:var(--ink);letter-spacing:1px">${v ? stars(v) + ` ${v.toFixed(1)}` : '<span style="color:var(--faint)">—</span>'}</span>
+    </div>`).join('');
+
+  const isAdmin = isAdminRole();
+  const myWorkerId = currentWorker?.id || '';
+  const myWorkerName = (currentWorker?.name || '').toLowerCase();
+  const isMine = f => f.service_advisor_id ? f.service_advisor_id === myWorkerId
+                                            : (f.service_advisor || '').toLowerCase() === myWorkerName;
+
+  if (isAdmin) {
+    // ── Workshop-wide feedback + overall rating — owner/manager only ──
+    const wRating = f => Number(f.workshop_rating ?? f.rating ?? 0);
+    const wComment = f => f.workshop_comment ?? f.comment ?? '';
+    const wRated = list.filter(f => wRating(f) > 0);
+    const wAvg = wRated.length ? wRated.reduce((s, f) => s + wRating(f), 0) / wRated.length : 0;
+
+    // ── Service Advisor feedback, grouped by advisor, sorted by their average ──
+    const bySA = {};
+    list.forEach(f => {
+      const name = f.service_advisor || '';
+      if (!name) return; // job never had an assigned SA (no estimate sent) — nothing to attribute
+      (bySA[name] = bySA[name] || []).push(f);
+    });
+    const criteriaAll = [...new Set(list.flatMap(f => f.criteria && f.criteria.length ? f.criteria : feedbackCriteria()))];
+    const saGroups = Object.entries(bySA).map(([name, entries]) => {
+      const avgs = critAverages(entries, criteriaAll);
+      const vals = Object.values(avgs).filter(v => v > 0);
+      const overall = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+      return { name, entries, avgs, overall };
+    }).sort((a, b) => b.overall - a.overall);
+
+    crumb.textContent = `${list.length} response${list.length === 1 ? '' : 's'} · ${wAvg ? wAvg.toFixed(1) + ' ★ workshop average' : 'no workshop ratings yet'}`;
+    body.innerHTML = `
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px">
+        <div class="card" style="padding:16px 22px;text-align:center;min-width:140px">
+          <div style="font-family:var(--fd);font-weight:800;font-size:30px;color:var(--acc2)">${wAvg ? wAvg.toFixed(1) : '—'}</div>
+          <div style="font-size:12px;color:var(--faint)">workshop average</div>
+        </div>
+        <div class="card" style="padding:16px 22px;text-align:center;min-width:140px">
+          <div style="font-family:var(--fd);font-weight:800;font-size:30px;color:var(--txt)">${list.length}</div>
+          <div style="font-size:12px;color:var(--faint)">total responses</div>
+        </div>
+      </div>
+
+      <h3 style="font-size:14.5px;margin:0 0 10px">Workshop feedback</h3>
+      <div style="display:grid;gap:10px;margin-bottom:26px">
+        ${wRated.length ? wRated.slice().sort((a,b)=>(b.submitted_at||'').localeCompare(a.submitted_at||'')).map(f => `
+          <div class="card" style="padding:14px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+              <div><span style="color:var(--ink);font-size:16px;letter-spacing:1px">${stars(wRating(f))}</span>${entryMeta(f)}</div>
+            </div>
+            ${wComment(f) ? `<div style="margin-top:8px;color:var(--dim);font-size:13.5px;line-height:1.5">${escapeHtml(wComment(f))}</div>` : ''}
+          </div>`).join('') : `<div class="placeholder"><p>No workshop-level ratings yet.</p></div>`}
+      </div>
+
+      <h3 style="font-size:14.5px;margin:0 0 6px">Service Advisor feedback <span style="font-weight:500;color:var(--faint);font-size:12px">— sorted by average rating</span></h3>
+      <div style="display:grid;gap:16px">
+        ${saGroups.length ? saGroups.map(g => `
+          <div class="card" style="padding:16px 18px">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+              <div style="font-family:var(--fd);font-weight:800;font-size:15px">${escapeHtml(g.name)}</div>
+              <div style="color:var(--ink);font-size:14px;letter-spacing:1px">${g.overall ? stars(g.overall) + ` ${g.overall.toFixed(1)}` : '—'}</div>
+            </div>
+            <div style="margin-bottom:10px">${critRow(g.avgs)}</div>
+            <div style="display:grid;gap:8px">
+              ${g.entries.slice().sort((a,b)=>(b.submitted_at||'').localeCompare(a.submitted_at||'')).map(f => `
+                <div style="border-top:1px solid var(--brd);padding-top:8px">
+                  <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">${entryMeta(f)}</div>
+                  ${f.sa_review ? `<div style="margin-top:4px;color:var(--dim);font-size:13px;line-height:1.5">${escapeHtml(f.sa_review)}</div>` : ''}
+                </div>`).join('')}
+            </div>
+          </div>`).join('') : `<div class="placeholder"><p>No Service Advisor feedback yet.</p></div>`}
+      </div>`;
+    return;
+  }
+
+  // ── Service Advisor's own view: only their own entries, no workshop data ──
+  const mine = list.filter(isMine);
+  if (!mine.length) {
+    crumb.textContent = 'No feedback yet';
+    body.innerHTML = `<div class="placeholder"><h3>No feedback yet</h3><p>Feedback about you shows up here once a customer whose job you sent an estimate for leaves a review.</p></div>`;
+    return;
+  }
+  const myCriteria = [...new Set(mine.flatMap(f => f.criteria && f.criteria.length ? f.criteria : feedbackCriteria()))];
+  const myAvgs = critAverages(mine, myCriteria);
+  const myVals = Object.values(myAvgs).filter(v => v > 0);
+  const myOverall = myVals.length ? myVals.reduce((a, b) => a + b, 0) / myVals.length : 0;
+  crumb.textContent = `${mine.length} response${mine.length === 1 ? '' : 's'} about you`;
   body.innerHTML = `
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px">
       <div class="card" style="padding:16px 22px;text-align:center;min-width:140px">
-        <div style="font-family:var(--fd);font-weight:800;font-size:30px;color:var(--acc2)">${avg.toFixed(1)}</div>
-        <div style="font-size:12px;color:var(--faint)">average rating</div>
+        <div style="font-family:var(--fd);font-weight:800;font-size:30px;color:var(--acc2)">${myOverall ? myOverall.toFixed(1) : '—'}</div>
+        <div style="font-size:12px;color:var(--faint)">your average</div>
       </div>
       <div class="card" style="padding:16px 22px;text-align:center;min-width:140px">
-        <div style="font-family:var(--fd);font-weight:800;font-size:30px;color:var(--txt)">${list.length}</div>
+        <div style="font-family:var(--fd);font-weight:800;font-size:30px;color:var(--txt)">${mine.length}</div>
         <div style="font-size:12px;color:var(--faint)">total responses</div>
       </div>
     </div>
+    <div class="card" style="padding:16px 18px;margin-bottom:18px">
+      <div style="font-family:var(--fd);font-weight:700;font-size:13px;margin-bottom:8px">By criteria</div>
+      ${critRow(myAvgs)}
+    </div>
     <div style="display:grid;gap:10px">
-      ${list.map(f => `
+      ${mine.slice().sort((a,b)=>(b.submitted_at||'').localeCompare(a.submitted_at||'')).map(f => `
         <div class="card" style="padding:14px 16px">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-            <div>
-              <span style="color:var(--ink);font-size:16px;letter-spacing:1px">${stars(f.rating)}</span>
-              <span style="margin-left:8px;font-weight:700;color:var(--txt)">${escapeHtml(f.cust_name || 'Customer')}</span>
-              ${f.plate ? `<span style="color:var(--faint);font-size:12.5px;margin-left:6px">· ${escapeHtml(f.plate)}</span>` : ''}
-              ${f._location && scope === 'all' ? `<span style="color:var(--faint);font-size:11.5px;margin-left:6px">(${escapeHtml(f._location)})</span>` : ''}
-            </div>
-            <div style="color:var(--faint);font-size:12px;white-space:nowrap">${escapeHtml((f.submitted_at || '').slice(0,16))}</div>
-          </div>
-          ${f.comment ? `<div style="margin-top:8px;color:var(--dim);font-size:13.5px;line-height:1.5">${escapeHtml(f.comment)}</div>` : ''}
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">${entryMeta(f)}</div>
+          ${f.sa_review ? `<div style="margin-top:8px;color:var(--dim);font-size:13.5px;line-height:1.5">${escapeHtml(f.sa_review)}</div>` : ''}
         </div>`).join('')}
     </div>`;
 }
@@ -13909,6 +14041,22 @@ async function renderSettings(force = false) {
         <div id="sf-svctype-msg" style="margin-top:8px;font-size:12.5px;min-height:14px"></div>
       </div>
 
+      <!-- ──────────────────────────────────────────────────────────────────
+           Feedback criteria — the star-rating categories a customer scores
+           their Service Advisor on (separate from the overall workshop
+           rating). Shown on the customer-facing feedback.html form.
+           ────────────────────────────────────────────────────────────── -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Feedback criteria</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">When a customer leaves feedback, they rate their Service Advisor 1–5 stars on each of these — separate from the overall workshop rating. Changing this list only affects feedback links sent after the change.</div>
+        <div id="sf-fbcrit-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="sf-fbcrit-new" placeholder="New criterion (e.g. Punctuality)" style="flex:1;min-width:200px;padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb)" onkeydown="if(event.key==='Enter'){event.preventDefault();_addFeedbackCriterion();}" />
+          <button class="refresh-btn" onclick="_addFeedbackCriterion()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add criterion</button>
+        </div>
+        <div id="sf-fbcrit-msg" style="margin-top:8px;font-size:12.5px;min-height:14px"></div>
+      </div>
+
       <!-- Role permissions -->
       <div class="card" style="padding:18px">
         <h3 style="margin:0 0 6px">Role permissions</h3>
@@ -14196,6 +14344,7 @@ async function renderSettings(force = false) {
   // Render the branch list (no-op when the Branches card isn't on screen)
   if (typeof _renderBranchList === 'function') _renderBranchList();
   _renderServiceTypesList();
+  _renderFeedbackCriteriaList();
 }
 
 window.saveWorkshopInfo = async function() {
@@ -14474,6 +14623,54 @@ window._removeServiceType = async function(name) {
   await wsSaveSettings();
   showToast('Removed "' + name + '"', 'good');
   _renderServiceTypesList();
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+//  FEEDBACK CRITERIA — the star-rating categories customers score their
+//  Service Advisor on (Settings → Feedback criteria). Mirrors the Service
+//  Types editor above.
+// ══════════════════════════════════════════════════════════════════════════
+window._renderFeedbackCriteriaList = function() {
+  const wrap = document.getElementById('sf-fbcrit-list');
+  if (!wrap) return;
+  const list = feedbackCriteria();
+  const isCustom = !!((D.settings?.feedback_criteria || []).length);
+  wrap.innerHTML = list.map(c => `<span style="display:inline-flex;align-items:center;gap:6px;padding:7px 11px;background:var(--bg2);border:1px solid var(--brd2);border-radius:100px;font-size:13px;font-weight:600">
+    ${escapeHtml(c)}
+    <button type="button" class="mini-btn danger" title="Remove ${escapeHtml(c)}" style="padding:2px 6px;font-size:10px;line-height:1" onclick="_removeFeedbackCriterion('${escapeHtml(c).replace(/'/g, "\\'")}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </span>`).join('') + (isCustom ? '' : `<div style="font-size:11.5px;color:var(--faint);width:100%">Showing the default list — add or remove one below to start a custom list.</div>`);
+};
+window._addFeedbackCriterion = async function() {
+  const input = document.getElementById('sf-fbcrit-new');
+  const msg   = document.getElementById('sf-fbcrit-msg');
+  const name  = (input?.value || '').trim();
+  msg.style.color = 'var(--red)';
+  if (!name)            { msg.textContent = 'Type a criterion name first.'; return; }
+  if (name.length > 40) { msg.textContent = 'Keep it under 40 characters.'; return; }
+  const current = feedbackCriteria();
+  if (current.some(c => c.toLowerCase() === name.toLowerCase())) {
+    msg.textContent = `"${name}" is already on the list.`; return;
+  }
+  D.settings = D.settings || {};
+  D.settings.feedback_criteria = [...current, name];
+  await wsSaveSettings();
+  showToast(`Added "${name}"`, 'good');
+  msg.textContent = '';
+  input.value = '';
+  _renderFeedbackCriteriaList();
+};
+window._removeFeedbackCriterion = async function(name) {
+  const current = feedbackCriteria();
+  if (current.length <= 1) {
+    showToast('Need at least one criterion — add another before removing this.', 'bad');
+    return;
+  }
+  if (!(await customConfirm(`Remove "${name}"?`, { title: 'Remove criterion', okLabel: 'Remove' }))) return;
+  D.settings = D.settings || {};
+  D.settings.feedback_criteria = current.filter(c => c !== name);
+  await wsSaveSettings();
+  showToast(`Removed "${name}"`, 'good');
+  _renderFeedbackCriteriaList();
 };
 
 // ─── Customer-email settings ─────────────────────────────────────
