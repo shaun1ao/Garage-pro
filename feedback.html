@@ -22,9 +22,17 @@
   h1{font-size:19px;margin:0 0 6px;font-weight:800}
   .lead{font-size:13.5px;color:var(--dim);margin:0 0 22px;line-height:1.5}
   .stars{display:flex;gap:8px;justify-content:center;margin-bottom:22px}
+  .stars.small{gap:4px;justify-content:flex-start;margin-bottom:0}
   .star{font-size:38px;line-height:1;cursor:pointer;color:var(--brd2);transition:color .15s,transform .1s;user-select:none;background:none;border:0;padding:0}
+  .stars.small .star{font-size:24px}
   .star:hover{transform:scale(1.08)}
   .star.on{color:var(--acc2)}
+  .section{margin-bottom:26px}
+  .section-title{font-size:15px;font-weight:800;margin:0 0 4px}
+  .section-sub{font-size:12.5px;color:var(--faint);margin:0 0 16px;line-height:1.5}
+  .crit-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .crit-label{font-size:13.5px;color:var(--txt);font-weight:600}
+  .divider{border:0;border-top:1px solid var(--brd);margin:26px 0}
   label{display:block;font-size:12.5px;color:var(--dim);font-weight:600;margin-bottom:7px}
   textarea{width:100%;min-height:100px;padding:12px 14px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px;resize:vertical}
   textarea:focus{outline:none;border-color:var(--acc2)}
@@ -59,7 +67,9 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&a
 const qs = new URLSearchParams(location.search);
 const WUID  = qs.get('w') || '';
 const TOKEN = qs.get('t') || '';
-let db, rating = 0;
+let db;
+let saRatings = {};    // criterion -> 1-5
+let workshopRating = 0;
 
 function stateMsg(html){ root.innerHTML = `<div class="state">${html}</div>`; }
 
@@ -72,7 +82,7 @@ function boot(){
   db.collection('users').doc(WUID).collection('feedback_links').doc(TOKEN).get().then(snap => {
     if (!snap.exists) { stateMsg('This feedback link is no longer valid.'); return; }
     const data = snap.data() || {};
-    if (data.submitted) { renderThanks(data); return; }
+    if (data.submitted) { renderThanks(); return; }
     renderForm(data);
   }).catch(e => {
     console.error('[feedback] load failed:', e && e.code, e);
@@ -82,6 +92,8 @@ function boot(){
 
 function renderForm(DATA){
   const initial = (DATA.workshop_name || 'G').trim().charAt(0).toUpperCase();
+  const criteria = Array.isArray(DATA.criteria) && DATA.criteria.length ? DATA.criteria : ['Helpfulness','Communication','Professionalism','Timeliness'];
+  const hasSA = !!(DATA.service_advisor || '').trim();
   root.innerHTML = `
     <div class="brand">
       <div class="logo">${esc(initial)}</div>
@@ -90,37 +102,73 @@ function renderForm(DATA){
     <div class="card">
       <h1>How was your experience?</h1>
       <p class="lead">${DATA.cust_name ? 'Hi ' + esc(DATA.cust_name.split(' ')[0]) + ', y' : 'Y'}our feedback helps ${esc(DATA.workshop_name || 'the workshop')} improve.</p>
-      <div class="stars" id="stars">
-        ${[1,2,3,4,5].map(n => `<button type="button" class="star" data-n="${n}" onclick="setRating(${n})">★</button>`).join('')}
+
+      ${hasSA ? `
+      <div class="section">
+        <div class="section-title">Rate ${esc(DATA.service_advisor)}</div>
+        <div class="section-sub">Your Service Advisor for this visit.</div>
+        ${criteria.map(c => `
+          <div class="crit-row">
+            <span class="crit-label">${esc(c)}</span>
+            <div class="stars small" data-crit="${esc(c)}">
+              ${[1,2,3,4,5].map(n => `<button type="button" class="star" data-n="${n}" onclick="setCritRating('${esc(c).replace(/'/g,"\\'")}',${n},this)">★</button>`).join('')}
+            </div>
+          </div>`).join('')}
+        <label for="fb-sa-review" style="margin-top:4px">A word about them (optional)</label>
+        <textarea id="fb-sa-review" placeholder="What did they do well, or what could they improve?"></textarea>
       </div>
-      <label for="fb-comment">Comment (optional)</label>
-      <textarea id="fb-comment" placeholder="Tell us what went well or what we could do better…"></textarea>
+      <hr class="divider" />
+      ` : ''}
+
+      <div class="section" style="margin-bottom:0">
+        <div class="section-title">Rate ${esc(DATA.workshop_name || 'the workshop')} overall</div>
+        <div class="section-sub">Your overall experience with the workshop.</div>
+        <div class="stars" id="wsStars">
+          ${[1,2,3,4,5].map(n => `<button type="button" class="star" data-n="${n}" onclick="setWorkshopRating(${n})">★</button>`).join('')}
+        </div>
+        <label for="fb-comment">Comment (optional)</label>
+        <textarea id="fb-comment" placeholder="Tell us what went well or what we could do better…"></textarea>
+      </div>
+
       <button class="submit-btn" id="fb-submit" onclick="submitFeedback()">Submit feedback</button>
       <div class="err" id="fb-err"></div>
     </div>
   `;
 }
 
-window.setRating = function(n){
-  rating = n;
-  document.querySelectorAll('.star').forEach(el => {
+window.setCritRating = function(crit, n, btn){
+  saRatings[crit] = n;
+  const wrap = btn.closest('[data-crit]');
+  wrap.querySelectorAll('.star').forEach(el => el.classList.toggle('on', Number(el.dataset.n) <= n));
+};
+
+window.setWorkshopRating = function(n){
+  workshopRating = n;
+  document.querySelectorAll('#wsStars .star').forEach(el => {
     el.classList.toggle('on', Number(el.dataset.n) <= n);
   });
 };
 
 window.submitFeedback = function(){
   const err = document.getElementById('fb-err');
-  if (!rating) { err.textContent = 'Please pick a star rating first.'; return; }
+  if (!workshopRating) { err.textContent = 'Please rate the workshop overall first.'; return; }
   const btn = document.getElementById('fb-submit');
   btn.disabled = true; btn.textContent = 'Submitting…';
-  const comment = (document.getElementById('fb-comment').value || '').trim().slice(0, 2000);
-  db.collection('users').doc(WUID).collection('feedback_links').doc(TOKEN).update({
-    rating, comment, submitted: true, submitted_at: new Date().toISOString()
-  }).then(() => {
-    renderThanks({});
+  const saReviewEl = document.getElementById('fb-sa-review');
+  const payload = {
+    sa_ratings: saRatings,
+    sa_review: saReviewEl ? (saReviewEl.value || '').trim().slice(0, 2000) : '',
+    workshop_rating: workshopRating,
+    workshop_comment: (document.getElementById('fb-comment').value || '').trim().slice(0, 2000),
+    submitted: true, submitted_at: new Date().toISOString()
+  };
+  db.collection('users').doc(WUID).collection('feedback_links').doc(TOKEN).update(payload).then(() => {
+    renderThanks();
   }).catch(e => {
     console.error('[feedback] submit failed:', e && e.code, e);
-    err.textContent = 'Could not submit — please try again.';
+    err.textContent = e && e.code === 'permission-denied'
+      ? 'This link has already been used — feedback can only be submitted once.'
+      : 'Could not submit — please try again.';
     btn.disabled = false; btn.textContent = 'Submit feedback';
   });
 };
