@@ -101,7 +101,16 @@ function boot(){
     if (!snap.exists) { stateMsg('This estimate link is no longer valid. Please ask the workshop for an updated link.'); return; }
     DATA = snap.data() || {};
     CUR = DATA.currency || '₹';
-    if (DATA.responded_at) { renderDone(); return; }
+    // A previous response doesn't permanently lock the page — only once
+    // there's nothing left open (every item is either approved or dropped) is
+    // there truly nothing left to decide. Otherwise a rejected item is still
+    // revisable: reopen the link, tap Approve, submit again.
+    if (DATA.responded_at && !hasOpenItems()) { renderDone(); return; }
+    // Rejected items keep their decision pre-filled (not forced into a "please
+    // choose again" state) — the customer only has to actively decide the
+    // ones still pending; a rejected item stays rejected unless they change it.
+    (DATA.lines   || []).forEach((l, i) => { if (l.state === 'rejected') decisions['line:' + i]   = 'rejected'; });
+    (DATA.charges || []).forEach((c, i) => { if (c.state === 'rejected') decisions['charge:' + i] = 'rejected'; });
     render();
   }).catch(e => {
     console.error('[approve] load failed:', e && e.code, e);
@@ -125,8 +134,9 @@ function brandHead(){
 
 function itemHTML(kind, i, name, meta, exclGst, gstAmt, amount, state){
   state = state || 'pending';
-  // Items dropped by the workshop when revising are no longer part of the quote.
-  if (state !== 'pending' && state !== 'approved') return '';
+  // Only items the workshop explicitly dropped from the quote disappear —
+  // rejected items stay visible and revisable (see the 'rejected' case below).
+  if (state === 'dropped') return '';
   const key = kind + ':' + i;
   const gstLine = gstAmt > 0
     ? `<div class="item-meta">${meta ? esc(meta) + ' · ' : ''}${fmt(exclGst)} + GST ${fmt(gstAmt)}</div>`
@@ -141,10 +151,17 @@ function itemHTML(kind, i, name, meta, exclGst, gstAmt, amount, state){
       <div class="locked-tag">✓ Already approved</div>
     </div>`;
   }
+  // Pending items start with no visible decision; a previously-rejected item
+  // stays marked rejected (decisions[key] is pre-filled in boot()) but is
+  // still fully interactive — tapping Approve here is exactly how a customer
+  // changes their mind on something they declined earlier.
   const st = decisions[key] || '';
+  const changedMindNote = state === 'rejected'
+    ? `<div class="item-meta" style="color:var(--red);margin-top:4px">You previously declined this — tap Approve if you've changed your mind.</div>`
+    : '';
   return `<div class="item ${st}" id="it-${esc(key)}">
     <div class="item-top">
-      <div><div class="item-name">${esc(name)}</div>${gstLine}</div>
+      <div><div class="item-name">${esc(name)}</div>${gstLine}${changedMindNote}</div>
       <div class="amt">${fmt(amount)}</div>
     </div>
     <div class="btns">
@@ -154,12 +171,16 @@ function itemHTML(kind, i, name, meta, exclGst, gstAmt, amount, state){
   </div>`;
 }
 
-// Which items the customer is actually being asked about this round (state
-// 'pending'); locked-approved and dropped items are excluded from the gate.
+function _isOpenState(s){ s = s || 'pending'; return s === 'pending' || s === 'rejected'; }
+// Which items the customer can currently act on — pending (never decided) AND
+// rejected (decided, but still revisable). Locked-approved and dropped items
+// are excluded from the gate; rejected items count here even though they
+// already have a decision, so the "everything decided" gate isn't blocked by
+// them, but they still show up so the customer CAN act on them.
 function askableCount(){
   let n = 0;
-  (DATA.lines||[]).forEach(l => { if ((l.state||'pending')==='pending') n++; });
-  (DATA.charges||[]).forEach(c => { if ((c.state||'pending')==='pending') n++; });
+  (DATA.lines||[]).forEach(l => { if (_isOpenState(l.state)) n++; });
+  (DATA.charges||[]).forEach(c => { if (_isOpenState(c.state)) n++; });
   return n;
 }
 function lockedApprovedCount(){
@@ -167,6 +188,12 @@ function lockedApprovedCount(){
   (DATA.lines||[]).forEach(l => { if (l.state==='approved') n++; });
   (DATA.charges||[]).forEach(c => { if (c.state==='approved') n++; });
   return n;
+}
+// Is there anything left the customer could still change? True while any
+// item is pending (never decided) or rejected (revisable) — false once
+// everything is either approved or dropped, i.e. genuinely finished.
+function hasOpenItems(){
+  return (DATA.lines||[]).some(l => _isOpenState(l.state)) || (DATA.charges||[]).some(c => _isOpenState(c.state));
 }
 
 // Top-down car outline — matches the workshop app's intake diagram so pins
@@ -231,8 +258,8 @@ function render(){
     </div>
 
     <div id="items">
-      ${lines.map((l,i) => itemHTML('line', i, l.name + (l.qty>1?' × '+l.qty:''), 'Part', l.amount_excl_gst ?? l.amount, l.gst_amount || 0, l.amount, l.state)).join('')}
-      ${charges.map((c,i) => itemHTML('charge', i, c.name, 'Service / labour', c.amount_excl_gst ?? c.amount, c.gst_amount || 0, c.amount, c.state)).join('')}
+      ${lines.map((l,i) => itemHTML('line', i, l.name + (l.qty>1?' × '+l.qty:''), l.concern_title || 'Part', l.amount_excl_gst ?? l.amount, l.gst_amount || 0, l.amount, l.state)).join('')}
+      ${charges.map((c,i) => itemHTML('charge', i, c.name, c.concern_title || 'Service / labour', c.amount_excl_gst ?? c.amount, c.gst_amount || 0, c.amount, c.state)).join('')}
     </div>
 
     <div class="totrow"><span style="color:var(--dim)">Estimate total</span><span class="amt">${fmt(DATA.total)}</span></div>
@@ -317,9 +344,10 @@ window.setDec = function(key, val){
 };
 
 window.bulk = function(val){
-  // Only the items being asked about (pending) — locked-approved rows stay put.
-  (DATA.lines||[]).forEach((l,i) => { if ((l.state||'pending')==='pending') decisions['line:'+i] = val; });
-  (DATA.charges||[]).forEach((c,i) => { if ((c.state||'pending')==='pending') decisions['charge:'+i] = val; });
+  // Pending AND rejected items — locked-approved rows stay put. Rejected is
+  // included so "Approve all" can also sweep up anything declined earlier.
+  (DATA.lines||[]).forEach((l,i) => { if (_isOpenState(l.state)) decisions['line:'+i] = val; });
+  (DATA.charges||[]).forEach((c,i) => { if (_isOpenState(c.state)) decisions['charge:'+i] = val; });
   document.querySelectorAll('.item').forEach(el => {
     if (el.classList.contains('locked')) return;
     el.classList.remove('approved','rejected'); el.classList.add(val);
@@ -387,6 +415,7 @@ function renderDone(){
         ${app>0 ? `<span class="summary-pill" style="background:rgba(32,227,178,.14);color:var(--teal)">${app} approved</span>`:''}
         ${rej>0 ? `<span class="summary-pill" style="background:rgba(255,107,107,.14);color:var(--red)">${rej} declined</span>`:''}
       </div>` : ''}
+      ${rej > 0 ? `<div class="sub" style="margin-top:14px;max-width:420px;margin-left:auto;margin-right:auto">Changed your mind on something you declined? Reopen this same link any time to approve it.</div>` : ''}
       ${DATA.workshop_phone ? `<div class="sub" style="margin-top:20px">Questions? Call ${esc(DATA.workshop_phone)}</div>` : ''}
     </div>`;
 }
