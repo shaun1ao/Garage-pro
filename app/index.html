@@ -4464,6 +4464,28 @@ const INDIAN_STATES = [
 ];
 window.INDIAN_STATES = INDIAN_STATES;
 
+// ─── License plate formats ─────────────────────────────────────────────
+// Two formats a vehicle can be registered under:
+//   1. Standard — SS RR C NNNN  (e.g. GJ 05 XX 5678), tied to one state's RTO.
+//   2. BH Series — YY BH #### XX (e.g. 26 BH 4521 AB), a pan-India format for
+//      vehicle owners who relocate across states often (govt/private staff at
+//      companies with offices in 4+ states) — no re-registration on transfer.
+// Detects format from a stored plate string (old records never had an
+// explicit plate_format field) so re-opening a booking always shows the
+// right builder without needing a one-time data migration.
+function _plateFormatFromString(plate) {
+  return /^\d{2}BH/i.test((plate || '').replace(/\s+/g, '')) ? 'bh' : 'state';
+}
+window._plateFormatFromString = _plateFormatFromString;
+// BH series launched in 2021 — offer the last several years plus the current one.
+function _bhYearOptions() {
+  const cur = new Date().getFullYear() % 100;
+  const out = [];
+  for (let y = cur; y >= 21; y--) out.push(String(y).padStart(2, '0'));
+  return out;
+}
+window._bhYearOptions = _bhYearOptions;
+
 // GSTIN format: 15 chars · NN(state) + 10-char PAN + 1(entity) + Z + 1(checksum)
 // Cross-check: first 2 digits must match the GST code of the selected state.
 function validateGSTIN(gstin, stateName) {
@@ -5167,8 +5189,11 @@ function _bookingFormHTML(b) {
   const services = serviceTypesFor(currentDept);
   const today = todayStr();
   // Try to split an existing plate "TS09 AB 1234" → state code "TS" + rest "09 AB 1234"
+  // (or, for BH series, "26BH4521AB" → year "26" + rest "4521AB" — both formats
+  // start with a 2-char prefix, so the same slice works for either.)
+  const plateFormat = b.plate_format || _plateFormatFromString(b.plate);
   const platePrefix = b.plate_state || (b.plate || '').slice(0, 2).toUpperCase();
-  const plateSuffix = b.plate_suffix || (b.plate || '').slice(2).trim();
+  const plateSuffix = b.plate_suffix || (plateFormat === 'bh' ? (b.plate || '').replace(/^\d{2}BH/i, '').trim() : (b.plate || '').slice(2).trim());
   // Defaults for the customer-type toggle (individual unless this is a saved corporate record)
   const custType = b.customer_type || 'individual';
   // Make/model/year/variant — pull from saved booking or its vehicle field
@@ -5189,11 +5214,18 @@ function _bookingFormHTML(b) {
     <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);margin-bottom:10px">Primary details</div>
     <div class="f-row r3">
       <div class="f-grp"><label>Registration No <span class="req">*</span></label>
+        <select id="bf-plate-format" onchange="_bookingPlateFormatChange()" style="width:100%;margin-bottom:6px;padding:9px 8px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:12.5px">
+          <option value="state" ${plateFormat === 'state' ? 'selected' : ''}>Standard — SS RR C NNNN (state)</option>
+          <option value="bh"    ${plateFormat === 'bh'    ? 'selected' : ''}>BH Series — YY BH #### XX (pan-India)</option>
+        </select>
         <div style="display:flex;gap:6px">
-          <select id="bf-plate-state" style="width:80px;padding:11px 8px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
+          <select id="bf-plate-state" style="display:${plateFormat === 'bh' ? 'none' : ''};width:80px;padding:11px 8px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
             ${INDIAN_STATES.map(s => `<option value="${s.plate}" ${s.plate === platePrefix ? 'selected' : ''}>${s.plate}</option>`).join('')}
           </select>
-          <input id="bf-plate-suffix" type="text" value="${escapeHtml(plateSuffix)}" placeholder="09 AB 1234" style="flex:1;text-transform:uppercase" />
+          <select id="bf-plate-bhyear" style="display:${plateFormat === 'bh' ? '' : 'none'};width:80px;padding:11px 8px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
+            ${_bhYearOptions().map(y => `<option value="${y}" ${y === platePrefix ? 'selected' : ''}>${y} BH</option>`).join('')}
+          </select>
+          <input id="bf-plate-suffix" type="text" value="${escapeHtml(plateSuffix)}" placeholder="${plateFormat === 'bh' ? '4521 AB' : '09 AB 1234'}" style="flex:1;text-transform:uppercase" />
         </div>
       </div>
       <div class="f-grp"><label>Odometer In</label><input id="bf-odo" type="number" min="0" value="${escapeHtml(b.odometer_in || '')}" placeholder="KMs at intake" /></div>
@@ -6134,6 +6166,20 @@ window._bookingSyncStateCode = function() {
   code.value = st ? st.gst : '';
 };
 
+// Toggle between the two plate builders — Standard (state dropdown) and
+// BH Series (year dropdown) — swapping which prefix select is visible and
+// updating the suffix placeholder to match. See _plateFormatFromString /
+// _bhYearOptions above for the format definitions.
+window._bookingPlateFormatChange = function() {
+  const fmt = document.getElementById('bf-plate-format')?.value || 'state';
+  const stateSel = document.getElementById('bf-plate-state');
+  const bhSel    = document.getElementById('bf-plate-bhyear');
+  const suf      = document.getElementById('bf-plate-suffix');
+  if (stateSel) stateSel.style.display = fmt === 'bh' ? 'none' : '';
+  if (bhSel)    bhSel.style.display    = fmt === 'bh' ? '' : 'none';
+  if (suf)      suf.placeholder = fmt === 'bh' ? '4521 AB' : '09 AB 1234';
+};
+
 // ── Make / Model / Year / Variant cascading dropdowns ──
 // Called when make or model changes (or 'init' to rebuild lists for the current values).
 // Builds the datalists for the dependent fields. Fuzzy-match suggestion fires
@@ -6305,10 +6351,13 @@ function _applyVehicleToBookingForm(v) {
   const setIf = (id, val) => { const el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
   // Plate: prefer the split fields if we have them, otherwise parse the full plate
   const plate = (v.plate || '').toUpperCase();
+  const format    = v.plate_format || _plateFormatFromString(plate);
   const stateCode = v.plate_state || plate.slice(0, 2);
-  const suffix    = v.plate_suffix || plate.slice(2).trim();
-  setIf('bf-plate-state', stateCode);
+  const suffix    = v.plate_suffix || (format === 'bh' ? plate.replace(/^\d{2}BH/i, '').trim() : plate.slice(2).trim());
+  setIf('bf-plate-format', format);
+  setIf(format === 'bh' ? 'bf-plate-bhyear' : 'bf-plate-state', stateCode);
   setIf('bf-plate-suffix', suffix);
+  if (typeof _bookingPlateFormatChange === 'function') _bookingPlateFormatChange();
   // Model details
   setIf('bf-make',    v.make);
   setIf('bf-model',   v.model);
@@ -6348,11 +6397,15 @@ async function saveBooking(id) {
   const contactPref = (isCorp ? v('bf-cp-contact-pref') : v('bf-contact-pref')) || 'whatsapp';
 
   // Vehicle fields
-  const plateState = v('bf-plate-state').toUpperCase();
-  const plateSuf   = v('bf-plate-suffix').toUpperCase();
+  const plateFormat = (document.getElementById('bf-plate-format')?.value || 'state');
+  // plate_state doubles as "the prefix select's value" for either format — a
+  // state code (GJ) for Standard, or a 2-digit year (26) for BH Series. The
+  // literal "BH" only gets spliced in when building the full plate string.
+  const plateState = (plateFormat === 'bh' ? v('bf-plate-bhyear') : v('bf-plate-state')).toUpperCase();
+  const plateSuf    = v('bf-plate-suffix').toUpperCase();
   // Store the plate with ALL whitespace removed — easier to re-enter, and it
   // matches the normalized public-tracking key so lookups never miss.
-  const plate      = (plateState + plateSuf).replace(/\s+/g, '').toUpperCase();
+  const plate = ((plateFormat === 'bh' ? plateState + 'BH' : plateState) + plateSuf).replace(/\s+/g, '').toUpperCase();
   const make       = v('bf-make');
   const model      = v('bf-model');
   const year       = v('bf-year');
@@ -6445,7 +6498,7 @@ async function saveBooking(id) {
     customer_type: custType,
     company_name: companyName, gstin, ref_no: refNo,
     // Vehicle
-    plate, plate_state: plateState, plate_suffix: plateSuf,
+    plate, plate_state: plateState, plate_suffix: plateSuf, plate_format: plateFormat,
     vehicle: vehicleText,
     veh_make: make, veh_model: model, veh_year: year, veh_variant: variant,
     odometer_in: odo ? Number(odo) : 0, avg_kms: avgKms ? Number(avgKms) : 0,
@@ -6468,7 +6521,7 @@ async function saveBooking(id) {
   let custIdx = D.customers.findIndex(c => (c.name || '').toLowerCase() === custName.toLowerCase());
   const newVehicle = {
     id: uid('veh'),
-    plate, plate_state: plateState, plate_suffix: plateSuf,
+    plate, plate_state: plateState, plate_suffix: plateSuf, plate_format: plateFormat,
     make, model, year, variant, color: colour, vin, engine_no: engineNo,
     fuel_type: fuelType, odometer_in: odo ? Number(odo) : 0, avg_kms: avgKms ? Number(avgKms) : 0,
     in_house: inHouse, gstin: isCorp ? gstin : '',
@@ -7215,7 +7268,7 @@ async function renderJobs(force = false) {
                   : status === 'Rejected — Reassembly'
                     ? `${_isSA ? `<button class="mini-btn warn" onclick="reviseRejectedEstimate('${escapeHtml(j.id)}')" title="Revise the estimate and send the customer a new link">Revise &amp; resend</button>` : ''}<button class="mini-btn good" onclick="markJobStatus('${escapeHtml(j.id)}','Returned to Advisor')" title="Car reassembled, no repair done — handed back to advisor">Mark reassembled</button>`
                     : status === 'In Progress'
-                      ? `<button class="mini-btn good" onclick="markRepairDone('${escapeHtml(j.id)}')" title="Technician finished — hand over for QC">Repair done</button>`
+                      ? `<button class="mini-btn good" onclick="markRepairDone('${escapeHtml(j.id)}')" title="Technician finished — hand over for QC">Repair done</button>${_isSA ? `<button class="mini-btn" onclick="sendJobEstimate('${escapeHtml(j.id)}')" title="Found something extra mid-repair? Send an additional estimate for approval">Send estimate</button><button class="mini-btn" onclick="shareEstimateLink('${escapeHtml(j.id)}')" title="Send the customer a link to approve/reject on their phone">🔗 Share link</button>` : ''}`
                       : status === 'Awaiting QC'
                         ? (currentRole() === 'floor_manager' || isAdminRole()
                             ? `<button class="mini-btn good" onclick="passQC('${escapeHtml(j.id)}')" title="Test drive + final inspection passed">Pass QC</button>`
@@ -7968,6 +8021,11 @@ window.sendJobEstimate = async function(jobId) {
   const w = window.open('', '_blank');
   _openDocInWindow(w, html);
   renderJobs();
+  // Mint the actual tap-to-approve link BEFORE emailing — this used to be a
+  // separate action ("Share link"), so this button's estimate_ready email
+  // could go out with no link at all, or a stale one from a previous send.
+  // Same publish path "Share link" uses, so it's the SAME live link either way.
+  try { await _publishApprovalDoc(j, inv); } catch (e) { console.warn('[sendJobEstimate] publish approval doc failed', e); }
   // estimate_ready customer email — fire-and-forget. No WhatsApp here — the
   // estimate's approval link is meant to be shared deliberately (the SA
   // reviews it with the customer first), not fired as an automatic prompt.
@@ -8227,6 +8285,24 @@ function _apprSiteBase() {
   const o = location.origin;
   return (o && /^https?:/i.test(o)) ? o : 'https://garagepro.me';
 }
+
+// A job can have MULTIPLE live estimate links at once — the whole-job estimate
+// (j.approval_token) and any number of per-concern estimates (j.concerns[].
+// approval_token). Whichever email/notification links the customer to "your
+// estimate" should always point at whichever one was actually sent last, not
+// whichever happens to be the whole-job one — otherwise a workshop that only
+// ever uses per-concern estimates would email a stale or empty link.
+function _latestApprovalLink(j) {
+  if (!j) return '';
+  const candidates = [];
+  if (j.approval_token) candidates.push({ token: j.approval_token, at: j.approval_token_at || j.estimate_sent_at || '' });
+  (j.concerns || []).forEach(c => { if (c.approval_token) candidates.push({ token: c.approval_token, at: c.sent_at || '' }); });
+  if (!candidates.length) return '';
+  candidates.sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+  const tok = candidates[0].token;
+  return tok ? `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(tok)}` : '';
+}
+window._latestApprovalLink = _latestApprovalLink;
 
 // Normalise a phone into wa.me digits (defaults to +91 for a bare 10-digit no.)
 function _waDigits(raw) {
@@ -8840,6 +8916,12 @@ async function _apprBuildDoc(j, inv, token) {
   // ("already approved", no buttons); 'dropped' items are excluded entirely; only
   // 'pending' items get Approve/Reject buttons. On a first send everything is
   // 'pending', so the customer is asked about all of it exactly as before.
+  // concern_id/concern_item_idx are only present when this is being built for
+  // the combined multi-concern send (see _publishCombinedConcernEstimates) —
+  // undefined for every other caller, so this is a no-op for the whole-job
+  // and single-concern flows. They ride along on the published doc so the
+  // customer's response (which just comes back with per-index decisions, same
+  // as any other approval doc) can be split back to the right concern.
   const lines = (inv.lines || []).map(l => {
     const taxable = Math.max(0, (Number(l.unit_price || 0) * Number(l.qty || 1)) * (1 - (Number(l.disc_pct || 0)) / 100));
     const exclGst = Math.round(taxable);
@@ -8850,14 +8932,18 @@ async function _apprBuildDoc(j, inv, token) {
       amount_excl_gst: exclGst,
       gst_amount: gstAmt,
       amount: exclGst + gstAmt,
-      state: l.approval || 'pending'
+      state: l.approval || 'pending',
+      ...(l.concern_id != null ? { concern_id: l.concern_id, concern_item_idx: l.concern_item_idx, concern_title: l.concern_title || '' } : {})
     };
   });
   const charges = (inv.charges || []).map(c => {
     const amt = Math.round(Number(c.amount || 0));
     // Services untaxed by default; a charge opts in with taxable:true.
     const gstAmt = (c.taxable === true) ? Math.round(amt * taxPct / 100) : 0;
-    return { name: c.name || '', amount_excl_gst: amt, gst_amount: gstAmt, amount: amt + gstAmt, state: c.approval || 'pending' };
+    return {
+      name: c.name || '', amount_excl_gst: amt, gst_amount: gstAmt, amount: amt + gstAmt, state: c.approval || 'pending',
+      ...(c.concern_id != null ? { concern_id: c.concern_id, concern_item_idx: c.concern_item_idx, concern_title: c.concern_title || '' } : {})
+    };
   });
 
   // Attach up to 3 job photos as small JPEG thumbnails. Downscaling keeps the
@@ -8975,6 +9061,10 @@ async function _publishApprovalDoc(j, inv) {
     j.estimate_sent_at = nowStr();
   }
   j.approval_token = token;
+  // Stamped every publish (unlike estimate_sent_at, which only sets once) —
+  // this is what _latestApprovalLink() compares against each concern's own
+  // sent_at to pick whichever link is actually the freshest.
+  j.approval_token_at = nowStr();
   // Remember who sent the link — this is the "nominated" person the customer's
   // response comes back to first (falls back to the service_advisor role).
   j.estimate_sent_by    = currentWorker?.name || j.estimate_sent_by || '';
@@ -9177,12 +9267,17 @@ function subscribeApprovalResponses() {
       snap.docChanges().forEach(chg => {
         if (chg.type === 'removed') return;
         const d = chg.doc.data() || {};
-        if (!d.responded_at || d.processed) return;
-        if (_apprSeen.has(d.token)) return;
-        _apprSeen.add(d.token);
+        // Compare against the specific responded_at we last processed, not a
+        // one-time boolean — a customer can revisit the same link and revise
+        // a rejection into an approval (approve.html now allows this), which
+        // writes a NEW responded_at and needs to be picked up again.
+        if (!d.responded_at || d.processed_responded_at === d.responded_at) return;
+        const seenKey = d.token + '::' + d.responded_at;
+        if (_apprSeen.has(seenKey)) return;
+        _apprSeen.add(seenKey);
         _claimAndApplyApproval(chg.doc.ref, d).catch(e => {
           console.warn('[appr apply]', e);
-          _apprSeen.delete(d.token);   // let a retry happen
+          _apprSeen.delete(seenKey);   // let a retry happen
         });
       });
     }, err => console.warn('[appr sub]', err));
@@ -9190,15 +9285,17 @@ function subscribeApprovalResponses() {
 }
 window.subscribeApprovalResponses = subscribeApprovalResponses;
 
-// Claim the response in a transaction so exactly one device processes it,
-// then apply the customer's per-line decision to the invoice + job.
+// Claim the response in a transaction so exactly one device processes THIS
+// exact submission, then apply the customer's per-line decision to the
+// invoice + job. Keyed on processed_responded_at (not a boolean) so a later,
+// revised responded_at from the same customer gets claimed and applied again.
 async function _claimAndApplyApproval(ref, data) {
   const won = await fbDb.runTransaction(async tx => {
     const cur = await tx.get(ref);
     if (!cur.exists) return false;
     const c = cur.data() || {};
-    if (c.processed || !c.responded_at) return false;
-    tx.update(ref, { processed: true, processed_at: nowStr() });
+    if (!c.responded_at || c.processed_responded_at === c.responded_at) return false;
+    tx.update(ref, { processed_responded_at: c.responded_at, processed_at: nowStr() });
     return true;
   });
   if (!won) return;
@@ -9207,7 +9304,9 @@ async function _claimAndApplyApproval(ref, data) {
 
 function _applyCustomerDecision(appr) {
   // Per-concern estimate responses route to their own handler — they update the
-  // concern's items, not a job invoice.
+  // concern's items, not a job invoice. Combined multi-concern links (see
+  // _sendSelectedConcernEstimates) carry concern_ids (plural) instead.
+  if (Array.isArray(appr.concern_ids) && appr.concern_ids.length) return _applyMultiConcernDecision(appr);
   if (appr.concern_id) return _applyConcernDecision(appr);
   const inv = (D.invoices || []).find(x => x.id === appr.invoice_id)
            || (D.invoices || []).find(x => x.job_id === appr.job_id);
@@ -9688,6 +9787,13 @@ window.openJobForm = function(id) {
                 <span style="font-weight:500;color:var(--faint);font-size:11.5px">— quote &amp; approve each concern on its own link</span>
               </div>
               ${_canEstimate ? `<button type="button" class="mini-btn" onclick="_jobAddConcern()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>Add concern</button>` : ''}
+            </div>
+            <!-- Manual multi-select send — tick any concern's checkbox above to
+                 email it (or several combined into one link) to the customer,
+                 independent of the per-concern "Send estimate link" button. -->
+            <div id="jf-concerns-bulk-send" style="display:none;margin-bottom:10px;padding:9px 11px;background:rgba(var(--tint-rgb),.06);border:1px solid rgba(var(--tint-rgb),.28);border-radius:9px;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <span style="font-size:12px;color:var(--dim)">Tick the concerns above to email their estimate(s) — pick several to combine into one link.</span>
+              <button type="button" class="mini-btn good" onclick="_sendSelectedConcernEstimates('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>Email selected estimate(s)</button>
             </div>
             <div id="jf-concerns"></div>
           </div>
@@ -10182,12 +10288,59 @@ function _concernStatusPill(c) {
   return `<span style="display:inline-block;font-size:10px;font-weight:800;letter-spacing:.05em;padding:2px 9px;border-radius:100px;background:${bg};color:${fg}">${label.toUpperCase()}</span>`;
 }
 
+// Chip row for a concern's assigned people — deliberately independent per
+// concern (own array, own event handlers) and with NO cross-concern
+// uniqueness check, so the same mechanic can legitimately be assigned to
+// several concerns on the same job (e.g. handling both the brake job and the
+// AC job), while two DIFFERENT concerns can just as easily go to two
+// different people. Mirrors the job-level "Mechanics assigned" chip UI
+// (_drawMechanicChips) for a consistent add/remove pattern.
+function _concernAssigneeChips(c, ci, ro) {
+  const chips = (c.assignees || []).map((name, ai) => `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;border-radius:100px;background:var(--surf2);border:1px solid var(--brd2);color:var(--txt);font-size:12px;font-weight:600">
+    ${escapeHtml(name)}
+    ${ro ? '' : `<button type="button" onclick="_concernRemoveAssignee(${ci},${ai})" title="Remove" style="background:transparent;border:0;color:var(--faint);cursor:pointer;font-size:13px;padding:0 2px;line-height:1">×</button>`}
+  </span>`).join('');
+  return `<div class="f-grp" style="margin-bottom:9px">
+    <label style="font-size:11px">Assigned people <span style="color:var(--faint);font-weight:500">— can differ per concern; the same person can be on more than one</span></label>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:7px;background:var(--surf);border:1px solid var(--brd2);border-radius:8px;min-height:36px;align-items:center">
+      ${chips || `<span style="color:var(--faint);font-size:12px;padding:2px 4px">Nobody assigned yet</span>`}
+    </div>
+    ${ro ? '' : `<div style="display:flex;gap:6px;margin-top:6px">
+      <input list="dlConcernAssignee" id="concern-assignee-add-${ci}" type="text" placeholder="Type a name or pick from list…" style="flex:1;padding:7px 10px;border-radius:7px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt);font-size:13px" onkeydown="if(event.key==='Enter'){event.preventDefault();_concernAddAssignee(${ci});}" />
+      <button type="button" class="mini-btn good" onclick="_concernAddAssignee(${ci})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+    </div>`}
+  </div>`;
+}
+window._concernAddAssignee = function(ci) {
+  const inp = document.getElementById(`concern-assignee-add-${ci}`);
+  const name = (inp?.value || '').trim();
+  if (!name) return;
+  const c = _editingJob.concerns[ci];
+  // Only dedupes WITHIN this one concern — adding the same name to a
+  // different concern is fine and expected, see _concernAssigneeChips above.
+  if ((c.assignees || []).some(a => a.toLowerCase() === name.toLowerCase())) {
+    if (inp) inp.value = '';
+    return showToast(`${name} is already on this concern`, 'bad');
+  }
+  c.assignees = [...(c.assignees || []), name];
+  if (inp) inp.value = '';
+  _drawConcerns();
+};
+window._concernRemoveAssignee = function(ci, ai) {
+  const c = _editingJob.concerns[ci];
+  if (!c) return;
+  c.assignees.splice(ai, 1);
+  _drawConcerns();
+};
+
 function _drawConcerns() {
   const wrap = document.getElementById('jf-concerns');
   if (!wrap) return;
   const ro  = !isServiceAdvisorRole();
   const cur = D.settings?.currency || '₹';
   const concerns = _editingJob.concerns || (_editingJob.concerns = []);
+  const bulkWrap = document.getElementById('jf-concerns-bulk-send');
+  if (bulkWrap) bulkWrap.style.display = (concerns.length > 1 && !ro) ? 'flex' : 'none';
   if (!concerns.length) {
     wrap.innerHTML = `<div style="padding:12px;color:var(--faint);font-size:12.5px;text-align:center;border:1px dashed var(--brd2);border-radius:9px">No separate concern estimates yet.${ro ? '' : ' Use “Add concern” to quote and send an approval link for one concern on its own.'}</div>`;
     return;
@@ -10211,13 +10364,12 @@ function _drawConcerns() {
     const decHtml = dec ? `<div style="font-size:11.5px;color:var(--dim);margin-top:6px">Customer: <b style="color:var(--teal)">${dec.approved} approved</b>${dec.rejected ? ` · <b style="color:var(--red)">${dec.rejected} rejected</b>` : ''}${dec.by ? ` · ${escapeHtml(dec.by)}` : ''}${dec.note ? ` · “${escapeHtml(dec.note)}”` : ''}</div>` : '';
     return `<div style="border:1px solid var(--brd2);border-radius:11px;padding:12px 13px;margin-bottom:10px;background:var(--bg2)">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px">
+        ${items.length && !ro ? `<input type="checkbox" class="concern-send-pick" data-ci="${ci}" title="Select for a combined send" style="width:16px;height:16px;cursor:pointer;flex:none" />` : ''}
         <input type="text" data-ci="${ci}" data-cf="title" value="${escapeHtml(c.title)}" ${dis} placeholder="Concern (e.g. AC not cooling)" style="flex:1;min-width:150px;padding:8px 10px;border-radius:7px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt);font-family:var(--fd);font-weight:700;font-size:13.5px" />
         ${_concernStatusPill(c)}
         ${ro ? '' : `<button type="button" class="mini-btn danger" onclick="_jobRemoveConcern(${ci})" title="Remove concern"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`}
       </div>
-      <div class="f-grp" style="margin-bottom:9px"><label style="font-size:11px">Assigned people (comma-separated)</label>
-        <input type="text" list="dlConcernAssignee" data-ci="${ci}" data-cf="assignees" value="${escapeHtml((c.assignees || []).join(', '))}" ${dis} placeholder="Technician name(s)" style="width:100%;padding:8px 10px;border-radius:7px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt);font-size:13px" />
-      </div>
+      ${_concernAssigneeChips(c, ci, ro)}
       ${ro ? '' : `<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button type="button" class="mini-btn" onclick="_concernAddItem(${ci})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>Add item</button></div>`}
       ${rowsHtml}
       ${decHtml}
@@ -10227,11 +10379,11 @@ function _drawConcerns() {
       </div>
     </div>`;
   }).join('');
-  // Concern-level fields (title / assignees)
+  // Concern-level fields (title only now — assignees have their own chip
+  // handlers above, no longer a single free-text/comma-separated input).
   wrap.querySelectorAll('[data-cf]').forEach(el => el.addEventListener('input', ev => {
     const ci = Number(ev.target.dataset.ci), f = ev.target.dataset.cf;
-    if (f === 'assignees') _editingJob.concerns[ci].assignees = ev.target.value.split(',').map(s => s.trim()).filter(Boolean);
-    else _editingJob.concerns[ci][f] = ev.target.value;
+    _editingJob.concerns[ci][f] = ev.target.value;
   }));
   // Per-item fields
   wrap.querySelectorAll('[data-if]').forEach(el => el.addEventListener('input', ev => {
@@ -10265,6 +10417,17 @@ window._concernRemoveItem = function(ci, ii) {
   _drawConcerns();
 };
 
+// Persist the working _editingJob.concerns set onto the actual job record —
+// shared by every "I just changed a token/status on one concern" write so
+// the mapping (and its field list) only lives in one place.
+function _persistConcerns(j) {
+  j.concerns = (_editingJob.concerns || []).map(c => ({
+    id: c.id, title: (c.title || '').trim(), assignees: (c.assignees || []).filter(Boolean),
+    items: (c.items || []).filter(x => (x.name || '').trim()).map(x => ({ id: x.id, name: x.name.trim(), qty: Math.max(1, Number(x.qty || 1)), price: Number(x.price || 0), taxable: x.taxable !== false, kind: x.kind === 'service' ? 'service' : 'part', approval: x.approval || 'pending' })),
+    approval_token: c.approval_token || '', sent_at: c.sent_at || '', status: c.status || 'draft', decision: c.decision || null
+  }));
+}
+
 // Publish a per-concern approval link. Builds a synthetic invoice-shaped object
 // from the concern's items and reuses _apprBuildDoc, then tags the doc with the
 // concern id so the customer's response routes back to THIS concern.
@@ -10291,47 +10454,162 @@ window.shareConcernEstimate = async function(jobId, ci) {
   // Stamp the token on the concern + persist the full concern set onto the saved
   // job so the customer's response can be matched back to this concern.
   ec.approval_token = token; ec.sent_at = nowStr(); ec.status = 'sent';
-  j.concerns = (_editingJob.concerns || []).map(c => ({
-    id: c.id, title: (c.title || '').trim(), assignees: (c.assignees || []).filter(Boolean),
-    items: (c.items || []).filter(x => (x.name || '').trim()).map(x => ({ id: x.id, name: x.name.trim(), qty: Math.max(1, Number(x.qty || 1)), price: Number(x.price || 0), taxable: x.taxable !== false, kind: x.kind === 'service' ? 'service' : 'part', approval: x.approval || 'pending' })),
-    approval_token: c.approval_token || '', sent_at: c.sent_at || '', status: c.status || 'draft', decision: c.decision || null
-  }));
+  _persistConcerns(j);
   try { await wsCol('estimate_approvals').doc(token).set(doc); await wsSave('jobs', D.jobs); }
   catch (e) { return customAlert('Could not publish the link: ' + (e.message || e), { title: 'Publish failed' }); }
   audit('concern-estimate-shared', `${j.plate} · ${ec.title || 'concern'}`, { job_id: j.id, concern_id: ec.id });
   publishTracking(j.booking_id);
   _drawConcerns();
   _apprShareModal(doc);
+  return doc;
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+//  MANUAL "EMAIL SELECTED ESTIMATE(S)" — the ✓ checkbox next to each concern
+//  in _drawConcerns() feeds this. One concern selected → sends that concern's
+//  own link (mirrors shareConcernEstimate but also emails it, not just the
+//  share modal). Several selected → their items get merged into ONE combined
+//  synthetic invoice and published as a SINGLE approval link — each line
+//  still carries which concern it came from (concern_id/concern_item_idx/
+//  concern_title, see _apprBuildDoc) so the customer's one response can be
+//  routed back to each underlying concern correctly (_applyMultiConcernDecision).
+// ══════════════════════════════════════════════════════════════════════════
+window._sendSelectedConcernEstimates = async function(jobId) {
+  if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can share estimate links', 'bad');
+  const picks = Array.from(document.querySelectorAll('.concern-send-pick:checked')).map(el => Number(el.dataset.ci));
+  if (!picks.length) return customAlert('Tick at least one concern above first.', { title: 'Nothing selected' });
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return showToast('Job not found', 'bad');
+  const chosen = picks.map(ci => _editingJob.concerns[ci]).filter(c => c && (c.items || []).some(it => (it.name || '').trim()));
+  if (!chosen.length) return customAlert('The selected concern(s) don\'t have any items yet.', { title: 'Nothing to send' });
+
+  let link = '';
+  if (chosen.length === 1) {
+    // Single pick — the existing per-concern publish already does everything
+    // (fresh token, persist, share modal); just also fire the actual email.
+    const ci = _editingJob.concerns.indexOf(chosen[0]);
+    const doc = await shareConcernEstimate(jobId, ci);
+    if (!doc) return;   // shareConcernEstimate already alerted on failure
+    link = _latestApprovalLink(j);
+  } else {
+    // Multiple picks — one combined doc. Indexing matches _applyConcernDecision's
+    // convention exactly (parts/services filtered+indexed PER concern), so the
+    // same per-concern decision-application logic can be reused on the way back.
+    const synLines = [], synCharges = [];
+    chosen.forEach(c => {
+      const parts = (c.items || []).filter(it => (it.name || '').trim() && it.kind !== 'service');
+      const svcs  = (c.items || []).filter(it => (it.name || '').trim() && it.kind === 'service');
+      parts.forEach((it, idx) => synLines.push({
+        name: it.name.trim(), qty: Math.max(1, Number(it.qty || 1)), unit_price: Number(it.price || 0), disc_pct: 0,
+        taxable: it.taxable !== false, approval: it.approval || 'pending',
+        concern_id: c.id, concern_item_idx: idx, concern_title: c.title || 'Concern'
+      }));
+      svcs.forEach((it, idx) => synCharges.push({
+        name: it.name.trim(), amount: Number(it.price || 0),
+        taxable: it.taxable !== false, approval: it.approval || 'pending',
+        concern_id: c.id, concern_item_idx: idx, concern_title: c.title || 'Concern'
+      }));
+    });
+    const synthetic = { id: '', number: '', tax_pct: Number(D.settings?.tax_pct || 0), lines: synLines, charges: synCharges };
+    const token = _apprToken();
+    let doc;
+    try { doc = await _apprBuildDoc(j, synthetic, token); }
+    catch (e) { return customAlert('Could not build the combined estimate: ' + (e.message || e), { title: 'Failed' }); }
+    doc.concern_ids = chosen.map(c => c.id);
+    doc.concern_title = chosen.map(c => c.title || 'Concern').join(' + ');
+    doc.invoice_no = doc.concern_title;
+    chosen.forEach(c => { c.approval_token = token; c.sent_at = nowStr(); c.status = 'sent'; });
+    _persistConcerns(j);
+    try { await wsCol('estimate_approvals').doc(token).set(doc); await wsSave('jobs', D.jobs); }
+    catch (e) { return customAlert('Could not publish the combined link: ' + (e.message || e), { title: 'Publish failed' }); }
+    audit('concern-estimate-shared', `${j.plate} · ${doc.concern_title} (${chosen.length} concerns combined)`, { job_id: j.id, concern_ids: doc.concern_ids });
+    publishTracking(j.booking_id);
+    _drawConcerns();
+    link = `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(token)}`;
+  }
+
+  if (!link) return showToast('Link published, but couldn\'t resolve its URL to email — share it manually from the job card.', 'bad');
+  const res = await sendCustomerNotification('estimate_ready', { job: j, approval_link: link });
+  if (res.ok) showToast(`Estimate emailed to the customer${chosen.length > 1 ? ` (${chosen.length} concerns combined)` : ''}`, 'good');
+  else if (res.skipped === 'no-recipient') showToast('No email on file for this customer — share the link another way instead.', 'bad');
+  else if (res.skipped === 'disabled') showToast('Customer emails are turned off in Settings — enable them first, or share the link another way.', 'bad');
+  else showToast('Link created, but the email failed to send — it\'s queued for retry, or share the link manually.', 'bad');
 };
 
 // Route a customer's response to a per-concern estimate back to that concern.
+// Pure — mutates `c` in place and returns a summary; does NOT save/notify/toast,
+// so both the single-concern and combined multi-concern callers can batch those
+// (one save + one toast) instead of firing them once per concern.
+function _applyDecisionsToOneConcern(c, decMap, who, note) {
+  const parts = (c.items || []).filter(it => it.kind !== 'service');
+  const svcs  = (c.items || []).filter(it => it.kind === 'service');
+  parts.forEach((it, i) => { const d = decMap['line:' + i];   if (d) it.approval = d; else if ((it.approval || 'pending') === 'pending') it.approval = 'rejected'; });
+  svcs.forEach((it, i)  => { const d = decMap['charge:' + i]; if (d) it.approval = d; else if ((it.approval || 'pending') === 'pending') it.approval = 'rejected'; });
+  let approved = 0, rejected = 0;
+  (c.items || []).forEach(it => { if (it.approval === 'approved') approved++; else if (it.approval === 'rejected' || it.approval === 'dropped') rejected++; });
+  c.decision = { approved, rejected, note: note || '', by: who, at: nowStr() };
+  c.status   = approved === 0 ? 'rejected' : (rejected > 0 ? 'partial' : 'approved');
+  const summary = approved === 0
+    ? `${who} rejected the “${c.title || 'concern'}” estimate.`
+    : `${who} approved ${approved} item(s)${rejected ? ', rejected ' + rejected : ''} on the “${c.title || 'concern'}” estimate.`;
+  return { approved, rejected, summary };
+}
+function _notifyConcernResponse(j, c, summary) {
+  const nominee = j.estimate_sent_by_id ? { worker_id: j.estimate_sent_by_id }
+                : (j.estimate_sent_by ? { worker_name: j.estimate_sent_by } : { role: 'service_advisor' });
+  notify({ kind: 'estimate-response', message: `${summary} Review & proceed with the approved work.`, target: nominee, job_id: j.id, meta: { concern_id: c.id } });
+  (c.assignees || []).forEach(name => notify({ kind: 'estimate-forwarded', message: summary, target: { worker_name: name }, job_id: j.id }));
+}
 function _applyConcernDecision(appr) {
   const j = (D.jobs || []).find(x => x.id === appr.job_id);
   if (!j) { console.warn('[concern appr] no job', appr.job_id); return; }
   const c = (j.concerns || []).find(x => x.id === appr.concern_id)
          || (j.concerns || []).find(x => x.approval_token === appr.token);
   if (!c) { console.warn('[concern appr] no concern for', appr.concern_id); return; }
-  const dec = appr.decisions || {};
-  const parts = (c.items || []).filter(it => it.kind !== 'service');
-  const svcs  = (c.items || []).filter(it => it.kind === 'service');
-  parts.forEach((it, i) => { const d = dec['line:' + i];   if (d) it.approval = d; else if ((it.approval || 'pending') === 'pending') it.approval = 'rejected'; });
-  svcs.forEach((it, i)  => { const d = dec['charge:' + i]; if (d) it.approval = d; else if ((it.approval || 'pending') === 'pending') it.approval = 'rejected'; });
-  let approved = 0, rejected = 0;
-  (c.items || []).forEach(it => { if (it.approval === 'approved') approved++; else if (it.approval === 'rejected' || it.approval === 'dropped') rejected++; });
   const who = appr.cust_name || j.cust_name || 'Customer';
-  c.decision = { approved, rejected, note: appr.customer_note || '', by: who, at: nowStr() };
-  c.status   = approved === 0 ? 'rejected' : (rejected > 0 ? 'partial' : 'approved');
-  const summary = approved === 0
-    ? `${who} rejected the “${c.title || 'concern'}” estimate for ${j.plate}.`
-    : `${who} approved ${approved} item(s)${rejected ? ', rejected ' + rejected : ''} on the “${c.title || 'concern'}” estimate for ${j.plate}.`;
-  const nominee = j.estimate_sent_by_id ? { worker_id: j.estimate_sent_by_id }
-                : (j.estimate_sent_by ? { worker_name: j.estimate_sent_by } : { role: 'service_advisor' });
-  notify({ kind: 'estimate-response', message: `${summary} Review & proceed with the approved work.`, target: nominee, job_id: j.id, meta: { concern_id: c.id, approved, rejected } });
-  (c.assignees || []).forEach(name => notify({ kind: 'estimate-forwarded', message: summary, target: { worker_name: name }, job_id: j.id }));
+  const { summary } = _applyDecisionsToOneConcern(c, appr.decisions || {}, who, appr.customer_note);
+  _notifyConcernResponse(j, c, `${summary.slice(0, -1)} for ${j.plate}.`);
   wsSave('jobs', D.jobs)
     .then(() => { publishTracking(j.booking_id); if (typeof renderJobs === 'function') renderJobs(); })
     .catch(e => console.warn('[concern appr save]', e));
   showToast(`${who} responded to the “${c.title || 'concern'}” estimate for ${j.plate}`, 'good');
+}
+
+// Route a customer's response to a COMBINED (multi-concern) estimate link.
+// appr.lines/appr.charges are the published doc's own snapshot (still on the
+// doc — the customer's write only adds decisions/responded_at, it doesn't
+// replace them), each tagged with concern_id/concern_item_idx, so the flat
+// decisions map can be split back into one per-concern map and applied with
+// the exact same logic a single-concern response uses.
+function _applyMultiConcernDecision(appr) {
+  const j = (D.jobs || []).find(x => x.id === appr.job_id);
+  if (!j) { console.warn('[multi-concern appr] no job', appr.job_id); return; }
+  const dec = appr.decisions || {};
+  const byConcern = {};   // concern_id -> { 'line:idx'/'charge:idx': decision }
+  (appr.lines || []).forEach((l, i) => {
+    if (l.concern_id == null) return;
+    const d = dec['line:' + i]; if (d == null) return;
+    (byConcern[l.concern_id] = byConcern[l.concern_id] || {})['line:' + l.concern_item_idx] = d;
+  });
+  (appr.charges || []).forEach((cItem, i) => {
+    if (cItem.concern_id == null) return;
+    const d = dec['charge:' + i]; if (d == null) return;
+    (byConcern[cItem.concern_id] = byConcern[cItem.concern_id] || {})['charge:' + cItem.concern_item_idx] = d;
+  });
+  const who = appr.cust_name || j.cust_name || 'Customer';
+  const summaries = [];
+  Object.keys(byConcern).forEach(concernId => {
+    const c = (j.concerns || []).find(x => x.id === concernId);
+    if (!c) { console.warn('[multi-concern appr] no concern for', concernId); return; }
+    const { summary } = _applyDecisionsToOneConcern(c, byConcern[concernId], who, appr.customer_note);
+    summaries.push(summary);
+    _notifyConcernResponse(j, c, `${summary.slice(0, -1)} (combined estimate) for ${j.plate}.`);
+  });
+  if (!summaries.length) { console.warn('[multi-concern appr] nothing routed for', appr.token); return; }
+  wsSave('jobs', D.jobs)
+    .then(() => { publishTracking(j.booking_id); if (typeof renderJobs === 'function') renderJobs(); })
+    .catch(e => console.warn('[multi-concern appr save]', e));
+  showToast(`${who} responded to the combined estimate for ${j.plate} (${summaries.length} concerns)`, 'good');
 }
 
 // The ONLY estimation-related notify() — deliberately not fired per-item as
@@ -11005,16 +11283,44 @@ function _resyncInvoiceFromJob(inv, j) {
 window.deleteJob = async function(id) {
   const j = D.jobs.find(x => x.id === id);
   if (!j) return;
-  if (!(await customConfirm(`Delete job card for ${j.plate}?\n\nThe booking stays — only the job card is removed. Parts that were deducted will be refunded to inventory.`, { title: 'Delete job card', okLabel: 'Delete' }))) return;
-  // Refund the parts back to inventory so we don't lose stock when discarding a job
+  // Deleting a job card is for cleaning up the page (a mistaken/duplicate/test
+  // card) — it should NOT silently move stock by default. Refunding parts back
+  // to inventory is opt-in via the checkbox below, unticked by default, and
+  // only shown at all when the job actually has parts to refund.
+  const hasParts = (j.parts || []).some(p => Number(p.qty || 0) > 0);
+  const choice = await new Promise(resolve => {
+    _openSubModal({
+      title: 'Delete job card',
+      bodyHtml: `
+        <div style="color:var(--txt);font-size:14px;line-height:1.55;margin-bottom:${hasParts ? '14px' : '0'}">Delete job card for <b>${escapeHtml(j.plate || '')}</b>?<br><span style="color:var(--faint);font-size:12.5px">The booking stays — only the job card is removed.</span></div>
+        ${hasParts ? `<label style="display:flex;align-items:flex-start;gap:9px;font-size:13px;color:var(--dim);cursor:pointer;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px">
+          <input type="checkbox" id="_delJobRefund" style="width:16px;height:16px;margin-top:1px;flex:none;cursor:pointer" />
+          <span>Return this job's parts to inventory (stock goes back up by whatever was deducted). Leave unticked if you're just cleaning up the page — stock stays as-is.</span>
+        </label>` : ''}`,
+      footHtml: `<div style="flex:1"></div>
+        <button class="fbtn fbtn-cancel" id="_delJobCancel">Cancel</button>
+        <button class="fbtn fbtn-danger" id="_delJobOk">Delete</button>`
+    });
+    document.getElementById('_delJobCancel').onclick = () => { closeSubModal(); resolve(null); };
+    document.getElementById('_delJobOk').onclick = () => {
+      const refund = hasParts && !!document.getElementById('_delJobRefund')?.checked;
+      closeSubModal();
+      resolve({ refund });
+    };
+    setTimeout(() => document.getElementById('_delJobOk')?.focus(), 50);
+  });
+  if (!choice) return;
+
   let invChanged = false;
-  for (const p of (j.parts || [])) {
-    const item = D.inventory.find(x => (x.name || '').toLowerCase() === (p.name || '').toLowerCase());
-    if (item) { item.qty = Number(item.qty || 0) + Number(p.qty || 0); item.updated_at = nowStr(); invChanged = true; }
+  if (choice.refund) {
+    for (const p of (j.parts || [])) {
+      const item = D.inventory.find(x => (x.name || '').toLowerCase() === (p.name || '').toLowerCase());
+      if (item) { item.qty = Number(item.qty || 0) + Number(p.qty || 0); item.updated_at = nowStr(); invChanged = true; }
+    }
   }
   D.jobs = D.jobs.filter(x => x.id !== id);
-  showToast('Job deleted' + (invChanged ? ' · parts refunded' : ''), 'good');
-  audit('job-delete', `${j.plate || j.id} (${j.cust_name || '—'})`, { job_id: id });
+  showToast('Job deleted' + (invChanged ? ' · parts refunded to inventory' : ''), 'good');
+  audit('job-delete', `${j.plate || j.id} (${j.cust_name || '—'})${invChanged ? ' · parts refunded' : ''}`, { job_id: id, refunded: invChanged });
   renderJobs();
   const writes = [wsSave('jobs', D.jobs)];
   if (invChanged) writes.push(wsSave('inventory', D.inventory));
@@ -17260,13 +17566,13 @@ function _buildEmailData(opts) {
                          return _wsTrackLink(_plate, _bk) || '';
                        } catch(_) { return ''; }
                      })(),
-    approval_link:   (function(){
-                       const tok = j?.approval_token || inv?.approval_token || '';
-                       try {
-                         if (tok && typeof currentUser !== 'undefined' && wsUid())
-                           return `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(tok)}`;
-                       } catch(_) {}
-                       return '';
+    // Explicit override wins (the manual "send selected estimates" flow mints
+    // its own link — possibly a combined multi-concern one — and passes it
+    // straight through). Otherwise, whichever of the job's estimate links
+    // (whole-job or per-concern) was actually sent most recently — see
+    // _latestApprovalLink() above for why this can't just be j.approval_token.
+    approval_link:   opts.approval_link || (function(){
+                       try { return j ? _latestApprovalLink(j) : ''; } catch(_) { return ''; }
                      })(),
     // Set by the caller (doCheckout / invoice generation), which publishes
     // the tokenized feedback doc itself — that's an async Firestore write,
