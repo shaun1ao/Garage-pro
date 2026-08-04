@@ -7,27 +7,62 @@
 <meta name="description" content="Garage Pro documentation — learn how the software works." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Theme: applied before first paint so there's no flash of the wrong mode.
+     Stored choice wins; otherwise falls back to the OS-level preference.
+     Mirrors index.html / app/index.html exactly, so a choice made on one
+     page carries over to this one (same localStorage key). -->
+<script>
+(function(){
+  try{
+    var saved = localStorage.getItem('gp-theme');
+    var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    if (theme === 'light') document.documentElement.setAttribute('data-theme','light');
+  }catch(e){}
+})();
+</script>
 <style>
+  /* ── tokens ──
+     Same monochrome ink system as index.html / app/index.html: --ink /
+     --ink-soft / --tint-rgb / --ink-text swap value between the two themes
+     below, and every --acc/--acc2/--teal/--teal2 usage in this file is
+     aliased to them, so the whole page recolors from these few lines. */
   :root {
-    --bg:#0a0e14; --bg2:#0e131c; --surf:#141b26; --surf2:#1a2330;
-    --brd:rgba(255,255,255,0.08); --brd2:rgba(255,255,255,0.14);
-    --txt:#eef2f7; --dim:#9aa7b8; --faint:#6b7888;
-    --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2; --teal2:#16c79a;
+    --bg:#0c0c0b; --bg2:#141412; --surf:#1b1b18; --surf2:#232320;
+    --brd:rgba(255,255,255,.08); --brd2:rgba(255,255,255,.15);
+    --txt:#f2f1ec; --dim:#a5a39a; --faint:#726f65;
+    --ink:#f5f4ef; --ink-soft:#c7c5ba; --ink-text:#111110; --tint-rgb:245,244,239;
+    --acc:var(--ink); --acc2:var(--ink); --teal:var(--ink-soft); --teal2:var(--ink-soft);
     --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif;
+  }
+  :root[data-theme="light"] {
+    --bg:#faf9f5; --bg2:#f1efe8; --surf:#ffffff; --surf2:#f5f3ec;
+    --brd:rgba(17,17,15,.09); --brd2:rgba(17,17,15,.16);
+    --txt:#17170f; --dim:#57554b; --faint:#8a8778;
+    --ink:#141412; --ink-soft:#4b4943; --ink-text:#faf9f5; --tint-rgb:20,20,17;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
-  body{font-family:var(--fb);background:var(--bg);color:var(--txt);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+  body{font-family:var(--fb);background:var(--bg);color:var(--txt);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;transition:background .25s,color .25s}
   a{color:inherit;text-decoration:none}
-  ::selection{background:var(--acc);color:#14100a}
+  ::selection{background:var(--ink);color:var(--ink-text)}
 
   /* ── Header (mirrors the marketing site) ── */
-  header.nav{position:sticky;top:0;z-index:50;background:rgba(10,14,20,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--brd)}
+  header.nav{position:sticky;top:0;z-index:50;background:rgba(12,12,11,.86);backdrop-filter:blur(14px);border-bottom:1px solid var(--brd)}
+  :root[data-theme="light"] header.nav{background:rgba(250,249,245,.86)}
   .nav-inner{max-width:1280px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}
   .brand{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:800;font-size:17px}
-  .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;flex:none}
+  .logo{width:32px;height:32px;border-radius:9px;background:var(--ink);display:grid;place-items:center;flex:none}
   .back-link{display:flex;align-items:center;gap:6px;color:var(--dim);font-weight:500;font-size:14px;transition:color .2s}
   .back-link:hover{color:var(--txt)}
+
+  /* ── theme toggle (same markup/behavior as index.html) ── */
+  .theme-toggle{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;border:1px solid var(--brd2);background:var(--surf);color:var(--dim);cursor:pointer;transition:color .2s,border-color .2s,background .2s;flex:none}
+  .theme-toggle:hover{color:var(--txt);border-color:var(--txt)}
+  .theme-toggle svg{width:17px;height:17px}
+  .theme-toggle .sun{display:none}.theme-toggle .moon{display:block}
+  :root[data-theme="light"] .theme-toggle .sun{display:block}
+  :root[data-theme="light"] .theme-toggle .moon{display:none}
+  .nav-inner-right{display:flex;align-items:center;gap:14px}
 
   /* ── Layout ── */
   .docs-wrap{max-width:1280px;margin:0 auto;padding:36px 24px 80px;display:grid;grid-template-columns:240px 1fr;gap:44px}
@@ -40,13 +75,13 @@
   .sidebar-group h4{font-family:var(--fd);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin:0 0 8px;padding:0 12px}
   .sidebar a{display:block;padding:8px 12px;border-radius:8px;font-size:14px;color:var(--dim);font-weight:500;transition:background .15s,color .15s}
   .sidebar a:hover{background:var(--surf);color:var(--txt)}
-  .sidebar a.active{background:rgba(255,122,24,.12);color:var(--acc2);font-weight:700}
+  .sidebar a.active{background:rgba(var(--tint-rgb),.12);color:var(--txt);font-weight:700}
 
   /* ── Banner ── */
-  .under-dev-banner{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,rgba(255,122,24,.14),rgba(255,179,71,.06));border:1px solid rgba(255,179,71,.28);border-radius:14px;padding:16px 20px;margin-bottom:36px}
-  .under-dev-banner .dot{width:9px;height:9px;border-radius:50%;background:var(--acc2);flex:none;box-shadow:0 0 0 4px rgba(255,179,71,.18);animation:pulse 1.8s ease-in-out infinite}
+  .under-dev-banner{display:flex;align-items:center;gap:14px;background:rgba(var(--tint-rgb),.06);border:1px solid var(--brd2);border-radius:14px;padding:16px 20px;margin-bottom:36px}
+  .under-dev-banner .dot{width:9px;height:9px;border-radius:50%;background:var(--ink);flex:none;box-shadow:0 0 0 4px rgba(var(--tint-rgb),.18);animation:pulse 1.8s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-  .under-dev-banner strong{color:var(--acc2)}
+  .under-dev-banner strong{color:var(--txt)}
   .under-dev-banner p{margin:2px 0 0;font-size:13.5px;color:var(--dim)}
 
   /* ── Content ── */
@@ -90,13 +125,19 @@
 <header class="nav">
   <div class="nav-inner">
     <a href="index.html" class="brand">
-      <span class="logo"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+      <span class="logo"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
       Garage&nbsp;Pro Docs
     </a>
-    <a href="index.html" class="back-link">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      Back to garagepro.me
-    </a>
+    <div class="nav-inner-right">
+      <a href="index.html" class="back-link">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Back to garagepro.me
+      </a>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleGpTheme()" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
   </div>
 </header>
 
@@ -279,9 +320,13 @@
         <li>Add labour/service lines the same way.</li>
         <li>When it's ready, press <b>Done</b> — this is the one moment a notification fires (to the Service Advisor and the assigned worker), rather than pinging someone every time a single line is added.</li>
       </ul>
+      <h3>Concerns — separate estimates within one job</h3>
+      <p>Instead of one estimate covering the whole job, you can break it into <b>concerns</b> — e.g. "AC not cooling" and "brake pads worn" on the same car — each with its own line items, its own assigned mechanic(s), and its own approval link. Different concerns can go to different mechanics, and the same mechanic can be assigned to more than one. Tick several concerns and send them <b>combined into a single link</b> instead, if you'd rather the customer see everything at once.</p>
       <h3>Sending it to the customer</h3>
-      <p>The Service Advisor sends a link the customer opens on their own phone — no login. They see each line item and can approve or reject it individually, then submit their decision. That comes straight back to the workshop: a full approval moves the job to <b>Estimate Approved</b>, a partial approval flags exactly which lines were rejected, and a full rejection routes the car back to the Floor Manager to reassemble and release without repair.</p>
-      <p>Every line shows its price <b>excluding GST, the GST amount, and the final inclusive price</b> — so the customer can see exactly what tax they're paying on each part and each labour line, not just one lump figure at the bottom. The total is GST-inclusive and says so. They can also download the whole quote as a printable PDF, and if damage was pinned at intake, the diagram appears on the same page.</p>
+      <p>The Service Advisor sends a link the customer opens on their own phone — no login — by email, or shares it directly. They see each line item and can approve or reject it individually, then submit their decision. That comes straight back to the workshop: a full approval moves the job to <b>Estimate Approved</b>, a partial approval flags exactly which lines were rejected, and a full rejection routes the car back to the Floor Manager to reassemble and release without repair. An estimate can still be sent even after the job has moved to <b>In Progress</b> — useful when a mechanic finds something extra mid-repair.</p>
+      <p>Every line shows its price <b>excluding GST, the GST amount, and the final inclusive price</b> — so the customer can see exactly what tax they're paying on each part and each labour line, not just one lump figure at the bottom. The total at the bottom is the GST-inclusive sum of <b>every</b> part on the estimate, combined. They can also download the whole quote as a printable PDF, and if damage was pinned at intake, the diagram appears on the same page.</p>
+      <h3>Changing a decision later</h3>
+      <p>A rejected item isn't a dead end — it stays visible on the same link (not hidden), clearly marked as declined, with Approve still available. The customer can reopen their link at any time and flip a rejection into an approval; the workshop is notified again the moment they resubmit. The link only stops being editable once every item on it is either approved or dropped.</p>
       <div class="doc-note">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
         <div>If an estimate gets edited again after it was already marked "ready for review," the Service Advisor is notified that it changed, so a revised quote never slips out unnoticed.</div>
@@ -372,12 +417,16 @@
 
     <section id="feedback" class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 10.5c.5 2 2.5 4 4.5 4.5"/><circle cx="12" cy="12" r="10"/></svg></span>Customer feedback</h2>
-      <p class="desc">Where feedback links go out, and where responses land.</p>
-      <p>Every "thank-you + invoice" message at checkout — email and WhatsApp — includes a one-time feedback link. The customer opens it (no login), picks a 1–5 star rating, optionally leaves a comment, and submits.</p>
-      <p>Responses land in the workshop's own <b>Feedback tab</b>: the average rating, how many reviews you've collected, a breakdown by star count, and every individual response with the customer's name, plate and comment — newest first, filterable by rating so you can go straight to the 1- and 2-star ones. Nothing is hidden or aggregated away; you see exactly what each customer wrote about their visit.</p>
+      <p class="desc">Where feedback links go out, and where responses land — split between the Service Advisor and the workshop.</p>
+      <p>Every "thank-you + invoice" message at checkout — email and WhatsApp — includes a one-time feedback link. The customer opens it (no login) and rates two things separately: their <b>Service Advisor</b> — one star rating per criterion (Helpfulness, Communication, Professionalism, Timeliness by default, editable in Settings → Feedback criteria) plus an optional written review — and the <b>workshop overall</b>, a single star rating and comment. The Service Advisor section only appears if the job actually had one assigned (i.e. an estimate was sent).</p>
+      <h3>Who sees what</h3>
+      <ul class="doc-list">
+        <li><span class="role-tag">Owner</span> / <span class="role-tag">Manager</span> see everything: the full workshop rating and every review, plus every Service Advisor's feedback grouped and sorted by average rating.</li>
+        <li>Each <span class="role-tag">Service Advisor</span> sees only their <i>own</i> reviews and per-criterion averages — not the workshop's overall rating, and not any other advisor's feedback.</li>
+      </ul>
       <div class="doc-note">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-        <div>Each link is single-use and tied to that one visit — a customer can't reuse it for a different repair, and it can only be submitted once.</div>
+        <div>Each link is tied to that one visit and can only be submitted once — enforced server-side, not just hidden in the page, so it can't be replayed.</div>
       </div>
     </section>
 
@@ -439,7 +488,7 @@
       <h3>The customer says they never got the pickup OTP</h3>
       <p>The code is emailed to them the moment the car is marked Ready for Pickup — it is deliberately never shown on the Track page, so the tracking link alone can't leak it. Check the customer has an email address on file (no email means no code is generated at all), that Settings → Customer Email Notifications is on, and ask them to check spam. You can re-send it with the <b>Resend code</b> button in the checkout window.</p>
       <h3>I deleted something by mistake</h3>
-      <p>An <b>Undo</b> button appears in the corner for two minutes after deleting an appointment, customer, inventory item, invoice or parts request. After that window it's gone for good. Deleting a job card is not undoable — it also refunds parts to stock and removes attached photos.</p>
+      <p>An <b>Undo</b> button appears in the corner for two minutes after deleting an appointment, customer, inventory item, invoice or parts request. After that window it's gone for good. Deleting a job card is not undoable, and it removes attached photos — the booking itself stays, only the job card goes. A checkbox in the delete confirmation lets you also return that job's parts to inventory, unticked by default, so deleting a card to clean up the page never silently adjusts stock unless you ask it to.</p>
       <h3>Still stuck?</h3>
       <p>Reach out from the <a href="index.html#faq" style="color:var(--acc2)">FAQ section</a> on the main site.</p>
     </section>
@@ -449,6 +498,19 @@
 </div>
 
 <script>
+  // Theme (light/dark) — same storage key + toggle behavior as index.html,
+  // so a choice made on either page carries over to the other.
+  function toggleGpTheme() {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    if (isLight) {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('gp-theme', 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('gp-theme', 'light');
+    }
+  }
+
   // Sidebar active-link highlight on scroll — purely cosmetic, no content logic.
   const links = Array.from(document.querySelectorAll('#docsSidebar a'));
   const sections = links.map(a => document.querySelector(a.getAttribute('href')));
