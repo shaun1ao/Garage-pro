@@ -2530,6 +2530,7 @@ let S = {
 let currentSubscription = null;
 let fbSubUnsub = null;
 let pendingPlanId = null;           // which plan the user is buying / upgrading to
+let pendingFreePlanId = null;       // which ₹0 plan "Start free" was clicked on, if signup happens first
 let upgradeCycle = 'monthly';
 let pendingAction = null;
 let currentUser = null;
@@ -3703,6 +3704,78 @@ async function activateFreeDemo() {
 }
 
 // ══════════════════════════════════════════
+//  FREE (₹0) PLAN ACTIVATION — "Start free" on a plan priced at 0 across
+//  every cycle (Solo, by default). Previously this button just opened the
+//  sign-up modal and stopped there — nothing ever wrote a subscription doc,
+//  so a brand-new free signup had NO active subscription and every
+//  operational collection in the workshop app (gated server-side by
+//  subActiveFor() in firestore.rules) returned permission-denied on
+//  literally everything. This routes "Start free" through the exact same
+//  callActivateSubscription() used by real paid checkout — same resulting
+//  subscription/license shape — just with chargeNow forced to 0 and no
+//  billing modal/card entry in between.
+// ══════════════════════════════════════════
+function startFreePlan(planId) {
+  if (!fbAuth) { showToast('Site not connected to Firebase yet. Contact support.', 'bad'); return; }
+  pendingPlanId = planId;
+  pendingPlatform = 'web';
+  if (!currentUser) {
+    pendingFreePlanId = planId;
+    // Pass null, not a platform string — openAuth(action) unconditionally
+    // sets pendingAction = action, which would clobber 'freeplan' below (see
+    // the identical openAuth(null) call in startFreeDemo() for the same reason).
+    openAuth(null);
+    pendingAction = 'freeplan';
+    // New visitors land on Sign Up first — that's the common case for "Start free".
+    setTimeout(() => switchAuthTab('signup'), 50);
+    return;
+  }
+  if (currentUser.isAdmin) { showToast('Admins cannot activate plans (sign in as a user)', 'bad'); return; }
+  if (currentSubscription && isSubscriptionActive(currentSubscription)) {
+    showToast('You already have an active subscription.', 'good');
+    triggerDownload();
+    return;
+  }
+  activateFreePlan(planId);
+}
+async function activateFreePlan(planId) {
+  if (!fbAuth || !fbAuth.currentUser || !fbDb) { showToast('Sign in first', 'bad'); return; }
+  const plan = S.plans.find(p => p.id === planId);
+  if (!plan) { showToast('Plan not found', 'bad'); return; }
+  const cycle = (S.billingCycle === 'weekly' || S.billingCycle === 'yearly') ? S.billingCycle : 'monthly';
+
+  showProcessing('Activating your free plan…', `Setting up ${plan.name}, no card required.`);
+  await new Promise(r => setTimeout(r, 600));
+  processingStep(1);
+  await new Promise(r => setTimeout(r, 500));
+  processingStep(2);
+
+  try {
+    const result = await callActivateSubscription(currentUser.email, planId, cycle, { chargeNow: 0 });
+    processingStep(3);
+    await new Promise(r => setTimeout(r, 300));
+    processingSuccess(result.licenseKey, plan.name, result.expiry);
+    logPurchase(`Subscribe · ${plan.name} (${cycle}) · free`, currentUser);
+    save();
+    sendLicenseEmail(currentUser, {
+      licenseKey:   result.licenseKey,
+      planName:     plan.name,
+      billingCycle: cycle.charAt(0).toUpperCase() + cycle.slice(1),
+      expiry:       result.expiry,
+      isTrial:      false,
+      isManual:     false,
+      garageName:   (S.accounts.find(a => a.email === currentUser.email) || {}).garageName || ''
+    });
+    setTimeout(() => triggerDownload(), 400);
+  } catch (err) {
+    processingError(err.message || 'Could not activate your free plan. Try again or contact support.');
+  } finally {
+    pendingPlanId = null;
+    pendingFreePlanId = null;
+  }
+}
+
+// ══════════════════════════════════════════
 //  EMAIL NOTIFICATIONS — via the Vercel/Resend relay
 // ══════════════════════════════════════════
 // Vercel relay that actually calls Resend (the API key lives server-side —
@@ -4190,8 +4263,11 @@ function renderPlansGrid() {
         : `Downgrade · ${formatPrice(price)} (starts at renewal)`;
       btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="selectPlan('${p.id}')">${previewLabel}</button>`;
     } else if (isFree) {
-      // Free tier — go straight to sign-up / open the app, not the card checkout.
-      btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="openAuth('win')">Start free</button>`;
+      // Free tier — activates a real (₹0) subscription via startFreePlan(),
+      // same code path as paid checkout, just no card entry. Signs up first
+      // if there's no account yet (see the pendingAction === 'freeplan'
+      // handoff in handleAuthStateChanged).
+      btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="startFreePlan('${p.id}')">Start free</button>`;
     } else {
       btn = `<button class="btn ${p.featured ? 'btn-primary' : 'btn-ghost'}" onclick="selectPlan('${p.id}')">Get started</button>`;
     }
@@ -6489,6 +6565,12 @@ function handleAuthStateChanged(fbUser) {
     if (pendingAction === 'demo') {
       pendingAction = null;
       setTimeout(() => activateFreeDemo(), 250);
+    }
+    // Same idea for "Start free" on the Solo (₹0) plan — signed up from
+    // scratch, so pick the activation back up now that auth has settled.
+    if (pendingAction === 'freeplan') {
+      pendingAction = null;
+      setTimeout(() => activateFreePlan(pendingFreePlanId || 'solo'), 250);
     }
   } else {
     currentUser = null;
