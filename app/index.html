@@ -2314,9 +2314,20 @@ async function _provisionStaffLogin(username, password) {
 
 window.openStaffLoginForm = async function() {
   const existing = await loadStaffLogin();
+  // Stamped into staff_of / workshop_staff at creation time — if you're
+  // signed in as the wrong workshop's owner when this runs, the new staff
+  // login silently gets granted to THAT workshop instead, with no error
+  // anywhere (the credentials are perfectly valid, just pointed at the wrong
+  // place). Showing exactly which workshop this is makes that mistake
+  // impossible to miss instead of only discoverable later.
+  const wsName = (userProfile && (userProfile.workshop_name || userProfile.garageName)) || 'this workshop';
   openModal({
     title: existing ? 'Replace staff login' : 'Create staff login',
     body: `
+      <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;margin-bottom:12px;background:rgba(var(--tint-rgb),.08);border:1px solid rgba(var(--tint-rgb),.28);border-radius:9px;font-size:13px;color:var(--txt)">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:var(--acc2)"><path d="M3 21h18M5 21V7l8-4v18M13 21V11l6 3v7"/></svg>
+        Granting shop-floor access to <b>${escapeHtml(wsName)}</b> — double-check this is the right workshop before continuing.
+      </div>
       <div style="color:var(--dim);font-size:13.5px;line-height:1.6;margin-bottom:14px">
         ${existing
           ? `Your workers currently sign in with <b style="color:var(--acc2);font-family:'Courier New',monospace">${escapeHtml(existing.username || '—')}</b>. Creating a new one <b>immediately stops the old one working</b> — every device using it gets signed out.`
