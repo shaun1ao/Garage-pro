@@ -3,7 +3,9 @@
   Garage Pro — sitemap.xml
 
   Deliberately scoped to genuinely indexable, public content pages only:
-    - The marketing site and its documentation/legal pages.
+    - The marketing homepage, the 5 keyword-targeted landing pages
+      (features/, job-cards/, inventory/, invoicing/, pricing/), and
+      documentation/legal pages.
   Intentionally NOT listed:
     - app/          — the workshop web app itself; requires sign-in, not content.
     - approve.html, invoice.html, feedback.html — token-gated, single-use links
