@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+# The workshop app itself — sign-in required, not indexable content.
+# (No /admin, /account, /checkout disallow here: those aren't separate URLs
+# today, they're sections of the same index.html toggled by JS/CSS. robots.txt
+# can only block a URL path, not "part of a page" — that's the real fix
+# needed, tracked separately, not something this file can paper over.)
+Disallow: /app/
+
+Sitemap: https://garagepro.me/sitemap.xml
