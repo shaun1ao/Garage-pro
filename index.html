@@ -1,14 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta
-  name="description"
-  content="Garage Pro is all-in-one garage management software for Indian workshops. Manage job cards, bays, parts, inventory, GST invoices, customers and your team in one place."
->
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Garage Pro — Garage Management Software for Indian Workshops</title>
-<meta name="description" content="Garage Pro is garage management software for independent garages and workshop chains in India." />
+<meta name="description" content="Garage Pro is all-in-one garage management software for Indian workshops. Manage job cards, bays, parts, inventory, GST invoices, customers and your team in one place." />
+<!-- Organization structured data — helps Google associate this exact site
+     with the "Garage Pro" name (a fairly generic name shared by at least one
+     unrelated business — an OBD-scanner brand at garagepro.in). -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Garage Pro",
+  "url": "https://garagepro.me/",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "description": "All-in-one garage management software for Indian workshops — job cards, bays, parts, inventory, GST invoicing, customers and team management.",
+  "offers": {
+    "@type": "Offer",
+    "priceCurrency": "INR",
+    "price": "0",
+    "description": "Free Solo plan available; paid plans for growing workshops and multi-branch chains."
+  }
+}
+</script>
 <!-- Force-revalidate on every load so feature/fix uploads show up without
      visitors needing a hard refresh — same fix already applied to
      app/index.html for the same reason. GitHub Pages and most browsers
@@ -58,7 +74,7 @@
 </script>
 
 <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-PS4YJ8GXWZ"></script>
+<script async="async" src="https://www.googletagmanager.com/gtag/js?id=G-PS4YJ8GXWZ"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
@@ -256,8 +272,10 @@ header.nav.scrolled{background:rgba(12,12,11,.86);backdrop-filter:blur(14px);bor
 .badge{display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--dim);background:var(--surf);border:1px solid var(--brd2);padding:7px 14px;border-radius:100px;margin-bottom:26px}
 .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--ink);animation:pulse 2.2s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(var(--tint-rgb),.4)}70%{box-shadow:0 0 0 8px rgba(var(--tint-rgb),0)}100%{box-shadow:0 0 0 0 rgba(var(--tint-rgb),0)}}
-.hero h1{font-size:clamp(40px,6vw,70px);line-height:1.03;letter-spacing:-.03em;margin-bottom:22px}
+.hero h1{font-size:clamp(40px,6vw,70px);line-height:1.03;letter-spacing:-.03em;margin-bottom:14px}
 .hero h1 .grad{color:var(--txt)}
+.hero-tagline{font-family:var(--fd);font-weight:700;font-size:clamp(18px,2.2vw,26px);color:var(--dim);margin:0 0 18px}
+.hero-tagline .grad{color:var(--txt)}
 .hero .sub{font-size:clamp(17px,1.5vw,20px);color:var(--dim);max-width:620px;margin:0 auto 34px}
 .hero-cta{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:26px;justify-content:center}
 .hero-note{font-size:13.5px;color:var(--faint);display:flex;align-items:center;justify-content:center;gap:8px}
@@ -1801,7 +1819,8 @@ html,body{max-width:100%;overflow-x:hidden}
   <div class="wrap hero-grid">
     <div class="hero-copy">
       <span class="badge reveal"><span class="dot"></span>Workshop management, built for India</span>
-      <h1 class="reveal d1">Every bay. Every job.<br><span class="grad">Under control.</span></h1>
+      <h1 class="reveal d1">Garage Management Software for Indian Workshops</h1>
+      <p class="hero-tagline reveal d1">Every bay. Every job. <span class="grad">Under control.</span></p>
       <p class="sub reveal d2">Garage Pro runs your whole workshop from one screen — live bay status, digital job cards, parts and inventory, and GST-ready invoicing that syncs across every device in real time. No install. It opens straight in your browser.</p>
       <div class="hero-cta reveal d3">
         <button class="btn btn-primary" onclick="openAuth('win')">
