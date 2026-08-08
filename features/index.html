@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Garage Management Software Features | Garage Pro</title>
+<meta name="description" content="See everything Garage Pro's garage management software does: digital job cards, GST invoicing, parts &amp; inventory tracking, customer estimate approvals, role-based staff access and reports — all in one real-time app for Indian workshops." />
+<link rel="canonical" href="https://garagepro.me/features/" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+(function(){
+  try{
+    var saved = localStorage.getItem('gp-theme');
+    var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    if (theme === 'light') document.documentElement.setAttribute('data-theme','light');
+  }catch(e){}
+})();
+</script>
+<style>
+  :root {
+    --bg:#0c0c0b; --bg2:#141412; --surf:#1b1b18; --surf2:#232320;
+    --brd:rgba(255,255,255,.08); --brd2:rgba(255,255,255,.15);
+    --txt:#f2f1ec; --dim:#a5a39a; --faint:#726f65;
+    --ink:#f5f4ef; --ink-soft:#c7c5ba; --ink-text:#111110; --tint-rgb:245,244,239;
+    --acc:var(--ink); --acc2:var(--ink); --teal:var(--ink-soft); --teal2:var(--ink-soft);
+    --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif;
+  }
+  :root[data-theme="light"] {
+    --bg:#faf9f5; --bg2:#f1efe8; --surf:#ffffff; --surf2:#f5f3ec;
+    --brd:rgba(17,17,15,.09); --brd2:rgba(17,17,15,.16);
+    --txt:#17170f; --dim:#57554b; --faint:#8a8778;
+    --ink:#141412; --ink-soft:#4b4943; --ink-text:#faf9f5; --tint-rgb:20,20,17;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:var(--fb);background:var(--bg);color:var(--txt);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;transition:background .25s,color .25s}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--ink);color:var(--ink-text)}
+
+  header.nav{position:sticky;top:0;z-index:50;background:rgba(12,12,11,.86);backdrop-filter:blur(14px);border-bottom:1px solid var(--brd)}
+  :root[data-theme="light"] header.nav{background:rgba(250,249,245,.86)}
+  .nav-inner{max-width:1280px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:800;font-size:17px}
+  .logo{width:32px;height:32px;border-radius:9px;background:var(--ink);display:grid;place-items:center;flex:none}
+  .back-link{display:flex;align-items:center;gap:6px;color:var(--dim);font-weight:500;font-size:14px;transition:color .2s}
+  .back-link:hover{color:var(--txt)}
+  .theme-toggle{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;border:1px solid var(--brd2);background:var(--surf);color:var(--dim);cursor:pointer;transition:color .2s,border-color .2s,background .2s;flex:none}
+  .theme-toggle:hover{color:var(--txt);border-color:var(--txt)}
+  .theme-toggle svg{width:17px;height:17px}
+  .theme-toggle .sun{display:none}.theme-toggle .moon{display:block}
+  :root[data-theme="light"] .theme-toggle .sun{display:block}
+  :root[data-theme="light"] .theme-toggle .moon{display:none}
+  .nav-inner-right{display:flex;align-items:center;gap:14px}
+
+  .btn{display:inline-flex;align-items:center;gap:10px;font-family:var(--fb);font-weight:600;font-size:15.5px;padding:13px 22px;border-radius:11px;border:1px solid transparent;cursor:pointer;transition:transform .2s,box-shadow .2s,background .2s,border-color .2s;white-space:nowrap}
+  .btn-primary{background:var(--ink);color:var(--ink-text);box-shadow:0 10px 26px -10px rgba(0,0,0,.4)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 32px -10px rgba(0,0,0,.5)}
+  .btn-ghost{background:var(--surf);color:var(--txt);border-color:var(--brd2)}
+  .btn-ghost:hover{border-color:var(--txt)}
+
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  .hero{padding:64px 0 44px;text-align:center}
+  .eyebrow{font-family:var(--fd);font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+  .hero h1{font-family:var(--fd);font-weight:800;font-size:clamp(30px,4.4vw,46px);line-height:1.12;margin:0 0 18px}
+  .hero p.lead{font-size:16.5px;color:var(--dim);max-width:640px;margin:0 auto 30px}
+  .hero-cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+
+  .breadcrumb{font-size:13.5px;color:var(--faint);padding:18px 0 0;max-width:1080px;margin:0 auto;padding-left:24px;padding-right:24px}
+  .breadcrumb a{color:var(--dim)}
+  .breadcrumb a:hover{color:var(--txt)}
+
+  main{padding-bottom:70px}
+  .sec-head{max-width:640px;margin:0 auto 34px;text-align:center}
+  .sec-head h2{font-family:var(--fd);font-size:28px;font-weight:800;margin:0 0 10px}
+  .sec-head p{color:var(--dim);font-size:15px;margin:0}
+
+  .feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:60px}
+  .feat-card{background:var(--surf);border:1px solid var(--brd);border-radius:16px;padding:26px}
+  .feat-card .ic{width:38px;height:38px;border-radius:10px;background:var(--surf2);display:grid;place-items:center;color:var(--acc2);margin-bottom:14px}
+  .feat-card h3{font-family:var(--fd);font-size:17px;font-weight:700;margin:0 0 8px}
+  .feat-card p{font-size:14px;color:var(--dim);margin:0 0 12px}
+  .feat-card ul{margin:0;padding:0 0 0 4px;list-style:none}
+  .feat-card li{position:relative;padding:0 0 7px 18px;font-size:13.5px;color:var(--dim)}
+  .feat-card li::before{content:'';position:absolute;left:0;top:7px;width:5px;height:5px;border-radius:50%;background:var(--teal)}
+  .feat-card a.card-link{display:inline-block;margin-top:6px;font-size:13.5px;font-weight:600;color:var(--txt)}
+  .feat-card a.card-link:hover{text-decoration:underline}
+
+  .related{background:var(--bg2);border-top:1px solid var(--brd);padding:50px 0}
+  .related h2{font-family:var(--fd);font-size:22px;font-weight:800;text-align:center;margin:0 0 26px}
+  .related-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+  .related-card{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:20px;transition:border-color .2s,transform .2s}
+  .related-card:hover{border-color:var(--brd2);transform:translateY(-2px)}
+  .related-card h3{font-family:var(--fd);font-size:15.5px;font-weight:700;margin:0 0 6px}
+  .related-card p{font-size:13px;color:var(--dim);margin:0}
+
+  footer{border-top:1px solid var(--brd);padding:28px 0;text-align:center;font-size:13px;color:var(--faint)}
+  footer a{color:var(--dim)}
+  footer a:hover{color:var(--txt)}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="../index.html" class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+      Garage&nbsp;Pro
+    </a>
+    <div class="nav-inner-right">
+      <a href="../index.html" class="back-link">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Back to garagepro.me
+      </a>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleGpTheme()" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb"><a href="../index.html">Home</a> / Features</nav>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">The platform</div>
+    <h1>Everything You Need in Garage Management Software</h1>
+    <p class="lead">Garage Pro brings job cards, GST invoicing, parts &amp; inventory, customer approvals, staff roles and reports into one real-time app — built for how Indian workshops actually run.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="../index.html#pricing">Start free — no credit card required</a>
+      <a class="btn btn-ghost" href="../docs.html">Read the docs</a>
+    </div>
+  </div>
+</div>
+
+<main>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>One system for the whole workshop</h2>
+      <p>Six things every garage juggles across notebooks, spreadsheets and chat groups — brought into a single, real-time app.</p>
+    </div>
+
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <h3>Live floor &amp; job cards</h3>
+        <p>Every bay at a glance — free, in service, ready for collection — with digital job cards carrying itemised parts, labour and multi-mechanic assignment. Move a car across the floor and everyone sees it instantly.</p>
+        <ul>
+          <li>Multi-bay status board</li>
+          <li>Digital vehicle inspection</li>
+          <li>Tap-to-mark damage diagram</li>
+        </ul>
+        <a class="card-link" href="../job-cards/">See job card details →</a>
+      </div>
+
+      <div class="feat-card">
+        <div class="ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M13 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></div>
+        <h3>GST invoicing &amp; payments</h3>
+        <p>Proper GST invoices with HSN/SAC codes, discount breakdown and amount in words — numbered sequentially so nothing duplicates. Take partial payments, chase the outstanding balance, mark paid in one tap.</p>
+        <ul>
+          <li>18% GST &amp; HSN/SAC built in</li>
+          <li>Partial payments &amp; balance chasing</li>
+          <li>Print or share as a link</li>
+        </ul>
+        <a class="card-link" href="../invoicing/">See invoicing details →</a>
+      </div>
+
+      <div class="feat-card">
+        <div class="ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></div>
+        <h3>Parts &amp; inventory</h3>
+        <p>A dedicated request workflow — workers ask, parts get priced and ordered, everyone tracks status. Stock deducts automatically as parts are billed, and open estimates reserve stock so you never quote a part twice.</p>
+        <ul>
+          <li>Automatic stock deduction</li>
+          <li>Reserved-stock awareness</li>
+          <li>Barcode &amp; QR scanning</li>
+        </ul>
+        <a class="card-link" href="../inventory/">See inventory details →</a>
+      </div>
+
+      <div class="feat-card">
+        <div class="ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 3.5a10 10 0 0 0-16.9 9.8L2 22l8.9-1.6a10 10 0 0 0 9.6-16.9z"/><path d="M8.5 9.5c.3 2.5 3.5 5.7 6 6 .8.1 1.5-.1 2-.6"/></svg></div>
+        <h3>Customer experience</h3>
+        <p>Customers approve estimates line by line on their own phone, watch their car's live status on a Track Repair page, and hear from you over WhatsApp and email — right up to the thank-you with the invoice attached.</p>
+        <ul>
+          <li>Tap-to-approve estimates</li>
+          <li>Live "Track Repair" page</li>
+          <li>WhatsApp &amp; email updates</li>
+        </ul>
+      </div>
+
+      <div class="feat-card">
+        <div class="ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0-3-3.87"/></svg></div>
+        <h3>Your team, in control</h3>
+        <p>Seven built-in roles plus custom ones, each seeing only the tabs they should. Workers sign in with a personal PIN on a shared shop-floor device, clock hours for payroll, and every action lands in a searchable audit log.</p>
+        <ul>
+          <li>Role-based access &amp; worker PINs</li>
+          <li>Timesheets for payroll</li>
+          <li>Full audit trail</li>
+        </ul>
+      </div>
+
+      <div class="feat-card">
+        <div class="ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg></div>
+        <h3>Reports &amp; multi-branch</h3>
+        <p>Revenue trends, turnaround times, inventory usage and per-mechanic performance over any date range — with a morning briefing and end-of-day summary by email. Run a chain? Roll every branch up into one dashboard.</p>
+        <ul>
+          <li>Revenue &amp; performance analytics</li>
+          <li>Morning &amp; end-of-day email summaries</li>
+          <li>Multi-branch roll-up</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="related">
+    <div class="wrap">
+      <h2>Explore each part of Garage Pro</h2>
+      <div class="related-grid">
+        <a class="related-card" href="../job-cards/">
+          <h3>Digital job cards →</h3>
+          <p>Vehicle intake, inspection, concerns and multi-mechanic assignment.</p>
+        </a>
+        <a class="related-card" href="../inventory/">
+          <h3>Inventory management →</h3>
+          <p>Parts requests, stock deduction and low-stock alerts.</p>
+        </a>
+        <a class="related-card" href="../invoicing/">
+          <h3>GST invoicing →</h3>
+          <p>HSN/SAC-ready invoices, partial payments, share by link.</p>
+        </a>
+        <a class="related-card" href="../pricing/">
+          <h3>Pricing →</h3>
+          <p>Plans for every workshop, from single-bay to multi-branch.</p>
+        </a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    Garage Pro — <a href="../index.html">Home</a> · <a href="../docs.html">Docs</a> · <a href="../privacy.html">Privacy</a> · <a href="../terms.html">Terms</a>
+  </div>
+</footer>
+
+<script>
+  function toggleGpTheme() {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    if (isLight) {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('gp-theme', 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('gp-theme', 'light');
+    }
+  }
+</script>
+</body>
+</html>
