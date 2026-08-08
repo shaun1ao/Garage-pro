@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Garage Pro — sitemap.xml
+
+  Deliberately scoped to genuinely indexable, public content pages only:
+    - The marketing site and its documentation/legal pages.
+  Intentionally NOT listed:
+    - app/          — the workshop web app itself; requires sign-in, not content.
+    - approve.html, invoice.html, feedback.html — token-gated, single-use links
+      unique to one customer/job. Never general-purpose crawlable pages.
+    - track.html?w=&t= style deep links — the bare page is listed below since
+      it's a real public utility (pick-your-workshop + plate lookup), but the
+      token-bearing variants sent to individual customers are not.
+    - tablet_online.html — an internal ops tool, not public content.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <url>
+    <loc>https://garagepro.me/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <url>
+    <loc>https://garagepro.me/docs.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://garagepro.me/track.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <url>
+    <loc>https://garagepro.me/privacy.html</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <url>
+    <loc>https://garagepro.me/terms.html</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+</urlset>
