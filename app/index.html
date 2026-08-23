@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Garage Pro — App</title>
+<link rel="icon" type="image/png" href="../garage-pro-logo.png" />
+<link rel="apple-touch-icon" href="../garage-pro-logo.png" />
 <!-- Force-revalidate on every load so feature additions show up without a hard refresh.
      Firebase Hosting and most static servers respect these meta hints. -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -7309,7 +7311,6 @@ async function renderJobs(force = false) {
         ${j.plate ? `<button class="mini-btn" onclick="showQRForPlate('${escapeHtml(j.plate)}')" title="View / print this vehicle's QR sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v3M14 21h3M21 17v4"/></svg>QR</button>` : ''}
         ${_isSA ? `<button class="mini-btn good" onclick="generateInvoice('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Invoice</button>` : ''}
         ${j.is_insurance ? `<button class="mini-btn warn" onclick="viewInsuranceDoc('${escapeHtml(j.id)}')" title="Generate insurance claim PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Claim PDF</button>` : ''}
-        <button class="mini-btn danger" onclick="deleteJob('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
       </div></td>
     </tr>`;
     }).join('')}</tbody>
@@ -7975,6 +7976,11 @@ window._markPricingComplete = function(jobId) {
   showToast('Service advisor notified — estimate ready to send', 'good');
 };
 
+// Statuses that are further along the floor than "Estimate Sent" — sending a
+// fresh/updated/revised estimate should never regress a job past this point
+// (e.g. mid-repair "found something extra" shouldn't reset status to Estimate Sent).
+const JOB_STATUS_NO_ESTIMATE_DOWNGRADE = ['In Progress', 'Estimate Approved', 'Awaiting QC', 'QC Passed', 'Client Informed', 'Washing', 'Ready for Pickup', 'Delivered'];
+
 // "Send estimate to client" — Stage 2 final step. Creates a Draft invoice
 // from the job's current parts + service charges and opens the print preview
 // for sharing with the customer for approval. Job status flips to "Estimate Sent".
@@ -8004,14 +8010,15 @@ window.sendJobEstimate = async function(jobId) {
   // actual parts; we replace them here so the estimate reflects the quote).
   inv.lines = estParts.map(p => ({
     name: p.name.trim(), hsn: '', qty: Math.max(1, Number(p.qty || 1)),
-    unit_price: Number(p.price || 0), disc_pct: 0, taxable: p.taxable !== false
+    unit_price: Number(p.price || 0), disc_pct: 0, taxable: p.taxable !== false,
+    concern_id: p.concern_id || '', concern_title: p.concern_title || ''
   }));
   inv.charges = estServices.map(s => ({ name: s.name.trim(), type: s.type || '', amount: Number(s.price || 0), taxable: s.taxable === true }));
   inv.is_estimate = true;
   inv.status = 'Draft';
   inv.payment_status = 'Outstanding';
   inv.updated_at = nowStr();
-  j.status = 'Estimate Sent';
+  if (!JOB_STATUS_NO_ESTIMATE_DOWNGRADE.includes(j.status || '')) j.status = 'Estimate Sent';
   j.estimate_sent_at = nowStr();
   j.updated_at = nowStr();
   const estWrites = [wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)];
@@ -8357,20 +8364,22 @@ function _wsTrackLink(plate, bookingNo) {
 }
 function _wsName() { return (D.settings?.workshop_name || userProfile?.workshop_name || 'our workshop'); }
 // Best-effort customer phone from an invoice → its job → booking → customers.
+// Live customer record wins over any cached snapshot (see _buildEmailData for
+// why) — an edited phone number should be used immediately, not the stale
+// number cached on the invoice/booking at creation time.
 function _invPhone(inv) {
+  const c = (D.customers || []).find(x => (x.name || '').toLowerCase() === (inv.customer?.name || '').toLowerCase());
+  if (c?.phone) return c.phone;
   if (inv.customer?.phone) return inv.customer.phone;
   const j = (D.jobs || []).find(x => x.id === inv.job_id);
   const bId = inv.booking_id || j?.booking_id;
   const b = bId ? (D.bookings || []).find(x => x.id === bId) : null;
-  if (b?.cust_phone) return b.cust_phone;
-  const c = (D.customers || []).find(x => (x.name || '').toLowerCase() === (inv.customer?.name || '').toLowerCase());
-  return c?.phone || '';
+  return b?.cust_phone || '';
 }
 function _bookingPhone(bId) {
   const b = (D.bookings || []).find(x => x.id === bId);
-  if (b?.cust_phone) return b.cust_phone;
   const c = b ? (D.customers || []).find(x => (x.name || '').toLowerCase() === (b.cust_name || '').toLowerCase()) : null;
-  return c?.phone || '';
+  return c?.phone || b?.cust_phone || '';
 }
 
 // wa.me links can't attach a file — WhatsApp's deep-link scheme only supports
@@ -9196,7 +9205,7 @@ async function _reviseSubmit(jobId) {
     // ride along read-only so the customer sees the full picture + total).
     inv.revision = Number(inv.revision || 1) + 1;
     if (inv.status === 'Cancelled') inv.status = 'Issued';
-    j.status = 'Estimate Sent';
+    if (!JOB_STATUS_NO_ESTIMATE_DOWNGRADE.includes(j.status || '')) j.status = 'Estimate Sent';
     j.updated_at = nowStr();
     const doc = await _publishApprovalDoc(j, inv);
     if (!doc) return;
@@ -9604,7 +9613,7 @@ window.openJobForm = function(id) {
     parts:    (j.parts   || []).map(p => ({ name: p.name || '', hsn: p.hsn || '', qty: Number(p.qty || 1), unit_price: Number(p.unit_price || 0), disc_pct: Number(p.disc_pct || 0) })),
     charges:  (j.service_charges || []).map(c => ({ name: c.name || '', amount: Number(c.amount || 0) })),
     // Estimation-only lines — quote/planning, NEVER deducted from inventory.
-    est_parts:    (j.est_parts    || []).map(p => ({ name: p.name || '', qty: Number(p.qty || 1), price: Number(p.price || 0), source: p.source || 'manual', taxable: p.taxable !== false })),
+    est_parts:    (j.est_parts    || []).map(p => ({ name: p.name || '', qty: Number(p.qty || 1), price: Number(p.price || 0), source: p.source || 'manual', taxable: p.taxable !== false, concern_id: p.concern_id || '', concern_title: p.concern_title || '' })),
     est_services: (j.est_services || []).map(s => ({ name: s.name || '', type: s.type || '', price: Number(s.price || 0), taxable: s.taxable === true })),
     // Per-concern estimates — each concern is its own quote (items + assignees)
     // that can be sent for approval independently. The final invoice still
@@ -9659,6 +9668,7 @@ window.openJobForm = function(id) {
   const dviFlags = (_editingJob.dvi || []).filter(it => it.condition === 'fair' || it.condition === 'replace').length;
   openModal({
     title: `Job card · ${j.plate || j.id}`,
+    wide: true,
     body: `
       ${(() => {
         // ── Sticky section jump-bar — the modal is long, this stops staff
@@ -9686,10 +9696,20 @@ window.openJobForm = function(id) {
         </div>
       </div>`;
       })()}
-      <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);margin:14px 0;line-height:1.55">
+      ${(() => {
+        // Live-resolved contact info — matched by name against D.customers first
+        // (so an edited phone/email shows here immediately), falling back to the
+        // booking's cached contact fields, then the job's own cached fields.
+        const liveCust = (D.customers || []).find(x => (x.name || '').toLowerCase() === (j.cust_name || '').toLowerCase());
+        const bk = D.bookings.find(x => x.id === j.booking_id);
+        const phone = liveCust?.phone || bk?.cust_phone || j.cust_phone || '';
+        const email = liveCust?.email || bk?.cust_email || j.cust_email || '';
+        return `<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;font-size:13.5px;color:var(--dim);margin:14px 0;line-height:1.55">
         <b style="color:var(--txt)">${escapeHtml(j.cust_name || '—')}</b> · ${escapeHtml(j.plate || '—')}${j.vin ? ` · VIN ${escapeHtml(j.vin)}` : ''}<br>
+        ${phone ? `<span>📞 ${escapeHtml(phone)}</span>` : ''}${phone && email ? ' · ' : ''}${email ? `<span>✉️ ${escapeHtml(email)}</span>` : ''}${(phone || email) ? '<br>' : ''}
         Service: ${escapeHtml(j.type || '—')} · Created ${escapeHtml((j.created_at || '').slice(0,16) || '—')}
-      </div>
+      </div>`;
+      })()}
       <div class="f-row">
         <div class="f-grp"><label>Status <span class="req">*</span></label>
           <select id="jf-status">${JOB_STATUSES.map(s => `<option value="${s}" ${(j.status || 'Awaiting Assignment') === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
@@ -9806,6 +9826,11 @@ window.openJobForm = function(id) {
               <span style="font-size:12px;color:var(--dim)">Tick the concerns above to email their estimate(s) — pick several to combine into one link.</span>
               <button type="button" class="mini-btn good" onclick="_sendSelectedConcernEstimates('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>Email selected estimate(s)</button>
             </div>
+            ${_canEstimate ? `<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+              <span style="font-size:11.5px;color:var(--faint)">Quick-assign a mechanic to every concern (specialty restrictions still apply per concern if you'd rather assign individually):</span>
+              <input list="dlMechJob" id="jf-concern-assign-all" type="text" placeholder="Mechanic name…" style="flex:1;min-width:140px;padding:7px 10px;border-radius:7px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:12.5px" />
+              <button type="button" class="mini-btn" onclick="_concernAssignAllMechanic()">Assign to all</button>
+            </div>` : ''}
             <div id="jf-concerns"></div>
           </div>
         </div></div>
@@ -10224,7 +10249,7 @@ window._jobAddEstFromApproved = function() {
       // is the only thing we skip (no point estimating a rejected part).
       const priced = it.price != null && Number(it.price) > 0;
       if (priced && it.status !== 'Declined') {
-        candidates.push({ name: it.name, qty: Number(it.qty||1), price: Number(it.price), plate: r.plate || '' });
+        candidates.push({ name: it.name, qty: Number(it.qty||1), price: Number(it.price), plate: r.plate || '', concern_id: it.concern_id || '', concern_title: it.concern_title || '' });
       }
     }
   }
@@ -10239,7 +10264,7 @@ window._jobAddEstFromApproved = function() {
         const picked = window._pickApprovedSelected.has(i);
         return `<button type="button" data-ci="${i}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${picked ? 'rgba(var(--tint-rgb),.10)' : 'var(--surf)'};cursor:pointer;color:var(--txt);font-family:var(--fb)">
         <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${picked ? 'var(--teal,var(--ink-soft))' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
-        <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(c.name)} <span style="color:var(--faint);font-weight:500">× ${c.qty}</span></div>${c.plate ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">for ${escapeHtml(c.plate)}${(c.plate||'').toUpperCase().replace(/\s+/g,'')===plate?' · this car':''}</div>` : ''}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(c.name)} <span style="color:var(--faint);font-weight:500">× ${c.qty}</span></div>${c.concern_title ? `<div style="font-size:11px;color:var(--teal,var(--ink-soft));margin-top:2px">${escapeHtml(c.concern_title)}</div>` : ''}${c.plate ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">for ${escapeHtml(c.plate)}${(c.plate||'').toUpperCase().replace(/\s+/g,'')===plate?' · this car':''}</div>` : ''}</div>
         <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:var(--teal)">${cur}${c.price.toLocaleString('en-IN')}</div>
       </button>`;
       }).join('');
@@ -10263,7 +10288,7 @@ window._jobConfirmAddApproved = function() {
   for (const i of (window._pickApprovedSelected || [])) {
     const c = candidates[i];
     if (!c) continue;
-    _editingJob.est_parts.push({ name: c.name, qty: c.qty, price: c.price, source: 'approved-request' });
+    _editingJob.est_parts.push({ name: c.name, qty: c.qty, price: c.price, source: 'approved-request', concern_id: c.concern_id || '', concern_title: c.concern_title || '' });
   }
   const n = (window._pickApprovedSelected || new Set()).size;
   window._pickApprovedSelected = new Set();
@@ -10343,6 +10368,24 @@ window._concernRemoveAssignee = function(ci, ai) {
   c.assignees.splice(ai, 1);
   _drawConcerns();
 };
+// Quick-assign one mechanic across every concern on this job — for shops
+// that don't need per-concern specialty restrictions on a given job and just
+// want "this mechanic works the whole car" without clicking into each concern.
+window._concernAssignAllMechanic = function() {
+  const inp = document.getElementById('jf-concern-assign-all');
+  const name = (inp?.value || '').trim();
+  if (!name) return showToast('Type a mechanic name first', 'bad');
+  const concerns = _editingJob.concerns || [];
+  if (!concerns.length) return showToast('No concerns on this job yet', 'bad');
+  let added = 0;
+  concerns.forEach(c => {
+    c.assignees = c.assignees || [];
+    if (!c.assignees.some(a => a.toLowerCase() === name.toLowerCase())) { c.assignees.push(name); added++; }
+  });
+  if (inp) inp.value = '';
+  _drawConcerns();
+  showToast(added ? `${name} added to ${added} concern${added===1?'':'s'}` : `${name} already on every concern`, 'good');
+};
 
 function _drawConcerns() {
   const wrap = document.getElementById('jf-concerns');
@@ -10361,10 +10404,10 @@ function _drawConcerns() {
     const dis   = ro ? 'disabled' : '';
     const items = c.items || [];
     const total = items.reduce((s, it) => s + Number(it.qty || 1) * Number(it.price || 0), 0);
-    const rowsHtml = items.length ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:540px">
-        <thead><tr><th>Item</th><th style="width:56px">Qty</th><th style="width:96px">Price (₹)</th><th style="width:44px;text-align:center" title="Apply GST">Tax</th><th style="width:96px">Kind</th><th style="width:30px"></th></tr></thead>
+    const rowsHtml = items.length ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:720px">
+        <thead><tr><th style="min-width:260px">Item</th><th style="width:56px">Qty</th><th style="width:96px">Price (₹)</th><th style="width:44px;text-align:center" title="Apply GST">Tax</th><th style="width:96px">Kind</th><th style="width:30px"></th></tr></thead>
         <tbody>${items.map((it, ii) => `<tr>
-          <td><input type="text" data-ci="${ci}" data-ii="${ii}" data-if="name" value="${escapeHtml(it.name)}" ${dis} placeholder="Part or service…" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+          <td><input type="text" data-ci="${ci}" data-ii="${ii}" data-if="name" value="${escapeHtml(it.name)}" ${dis} placeholder="Part or service…" style="width:100%;min-width:240px;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
           <td><input type="number" min="1" data-ci="${ci}" data-ii="${ii}" data-if="qty" value="${escapeHtml(String(it.qty))}" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
           <td><input type="number" min="0" data-ci="${ci}" data-ii="${ii}" data-if="price" value="${escapeHtml(String(it.price))}" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
           <td style="text-align:center"><input type="checkbox" data-ci="${ci}" data-ii="${ii}" data-if="taxable" ${it.taxable !== false ? 'checked' : ''} ${dis} title="Apply GST to this item" style="width:15px;height:15px;cursor:pointer" /></td>
@@ -10662,14 +10705,14 @@ function _drawEstRows() {
   const pWrap = document.getElementById('jf-estparts-rows');
   if (pWrap) {
     pWrap.innerHTML = _editingJob.est_parts.length
-      ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:520px">
-          <thead><tr><th>Part</th><th style="width:80px">Qty</th><th style="width:120px">Price (₹)</th><th style="width:46px;text-align:center" title="Apply GST">Tax</th><th style="width:90px">Source</th><th style="width:110px;text-align:right">Line</th><th style="width:32px"></th></tr></thead>
+      ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:680px">
+          <thead><tr><th>Part</th><th style="width:80px">Qty</th><th style="width:110px">Price (₹)</th><th style="width:46px;text-align:center" title="Apply GST">Tax</th><th style="width:160px">Concern</th><th style="width:110px;text-align:right">Line</th><th style="width:32px"></th></tr></thead>
           <tbody>${_editingJob.est_parts.map((p,i) => { const dis = ro ? 'disabled' : ''; return `<tr>
             <td><input type="text" data-ep="${i}" data-f="name" value="${escapeHtml(p.name)}" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
             <td><input type="number" min="1" step="1" data-ep="${i}" data-f="qty" value="${escapeHtml(String(p.qty))}" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
             <td><input type="number" min="0" step="1" data-ep="${i}" data-f="price" value="${escapeHtml(String(p.price))}" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
             <td style="text-align:center"><input type="checkbox" data-ep="${i}" data-f="taxable" ${p.taxable !== false ? 'checked' : ''} ${dis} title="Apply GST to this part" style="width:16px;height:16px;cursor:pointer" /></td>
-            <td style="font-size:11px;color:var(--faint)">${escapeHtml(p.source === 'inventory' ? 'Stock' : p.source === 'approved-request' ? 'Approved' : 'Manual')}</td>
+            <td><select data-ep="${i}" data-f="concern_id" ${dis} title="Which customer concern this part is for" style="width:100%;padding:6px 4px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:12px"><option value="" ${!p.concern_id ? 'selected' : ''}>Other findings</option>${(_editingJob.concerns||[]).filter(c=>(c.title||'').trim()).map(c => `<option value="${escapeHtml(c.id)}" ${p.concern_id === c.id ? 'selected' : ''}>${escapeHtml(c.title)}</option>`).join('')}</select></td>
             <td style="text-align:right;font-family:'Courier New',monospace;font-size:12.5px">${(Number(p.qty||1)*Number(p.price||0)).toLocaleString('en-IN')}</td>
             <td>${ro ? '' : `<button type="button" class="mini-btn danger" onclick="_jobRemoveEstPart(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`}</td>
           </tr>`; }).join('')}</tbody></table></div>`
@@ -10679,15 +10722,20 @@ function _drawEstRows() {
       _editingJob.est_parts[i][f] = f === 'name' ? el.value : f === 'taxable' ? el.checked : (Number(el.value)||0);
       _updateEstTotal();
     }));
+    pWrap.querySelectorAll('select[data-ep]').forEach(sel => sel.addEventListener('change', ev => {
+      const i = Number(ev.target.dataset.ep);
+      const c = (_editingJob.concerns||[]).find(x => x.id === ev.target.value);
+      _editingJob.est_parts[i].concern_id = c ? c.id : '';
+      _editingJob.est_parts[i].concern_title = c ? c.title : '';
+    }));
   }
   const sWrap = document.getElementById('jf-estsvc-rows');
   if (sWrap) {
     sWrap.innerHTML = _editingJob.est_services.length
-      ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:520px">
-          <thead><tr><th>Service</th><th style="width:130px">Type</th><th style="width:120px">Price (₹)</th><th style="width:46px;text-align:center" title="Apply GST">Tax</th><th style="width:32px"></th></tr></thead>
+      ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:420px">
+          <thead><tr><th>Service</th><th style="width:120px">Price (₹)</th><th style="width:46px;text-align:center" title="Apply GST">Tax</th><th style="width:32px"></th></tr></thead>
           <tbody>${_editingJob.est_services.map((s,i) => { const dis = ro ? 'disabled' : ''; return `<tr>
             <td><input type="text" data-es="${i}" data-f="name" value="${escapeHtml(s.name)}" placeholder="Wheel alignment, paint…" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
-            <td><input type="text" data-es="${i}" data-f="type" value="${escapeHtml(s.type || '')}" placeholder="Labour, paint…" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
             <td><input type="number" min="0" step="1" data-es="${i}" data-f="price" value="${escapeHtml(String(s.price))}" ${dis} style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
             <td style="text-align:center"><input type="checkbox" data-es="${i}" data-f="taxable" ${s.taxable === true ? 'checked' : ''} ${dis} title="Apply GST to this service" style="width:16px;height:16px;cursor:pointer" /></td>
             <td>${ro ? '' : `<button type="button" class="mini-btn danger" onclick="_jobRemoveEstService(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`}</td>
@@ -10695,7 +10743,7 @@ function _drawEstRows() {
       : '<div style="padding:12px;color:var(--faint);text-align:center;font-size:12.5px">No estimated services. Click "Add service".</div>';
     sWrap.querySelectorAll('input[data-es]').forEach(inp => inp.addEventListener('input', ev => {
       const i = Number(ev.target.dataset.es), f = ev.target.dataset.f, el = ev.target;
-      _editingJob.est_services[i][f] = (f === 'name' || f === 'type') ? el.value : f === 'taxable' ? el.checked : (Number(el.value)||0);
+      _editingJob.est_services[i][f] = f === 'name' ? el.value : f === 'taxable' ? el.checked : (Number(el.value)||0);
       _updateEstTotal();
     }));
   }
@@ -11152,7 +11200,7 @@ async function saveJob(id) {
   const _estWasReady  = !!j.est_ready;
   const _estBeforeJSON = _estWasReady ? JSON.stringify({ p: j.est_parts || [], s: j.est_services || [] }) : '';
   j.est_parts    = (_editingJob?.est_parts    || []).filter(p => (p.name || '').trim())
-                     .map(p => ({ name: p.name.trim(), qty: Math.max(1, Number(p.qty || 1)), price: Number(p.price || 0), source: p.source || 'manual', taxable: p.taxable !== false }));
+                     .map(p => ({ name: p.name.trim(), qty: Math.max(1, Number(p.qty || 1)), price: Number(p.price || 0), source: p.source || 'manual', taxable: p.taxable !== false, concern_id: p.concern_id || '', concern_title: p.concern_title || '' }));
   j.est_services = (_editingJob?.est_services || []).filter(s => (s.name || '').trim())
                      .map(s => ({ name: s.name.trim(), type: s.type || '', price: Number(s.price || 0), taxable: s.taxable === true }));
   // Per-concern estimates (title + assignees + own line items + approval state).
@@ -11291,59 +11339,16 @@ function _resyncInvoiceFromJob(inv, j) {
   inv.updated_at = nowStr();
 }
 
-window.deleteJob = async function(id) {
-  const j = D.jobs.find(x => x.id === id);
-  if (!j) return;
-  // Deleting a job card is for cleaning up the page (a mistaken/duplicate/test
-  // card) — it should NOT silently move stock by default. Refunding parts back
-  // to inventory is opt-in via the checkbox below, unticked by default, and
-  // only shown at all when the job actually has parts to refund.
-  const hasParts = (j.parts || []).some(p => Number(p.qty || 0) > 0);
-  const choice = await new Promise(resolve => {
-    _openSubModal({
-      title: 'Delete job card',
-      bodyHtml: `
-        <div style="color:var(--txt);font-size:14px;line-height:1.55;margin-bottom:${hasParts ? '14px' : '0'}">Delete job card for <b>${escapeHtml(j.plate || '')}</b>?<br><span style="color:var(--faint);font-size:12.5px">The booking stays — only the job card is removed.</span></div>
-        ${hasParts ? `<label style="display:flex;align-items:flex-start;gap:9px;font-size:13px;color:var(--dim);cursor:pointer;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px">
-          <input type="checkbox" id="_delJobRefund" style="width:16px;height:16px;margin-top:1px;flex:none;cursor:pointer" />
-          <span>Return this job's parts to inventory (stock goes back up by whatever was deducted). Leave unticked if you're just cleaning up the page — stock stays as-is.</span>
-        </label>` : ''}`,
-      footHtml: `<div style="flex:1"></div>
-        <button class="fbtn fbtn-cancel" id="_delJobCancel">Cancel</button>
-        <button class="fbtn fbtn-danger" id="_delJobOk">Delete</button>`
-    });
-    document.getElementById('_delJobCancel').onclick = () => { closeSubModal(); resolve(null); };
-    document.getElementById('_delJobOk').onclick = () => {
-      const refund = hasParts && !!document.getElementById('_delJobRefund')?.checked;
-      closeSubModal();
-      resolve({ refund });
-    };
-    setTimeout(() => document.getElementById('_delJobOk')?.focus(), 50);
-  });
-  if (!choice) return;
-
-  let invChanged = false;
-  if (choice.refund) {
-    for (const p of (j.parts || [])) {
-      const item = D.inventory.find(x => (x.name || '').toLowerCase() === (p.name || '').toLowerCase());
-      if (item) { item.qty = Number(item.qty || 0) + Number(p.qty || 0); item.updated_at = nowStr(); invChanged = true; }
-    }
-  }
-  D.jobs = D.jobs.filter(x => x.id !== id);
-  showToast('Job deleted' + (invChanged ? ' · parts refunded to inventory' : ''), 'good');
-  audit('job-delete', `${j.plate || j.id} (${j.cust_name || '—'})${invChanged ? ' · parts refunded' : ''}`, { job_id: id, refunded: invChanged });
-  renderJobs();
-  const writes = [wsSave('jobs', D.jobs)];
-  if (invChanged) writes.push(wsSave('inventory', D.inventory));
-  // Clean up any photo docs that were attached to this job
-  (async () => {
-    try {
-      const snap = await wsCol('job_photos').where('job_id', '==', id).get();
-      await Promise.all(snap.docs.map(d => d.ref.delete()));
-    } catch (e) { console.warn('photo cleanup', e); }
-  })();
-  await Promise.all(writes);
-};
+// Job cards are deliberately NOT deletable — a job card is the record of
+// what happened to a vehicle, and removing it would erase that history.
+// Instead a job gets CLOSED by moving its status forward:
+//   - Customer rejects the whole estimate → 'Rejected — Reassembly' (already
+//     automatic, see _applyCustomerDecision) → advisor can then set it to
+//     'Cancelled' from the status dropdown once the car's handed back.
+//   - Job gets invoiced and the car picked up → 'Ready for Pickup' →
+//     'Delivered', the normal closing status once billed.
+// Both 'Cancelled' and 'Delivered' are just entries in JOB_STATUSES/#jf-status
+// — no separate "close" action needed.
 
 // ══════════════════════════════════════════
 //  CUSTOMERS
@@ -13404,8 +13409,8 @@ function _openPartReqDetail(reqId) {
     // Cost/MRP — set once (via _prMarkOrdered) then shown read-only; requester sees them too once ordered.
     const priceVal = (it.price == null || it.price === '') ? '' : String(it.price);
     const costVal  = (it.cost_price == null || it.cost_price === '') ? '' : String(it.cost_price);
-    const priceBlock = (priceVal || costVal)
-      ? `<div style="font-size:11.5px;color:var(--dim);margin-top:4px">${costVal ? `Cost: <b style="color:var(--txt)">₹${escapeHtml(costVal)}</b>` : ''}${costVal && priceVal ? ' · ' : ''}${priceVal ? `MRP: <b style="color:var(--txt)">₹${escapeHtml(priceVal)}</b>` : ''}</div>`
+    const priceBlock = (priceVal || costVal || it.vendor)
+      ? `<div style="font-size:11.5px;color:var(--dim);margin-top:4px">${costVal ? `Cost: <b style="color:var(--txt)">₹${escapeHtml(costVal)}</b>` : ''}${costVal && priceVal ? ' · ' : ''}${priceVal ? `MRP: <b style="color:var(--txt)">₹${escapeHtml(priceVal)}</b>` : ''}${it.vendor ? `${(costVal||priceVal) ? ' · ' : ''}Vendor: <b style="color:var(--txt)">${escapeHtml(it.vendor)}</b>` : ''}</div>`
       : '';
     // Quick estimate-price box — separate from the Ordered/Received pipeline
     // above. Lets the parts dept price an item and push it straight onto the
@@ -13449,12 +13454,56 @@ function _openPartReqDetail(reqId) {
       </div>
       ${bulk}
       ${items.map(itemRow).join('')}
+      ${isApprover ? `<div style="display:flex;gap:8px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--brd2)">
+        <input type="text" id="pr-newitem-name" placeholder="Part name…" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" />
+        <input type="number" id="pr-newitem-qty" min="1" step="1" value="1" style="width:70px;padding:8px 10px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" />
+        <button type="button" class="mini-btn" onclick="_prAddItemToExisting('${escapeHtml(reqId)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>Add part to this request</button>
+      </div>
+      <div style="font-size:11px;color:var(--faint);margin-top:6px">Found something extra while working on this vehicle? Add it here instead of raising a whole new request — it enables partial/staged estimation without losing what's already priced.</div>` : ''}
       <div style="font-size:11px;color:var(--faint);margin-top:10px;line-height:1.5">Items marked <b>Received</b> are automatically added to inventory (matched by name — existing items get their qty incremented, new names create a fresh inventory record) using the cost/MRP and shelf location you entered.</div>`,
     footHtml: `<div style="flex:1"></div>
       <button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>`
   });
 }
 window._openPartReqDetail = _openPartReqDetail;
+
+// Manually add a brand-new item to an ALREADY-SAVED request (Manage requests
+// detail view) — for parts found mid-job after the original request was sent,
+// so they land on the same request/estimate instead of a fresh duplicate one.
+// Enables partial estimation: earlier items can already be priced/ordered
+// while a newly-added one is still Pending.
+window._prAddItemToExisting = async function(reqId) {
+  if (!canApproveParts()) return showToast('Only the Parts department can edit requests', 'bad');
+  const r = D.parts_requests.find(x => x.id === reqId);
+  if (!r) return showToast('Request not found', 'bad');
+  const nameInp = document.getElementById('pr-newitem-name');
+  const qtyInp  = document.getElementById('pr-newitem-qty');
+  const name = (nameInp?.value || '').trim();
+  const qty  = Math.max(1, Number(qtyInp?.value || 1));
+  if (!name) return showToast('Type a part name first', 'bad');
+  r.items = _prRequestItems(r);
+  r.items.push({ id: uid('pi'), name, qty, concern_id: '', concern_title: '', status: 'Pending', stocked: false });
+  r.item_count = r.items.length;
+  r.qty = r.items.reduce((s, it) => s + Number(it.qty || 0), 0);
+  r.summary = r.items.length === 1 ? `${r.items[0].name} × ${r.items[0].qty}` : `${r.items[0].name} × ${r.items[0].qty} +${r.items.length - 1} more`;
+  r.updated_at = nowStr();
+  try {
+    await wsSave('parts_requests', D.parts_requests);
+  } catch (e) {
+    return showToast('Couldn\'t save: ' + (e?.message || e), 'bad');
+  }
+  audit('part-request-item-added', `${name} × ${qty} added to existing request${r.plate ? ' · ' + r.plate : ''}`, { request_id: reqId });
+  notify({
+    kind:    'part-request',
+    message: `${name} × ${qty} added to the parts request${r.plate ? ' for ' + r.plate : ''} by ${currentWorker.name}`,
+    target:  { roles: ['service_advisor', 'parts_dept'] },
+    job_id:  r.job_id || '',
+    meta:    { request_id: reqId, plate: r.plate }
+  });
+  showToast(`${name} added`, 'good');
+  await _refreshActivePartsView();
+  _openPartReqDetail(reqId);
+};
 
 // Prompt for Cost Price + MRP (both required), stamp them on the item, then
 // mark it Ordered. Replaces the old Approve/Decline gate — moving to Ordered
@@ -13473,6 +13522,7 @@ window._prMarkOrdered = async function(reqId, itemId) {
   if (it.customer_approval === 'Pending') {
     return customAlert(`"${it.name}" is part of an estimate sent to the customer — waiting on their approval before it can be ordered.`, { title: 'Awaiting customer approval' });
   }
+  const vendors = (D.settings?.preferred_vendors || []);
   _openSubModal({
     title: `Order · ${it.name}`,
     bodyHtml: `
@@ -13480,6 +13530,14 @@ window._prMarkOrdered = async function(reqId, itemId) {
       <div class="f-row">
         <div class="f-grp"><label>Cost price (₹) <span class="req">*</span></label><input id="po-cost" type="number" min="0" step="0.01" autofocus /></div>
         <div class="f-grp"><label>MRP / Selling price (₹) <span class="req">*</span></label><input id="po-mrp" type="number" min="0" step="0.01" /></div>
+      </div>
+      <div class="f-grp"><label>Vendor</label>
+        <select id="po-vendor" onchange="document.getElementById('po-vendor-other').style.display = this.value === '__other__' ? '' : 'none'">
+          <option value="">— Not specified —</option>
+          ${vendors.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('')}
+          <option value="__other__">Other…</option>
+        </select>
+        <input id="po-vendor-other" type="text" placeholder="Vendor name…" style="display:none;margin-top:8px" />
       </div>
       <div class="f-err" id="po-err"></div>`,
     footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>
@@ -13494,7 +13552,9 @@ window._prConfirmOrdered = async function(reqId, itemId) {
     if (err) err.textContent = 'Enter both a cost price and an MRP greater than 0.';
     return;
   }
-  await setPartStatus(reqId, 'Ordered', itemId, { cost_price: cost, price: mrp });
+  const vendorSel = document.getElementById('po-vendor')?.value || '';
+  const vendor = vendorSel === '__other__' ? (document.getElementById('po-vendor-other')?.value || '').trim() : vendorSel;
+  await setPartStatus(reqId, 'Ordered', itemId, { cost_price: cost, price: mrp, vendor });
   closeSubModal();
 };
 
@@ -13634,10 +13694,10 @@ window.openPartRequestForm = function(prefill) {
   // Seed with one row (or carry over from prefill / existing request)
   _editingPartReq = {
     items: Array.isArray(prefill.items) && prefill.items.length
-      ? prefill.items.map(it => ({ name: it.name || '', qty: Math.max(1, Number(it.qty || 1)) }))
+      ? prefill.items.map(it => ({ name: it.name || '', qty: Math.max(1, Number(it.qty || 1)), concern_id: it.concern_id || '', concern_title: it.concern_title || '' }))
       : prefill.part_name
-        ? [{ name: prefill.part_name, qty: prefill.qty || 1 }]   // legacy single-item prefill
-        : [{ name: '', qty: 1 }]
+        ? [{ name: prefill.part_name, qty: prefill.qty || 1, concern_id: '', concern_title: '' }]   // legacy single-item prefill
+        : [{ name: '', qty: 1, concern_id: '', concern_title: '' }]
   };
   openModal({
     title: 'Request parts',
@@ -13669,8 +13729,20 @@ window.openPartRequestForm = function(prefill) {
     saveLabel: 'Send request',
     onSave: () => savePartRequest()
   });
-  setTimeout(() => _prDrawItems(), 0);
+  setTimeout(() => {
+    _prDrawItems();
+    document.getElementById('pf-job')?.addEventListener('change', () => _prDrawItems());
+  }, 0);
 };
+
+// Concerns of the job currently selected in the "For job" picker — used to
+// populate each item row's concern dropdown. Empty array (just "Other
+// findings") when no job is picked or that job has no concerns yet.
+function _prJobConcerns() {
+  const jobId = document.getElementById('pf-job')?.value || '';
+  const job = jobId ? D.jobs.find(j => j.id === jobId) : null;
+  return (job?.concerns || []).filter(c => (c.title || '').trim());
+}
 
 // Scan a vehicle QR (or type its plate) from inside the Request Parts form to
 // pick that vehicle's job — same GPV-/registry resolution as everywhere else.
@@ -13707,16 +13779,26 @@ function _prDrawItems() {
     wrap.innerHTML = `<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No items yet. Click "Add item" above.</div>`;
     return;
   }
-  wrap.innerHTML = `<div style="overflow:auto"><table class="list-tbl" style="min-width:480px">
-    <thead><tr><th>Part name</th><th style="width:100px">Qty</th><th style="width:40px"></th></tr></thead>
+  const concerns = _prJobConcerns();
+  const concernOpts = (selId) => `<option value="" ${!selId ? 'selected' : ''}>Other findings</option>` +
+    concerns.map(c => `<option value="${escapeHtml(c.id)}" ${selId === c.id ? 'selected' : ''}>${escapeHtml(c.title)}</option>`).join('');
+  wrap.innerHTML = `<div style="overflow:auto"><table class="list-tbl" style="min-width:640px">
+    <thead><tr><th>Part name</th><th style="width:80px">Qty</th><th style="width:180px">Customer concern</th><th style="width:40px"></th></tr></thead>
     <tbody>${_editingPartReq.items.map((it, i) => `<tr>
       <td><input type="text" data-pri="${i}" data-f="name" value="${escapeHtml(it.name)}" placeholder="Brake pad set, oil filter…" autocomplete="off" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13.5px" /></td>
       <td><input type="number" min="1" step="1" data-pri="${i}" data-f="qty" value="${escapeHtml(String(it.qty))}" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13.5px" /></td>
+      <td><select data-pri="${i}" data-f="concern_id" title="Which customer concern this part is for" style="width:100%;padding:8px 6px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:12.5px">${concernOpts(it.concern_id)}</select></td>
       <td><button type="button" class="mini-btn danger" onclick="_prRemoveItem(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
     </tr>`).join('')}</tbody></table></div>`;
   wrap.querySelectorAll('input[data-pri]').forEach(inp => inp.addEventListener('input', (ev) => {
     const i = Number(ev.target.dataset.pri), f = ev.target.dataset.f;
     _editingPartReq.items[i][f] = f === 'name' ? ev.target.value : (Number(ev.target.value) || 0);
+  }));
+  wrap.querySelectorAll('select[data-pri]').forEach(sel => sel.addEventListener('change', (ev) => {
+    const i = Number(ev.target.dataset.pri);
+    const c = concerns.find(x => x.id === ev.target.value);
+    _editingPartReq.items[i].concern_id = c ? c.id : '';
+    _editingPartReq.items[i].concern_title = c ? c.title : '';
   }));
 }
 
@@ -13728,6 +13810,8 @@ async function savePartRequest() {
       id: uid('pi'),
       name: it.name.trim(),
       qty: Math.max(1, Number(it.qty)),
+      concern_id: it.concern_id || '',
+      concern_title: it.concern_title || '',
       status: 'Pending',   // per-item status: Pending → Approved/Declined → Ordered → Received
       stocked: false       // flips to true once this item lands in inventory
     }));
@@ -13738,26 +13822,46 @@ async function savePartRequest() {
   const summary = items.length === 1
     ? `${items[0].name} × ${items[0].qty}`
     : `${items[0].name} × ${items[0].qty} +${items.length - 1} more`;
-  const req = {
-    id: uid('preq'),
-    items,                                    // canonical multi-item store
-    part_name: items[0].name,                 // legacy single-name field for list views
-    qty: items.reduce((s, it) => s + it.qty, 0),
-    item_count: items.length,
-    summary,
-    urgency: document.getElementById('pf-urg').value,
-    notes: document.getElementById('pf-notes').value.trim(),
-    job_id: jobId,
-    plate: job?.plate || '',
-    vin: job?.vin || '',
-    requested_by_id: currentWorker.id,
-    requested_by: currentWorker.name,
-    status: 'Pending',
-    requested_at: nowStr()
-  };
-  D.parts_requests.unshift(req);
+  // Consolidate into an already-open (Pending) request for the SAME vehicle
+  // instead of spawning a duplicate request record — one job/vehicle should
+  // have one running parts request the parts dept works from, not a pile of
+  // near-identical ones from separate "found something else" moments.
+  const existingReq = jobId ? (D.parts_requests || []).find(r => r.job_id === jobId && r.status === 'Pending') : null;
+  let req;
+  if (existingReq) {
+    req = existingReq;
+    req.items = [...(req.items || []), ...items];
+    req.qty = req.items.reduce((s, it) => s + Number(it.qty || 0), 0);
+    req.item_count = req.items.length;
+    req.summary = req.items.length === 1
+      ? `${req.items[0].name} × ${req.items[0].qty}`
+      : `${req.items[0].name} × ${req.items[0].qty} +${req.items.length - 1} more`;
+    req.updated_at = nowStr();
+    req.notes = [req.notes, document.getElementById('pf-notes').value.trim()].filter(Boolean).join(' · ');
+  } else {
+    req = {
+      id: uid('preq'),
+      items,                                    // canonical multi-item store
+      part_name: items[0].name,                 // legacy single-name field for list views
+      qty: items.reduce((s, it) => s + it.qty, 0),
+      item_count: items.length,
+      summary,
+      urgency: document.getElementById('pf-urg').value,
+      notes: document.getElementById('pf-notes').value.trim(),
+      job_id: jobId,
+      plate: job?.plate || '',
+      vin: job?.vin || '',
+      requested_by_id: currentWorker.id,
+      requested_by: currentWorker.name,
+      status: 'Pending',
+      requested_at: nowStr()
+    };
+    D.parts_requests.unshift(req);
+  }
   closeModal();
-  showToast(`Request sent · ${items.length} item${items.length === 1 ? '' : 's'}`, 'good');
+  showToast(existingReq
+    ? `${items.length} item${items.length === 1 ? '' : 's'} added to the existing request for ${job?.plate || 'this vehicle'}`
+    : `Request sent · ${items.length} item${items.length === 1 ? '' : 's'}`, 'good');
   audit('part-request', summary + (job ? ' for ' + job.plate : ''), { request_id: req.id });
   // Service Advisor + Parts department are notified of every new request —
   // the requesting WORKER is deliberately not targeted (they'll hear about it
@@ -13765,7 +13869,7 @@ async function savePartRequest() {
   // notifs to owner/manager automatically.
   notify({
     kind:    'part-request',
-    message: `New parts request from ${currentWorker.name}: ${summary}${job ? ' · ' + job.plate : ''} (${req.urgency || 'Normal'})`,
+    message: `${existingReq ? 'More parts added to request' : 'New parts request'} from ${currentWorker.name}: ${summary}${job ? ' · ' + job.plate : ''} (${req.urgency || 'Normal'})`,
     target:  { roles: ['service_advisor', 'parts_dept'] },
     meta:    { request_id: req.id, plate: req.plate, urgency: req.urgency }
   });
@@ -13809,6 +13913,7 @@ window.setPartStatus = async function(reqId, status, itemId, extra) {
     if (status === 'Ordered' && extra) {
       if (extra.cost_price != null) it.cost_price = extra.cost_price;
       if (extra.price != null)      it.price      = extra.price;
+      if (extra.vendor)             it.vendor     = extra.vendor;
       // Now that this part has a price, auto-populate it into the linked
       // job's Estimate section — no manual "From priced request" pull needed.
       if (_prAutoAddToJobEstimate(r, it)) jobsTouched = true;
@@ -13831,14 +13936,14 @@ window.setPartStatus = async function(reqId, status, itemId, extra) {
         if (it.cost_price != null && !existing.cost_price) existing.cost_price = it.cost_price;
         if (it.price != null && !existing.sell_price)      existing.sell_price = it.price;
         if (it.location) existing.location = it.location;
-        if (it.supplier && !existing.supplier) existing.supplier = it.supplier;
+        if ((it.supplier || it.vendor) && !existing.supplier) existing.supplier = it.supplier || it.vendor;
         if (it.barcode && !existing.barcode)   existing.barcode  = it.barcode;
         stockAdds.push(`${name} +${qty}`);
       } else {
         D.inventory.push({
           id: uid('inv'), name, qty, unit: 'pcs', category: '',
           sell_price: it.price || 0, cost_price: it.cost_price || 0, hsn: '',
-          low_stock_threshold: 0, location: it.location || '', supplier: it.supplier || '', barcode: it.barcode || '',
+          low_stock_threshold: 0, location: it.location || '', supplier: it.supplier || it.vendor || '', barcode: it.barcode || '',
           created_at: nowStr(), added_via: 'parts-request', source_request_id: r.id
         });
         stockAdds.push(`${name} (new)`);
@@ -13929,7 +14034,7 @@ function _prAutoAddToJobEstimate(r, it) {
     if (existing.price !== Number(it.price)) { existing.price = Number(it.price); return true; }
     return false;
   }
-  j.est_parts.push({ name, qty: Number(it.qty || 1), price: Number(it.price), source: 'approved-request' });
+  j.est_parts.push({ name, qty: Number(it.qty || 1), price: Number(it.price), source: 'approved-request', concern_id: it.concern_id || '', concern_title: it.concern_title || '' });
   return true;
 }
 
@@ -14643,6 +14748,24 @@ async function renderSettings(force = false) {
       </div>
 
 
+      <!-- ── Preferred vendors — used to populate the vendor dropdown when a
+           part is marked Ordered (Parts → Manage requests). ── -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Preferred vendors</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px;line-height:1.55">Vendors your workshop orders parts from regularly. These show up as a dropdown when marking a part request "Ordered" — pick "Other…" there for a one-off vendor without adding it here.</div>
+        <div id="sf-vendors-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+          ${(s.preferred_vendors || []).map(v => `<span style="display:inline-flex;align-items:center;gap:6px;padding:7px 11px;background:var(--bg2);border:1px solid var(--brd2);border-radius:100px;font-size:13px;font-weight:600">
+            ${escapeHtml(v)}
+            <button type="button" class="mini-btn danger" title="Remove ${escapeHtml(v)}" style="padding:2px 6px;font-size:10px;line-height:1" onclick="_removePreferredVendor('${escapeHtml(v).replace(/'/g, "\\'")}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="11" height="11"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          </span>`).join('') || '<span style="font-size:12.5px;color:var(--faint)">No preferred vendors added yet.</span>'}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="sf-vendor-add" placeholder="Vendor name…" style="flex:1;min-width:200px;padding:11px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb)" onkeydown="if(event.key==='Enter'){event.preventDefault();_addPreferredVendor();}" />
+          <button class="refresh-btn" onclick="_addPreferredVendor()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add vendor</button>
+        </div>
+        <div id="sf-vendor-msg" style="margin-top:8px;font-size:12.5px;min-height:14px"></div>
+      </div>
+
       <!-- Danger zone -->
       <div class="card" style="padding:18px;border:1px solid rgba(255,107,107,.3)">
         <h3 style="margin:0 0 6px;color:var(--red)">Danger zone</h3>
@@ -14877,6 +15000,36 @@ window._removeDepartment = async function(name) {
   if (!(await customConfirm(warn, { title: 'Remove department', okLabel: 'Remove' }))) return;
   D.settings = D.settings || {};
   D.settings.departments = current.filter(d => d !== name);
+  await wsSaveSettings();
+  showToast('Removed "' + name + '"', 'good');
+  await renderSettings(true);
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+//  PREFERRED VENDORS — Settings → Preferred vendors. Populates the vendor
+//  dropdown shown when a parts-request item is marked "Ordered".
+// ══════════════════════════════════════════════════════════════════════════
+window._addPreferredVendor = async function() {
+  const input = document.getElementById('sf-vendor-add');
+  const msg   = document.getElementById('sf-vendor-msg');
+  const name  = (input?.value || '').trim();
+  msg.style.color = 'var(--red)';
+  if (!name)            { msg.textContent = 'Type a vendor name first.'; return; }
+  if (name.length > 60) { msg.textContent = 'Keep the name under 60 characters.'; return; }
+  const current = D.settings?.preferred_vendors || [];
+  if (current.some(v => v.toLowerCase() === name.toLowerCase())) {
+    msg.textContent = '"' + name + '" already exists.'; return;
+  }
+  D.settings = D.settings || {};
+  D.settings.preferred_vendors = [...current, name];
+  await wsSaveSettings();
+  showToast('Added "' + name + '"', 'good');
+  msg.textContent = '';
+  await renderSettings(true);
+};
+window._removePreferredVendor = async function(name) {
+  D.settings = D.settings || {};
+  D.settings.preferred_vendors = (D.settings.preferred_vendors || []).filter(v => v !== name);
   await wsSaveSettings();
   showToast('Removed "' + name + '"', 'good');
   await renderSettings(true);
@@ -17551,7 +17704,13 @@ function _buildEmailData(opts) {
     event:           opts.event,
     headline:        opts.headline,
     customer_name:   b?.cust_name || j?.cust_name || inv?.customer?.name || cust.name || 'Customer',
-    customer_email:  opts.to || cust.email || inv?.customer?.email || b?.cust_email || '',
+    // Live customer record (edited via Settings → Customers or the Appointments
+    // form) wins over any cached snapshot on the booking/invoice/job — those
+    // snapshots go stale the moment a customer's contact info is updated
+    // elsewhere, and we don't want to keep emailing/texting an old address.
+    // opts.to is still honoured when there's no live customer match at all
+    // (e.g. a one-off booking with no customer record on file).
+    customer_email:  cust.email || opts.to || inv?.customer?.email || b?.cust_email || '',
     workshop_name:   ws.workshop_name || 'Garage Pro',
     workshop_logo:   ws.logo || '',
     workshop_phone:  ws.phone || '',
@@ -18400,7 +18559,7 @@ async function renderNotifications(force = false) {
           </div>
           <div style="display:flex;gap:6px;align-items:center">
             ${unread ? `<button class="mini-btn" onclick="markNotifSeen('${escapeHtml(n.id)}')" title="Mark this notification as seen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>Mark seen</button>` : ''}
-            ${_renderNotifAction(n)}
+            ${unread ? _renderNotifAction(n).split('onclick="').join(`onclick="markNotifSeen('${escapeHtml(n.id)}');`) : _renderNotifAction(n)}
             ${(n.kind !== 'estimate-response' && !(n.target && (n.target.role === 'service_advisor' || (n.target.roles || []).includes('service_advisor')))) ? `<button class="mini-btn" onclick="forwardNotifToAdvisor('${escapeHtml(n.id)}')" title="Forward this notification to the service advisor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Advisor</button>` : ''}
           </div>
         </div>
