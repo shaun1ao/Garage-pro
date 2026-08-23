@@ -195,6 +195,19 @@ function lockedApprovedCount(){
 function hasOpenItems(){
   return (DATA.lines||[]).some(l => _isOpenState(l.state)) || (DATA.charges||[]).some(c => _isOpenState(c.state));
 }
+// Display order for a re-sent estimate: already-approved items pinned to the
+// top (locked, shown for reference/total context), then pending/rejected
+// items the customer still needs to act on — original array position is the
+// tiebreaker within each group. Returns INDICES into the original array (not
+// reordered objects) so callers can still key decisions off the real index.
+function _apprOrder(arr){
+  return (arr||[]).map((x,i)=>i).sort((ai,bi)=>{
+    const a = arr[ai], b = arr[bi];
+    const rank = s => s === 'approved' ? 0 : 1;
+    const r = rank(a.state) - rank(b.state);
+    return r !== 0 ? r : ai - bi;
+  });
+}
 
 // Top-down car outline — matches the workshop app's intake diagram so pins
 // land in the same spots. Read-only here.
@@ -258,8 +271,8 @@ function render(){
     </div>
 
     <div id="items">
-      ${lines.map((l,i) => itemHTML('line', i, l.name + (l.qty>1?' × '+l.qty:''), l.concern_title || 'Part', l.amount_excl_gst ?? l.amount, l.gst_amount || 0, l.amount, l.state)).join('')}
-      ${charges.map((c,i) => itemHTML('charge', i, c.name, c.concern_title || 'Service / labour', c.amount_excl_gst ?? c.amount, c.gst_amount || 0, c.amount, c.state)).join('')}
+      ${_apprOrder(lines).map(i => { const l = lines[i]; return itemHTML('line', i, l.name + (l.qty>1?' × '+l.qty:''), l.concern_title || 'Part', l.amount_excl_gst ?? l.amount, l.gst_amount || 0, l.amount, l.state); }).join('')}
+      ${_apprOrder(charges).map(i => { const c = charges[i]; return itemHTML('charge', i, c.name, c.concern_title || 'Service / labour', c.amount_excl_gst ?? c.amount, c.gst_amount || 0, c.amount, c.state); }).join('')}
     </div>
 
     <div class="totrow"><span style="color:var(--dim)">Estimate total</span><span class="amt">${fmt(DATA.total)}</span></div>
