@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Garage Management Software Pricing | Garage Pro</title>
-<meta name="description" content="Garage Pro pricing — simple plans for every workshop size, from a single-bay garage to a multi-branch chain. No credit card required to start free." />
-<link rel="canonical" href="https://garagepro.me/pricing/" />
+<title>Garage Job Card Software | Digital Workshop Job Cards | Garage Pro</title>
+<meta name="description" content="Digital job card software for garages — vehicle intake, damage diagrams, digital inspection, per-concern estimates with customer approval, and multi-mechanic assignment, all synced in real time." />
+<link rel="canonical" href="https://garagepro.me/job-cards/" />
+<link rel="icon" type="image/png" href="../garage-pro-logo.png" />
+<link rel="apple-touch-icon" href="../garage-pro-logo.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script>
@@ -42,6 +44,7 @@
   :root[data-theme="light"] header.nav{background:rgba(250,249,245,.86)}
   .nav-inner{max-width:1280px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}
   .brand{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:800;font-size:17px}
+  .brand-sub{font-size:.5em;font-weight:600;color:var(--faint,#888);letter-spacing:.01em;margin-left:2px}
   .logo{width:32px;height:32px;border-radius:9px;background:var(--ink);display:grid;place-items:center;flex:none}
   .back-link{display:flex;align-items:center;gap:6px;color:var(--dim);font-weight:500;font-size:14px;transition:color .2s}
   .back-link:hover{color:var(--txt)}
@@ -71,19 +74,16 @@
   .breadcrumb a:hover{color:var(--txt)}
 
   main{padding-bottom:70px}
-  .tier-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;margin-bottom:44px}
-  .tier-card{background:var(--surf);border:1px solid var(--brd);border-radius:16px;padding:26px}
-  .tier-card h3{font-family:var(--fd);font-size:17px;font-weight:700;margin:0 0 8px}
-  .tier-card p{font-size:14px;color:var(--dim);margin:0}
-
   .section-card{background:var(--surf);border:1px solid var(--brd);border-radius:16px;padding:28px 26px;margin-bottom:20px}
-  .section-card h2{font-family:var(--fd);font-size:20px;font-weight:700;margin:0 0 6px}
+  .section-card h2{font-family:var(--fd);font-size:20px;font-weight:700;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+  .section-card .ic{width:34px;height:34px;border-radius:9px;background:var(--surf2);display:grid;place-items:center;color:var(--acc2);flex:none}
   .section-card p{font-size:14.5px;color:var(--dim);margin:0 0 14px}
   .section-card p:last-child{margin-bottom:0}
-
-  .cta-block{background:var(--bg2);border:1px solid var(--brd);border-radius:16px;padding:40px 26px;text-align:center;margin-bottom:20px}
-  .cta-block h2{font-family:var(--fd);font-size:22px;font-weight:800;margin:0 0 10px}
-  .cta-block p{font-size:14.5px;color:var(--dim);margin:0 0 22px}
+  .doc-list{margin:0 0 4px;padding:0 0 0 4px;list-style:none}
+  .doc-list li{position:relative;padding:0 0 10px 20px;font-size:14px;color:var(--dim)}
+  .doc-list li::before{content:'';position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .doc-list li b{color:var(--txt)}
+  .doc-list li:last-child{padding-bottom:0}
 
   .related{background:var(--bg2);border-top:1px solid var(--brd);padding:50px 0}
   .related h2{font-family:var(--fd);font-size:22px;font-weight:800;text-align:center;margin:0 0 26px}
@@ -104,7 +104,7 @@
   <div class="nav-inner">
     <a href="../index.html" class="brand">
       <span class="logo"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
-      Garage&nbsp;Pro
+      Garage&nbsp;Pro<span class="brand-sub">a product of Chassys</span>
     </a>
     <div class="nav-inner-right">
       <a href="../index.html" class="back-link">
@@ -119,16 +119,16 @@
   </div>
 </header>
 
-<nav class="breadcrumb"><a href="../index.html">Home</a> / Pricing</nav>
+<nav class="breadcrumb"><a href="../index.html">Home</a> / <a href="../features/">Features</a> / Job cards</nav>
 
 <div class="hero">
   <div class="wrap">
-    <div class="eyebrow">Pricing</div>
-    <h1>Simple Pricing for Every Workshop Size</h1>
-    <p class="lead">From a single-bay garage getting off paper for the first time, to a multi-branch chain rolling every location into one dashboard — there's a plan sized for where you are.</p>
+    <div class="eyebrow">Job cards</div>
+    <h1>Digital Job Card Software for Garages</h1>
+    <p class="lead">Replace the paper job card with a live record every bay, mechanic and customer can see updated in real time — from vehicle intake to final invoice.</p>
     <div class="hero-cta">
-      <a class="btn btn-primary" href="../index.html#pricing">See live plans &amp; start free</a>
-      <a class="btn btn-ghost" href="../docs.html">Read the docs</a>
+      <a class="btn btn-primary" href="../index.html#pricing">Start free — no credit card required</a>
+      <a class="btn btn-ghost" href="../docs.html#job-cards">Read the docs</a>
     </div>
   </div>
 </div>
@@ -136,34 +136,46 @@
 <main>
   <div class="wrap">
 
-    <div class="tier-grid">
-      <div class="tier-card">
-        <h3>Starter</h3>
-        <p>For a single-bay garage getting its first digital job cards and invoicing running.</p>
-      </div>
-      <div class="tier-card">
-        <h3>Growth</h3>
-        <p>For a busier floor that needs multiple mechanics, inventory tracking and reporting.</p>
-      </div>
-      <div class="tier-card">
-        <h3>Pro</h3>
-        <p>Full feature set — concerns, combined estimate links, timesheets and audit trail.</p>
-      </div>
-      <div class="tier-card">
-        <h3>Multi-branch</h3>
-        <p>Chains running several locations, rolled up into one dashboard.</p>
-      </div>
+    <div class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/></svg></span>Vehicle intake &amp; inspection</h2>
+      <p>Start a job card with the customer's vehicle and contact details, then run a digital vehicle inspection with a tap-to-mark damage diagram — so every scratch and dent is documented before work begins, not argued about after. The customer's name, phone and email stay visible at the top of the card throughout — live from their customer record, so an updated number is never stale.</p>
+      <ul class="doc-list">
+        <li><b>Tap-to-mark damage diagram</b> — record existing damage against a vehicle outline</li>
+        <li><b>Digital vehicle inspection (DVI)</b> — structured checklist, photos attached per job</li>
+        <li><b>Multi-bay status board</b> — see every car's stage: free, in service, ready for collection</li>
+      </ul>
     </div>
 
     <div class="section-card">
-      <h2>No credit card required to start</h2>
-      <p>Every plan starts free — see exactly what a full working shift looks like on Garage Pro before you commit to anything. Exact plan pricing and feature limits are kept up to date on the main pricing table rather than duplicated here, so what you see is always current.</p>
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0-3-3.87"/></svg></span>Concerns &amp; multi-mechanic assignment</h2>
+      <p>Split a job into individual customer concerns, each with its own parts, labour and estimate — and assign a different mechanic to each concern for jobs where specialty matters (the same mechanic can just as easily work multiple concerns, or use "Assign to all" when one person's doing the whole car). Parts requests carry the same concern tag from the moment they're raised, straight through to the estimate — so it's always clear which complaint a part is for, and that stays editable up until you send it.</p>
+      <ul class="doc-list">
+        <li><b>Per-concern estimates</b> — quote and approve each issue separately</li>
+        <li><b>Flexible mechanic assignment</b> — one mechanic per concern, several concerns to one mechanic, or all concerns to one mechanic in a single click</li>
+        <li><b>Concern-tagged parts</b> — from the parts request through to the final estimate line</li>
+        <li><b>Full audit trail</b> — every change to a job card is logged</li>
+      </ul>
     </div>
 
-    <div class="cta-block">
-      <h2>See current plans &amp; pricing</h2>
-      <p>Live pricing, feature comparison and instant sign-up.</p>
-      <a class="btn btn-primary" href="../index.html#pricing">View pricing on garagepro.me →</a>
+    <div class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 3.5a10 10 0 0 0-16.9 9.8L2 22l8.9-1.6a10 10 0 0 0 9.6-16.9z"/><path d="M8.5 9.5c.3 2.5 3.5 5.7 6 6 .8.1 1.5-.1 2-.6"/></svg></span>Customer estimate approval</h2>
+      <p>Send an estimate as a link — the customer approves or declines line by line on their own phone. Decline something and change your mind later? The same link can be reopened and revised. Send a single estimate, or select several open estimates on one job and combine them into one link. Need to send an updated estimate after some items are already approved? A fresh, single-use link goes out every time, with the already-approved items pinned to the top and locked in, and just the new or still-pending items open for a decision.</p>
+      <ul class="doc-list">
+        <li><b>Line-by-line approval</b> — customers see exactly what they're paying for</li>
+        <li><b>Revisable decisions</b> — a rejected item can be approved later on the same link</li>
+        <li><b>Combined links</b> — send multiple estimates on one job as a single email</li>
+        <li><b>Fresh link every send</b> — approved items stay locked and visible, new ones go out for decision</li>
+      </ul>
+    </div>
+
+    <div class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M13 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span>From approval to invoice</h2>
+      <p>Parts used on the job deduct automatically from inventory as they're billed. An estimate can still be sent to the customer even while the car is marked in progress, and sending it doesn't reset the job's status backward — it just stays In Progress (or wherever it's got to) while the update goes out. When the job wraps up, generate a GST invoice directly from the same job card — no re-entering line items. Job cards are a permanent record rather than something you delete: a job closes out by moving its status to Delivered once billed, or Cancelled if the customer doesn't take up the estimate.</p>
+      <ul class="doc-list">
+        <li><b>Automatic stock deduction</b> — billed parts come off inventory</li>
+        <li><b>Estimates during active work</b> — not blocked by job status, and doesn't downgrade it either</li>
+        <li><b>One-click GST invoicing</b> — carries every approved line through</li>
+      </ul>
     </div>
 
   </div>
@@ -174,19 +186,19 @@
       <div class="related-grid">
         <a class="related-card" href="../features/">
           <h3>All features →</h3>
-          <p>Everything included across every plan.</p>
-        </a>
-        <a class="related-card" href="../job-cards/">
-          <h3>Digital job cards →</h3>
-          <p>The core workflow every plan is built around.</p>
+          <p>The full Garage Pro platform overview.</p>
         </a>
         <a class="related-card" href="../inventory/">
           <h3>Inventory management →</h3>
-          <p>Parts requests and stock deduction.</p>
+          <p>How parts requests and stock deduction work.</p>
         </a>
         <a class="related-card" href="../invoicing/">
           <h3>GST invoicing →</h3>
-          <p>HSN/SAC-ready invoices, partial payments.</p>
+          <p>Turn an approved job card into an invoice.</p>
+        </a>
+        <a class="related-card" href="../pricing/">
+          <h3>Pricing →</h3>
+          <p>Plans for every workshop size.</p>
         </a>
       </div>
     </div>
@@ -195,7 +207,7 @@
 
 <footer>
   <div class="wrap">
-    Garage Pro — <a href="../index.html">Home</a> · <a href="../docs.html">Docs</a> · <a href="../privacy.html">Privacy</a> · <a href="../terms.html">Terms</a>
+    Garage Pro — a product of Chassys · <a href="../index.html">Home</a> · <a href="../docs.html">Docs</a> · <a href="../privacy.html">Privacy</a> · <a href="../terms.html">Terms</a>
   </div>
 </footer>
 
@@ -213,3 +225,4 @@
 </script>
 </body>
 </html>
+
