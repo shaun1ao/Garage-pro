@@ -6,6 +6,8 @@
 <title>Garage Inventory Management Software | Garage Pro</title>
 <meta name="description" content="Garage inventory management software with parts requests, automatic stock deduction, reserved-stock awareness for open estimates, low-stock alerts and barcode/QR scanning." />
 <link rel="canonical" href="https://garagepro.me/inventory/" />
+<link rel="icon" type="image/png" href="../garage-pro-logo.png" />
+<link rel="apple-touch-icon" href="../garage-pro-logo.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script>
@@ -42,6 +44,7 @@
   :root[data-theme="light"] header.nav{background:rgba(250,249,245,.86)}
   .nav-inner{max-width:1280px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}
   .brand{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:800;font-size:17px}
+  .brand-sub{font-size:.5em;font-weight:600;color:var(--faint,#888);letter-spacing:.01em;margin-left:2px}
   .logo{width:32px;height:32px;border-radius:9px;background:var(--ink);display:grid;place-items:center;flex:none}
   .back-link{display:flex;align-items:center;gap:6px;color:var(--dim);font-weight:500;font-size:14px;transition:color .2s}
   .back-link:hover{color:var(--txt)}
@@ -101,7 +104,7 @@
   <div class="nav-inner">
     <a href="../index.html" class="brand">
       <span class="logo"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
-      Garage&nbsp;Pro
+      Garage&nbsp;Pro<span class="brand-sub">a product of Chassys</span>
     </a>
     <div class="nav-inner-right">
       <a href="../index.html" class="back-link">
@@ -135,9 +138,11 @@
 
     <div class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></span>Parts requests, priced and tracked</h2>
-      <p>A worker on the floor raises a parts request against a job card. It gets priced, ordered and its status tracked — everyone from the mechanic to the front desk sees exactly where a part stands, instead of chasing it over calls.</p>
+      <p>A worker on the floor raises a parts request against a job card, tagging each part with the customer concern it's for. It gets priced, ordered and its status tracked — everyone from the mechanic to the front desk sees exactly where a part stands, instead of chasing it over calls. A vehicle only ever has one running request at a time — a second request for the same job merges straight into the first instead of creating a duplicate, and Parts can add a freshly-found item to an already-open request at any point, so a job can be partially estimated: some parts already priced and ordered while a new one is still pending.</p>
       <ul class="doc-list">
         <li><b>Dedicated request workflow</b> — raise, price and approve parts per job</li>
+        <li><b>Concern-tagged parts</b> — each item is linked to the customer complaint it addresses</li>
+        <li><b>Consolidated per vehicle</b> — no duplicate requests for the same job</li>
         <li><b>Status visible to everyone</b> — no more "did the part come in?" calls</li>
         <li><b>Cost &amp; sell price tracked separately</b> — margins stay accurate</li>
       </ul>
@@ -148,7 +153,16 @@
       <p>Bill a part on an invoice and it comes off inventory automatically — no separate step to remember, no manual recount at month-end to catch what slipped through.</p>
       <ul class="doc-list">
         <li><b>Deducts on billing</b>, not on manual entry</li>
-        <li><b>Job-card deletion is safe by default</b> — deleting a job card only cleans up the page; parts only return to stock if you explicitly tick the refund checkbox</li>
+        <li><b>Job cards are a permanent record</b> — they're closed by moving status to Delivered or Cancelled, not deleted, so nothing about your parts history disappears</li>
+      </ul>
+    </div>
+
+    <div class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg></span>Preferred vendors</h2>
+      <p>Add the vendors your workshop orders from regularly in Settings, and they show up as a dropdown the moment a part gets marked Ordered — no retyping a supplier name on every purchase. Pick "Other…" for a one-off vendor without cluttering the list.</p>
+      <ul class="doc-list">
+        <li><b>One dropdown, every order</b> — vendor recorded alongside cost and MRP</li>
+        <li><b>"Other…" fallback</b> — one-off vendors don't need to be added permanently</li>
       </ul>
     </div>
 
@@ -198,7 +212,7 @@
 
 <footer>
   <div class="wrap">
-    Garage Pro — <a href="../index.html">Home</a> · <a href="../docs.html">Docs</a> · <a href="../privacy.html">Privacy</a> · <a href="../terms.html">Terms</a>
+    Garage Pro — a product of Chassys · <a href="../index.html">Home</a> · <a href="../docs.html">Docs</a> · <a href="../privacy.html">Privacy</a> · <a href="../terms.html">Terms</a>
   </div>
 </footer>
 
