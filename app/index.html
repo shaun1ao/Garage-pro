@@ -683,6 +683,7 @@ input[list]{background:var(--bg2)}
     <div class="a-logo">
       <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
     </div>
+    <div style="font-size:10.5px;font-weight:600;color:var(--faint);letter-spacing:.02em;margin-top:-4px;margin-bottom:6px">a product of Chassys</div>
     <h2 id="authTitle">Sign in to Garage Pro</h2>
     <div class="a-sub" id="authSubtitle">Use your workshop / branch credentials. Each branch in a chain has its own login.</div>
 
@@ -981,7 +982,10 @@ input[list]{background:var(--bg2)}
         <span style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;flex:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg>
         </span>
-        <span style="font-family:var(--fd);font-weight:800;font-size:15px">Garage Pro</span>
+        <span style="display:flex;flex-direction:column;line-height:1.2">
+          <span style="font-family:var(--fd);font-weight:800;font-size:15px">Garage Pro</span>
+          <span style="font-size:10px;font-weight:600;color:var(--faint);letter-spacing:.01em">a product of Chassys</span>
+        </span>
       </div>
 
       <div class="sidebar-scroll">
@@ -1108,13 +1112,13 @@ input[list]{background:var(--bg2)}
           </button>
         </div>
 
-        <div class="section-h" style="border:0;background:none;padding:0 0 12px;margin-top:4px">
+        <div class="section-h" id="dashW-bay_status-head" style="border:0;background:none;padding:0 0 12px;margin-top:4px">
           <h3 style="font-size:15px">Service Bay Status</h3>
           <span class="meta"><a href="#" onclick="switchTab('bays');return false" style="color:var(--acc2);text-decoration:none;font-weight:700">Manage Bays</a></span>
         </div>
         <div class="bay-status-row" id="dashBayStatus"></div>
 
-        <div class="stat-row" id="dashStats">
+        <div class="stat-row" id="dashStats" data-widget="stat_strip">
           <div class="stat-card"><div class="n b" id="statExpected">—</div><div class="l">Expected today</div></div>
           <div class="stat-card"><div class="n a" id="statInShop">—</div><div class="l">Cars in workshop</div></div>
           <div class="stat-card"><div class="n t" id="statBaysFree">—</div><div class="l">Available bays</div></div>
@@ -1122,8 +1126,32 @@ input[list]{background:var(--bg2)}
           <div class="stat-card"><div class="n r" id="statQueue">—</div><div class="l">In queue</div></div>
         </div>
 
-        <div class="dash-overview-grid">
-          <div class="ov-card">
+        <div class="section" id="dashW-my_jobs" style="display:none">
+          <div class="section-h">
+            <h3>My assigned jobs</h3>
+            <span class="meta" id="myJobsMeta">—</span>
+          </div>
+          <div class="section-body"><table class="dtbl" id="tblMyJobs"></table></div>
+        </div>
+
+        <div class="section" id="dashW-parts_queue" style="display:none">
+          <div class="section-h">
+            <h3>Open parts requests</h3>
+            <span class="meta" id="partsQueueMeta">—</span>
+          </div>
+          <div class="section-body"><table class="dtbl" id="tblPartsQueue"></table></div>
+        </div>
+
+        <div class="section" id="dashW-pending_estimates" style="display:none">
+          <div class="section-h">
+            <h3>Estimates awaiting customer</h3>
+            <span class="meta" id="pendingEstMeta">—</span>
+          </div>
+          <div class="section-body"><table class="dtbl" id="tblPendingEst"></table></div>
+        </div>
+
+        <div class="dash-overview-grid" id="dashOverviewGrid" style="display:none">
+          <div class="ov-card" id="dashW-recent_jobs">
             <div class="ov-card-head">
               <h4>Recent Jobs</h4>
               <button class="ov-view-all" style="width:auto;margin:0" onclick="switchTab('jobs')">View All</button>
@@ -1131,7 +1159,7 @@ input[list]{background:var(--bg2)}
             <div id="dashRecentJobs"></div>
           </div>
 
-          <div class="ov-card">
+          <div class="ov-card" id="dashW-revenue_overview">
             <div class="ov-card-head">
               <h4>Revenue Overview</h4>
               <select class="ov-period-sel" id="dashRevPeriod" onchange="_renderRevenueOverview()">
@@ -1146,7 +1174,7 @@ input[list]{background:var(--bg2)}
             <div class="rev-stat-row" id="revStatRow"></div>
           </div>
 
-          <div class="ov-card">
+          <div class="ov-card" id="dashW-gst_summary">
             <div class="ov-card-head">
               <h4>GST Invoice Summary</h4>
               <select class="ov-period-sel" id="dashGstPeriod" onchange="_renderGstSummary()">
@@ -1161,7 +1189,7 @@ input[list]{background:var(--bg2)}
 
         <div class="kpi-row" id="dashKpiRow"></div>
 
-        <div class="section">
+        <div class="section" id="dashW-expected_today">
           <div class="section-h">
             <h3>Expected today</h3>
             <span class="meta" id="expectedMeta">—</span>
@@ -1177,7 +1205,7 @@ input[list]{background:var(--bg2)}
           <div class="section-body"><table class="dtbl" id="tblStuck"></table></div>
         </div>
 
-        <div class="section">
+        <div class="section" id="dashW-in_workshop">
           <div class="section-h">
             <h3>Cars currently in workshop</h3>
             <span class="meta" id="inShopMeta">—</span>
@@ -1254,6 +1282,7 @@ input[list]{background:var(--bg2)}
           </select>
           <select id="jbMech" onchange="renderJobs()"><option value="">All mechanics</option></select>
           <button class="refresh-btn" onclick="document.getElementById('jbSearch').value='';document.getElementById('jbStatus').value='';document.getElementById('jbDept').value='';document.getElementById('jbMech').value='';renderJobs()">Clear</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim);cursor:pointer;user-select:none"><input type="checkbox" id="jbShowHidden" onchange="renderJobs()" style="width:14px;height:14px;cursor:pointer" />Show hidden</label>
           <span class="pill"><b id="jbCount">0</b>&nbsp;results</span>
         </div>
         <!-- Bulk action bar — only appears once rows are ticked. Lets a floor
@@ -3337,13 +3366,57 @@ const DEFAULT_ROLE_PERMS = {
   parts_dept:    ['dashboard','jobs','inventory','request_parts','parts','notifications','chat','timesheets'],
   receptionist:  ['dashboard','bookings','queue','customers','invoices','notifications','chat','timesheets'],
   // Mechanics can REQUEST parts only — they don't get the Manage Requests tab.
-  // No 'dashboard' by default — the overview/revenue/GST widgets there are an
-  // owner/manager-facing summary, not something a shop-floor worker needs;
-  // they land on Bookings instead (see the fallback list in
-  // renderSidebarVisibility()).
-  mechanic:      ['bookings','jobs','queue','bays','inventory','request_parts','notifications','chat','timesheets']
+  // They DO get 'dashboard' — it's now a per-role, widget-level thing (see
+  // DEFAULT_DASHBOARD_WIDGETS below) rather than an all-or-nothing tab, so a
+  // mechanic's dashboard shows "my assigned jobs" instead of revenue/GST.
+  mechanic:      ['dashboard','bookings','jobs','queue','bays','inventory','request_parts','notifications','chat','timesheets']
 };
 const ADMIN_ROLES = ['owner','manager'];
+
+// ══════════════════════════════════════════════════════════════════════════
+//  DASHBOARD WIDGETS — per-role (and per-custom-role) dashboard content.
+//  Mirrors DEFAULT_ROLE_PERMS/getRolePerms/canSee exactly, one level down:
+//  where role_perms controls which TABS a role can see, dashboard_widgets
+//  controls which WIDGETS show up on the Dashboard tab itself, so e.g. a
+//  receptionist and an owner both land on "Dashboard" but see completely
+//  different things — the receptionist never sees shop revenue, a mechanic
+//  sees their own assigned jobs instead of a company-wide overview.
+// ══════════════════════════════════════════════════════════════════════════
+const DASHBOARD_WIDGETS = [
+  { id: 'stat_strip',        label: 'Today at a glance (counts)',        sensitive: false },
+  { id: 'bay_status',        label: 'Bay status board',                  sensitive: false },
+  { id: 'my_jobs',           label: 'My assigned jobs',                  sensitive: false },
+  { id: 'parts_queue',       label: 'Open parts requests',               sensitive: false },
+  { id: 'pending_estimates', label: 'Estimates awaiting customer',       sensitive: true  },
+  { id: 'recent_jobs',       label: 'Recent jobs (incl. invoice amounts)', sensitive: true  },
+  { id: 'revenue_overview',  label: 'Revenue overview',                  sensitive: true  },
+  { id: 'gst_summary',       label: 'GST invoice summary',               sensitive: true  },
+  { id: 'kpi_row',           label: 'Job KPIs',                          sensitive: false },
+  { id: 'expected_today',    label: 'Expected today',                    sensitive: false },
+  { id: 'sla_stuck',         label: 'Jobs needing attention (SLA)',      sensitive: false },
+  { id: 'in_workshop',       label: 'Cars currently in workshop',        sensitive: false }
+];
+const DEFAULT_DASHBOARD_WIDGETS = {
+  owner:           DASHBOARD_WIDGETS.map(w => w.id),
+  manager:         DASHBOARD_WIDGETS.map(w => w.id),
+  floor_manager:   ['stat_strip','bay_status','expected_today','sla_stuck','in_workshop','kpi_row'],
+  service_advisor: ['stat_strip','bay_status','pending_estimates','recent_jobs','expected_today','in_workshop','kpi_row'],
+  parts_dept:      ['stat_strip','parts_queue','bay_status'],
+  receptionist:    ['stat_strip','expected_today','bay_status','in_workshop'],
+  mechanic:        ['my_jobs','bay_status']
+};
+// Same fallback chain as getRolePerms: owner override → settings → defaults → safe minimum.
+function getRoleDashboardWidgets(role) {
+  if (role === 'owner') return DEFAULT_DASHBOARD_WIDGETS.owner;
+  const cfg = (D.settings && D.settings.dashboard_widgets) || {};
+  if (cfg[role] && Array.isArray(cfg[role])) return cfg[role];
+  return DEFAULT_DASHBOARD_WIDGETS[role] || ['stat_strip'];
+}
+function canSeeWidget(widgetId) {
+  if (!currentWorker) return false;
+  if (isOwnerRole()) return true;
+  return getRoleDashboardWidgets(currentRole()).includes(widgetId);
+}
 
 function currentRole() { return (currentWorker?.role || 'mechanic').toLowerCase(); }
 function isAdminRole() { return ADMIN_ROLES.includes(currentRole()); }
@@ -3914,11 +3987,36 @@ async function renderDashboard(force = false) {
   document.getElementById('dashTitle').textContent = `Dashboard — ${fmtToday()}`;
   document.getElementById('dashCrumb').textContent = `${(userProfile && userProfile.workshop_name) || 'Workshop'} · live data from Firestore`;
 
-  _renderBayStatusRow();
-  _renderRecentJobs();
-  _renderRevenueOverview();
-  _renderGstSummary();
-  _renderKpiRow();
+  // ── Per-role widget visibility — show/hide each block, only compute the
+  // ones actually visible to this role (see DASHBOARD_WIDGETS/canSeeWidget).
+  const show = (widgetId, ...elIds) => {
+    const visible = canSeeWidget(widgetId);
+    elIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = visible ? '' : 'none'; });
+    return visible;
+  };
+  const wBayStatus  = show('bay_status', 'dashW-bay_status-head', 'dashBayStatus');
+  const wMyJobs      = show('my_jobs', 'dashW-my_jobs');
+  const wPartsQueue  = show('parts_queue', 'dashW-parts_queue');
+  const wPendingEst  = show('pending_estimates', 'dashW-pending_estimates');
+  const wRecentJobs  = show('recent_jobs', 'dashW-recent_jobs');
+  const wRevenue     = show('revenue_overview', 'dashW-revenue_overview');
+  const wGst         = show('gst_summary', 'dashW-gst_summary');
+  const wKpi         = show('kpi_row', 'dashKpiRow');
+  const wExpected    = show('expected_today', 'dashW-expected_today');
+  const wInWorkshop  = show('in_workshop', 'dashW-in_workshop');
+  const wSlaAllowed  = canSeeWidget('sla_stuck');   // dashSlaSection's own display is further gated below by whether anything's actually stuck
+  // The overview grid (Recent Jobs / Revenue / GST) collapses entirely if this role can't see any of the three — no empty grid gap.
+  const gridEl = document.getElementById('dashOverviewGrid');
+  if (gridEl) gridEl.style.display = (wRecentJobs || wRevenue || wGst) ? '' : 'none';
+
+  if (wBayStatus)  _renderBayStatusRow();
+  if (wMyJobs)     _renderMyJobsWidget();
+  if (wPartsQueue) _renderPartsQueueWidget();
+  if (wPendingEst) _renderPendingEstimatesWidget();
+  if (wRecentJobs) _renderRecentJobs();
+  if (wRevenue)    _renderRevenueOverview();
+  if (wGst)        _renderGstSummary();
+  if (wKpi)        _renderKpiRow();
 
   const today = todayStr();
 
@@ -3945,7 +4043,7 @@ async function renderDashboard(force = false) {
   // ── Stuck jobs (SLA) panel — hidden when off or nothing is stuck ──────────
   try {
     const slaSec = document.getElementById('dashSlaSection');
-    const stuck = _slaStuckJobs();
+    const stuck = wSlaAllowed ? _slaStuckJobs() : [];
     if (slaSec) {
       if (!stuck.length) {
         slaSec.style.display = 'none';
@@ -4126,6 +4224,78 @@ function _renderRecentJobs() {
       </div>
     </div>`;
   }).join('');
+}
+
+// ── "My assigned jobs" — mechanic-facing dashboard widget. Every active job
+// where the signed-in worker is on the mechanics[] list, most recently
+// updated first. No pricing/invoice figures — just what to work on next.
+function _renderMyJobsWidget() {
+  const tbl = document.getElementById('tblMyJobs');
+  if (!tbl) return;
+  const me = (currentWorker?.name || '').toLowerCase();
+  const mine = (D.jobs || []).filter(j => {
+    const mechs = Array.isArray(j.mechanics) && j.mechanics.length ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
+    return mechs.some(m => (m || '').toLowerCase() === me) && !['Delivered', 'Cancelled'].includes(j.status || '');
+  }).sort((a, b) => (b.updated_at || b.created_at || '').localeCompare(a.updated_at || a.created_at || ''));
+  document.getElementById('myJobsMeta').textContent = mine.length ? `${mine.length} active job${mine.length === 1 ? '' : 's'}` : '';
+  if (!mine.length) { tbl.innerHTML = `<tr><td class="empty">No jobs currently assigned to you.</td></tr>`; return; }
+  tbl.innerHTML = `<thead><tr><th>Plate</th><th>Customer</th><th>Service</th><th>Status</th><th style="text-align:right"></th></tr></thead>
+    <tbody>${mine.map(j => `<tr>
+      <td><span class="plate">${escapeHtml(j.plate || '—')}</span></td>
+      <td class="k">${escapeHtml(j.cust_name || '—')}</td>
+      <td>${escapeHtml(j.type || '—')}</td>
+      <td>${statusPill(j.status || 'Awaiting Assignment')}</td>
+      <td><div class="row-act"><button class="mini-btn" onclick="switchTab('jobs'); setTimeout(()=>openJobForm('${escapeHtml(j.id)}'),200)">Open</button></div></td>
+    </tr>`).join('')}</tbody>`;
+}
+
+// ── "Open parts requests" — parts-department-facing widget. Every request
+// not yet Received/Cancelled, urgent ones first. No revenue figures, just
+// what needs sourcing/ordering right now.
+function _renderPartsQueueWidget() {
+  const tbl = document.getElementById('tblPartsQueue');
+  if (!tbl) return;
+  const urgencyRank = { Critical: 0, High: 1, Normal: 2, Low: 3 };
+  const open = (D.parts_requests || []).filter(r => !['Received', 'Cancelled'].includes(_prRollupStatus(r)))
+    .sort((a, b) => (urgencyRank[a.urgency] ?? 2) - (urgencyRank[b.urgency] ?? 2) || (b.requested_at || '').localeCompare(a.requested_at || ''));
+  document.getElementById('partsQueueMeta').textContent = open.length ? `${open.length} open request${open.length === 1 ? '' : 's'}` : '';
+  if (!open.length) { tbl.innerHTML = `<tr><td class="empty">No open parts requests.</td></tr>`; return; }
+  tbl.innerHTML = `<thead><tr><th>Summary</th><th>Vehicle</th><th>Urgency</th><th>Status</th><th style="text-align:right"></th></tr></thead>
+    <tbody>${open.slice(0, 8).map(r => `<tr>
+      <td class="k">${escapeHtml(r.summary || r.part_name || '—')}</td>
+      <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>` : '<span style="color:var(--faint)">General stock</span>'}</td>
+      <td style="${r.urgency === 'Critical' || r.urgency === 'High' ? 'color:var(--red);font-weight:700' : ''}">${escapeHtml(r.urgency || 'Normal')}</td>
+      <td>${statusPill(_prRollupStatus(r))}</td>
+      <td><div class="row-act"><button class="mini-btn" onclick="switchTab('parts'); setTimeout(()=>_openPartReqDetail('${escapeHtml(r.id)}'),200)">Open</button></div></td>
+    </tr>`).join('')}</tbody>`;
+}
+
+// ── "Estimates awaiting customer" — service-advisor-facing widget. Jobs
+// currently sitting in Estimate Sent (whole-job) or with any concern still
+// 'sent' (awaiting decision), so the SA can see what's outstanding without
+// digging through the full job list. Does carry $ amounts — sensitive, kept
+// off floor_manager/parts_dept/receptionist/mechanic dashboards by default.
+function _renderPendingEstimatesWidget() {
+  const tbl = document.getElementById('tblPendingEst');
+  if (!tbl) return;
+  const cur = (D.settings || {}).currency || '₹';
+  const pending = (D.jobs || []).filter(j => {
+    if (j.status === 'Estimate Sent') return true;
+    return (j.concerns || []).some(c => c.status === 'sent');
+  }).sort((a, b) => (b.estimate_sent_at || b.updated_at || '').localeCompare(a.estimate_sent_at || a.updated_at || ''));
+  document.getElementById('pendingEstMeta').textContent = pending.length ? `${pending.length} awaiting decision` : '';
+  if (!pending.length) { tbl.innerHTML = `<tr><td class="empty">No estimates currently awaiting a customer decision.</td></tr>`; return; }
+  tbl.innerHTML = `<thead><tr><th>Plate</th><th>Customer</th><th>Sent</th><th>Estimate total</th><th style="text-align:right"></th></tr></thead>
+    <tbody>${pending.slice(0, 8).map(j => {
+      const inv = (D.invoices || []).find(i => i.job_id === j.id && i.is_estimate);
+      const total = inv ? _invoiceTotals(inv).roundOff : null;
+      return `<tr>
+      <td><span class="plate">${escapeHtml(j.plate || '—')}</span></td>
+      <td class="k">${escapeHtml(j.cust_name || '—')}</td>
+      <td style="color:var(--faint);font-size:12.5px">${escapeHtml((j.estimate_sent_at || '').slice(0, 16) || '—')}</td>
+      <td>${total != null ? cur + ' ' + total.toLocaleString('en-IN') : '—'}</td>
+      <td><div class="row-act"><button class="mini-btn" onclick="switchTab('jobs'); setTimeout(()=>openJobForm('${escapeHtml(j.id)}'),200)">Open</button></div></td>
+    </tr>`; }).join('')}</tbody>`;
 }
 
 function _dashDateKeyDaysAgo(n) {
@@ -7225,6 +7395,9 @@ async function renderJobs(force = false) {
     const myName = (currentWorker?.name || '').toLowerCase();
     list = list.filter(j => (j.mechanic || '').toLowerCase() === myName || (j.mechanics || []).some(m => (m || '').toLowerCase() === myName));
   }
+  // Finished jobs the advisor has hidden stay out of the working list by
+  // default — the "Show hidden" checkbox brings them back for lookups.
+  if (!document.getElementById('jbShowHidden')?.checked) list = list.filter(j => !j.hidden_at);
   if (q) list = list.filter(j =>
     (j.plate||'').toLowerCase().includes(q) ||
     (j.cust_name||'').toLowerCase().includes(q) ||
@@ -7311,6 +7484,7 @@ async function renderJobs(force = false) {
         ${j.plate ? `<button class="mini-btn" onclick="showQRForPlate('${escapeHtml(j.plate)}')" title="View / print this vehicle's QR sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v3M14 21h3M21 17v4"/></svg>QR</button>` : ''}
         ${_isSA ? `<button class="mini-btn good" onclick="generateInvoice('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Invoice</button>` : ''}
         ${j.is_insurance ? `<button class="mini-btn warn" onclick="viewInsuranceDoc('${escapeHtml(j.id)}')" title="Generate insurance claim PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Claim PDF</button>` : ''}
+        ${status === 'Delivered' || j.hidden_at ? `<button class="mini-btn" onclick="toggleJobHidden('${escapeHtml(j.id)}')" title="${j.hidden_at ? 'Bring this job card back into the working list' : 'Hide this finished job card from the working list'}">${j.hidden_at ? 'Unhide' : 'Hide'}</button>` : ''}
       </div></td>
     </tr>`;
     }).join('')}</tbody>
@@ -7331,6 +7505,18 @@ async function renderJobs(force = false) {
   _jbRenderBulkBar();
 }
 window.renderJobs = renderJobs;
+
+// Finished job cards clutter the working list forever otherwise — hide just
+// tags a timestamp so it drops out of the default view (still findable via
+// the "Show hidden" checkbox or search); no data is touched or deleted.
+window.toggleJobHidden = async function(jobId) {
+  const j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.hidden_at = j.hidden_at ? null : nowStr();
+  await wsSave('jobs', D.jobs);
+  showToast(j.hidden_at ? `${j.plate || 'Job'} hidden from the working list` : `${j.plate || 'Job'} unhidden`, 'good');
+  renderJobs();
+};
 
 // ══════════════════════════════════════════════════════════════════════════
 //  BULK STATUS MOVE — tick several job cards and advance them together.
@@ -9355,16 +9541,24 @@ function _applyCustomerDecision(appr) {
   inv.client_decision_by = 'Customer (link)';
   const who = appr.cust_name || j.cust_name || 'Customer';
 
+  // Once work has actually started (or progressed further), a customer
+  // responding again — e.g. flipping a previously-rejected line, or replying
+  // late to a re-sent/revised estimate — must not regress the job back to an
+  // estimate-stage status and undo the workshop's progress. Only the estimate
+  // total/records/tally update; the floor status stays put.
+  const JOB_STATUS_WORK_STARTED = ['In Progress', 'Awaiting QC', 'QC Passed', 'Client Informed', 'Washing', 'Ready for Pickup', 'Returned to Advisor', 'Delivered'];
+  const workAlreadyStarted = JOB_STATUS_WORK_STARTED.includes(j.status || '');
+
   const rejectedAll = counts.approved === 0;
   if (rejectedAll) {
-    j.status = 'Rejected — Reassembly';
+    if (!workAlreadyStarted) j.status = 'Rejected — Reassembly';
     j.visit_outcome = 'rejected';
     j.visit_summary = { estimate_total: _invoiceTotals(inv).roundOff, complaints: (j.complaints || []).map(c => c.text), decided_at: nowStr(), decided_by: 'Customer (link)' };
     j.updated_at = nowStr();
     inv.status = 'Cancelled';
     audit('client-decision-reject', `${inv.number || ''} · ${j.plate} — customer rejected via link`, { invoice_id: inv.id, job_id: j.id });
   } else {
-    j.status = counts.rejected > 0 ? 'Estimate Approved (Partial)' : 'Estimate Approved';
+    if (!workAlreadyStarted) j.status = counts.rejected > 0 ? 'Estimate Approved (Partial)' : 'Estimate Approved';
     j.visit_outcome = counts.rejected > 0 ? 'approved_partial' : 'approved_full';
     j.estimate_approved_at = nowStr();
     j.visit_summary = { estimate_total: _invoiceTotals(inv).roundOff, approved_count: counts.approved, rejected_count: counts.rejected, decided_at: nowStr(), decided_by: 'Customer (link)' };
@@ -14501,6 +14695,30 @@ async function renderSettings(force = false) {
         </div>
       </div>
 
+      <!-- Dashboard widgets — same matrix pattern as Role permissions, one
+           level down: which WIDGETS show on the Dashboard tab per role, not
+           which tabs are visible. A new custom role appears here too, right
+           after you add it above, so you pick its dashboard content in the
+           same place you gave it tab access. -->
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Dashboard widgets</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">Tick which widgets each role sees on their Dashboard tab — so a receptionist or parts-department worker never sees shop revenue/GST figures unless you explicitly give them access. Widgets marked <span style="color:var(--acc2);font-weight:700">$</span> carry pricing/revenue data. Owner is fixed and always sees every widget.</div>
+        <div style="overflow:auto"><table class="list-tbl" style="min-width:780px">
+          <thead><tr><th style="width:220px">Widget</th>${allRoles.map(r => `<th style="text-align:center">${escapeHtml(r)}</th>`).join('')}</tr></thead>
+          <tbody>${DASHBOARD_WIDGETS.map(w => `<tr>
+            <td class="k">${escapeHtml(w.label)}${w.sensitive ? ' <span style="color:var(--acc2);font-weight:700" title="Carries pricing/revenue data">$</span>' : ''}</td>
+            ${allRoles.map(r => {
+              const checked = getRoleDashboardWidgets(r).includes(w.id);
+              const disabled = r === 'owner';
+              return `<td style="text-align:center"><input type="checkbox" data-widget-role="${escapeHtml(r)}" data-widget="${escapeHtml(w.id)}" ${checked?'checked':''} ${disabled?'disabled':''} /></td>`;
+            }).join('')}
+          </tr>`).join('')}</tbody>
+        </table></div>
+        <div style="margin-top:14px">
+          <button class="add-btn" onclick="saveDashboardWidgets()">Save dashboard widgets</button>
+        </div>
+      </div>
+
       <!-- Worker PIN reset (admin tool) -->
       <div class="card" style="padding:18px">
         <h3 style="margin:0 0 6px">Worker access</h3>
@@ -15356,6 +15574,21 @@ window.saveRolePerms = async function() {
   renderSidebarVisibility();
 };
 
+window.saveDashboardWidgets = async function() {
+  const widgets = {};
+  document.querySelectorAll('#settingsBody input[type=checkbox][data-widget-role]').forEach(cb => {
+    const r = cb.dataset.widgetRole, w = cb.dataset.widget;
+    if (r === 'owner') return;
+    widgets[r] = widgets[r] || [];
+    if (cb.checked) widgets[r].push(w);
+  });
+  D.settings = D.settings || {};
+  D.settings.dashboard_widgets = widgets;
+  await wsSaveSettings();
+  showToast('Dashboard widgets saved', 'good');
+  if (currentTab === 'dashboard') renderDashboard(true);
+};
+
 window.addCustomRole = async function() {
   const inp = document.getElementById('sf-newrole');
   const name = (inp.value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
@@ -15364,9 +15597,13 @@ window.addCustomRole = async function() {
   D.settings = D.settings || {};
   D.settings.role_perms = D.settings.role_perms || {};
   D.settings.role_perms[name] = ['dashboard'];   // sensible default
+  D.settings.dashboard_widgets = D.settings.dashboard_widgets || {};
+  // Non-sensitive default — an admin picks the rest in the Dashboard widgets
+  // matrix right below, same place they just gave this role its tab access.
+  D.settings.dashboard_widgets[name] = ['stat_strip', 'bay_status'];
   await wsSaveSettings();
   inp.value = '';
-  showToast(`Role "${name}" added`, 'good');
+  showToast(`Role "${name}" added — pick its dashboard widgets below`, 'good');
   await renderSettings(true);
 };
 
@@ -15374,6 +15611,7 @@ window.removeCustomRole = async function(role) {
   if (!(await customConfirm(`Remove role "${role}"?\n\nWorkers with this role will fall back to "mechanic" permissions.`, { title: 'Remove role', okLabel: 'Remove' }))) return;
   if (D.settings?.role_perms?.[role]) {
     delete D.settings.role_perms[role];
+    if (D.settings.dashboard_widgets) delete D.settings.dashboard_widgets[role];
     await wsSaveSettings();
     showToast(`Role "${role}" removed`, 'good');
     await renderSettings(true);
