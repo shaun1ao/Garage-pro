@@ -6,6 +6,8 @@
 <title>Garage Job Card Software | Digital Workshop Job Cards | Garage Pro</title>
 <meta name="description" content="Digital job card software for garages — vehicle intake, damage diagrams, digital inspection, per-concern estimates with customer approval, and multi-mechanic assignment, all synced in real time." />
 <link rel="canonical" href="https://garagepro.me/job-cards/" />
+<link rel="icon" type="image/png" href="../garage-pro-logo.png" />
+<link rel="apple-touch-icon" href="../garage-pro-logo.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script>
@@ -42,6 +44,7 @@
   :root[data-theme="light"] header.nav{background:rgba(250,249,245,.86)}
   .nav-inner{max-width:1280px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}
   .brand{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:800;font-size:17px}
+  .brand-sub{font-size:.5em;font-weight:600;color:var(--faint,#888);letter-spacing:.01em;margin-left:2px}
   .logo{width:32px;height:32px;border-radius:9px;background:var(--ink);display:grid;place-items:center;flex:none}
   .back-link{display:flex;align-items:center;gap:6px;color:var(--dim);font-weight:500;font-size:14px;transition:color .2s}
   .back-link:hover{color:var(--txt)}
@@ -101,7 +104,7 @@
   <div class="nav-inner">
     <a href="../index.html" class="brand">
       <span class="logo"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="var(--ink-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
-      Garage&nbsp;Pro
+      Garage&nbsp;Pro<span class="brand-sub">a product of Chassys</span>
     </a>
     <div class="nav-inner-right">
       <a href="../index.html" class="back-link">
@@ -135,7 +138,7 @@
 
     <div class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/></svg></span>Vehicle intake &amp; inspection</h2>
-      <p>Start a job card with the customer's vehicle and contact details, then run a digital vehicle inspection with a tap-to-mark damage diagram — so every scratch and dent is documented before work begins, not argued about after.</p>
+      <p>Start a job card with the customer's vehicle and contact details, then run a digital vehicle inspection with a tap-to-mark damage diagram — so every scratch and dent is documented before work begins, not argued about after. The customer's name, phone and email stay visible at the top of the card throughout — live from their customer record, so an updated number is never stale.</p>
       <ul class="doc-list">
         <li><b>Tap-to-mark damage diagram</b> — record existing damage against a vehicle outline</li>
         <li><b>Digital vehicle inspection (DVI)</b> — structured checklist, photos attached per job</li>
@@ -145,30 +148,32 @@
 
     <div class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0-3-3.87"/></svg></span>Concerns &amp; multi-mechanic assignment</h2>
-      <p>Split a job into individual customer concerns, each with its own parts, labour and estimate — and assign a different mechanic to each concern (the same mechanic can work multiple concerns on one job, if that's how your floor runs).</p>
+      <p>Split a job into individual customer concerns, each with its own parts, labour and estimate — and assign a different mechanic to each concern for jobs where specialty matters (the same mechanic can just as easily work multiple concerns, or use "Assign to all" when one person's doing the whole car). Parts requests carry the same concern tag from the moment they're raised, straight through to the estimate — so it's always clear which complaint a part is for, and that stays editable up until you send it.</p>
       <ul class="doc-list">
         <li><b>Per-concern estimates</b> — quote and approve each issue separately</li>
-        <li><b>Flexible mechanic assignment</b> — one mechanic per concern, or the same mechanic across several</li>
+        <li><b>Flexible mechanic assignment</b> — one mechanic per concern, several concerns to one mechanic, or all concerns to one mechanic in a single click</li>
+        <li><b>Concern-tagged parts</b> — from the parts request through to the final estimate line</li>
         <li><b>Full audit trail</b> — every change to a job card is logged</li>
       </ul>
     </div>
 
     <div class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 3.5a10 10 0 0 0-16.9 9.8L2 22l8.9-1.6a10 10 0 0 0 9.6-16.9z"/><path d="M8.5 9.5c.3 2.5 3.5 5.7 6 6 .8.1 1.5-.1 2-.6"/></svg></span>Customer estimate approval</h2>
-      <p>Send an estimate as a link — the customer approves or declines line by line on their own phone. Decline something and change your mind later? The same link can be reopened and revised. Send a single estimate, or select several open estimates on one job and combine them into one link.</p>
+      <p>Send an estimate as a link — the customer approves or declines line by line on their own phone. Decline something and change your mind later? The same link can be reopened and revised. Send a single estimate, or select several open estimates on one job and combine them into one link. Need to send an updated estimate after some items are already approved? A fresh, single-use link goes out every time, with the already-approved items pinned to the top and locked in, and just the new or still-pending items open for a decision.</p>
       <ul class="doc-list">
         <li><b>Line-by-line approval</b> — customers see exactly what they're paying for</li>
         <li><b>Revisable decisions</b> — a rejected item can be approved later on the same link</li>
         <li><b>Combined links</b> — send multiple estimates on one job as a single email</li>
+        <li><b>Fresh link every send</b> — approved items stay locked and visible, new ones go out for decision</li>
       </ul>
     </div>
 
     <div class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M13 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span>From approval to invoice</h2>
-      <p>Parts used on the job deduct automatically from inventory as they're billed. An estimate can still be sent to the customer even while the car is marked in progress. When the job wraps up, generate a GST invoice directly from the same job card — no re-entering line items.</p>
+      <p>Parts used on the job deduct automatically from inventory as they're billed. An estimate can still be sent to the customer even while the car is marked in progress, and sending it doesn't reset the job's status backward — it just stays In Progress (or wherever it's got to) while the update goes out. When the job wraps up, generate a GST invoice directly from the same job card — no re-entering line items. Job cards are a permanent record rather than something you delete: a job closes out by moving its status to Delivered once billed, or Cancelled if the customer doesn't take up the estimate.</p>
       <ul class="doc-list">
         <li><b>Automatic stock deduction</b> — billed parts come off inventory</li>
-        <li><b>Estimates during active work</b> — not blocked by job status</li>
+        <li><b>Estimates during active work</b> — not blocked by job status, and doesn't downgrade it either</li>
         <li><b>One-click GST invoicing</b> — carries every approved line through</li>
       </ul>
     </div>
@@ -202,7 +207,7 @@
 
 <footer>
   <div class="wrap">
-    Garage Pro — <a href="../index.html">Home</a> · <a href="../docs.html">Docs</a> · <a href="../privacy.html">Privacy</a> · <a href="../terms.html">Terms</a>
+    Garage Pro — a product of Chassys · <a href="../index.html">Home</a> · <a href="../docs.html">Docs</a> · <a href="../privacy.html">Privacy</a> · <a href="../terms.html">Terms</a>
   </div>
 </footer>
 
