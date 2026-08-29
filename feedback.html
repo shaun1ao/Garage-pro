@@ -166,9 +166,24 @@ window.submitFeedback = function(){
     renderThanks();
   }).catch(e => {
     console.error('[feedback] submit failed:', e && e.code, e);
-    err.textContent = e && e.code === 'permission-denied'
-      ? 'This link has already been used — feedback can only be submitted once.'
-      : 'Could not submit — please try again.';
+    if (e && e.code === 'permission-denied') {
+      // Don't assume "already used" — re-check the doc's actual state first.
+      // A permission-denied here can also mean the workshop's Firestore rules
+      // are out of date (e.g. don't yet recognise sa_ratings/workshop_rating),
+      // which looks identical from the client but has nothing to do with reuse.
+      db.collection('users').doc(WUID).collection('feedback_links').doc(TOKEN).get().then(snap => {
+        const d = snap.exists ? (snap.data() || {}) : {};
+        err.textContent = d.submitted
+          ? 'This link has already been used — feedback can only be submitted once.'
+          : 'Something went wrong on our end — please try again in a moment, or contact the workshop directly.';
+        btn.disabled = false; btn.textContent = 'Submit feedback';
+      }).catch(() => {
+        err.textContent = 'Could not submit — please try again.';
+        btn.disabled = false; btn.textContent = 'Submit feedback';
+      });
+      return;
+    }
+    err.textContent = 'Could not submit — please try again.';
     btn.disabled = false; btn.textContent = 'Submit feedback';
   });
 };
@@ -185,5 +200,6 @@ function renderThanks(){
 
 boot();
 </script>
+<footer style="text-align:center;font-size:11.5px;color:var(--faint,#888);padding:18px 16px 28px">Powered by <a href="https://garagepro.me" style="color:inherit">Garage Pro</a> — a product of Chassys.</footer>
 </body>
 </html>
