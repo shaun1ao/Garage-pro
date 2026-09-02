@@ -1057,6 +1057,10 @@ input[list]{background:var(--bg2)}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
           Reports
         </button>
+        <button class="snav" data-tab="workload" onclick="switchTab('workload')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
+          Tech Workload
+        </button>
         <button class="snav" data-tab="feedback" onclick="switchTab('feedback')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17.3 6.2 21l1.6-6.6L2.5 9.9l6.7-.6L12 3l2.8 6.3 6.7.6-5.3 4.5 1.6 6.6z"/></svg>
           Feedback
@@ -1486,6 +1490,15 @@ input[list]{background:var(--bg2)}
           </div>
         </div>
         <div id="rptBody"></div>
+      </div>
+      <div class="tab-panel" id="tab-workload">
+        <div class="page-head">
+          <div><h2>Technician Workload</h2><div class="dash-meta"><span class="live-dot"></span><span id="wlCrumb">—</span></div></div>
+          <div style="display:flex;gap:8px">
+            <button class="refresh-btn" onclick="renderWorkload(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Refresh</button>
+          </div>
+        </div>
+        <div id="wlBody"></div>
       </div>
       <div class="tab-panel" id="tab-feedback">
         <div class="page-head">
@@ -2689,6 +2702,26 @@ window._wizFinish = async function() {
 
 async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details = {}) {
   // 1) Workshop profile at users/{uid}.
+  // Signing up here (in-app) is a separate entry point from the marketing
+  // site's pricing page, which is the ONLY place that normally writes the
+  // `subscription` field _subscriptionActive()/_subDocActive() gate on
+  // (see index.html's callActivateSubscription). Without this, an in-app
+  // signup produces a workshop with no subscription doc at all, and the
+  // very next boot drops the new owner straight onto the "No plan" screen
+  // — even though they never saw a pricing page to decline. Start every
+  // new in-app workshop on the free Solo plan (₹0, no expiry) so the app
+  // is usable immediately; upgrading later still goes through the normal
+  // pricing flow, which overwrites this doc.
+  // This also runs for the "first setup" wizard on an already-authenticated
+  // account (one that may have come through the marketing site's pricing
+  // page and already paid for a real plan) — only fill in the free default
+  // when there's no subscription on record yet, so a real paid plan is
+  // never clobbered.
+  let existingSub = null;
+  try {
+    const existing = await fbDb.collection('users').doc(uid).get();
+    if (existing.exists) existingSub = existing.data().subscription || null;
+  } catch (e) { console.warn('[provisionNewWorkshop] existing sub check failed', e); }
   await fbDb.collection('users').doc(uid).set({
     uid, email,
     name:           ownerName,
@@ -2696,7 +2729,21 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
     ...(details.state ? { state: details.state } : {}),
     ...(details.city  ? { city:  details.city }  : {}),
     createdAt:      firebase.firestore.FieldValue.serverTimestamp(),
-    settings_done:  false
+    settings_done:  false,
+    ...(existingSub ? {} : {
+      subscription: {
+        status:      'active',
+        plan:        'solo',
+        planName:    'Solo',
+        billingCycle:'monthly',
+        activatedAt: firebase.firestore.Timestamp.now(),
+        maxBays:     1,
+        maxWorkers:  2,
+        maxBookings: 5,
+        lastPaymentAmount: 0,
+        lastPaymentMethod: 'free-signup'
+      }
+    })
   }, { merge: true });
   // 1b) Public-safe mirror for Track Repair's workshop picker — see
   // public_workshops in firestore.rules for why this exists instead of
@@ -3350,9 +3397,9 @@ function renderHeader() {
 // 'chat' (basic internal messaging) is available to every role — it's just
 // text between staff, no financial/customer data, so no gating needed.
 const DEFAULT_ROLE_PERMS = {
-  owner:         ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','feedback','timesheets','notifications','chat','audit','settings'],
-  manager:       ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','feedback','timesheets','notifications','chat','audit','settings'],
-  floor_manager: ['dashboard','bookings','jobs','queue','customers','bays','inventory','request_parts','parts','notifications','chat','timesheets'],
+  owner:         ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','workload','feedback','timesheets','notifications','chat','audit','settings'],
+  manager:       ['dashboard','bookings','jobs','queue','customers','workers','bays','inventory','request_parts','parts','invoices','reports','workload','feedback','timesheets','notifications','chat','audit','settings'],
+  floor_manager: ['dashboard','bookings','jobs','queue','customers','bays','workload','inventory','request_parts','parts','notifications','chat','timesheets'],
   // Service advisor — owns customer-facing intake, job cards, estimates, QC hand-off and invoices.
   // 'parts' (Manage Requests) added so the Service Advisor can see requests
   // they're now notified about — it renders read-only for them (ordering /
@@ -3905,6 +3952,7 @@ function _coalesceRerender() {
       else if (t === 'parts')         renderParts && renderParts();
       else if (t === 'invoices')      renderInvoices && renderInvoices();
       else if (t === 'reports')       renderReports && renderReports();
+      else if (t === 'workload')      renderWorkload && renderWorkload();
       else if (t === 'timesheets')    renderTimesheets && renderTimesheets();
       else if (t === 'notifications') renderNotifications && renderNotifications();
       else if (t === 'audit')         renderAudit && renderAudit();
@@ -7467,7 +7515,11 @@ async function renderJobs(force = false) {
                               ? `${_isSA ? `<button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waReady('${escapeHtml(j.id)}')" title="Tell the customer their car is ready, on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm4.66 13.24c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg>Notify</button>` : ''}${_isSA ? `<button class="mini-btn good" onclick="_dashCheckout('${escapeHtml(j.booking_id)}')" title="Check vehicle out and generate the final invoice">Check out &amp; invoice</button>` : ''}`
                               : status === 'Returned to Advisor'
                                 ? `${_isSA ? `<button class="mini-btn good" onclick="_billReturnedJob('${escapeHtml(j.id)}')" title="Bill an inspection / diagnostic charge if required, then invoice">Create invoice</button>` : ''}`
-                                : ''}`;
+                                // Legacy/manual-dropdown-only statuses (Parts Ordered, Parts Not
+                                // Available, Awaiting Approval, Ready for Delivery) have no
+                                // dedicated action here — without this, a job manually set to one
+                                // is a dead end with no visible way to move it. Route back to Edit.
+                                : `<button class="mini-btn" onclick="openJobForm('${escapeHtml(j.id)}')" title="This status has no quick action — open the job to change it">Edit status</button>`}`;
       return `<tr>
       <td><input type="checkbox" data-jb-sel="${escapeHtml(j.id)}" ${_jbSelected.has(j.id) ? 'checked' : ''} style="width:15px;height:15px;cursor:pointer" /></td>
       <td>${escapeHtml((j.created_at || '').slice(0,10) || '—')}</td>
@@ -7858,10 +7910,16 @@ function _ensureConsumablesCharge(j) {
 }
 
 window.markJobStatus = async function(jobId, newStatus) {
-  const j = D.jobs.find(x => x.id === jobId);
+  let j = D.jobs.find(x => x.id === jobId);
   if (!j) return;
   if (newStatus === 'Inspected' && currentRole() !== 'mechanic' && currentRole() !== 'floor_manager' && !isAdminRole()) {
     return customAlert('Only the Worker (technician) or Floor Manager can mark a job Inspected.', { title: 'Not allowed' });
+  }
+  if (newStatus === 'In Progress' && currentRole() !== 'mechanic' && currentRole() !== 'floor_manager' && !isAdminRole()) {
+    return customAlert('Only the Worker (technician) or Floor Manager can start repair.', { title: 'Not allowed' });
+  }
+  if (newStatus === 'Returned to Advisor' && currentRole() !== 'mechanic' && currentRole() !== 'floor_manager' && !isAdminRole()) {
+    return customAlert('Only the Worker (technician) or Floor Manager can mark a job reassembled.', { title: 'Not allowed' });
   }
   // At the Inspected stage the technician lists what the car NEEDS — that's the
   // estimate (est_parts / est_services). j.parts is the actual billed parts,
@@ -7872,6 +7930,12 @@ window.markJobStatus = async function(jobId, newStatus) {
     const listed = named(j.est_parts) + named(j.est_services) + named(j.parts);
     if (!listed && !(await customConfirm('No spares or services are listed on this job yet. Mark as Inspected anyway?', { title: 'Nothing listed', okLabel: 'Mark inspected', danger: false }))) return;
   }
+  // Re-resolve `j` after the confirm dialog's await — a concurrent device's
+  // write can replace D.jobs wholesale while this was awaiting user input,
+  // detaching the earlier reference so mutating/saving it would silently
+  // drop that other write when this function's wsSave overwrites D.jobs.
+  j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
   j.status = newStatus;
   j.updated_at = nowStr();
   showToast(`${j.plate} → ${newStatus}`, 'good');
@@ -7985,13 +8049,16 @@ window.passQC = async function(jobId) {
   if (currentRole() !== 'floor_manager' && !isAdminRole()) {
     return customAlert('Only the Floor Manager can pass QC.', { title: 'Floor Manager only' });
   }
-  const j = D.jobs.find(x => x.id === jobId);
+  let j = D.jobs.find(x => x.id === jobId);
   if (!j) return;
   const note = await customPrompt('Any QC notes? (optional — leave blank to just sign off)', {
     title: `Pass QC · ${j.plate}`, placeholder: 'Test drive 4 km, no warning lights, brake feel OK…',
     initial: j.qc_notes || '', okLabel: 'Sign off & pass'
   });
   if (note === null) return;   // cancelled
+  // Re-resolve after the prompt's await — see markJobStatus for why.
+  j = D.jobs.find(x => x.id === jobId);
+  if (!j) return;
   j.status = 'QC Passed';
   j.qc_passed_at = nowStr();
   j.qc_passed_by = currentWorker?.name || '';
@@ -9520,6 +9587,19 @@ function _applyCustomerDecision(appr) {
   if (!inv || !j) { console.warn('[appr] no matching invoice/job for', appr.token); return; }
 
   const dec = appr.decisions || {};
+  // The published doc keys decisions by array position ('line:0', 'charge:1',
+  // ...) captured at publish time. If the estimate was resent (sendJobEstimate/
+  // shareEstimateLink fully replace inv.lines/charges) after this link went
+  // out but before the customer responded, those positions can now point at a
+  // completely different item — applying the decision blind would approve or
+  // reject the wrong part. Guard by cross-checking the published snapshot's
+  // name at that index still matches what's actually there now; skip (treat
+  // as stale, falls through to the no-response-default below) on a mismatch.
+  const nameMatches = (snapshotArr, i, current) => {
+    const snap = (snapshotArr || [])[i];
+    if (!snap) return true; // no snapshot to check against — apply as before
+    return (snap.name || '').trim().toLowerCase() === (current.name || '').trim().toLowerCase();
+  };
   // Only overwrite lines the customer was actually asked about this round. On a
   // REVISED re-send the link locks already-approved lines and drops removed ones
   // (no decision comes back for those), so we must keep their existing state
@@ -9527,12 +9607,12 @@ function _applyCustomerDecision(appr) {
   // customer somehow skipped it) still defaults to rejected, as before.
   (inv.lines || []).forEach((l, i) => {
     const d = dec['line:' + i];
-    if (d) l.approval = d;
+    if (d && nameMatches(appr.lines, i, l)) l.approval = d;
     else if (l.approval == null || l.approval === 'pending') l.approval = 'rejected';
   });
   (inv.charges || []).forEach((c, i) => {
     const d = dec['charge:' + i];
-    if (d) c.approval = d;
+    if (d && nameMatches(appr.charges, i, c)) c.approval = d;
     else if (c.approval == null || c.approval === 'pending') c.approval = 'rejected';
   });
 
@@ -9555,7 +9635,10 @@ function _applyCustomerDecision(appr) {
     j.visit_outcome = 'rejected';
     j.visit_summary = { estimate_total: _invoiceTotals(inv).roundOff, complaints: (j.complaints || []).map(c => c.text), decided_at: nowStr(), decided_by: 'Customer (link)' };
     j.updated_at = nowStr();
-    inv.status = 'Cancelled';
+    // If work already started, there's a live job on the floor to bill —
+    // don't cancel the invoice out from under it just because the customer
+    // flipped a decision on an old link after the fact.
+    if (!workAlreadyStarted) inv.status = 'Cancelled';
     audit('client-decision-reject', `${inv.number || ''} · ${j.plate} — customer rejected via link`, { invoice_id: inv.id, job_id: j.id });
   } else {
     if (!workAlreadyStarted) j.status = counts.rejected > 0 ? 'Estimate Approved (Partial)' : 'Estimate Approved';
@@ -12441,7 +12524,7 @@ const TAB_TITLES = {
   dashboard:'Dashboard', bookings:'Appointments', checkin:'Check-in', jobs:'Job Cards',
   bays:'Bays', queue:'Queue', customers:'Customers',
   workers:'Workers', inventory:'Inventory', request_parts:'Request Parts', parts:'Manage Requests',
-  invoices:'Invoices', reports:'Reports', feedback:'Feedback', timesheets:'Timesheets', notifications:'Notifications', audit:'Audit Log', settings:'Settings'
+  invoices:'Invoices', reports:'Reports', workload:'Technician Workload', feedback:'Feedback', timesheets:'Timesheets', notifications:'Notifications', audit:'Audit Log', settings:'Settings'
 };
 
 // ── Hindi labels for the worker-facing navigation. Keyed by tab id so it's
@@ -12691,6 +12774,7 @@ window.switchTab = function(tab) {
   if (tab === 'request_parts') renderRequestParts();
   if (tab === 'invoices')      renderInvoices();
   if (tab === 'reports')       renderReports();
+  if (tab === 'workload')      renderWorkload();
   if (tab === 'feedback')      renderFeedback();
   if (tab === 'audit')         renderAudit();
   if (tab === 'notifications') renderNotifications();
@@ -14243,12 +14327,22 @@ function _syncPartsRequestApprovals(j, inv) {
   const reqs = (D.parts_requests || []).filter(r => r.job_id === j.id);
   if (!reqs.length) return false;
   let changed = false;
+  // Two items can legitimately share a name (e.g. "Oil Filter" under two
+  // different concerns) with different customer decisions — match by
+  // concern_id first when both sides have one, and track which invoice
+  // lines are already claimed so a duplicate name never falls back onto
+  // the same first match for every request item.
+  const claimed = new Set();
   for (const r of reqs) {
     r.items = _prRequestItems(r);
     for (const it of r.items) {
       if (!it.customer_approval) continue; // never part of a sent estimate
-      const line = (inv.lines || []).find(l => (l.name || '').trim().toLowerCase() === (it.name || '').trim().toLowerCase());
+      const itName = (it.name || '').trim().toLowerCase();
+      const candidates = (inv.lines || []).filter(l => (l.name || '').trim().toLowerCase() === itName);
+      let line = it.concern_id ? candidates.find(l => l.concern_id === it.concern_id) : null;
+      if (!line) line = candidates.find(l => !claimed.has(l)) || candidates[0];
       if (!line) continue;
+      claimed.add(line);
       // approved → Approved (cleared to order); pending → Pending (awaiting the
       // customer's response on a freshly revised/re-sent estimate); everything
       // else (rejected / dropped) → Declined.
@@ -14497,6 +14591,7 @@ const ALL_TABS = [
   { id:'parts',         label:'Manage Requests' },
   { id:'invoices',      label:'Invoices' },
   { id:'reports',     label:'Reports' },
+  { id:'workload',    label:'Technician Workload' },
   { id:'feedback',    label:'Feedback' },
   { id:'timesheets',  label:'Timesheets' },
   { id:'notifications', label:'Notifications' },
@@ -19422,6 +19517,61 @@ function _rptBars(obj, maxVal) {
       </div>
     </div>`;
   }).join('')}</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  TECHNICIAN WORKLOAD — floor manager / admin view of which mechanic has
+//  which cars right now (live, not a date-ranged report). Excludes Delivered
+//  and Cancelled — a job counts against a tech's load for as long as it's
+//  still on the floor in any other status. Mirrors renderReports/renderBays'
+//  shape (loadAllData → compute → innerHTML).
+// ══════════════════════════════════════════════════════════════════════════
+async function renderWorkload(force = false) {
+  await loadAllData(force);
+  const activeMechs = (D.mechanics || []).filter(m => m.role === 'mechanic' && m.active !== false);
+  const activeStatuses = j => !['Delivered', 'Cancelled'].includes(j.status || '');
+
+  const byMech = activeMechs.map(m => {
+    const jobs = (D.jobs || []).filter(j => {
+      const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
+      return mechs.includes(m.name) && activeStatuses(j);
+    });
+    return { mech: m, jobs };
+  }).sort((a, b) => b.jobs.length - a.jobs.length);
+
+  const unassigned = (D.jobs || []).filter(j => {
+    const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
+    return !mechs.length && activeStatuses(j);
+  });
+
+  document.getElementById('wlCrumb').textContent =
+    `${activeMechs.length} technician${activeMechs.length === 1 ? '' : 's'} · ${byMech.reduce((s, x) => s + x.jobs.length, 0)} active job${byMech.reduce((s, x) => s + x.jobs.length, 0) === 1 ? '' : 's'}`;
+
+  const jobRow = j => `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--bg2);border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="openJobForm('${escapeHtml(j.id)}')">
+    <span style="font-weight:700;font-size:12.5px;color:var(--txt)">${escapeHtml(j.plate || '—')}</span>
+    ${statusPill(j.status || 'Awaiting Assignment')}
+  </div>`;
+
+  const mechCard = ({ mech, jobs }) => `<details class="card" style="padding:16px;margin-bottom:12px">
+    <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none">
+      <span style="font-weight:700;font-size:14px;color:var(--txt)">${escapeHtml(mech.name)}</span>
+      <span style="min-width:28px;height:28px;padding:0 8px;border-radius:100px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;background:${jobs.length ? 'var(--acc)' : 'var(--bg2)'};color:${jobs.length ? '#170f05' : 'var(--faint)'}">${jobs.length}</span>
+    </summary>
+    <div style="margin-top:12px;border-top:1px solid var(--brd);padding-top:12px">
+      ${jobs.length ? jobs.map(jobRow).join('') : `<div style="color:var(--faint);font-size:12.5px;font-style:italic">No active jobs — free to assign.</div>`}
+    </div>
+  </details>`;
+
+  document.getElementById('wlBody').innerHTML = `
+    <style>#wlBody summary::-webkit-details-marker{display:none}</style>
+    <div class="card" style="padding:18px;margin-bottom:18px">
+      <h3 style="margin:0 0 14px;font-size:15px">Active load by technician</h3>
+      ${_rptBars(Object.fromEntries(byMech.map(x => [x.mech.name, x.jobs.length])), Math.max(1, ...byMech.map(x => x.jobs.length), 1)) }
+    </div>
+    ${byMech.length ? byMech.map(mechCard).join('') : `<div class="card" style="padding:18px;color:var(--faint);font-size:13px">No active mechanics on record.</div>`}
+    ${unassigned.length ? `<h3 style="margin:20px 0 10px;font-size:15px;color:var(--txt)">Unassigned (${unassigned.length})</h3>
+      <div class="card" style="padding:16px">${unassigned.map(jobRow).join('')}</div>` : ''}
+  `;
 }
 </script>
 
