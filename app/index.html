@@ -4080,7 +4080,7 @@ async function renderDashboard(force = false) {
                                           && (b.status === 'Arrived' || _activeJobBkIds.has(b.id)));
   const baysFree = D.bays.filter(b => (b.status || '').toLowerCase() === 'available');
   const baysAll  = D.bays.length;
-  const activeJobs = D.jobs.filter(j => !['Delivered','Cancelled'].includes(j.status));
+  const activeJobs = D.jobs.filter(j => !j.hidden_at && !['Delivered','Cancelled'].includes(j.status));
   const inQueue  = D.queue.length;
 
   document.getElementById('statExpected').textContent   = expected.length;
@@ -11477,8 +11477,21 @@ async function saveJob(id) {
   // that's what triggers the "estimation updated" notice, not just any save.
   const _estWasReady  = !!j.est_ready;
   const _estBeforeJSON = _estWasReady ? JSON.stringify({ p: j.est_parts || [], s: j.est_services || [] }) : '';
+  // `_editingJob` was cloned from j.est_parts when the form was OPENED — if
+  // the Parts department priced something onto this estimate via "Add to
+  // estimate" (_prAutoAddToJobEstimate) while this form sat open, that write
+  // landed on the live j.est_parts directly, not on this stale clone. A
+  // blind overwrite here would silently erase it the moment Save is clicked,
+  // which is exactly the "add to estimate doesn't work" bug — the add
+  // succeeded, it just got wiped out by an in-progress, unrelated edit. Carry
+  // forward any such externally-added lines the editing clone doesn't know
+  // about, matched by name (the same convention _prAutoAddToJobEstimate
+  // itself uses to avoid duplicating an existing line).
+  const editedNames = new Set((_editingJob?.est_parts || []).map(p => (p.name || '').trim().toLowerCase()));
+  const externallyAdded = (j.est_parts || []).filter(p => p.source === 'approved-request' && !editedNames.has((p.name || '').trim().toLowerCase()));
   j.est_parts    = (_editingJob?.est_parts    || []).filter(p => (p.name || '').trim())
-                     .map(p => ({ name: p.name.trim(), qty: Math.max(1, Number(p.qty || 1)), price: Number(p.price || 0), source: p.source || 'manual', taxable: p.taxable !== false, concern_id: p.concern_id || '', concern_title: p.concern_title || '' }));
+                     .map(p => ({ name: p.name.trim(), qty: Math.max(1, Number(p.qty || 1)), price: Number(p.price || 0), source: p.source || 'manual', taxable: p.taxable !== false, concern_id: p.concern_id || '', concern_title: p.concern_title || '' }))
+                     .concat(externallyAdded);
   j.est_services = (_editingJob?.est_services || []).filter(s => (s.name || '').trim())
                      .map(s => ({ name: s.name.trim(), type: s.type || '', price: Number(s.price || 0), taxable: s.taxable === true }));
   // Per-concern estimates (title + assignees + own line items + approval state).
@@ -13578,6 +13591,9 @@ window._prSetScope = function(scope) {
 async function renderParts(force = false) {
   await loadAllData(force);
   let list = D.parts_requests.slice();
+  // A hidden job card is done — its parts requests shouldn't keep showing up
+  // here needing action. General requests (no job_id) are unaffected.
+  list = list.filter(r => !r.job_id || !(D.jobs || []).find(j => j.id === r.job_id)?.hidden_at);
   const q = (document.getElementById('prSearch')?.value || '').toLowerCase().trim();
   const st = (document.getElementById('prStatus')?.value || '');
   if (q) list = list.filter(r =>
@@ -13969,7 +13985,7 @@ let _editingPartReq = null;
 
 window.openPartRequestForm = function(prefill) {
   prefill = prefill || {};
-  const activeJobs = D.jobs.filter(j => !['Delivered','Cancelled'].includes(j.status));
+  const activeJobs = D.jobs.filter(j => !j.hidden_at && !['Delivered','Cancelled'].includes(j.status));
   // Seed with one row (or carry over from prefill / existing request)
   _editingPartReq = {
     items: Array.isArray(prefill.items) && prefill.items.length
@@ -14313,7 +14329,7 @@ function _prAutoAddToJobEstimate(r, it) {
     if (existing.price !== Number(it.price)) { existing.price = Number(it.price); return true; }
     return false;
   }
-  j.est_parts.push({ name, qty: Number(it.qty || 1), price: Number(it.price), source: 'approved-request', concern_id: it.concern_id || '', concern_title: it.concern_title || '' });
+  j.est_parts.push({ id: uid('est'), name, qty: Number(it.qty || 1), price: Number(it.price), source: 'approved-request', concern_id: it.concern_id || '', concern_title: it.concern_title || '' });
   return true;
 }
 
@@ -16169,7 +16185,7 @@ function _renderVehicleQRResult(code, customer, vehicle) {
 function _activeJobForPlate(plate) {
   const pn = _plateNorm(plate);
   if (!pn) return null;
-  const candidates = (D.jobs || []).filter(j => _plateNorm(j.plate) === pn && !['Delivered','Cancelled'].includes(j.status || ''));
+  const candidates = (D.jobs || []).filter(j => _plateNorm(j.plate) === pn && !j.hidden_at && !['Delivered','Cancelled'].includes(j.status || ''));
   candidates.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
   return candidates[0] || null;
 }
