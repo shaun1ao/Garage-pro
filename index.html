@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-     <script src='https://www.noupe.com/embed/019f21dcd36070008fe68dd6fd2814969de7.js'></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Garage Pro — Garage Management Software for Indian Workshops</title>
@@ -53,7 +52,7 @@
      the script-src gap the harder way. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
-  script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.noupe.com https://www.google.com https://apis.google.com https://accounts.google.com https://*.firebaseapp.com;
+  script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.google.com https://apis.google.com https://accounts.google.com https://*.firebaseapp.com;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com data:;
   img-src 'self' data: blob: https:;
@@ -3394,14 +3393,25 @@ function saveSupportSettings() {
   m.textContent = raw ? 'Saved!' : 'Cleared — WhatsApp link hidden.';
   setTimeout(() => { m.textContent = ''; }, 2500);
 }
-// Show / hide the footer WhatsApp link based on the admin-set number.
+// Show / hide the footer WhatsApp link based on the admin-set number. Also
+// feeds the same number into the small contact popup's WhatsApp link.
 function renderSupportContact() {
-  const el = document.getElementById('footWa');
-  if (!el) return;
   const num = (S.supportWhatsApp || '').replace(/[^\d]/g, '');
-  if (!num) { el.style.display = 'none'; el.removeAttribute('href'); return; }
-  el.style.display = '';
-  el.href = 'https://wa.me/' + num;
+  const el = document.getElementById('footWa');
+  if (el) {
+    if (!num) { el.style.display = 'none'; el.removeAttribute('href'); }
+    else { el.style.display = ''; el.href = 'https://wa.me/' + num; }
+  }
+  const popupWa = document.getElementById('contactPopupWa');
+  if (popupWa) {
+    if (!num) { popupWa.style.display = 'none'; popupWa.removeAttribute('href'); }
+    else {
+      popupWa.style.display = '';
+      popupWa.href = 'https://wa.me/' + num;
+      const numEl = document.getElementById('contactPopupWaNum');
+      if (numEl) numEl.textContent = '+' + num;
+    }
+  }
 }
 // ══════════════════════════════════════════
 //  PLAN RECOMMENDATION QUIZ
@@ -7657,7 +7667,57 @@ detectCountry().then(() => {
 })();
 </script>
 
-<!-- Noupe chatbot widget -->
-<script src="https://www.noupe.com/embed/019f21dcd36070008fe68dd6fd2814969de7.js"></script>
+<!-- Small, dismissible "contact us" nub — replaces the old Noupe chatbot.
+     Sits in a bottom corner, well clear of center-screen content, and never
+     opens as an overlay/modal. -->
+<style>
+  .contact-popup{
+    position:fixed; right:20px; bottom:20px; z-index:60;
+    max-width:270px; padding:16px 18px; border-radius:14px;
+    background:var(--surf); border:1px solid var(--brd); box-shadow:var(--shad);
+    font-family:var(--fb); font-size:13.5px; line-height:1.55; color:var(--dim);
+    opacity:0; transform:translateY(12px); pointer-events:none;
+    transition:opacity .35s ease, transform .35s ease;
+  }
+  .contact-popup.show{opacity:1; transform:translateY(0); pointer-events:auto}
+  .contact-popup-close{
+    position:absolute; top:8px; right:8px; width:22px; height:22px;
+    border:0; background:none; color:var(--faint); cursor:pointer;
+    font-size:16px; line-height:1; border-radius:6px;
+  }
+  .contact-popup-close:hover{color:var(--txt); background:var(--bg2)}
+  .contact-popup-title{color:var(--txt); font-weight:700; margin-bottom:6px; padding-right:16px}
+  .contact-popup-links{margin-top:10px; display:flex; flex-direction:column; gap:6px}
+  .contact-popup-links a{color:var(--acc2, var(--acc)); font-weight:600; text-decoration:none}
+  .contact-popup-links a:hover{text-decoration:underline}
+  @media (max-width:520px){
+    .contact-popup{left:16px; right:16px; bottom:16px; max-width:none}
+  }
+</style>
+<div class="contact-popup" id="contactPopup" role="complementary" aria-label="Contact us">
+  <button type="button" class="contact-popup-close" onclick="dismissContactPopup()" aria-label="Close">&times;</button>
+  <div class="contact-popup-title">Questions?</div>
+  <div>For any other inquiries or questions, contact us at —</div>
+  <div class="contact-popup-links">
+    <a id="contactPopupWa" href="#" target="_blank" rel="noopener" style="display:none">💬 WhatsApp: <span id="contactPopupWaNum"></span></a>
+    <a href="mailto:support@garagepro.me">✉️ support@garagepro.me</a>
+  </div>
+</div>
+<script>
+  function dismissContactPopup() {
+    const el = document.getElementById('contactPopup');
+    if (el) el.classList.remove('show');
+    try { localStorage.setItem('gp_contact_popup_dismissed', '1'); } catch (_) {}
+  }
+  (function () {
+    if (typeof renderSupportContact === 'function') renderSupportContact();
+    let dismissed = false;
+    try { dismissed = !!localStorage.getItem('gp_contact_popup_dismissed'); } catch (_) {}
+    if (dismissed) return;
+    const el = document.getElementById('contactPopup');
+    if (!el) return;
+    setTimeout(() => el.classList.add('show'), 1800);
+  })();
+</script>
 </body>
 </html>
