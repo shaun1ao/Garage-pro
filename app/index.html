@@ -1910,10 +1910,11 @@ function currentSub() {
   // unlimited limits (maxBays >= 999). Branches are only available on chain tiers.
   const isChain = /chain/i.test(planLabel) || Number(s.maxBays || 0) >= 999;
   // Branch cap: Chain → 5 (more than that needs a direct support conversation
-  // — see createBranch). Any other plan is left unrestricted, matching the
-  // branch feature's existing "never blocked by plan" behavior for non-chain
-  // tiers.
-  const maxBranches = isChain ? 5 : Infinity;
+  // — see createBranch). Every other plan gets 0 — branches are a chain-tier
+  // feature, not something any plan can use. (This was previously inverted —
+  // isChain ? 5 : Infinity — which let every NON-chain plan create unlimited
+  // branches while capping the one tier meant to support them.)
+  const maxBranches = isChain ? 5 : 0;
   return {
     active,
     planName:    planLabel || 'Plan',
@@ -14607,6 +14608,7 @@ async function renderSettings(force = false) {
     return;
   }
   const s = D.settings || {};
+  const sub = currentSub();
   // Fetched up-front because the settings body is built as one HTML string.
   // Only the owner can read workshop_staff, so skip it in a staff session
   // (where the card is hidden anyway) rather than logging a permission error.
@@ -14855,6 +14857,40 @@ async function renderSettings(force = false) {
           <button class="add-btn" onclick="openStaffLoginForm()">Create staff login</button>
         `}
       </div>`}
+
+      <!-- Branches — Chain-tier only. A branch account (chain_parent_uid set)
+           never sees this, even on a chain plan, since a branch can't spin up
+           sub-branches of its own; only the HQ/chain owner account can. -->
+      ${sub.isChain && !userProfile?.chain_parent_uid ? `
+      <div class="card" style="padding:18px">
+        <h3 style="margin:0 0 6px">Branches</h3>
+        <div style="color:var(--faint);font-size:13px;margin-bottom:14px">
+          Your <b>${escapeHtml(sub.planName)}</b> plan supports up to <b>${sub.maxBranches}</b> branch workshop${sub.maxBranches === 1 ? '' : 'es'}. Each branch is its own separate login with its own floor — this workshop's Reports tab rolls their numbers up for you.
+        </div>
+        <div id="brMigrateBanner" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 15px;background:rgba(255,182,72,.08);border:1px solid rgba(255,182,72,.3);border-radius:10px;margin-bottom:14px">
+          <span style="width:34px;height:34px;border-radius:9px;background:rgba(255,182,72,.14);color:var(--amber);display:grid;place-items:center;flex:none"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg></span>
+          <span style="flex:1;min-width:180px">
+            <b style="font-size:13.5px;color:var(--amber)">Set a password before creating branches</b>
+            <span style="display:block;font-size:12px;color:var(--faint);margin-top:2px">Google sign-in is blocked once branches exist, so every session stays scoped to one workshop.</span>
+          </span>
+          <button class="refresh-btn" onclick="brOpenMigration()">Set password</button>
+        </div>
+        <form onsubmit="createBranch(event)" style="display:grid;gap:10px;margin-bottom:16px">
+          <div class="f-row r1">
+            <div class="f-grp"><label>Branch name <span class="req">*</span></label>
+              <input id="br-name" type="text" placeholder="Koramangala branch" required /></div>
+          </div>
+          <div class="f-row">
+            <div class="f-grp"><label>Login email <span class="req">*</span></label>
+              <input id="br-email" type="email" placeholder="koramangala@yourshop.in" required autocomplete="off" /></div>
+            <div class="f-grp"><label>Password (8+ chars) <span class="req">*</span></label>
+              <input id="br-pass" type="password" placeholder="••••••••" required autocomplete="new-password" /></div>
+          </div>
+          <div class="f-err" id="br-err" style="color:var(--red);font-size:12.5px;min-height:16px"></div>
+          <button class="add-btn" type="submit" style="justify-self:start">+ Add branch</button>
+        </form>
+        <div id="br-list"></div>
+      </div>` : ''}
 
       <!-- Workflow extras — SLA alerts, closing summary, pickup OTP -->
       <div class="card" style="padding:18px">
