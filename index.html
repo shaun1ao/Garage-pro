@@ -970,6 +970,7 @@ html,body{max-width:100%;overflow-x:hidden}
       <div><label>Full Name</label><input id="su-name" type="text" placeholder="Rajesh Kumar" required /></div>
       <div><label>Garage / Company Name</label><input id="su-garage" type="text" placeholder="Speed Auto Care" required /></div>
       <div><label>Email</label><input id="su-email" type="email" placeholder="raj@speedauto.in" required /></div>
+      <div><label>Phone number</label><input id="su-phone" type="tel" placeholder="+91 98765 43210" required autocomplete="tel" /></div>
       <div><label>Password</label><input id="su-pass" type="password" placeholder="Min 6 characters" required minlength="6" /></div>
       <div><label>Confirm Password</label><input id="su-conf" type="password" placeholder="Repeat password" required /></div>
       <div class="modal-err" id="signupErr"></div>
@@ -1063,7 +1064,7 @@ html,body{max-width:100%;overflow-x:hidden}
       <div class="atab-sub">Every signed-up customer — sortable, searchable, exportable.</div>
       <div class="atab-stat-row" id="customerStats"></div>
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
-        <input id="customerSearch" type="text" placeholder="Search by name, email, garage, plan…" style="flex:1;min-width:240px;background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:11px 14px;color:var(--txt);font-family:var(--fb);font-size:14px;outline:none" oninput="renderCustomersTab()" />
+        <input id="customerSearch" type="text" placeholder="Search by name, email, phone, garage, plan…" style="flex:1;min-width:240px;background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:11px 14px;color:var(--txt);font-family:var(--fb);font-size:14px;outline:none" oninput="renderCustomersTab()" />
         <button class="add-rev-btn" style="background:rgba(120,140,255,.10);border-color:rgba(120,140,255,.3);color:#9db0ff" onclick="exportCustomersCsv()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export CSV
         </button>
@@ -2684,6 +2685,30 @@ function switchAuthTab(t) {
   ['loginErr','signupErr','resetErr'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
   const ok = document.getElementById('resetOk'); if (ok) { ok.textContent = ''; ok.style.display = 'none'; }
 }
+// Password admins have no Firebase Auth identity, so the Customers tab asks
+// the adminListCustomers Cloud Function (which re-verifies these credentials
+// server-side) instead of reading Firestore directly. Kept for this tab
+// session only.
+function rememberAdminCreds(u, p) { try { sessionStorage.setItem('gp_adm', JSON.stringify({ u, p })); } catch (_) {} }
+async function loadCustomersViaFunction() {
+  let creds = null;
+  try { creds = JSON.parse(sessionStorage.getItem('gp_adm') || 'null'); } catch (_) {}
+  if (!creds || !S.cloudFnUrl) return false;
+  try {
+    const r = await fetch(S.cloudFnUrl.replace(/\/+$/, '') + '/adminListCustomers', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: creds.u, password: creds.p })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    manualCustomers = (j.customers || []).map(c => ({
+      uid: c.uid, name: c.name, email: c.email, garageName: c.garageName, phone: c.phone,
+      _createdAt: c.createdAt, _lastLogin: c.lastActiveAt
+    })).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+    usersListenerError = '';
+    return true;
+  } catch (e) { console.warn('adminListCustomers failed:', e); return false; }
+}
 async function doLogin(e) {
   e.preventDefault();
   const u   = document.getElementById('li-user').value.trim();
@@ -2695,6 +2720,7 @@ async function doLogin(e) {
   // Primary admin (from siteConfig/admin)
   if (u === S.creds.username && p === S.creds.password) {
     currentUser = {name: S.creds.username, isAdmin: true};
+    rememberAdminCreds(u, p);
     sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
     closeAuth();
     renderNav();
@@ -2707,6 +2733,7 @@ async function doLogin(e) {
   const extra = extraAdmins.find(a => a.username === u && a.password === p);
   if (extra) {
     currentUser = {name: extra.username, isAdmin: true, isExtraAdmin: true};
+    rememberAdminCreds(u, p);
     sessionStorage.setItem('gp_user', JSON.stringify(currentUser));
     closeAuth();
     renderNav();
@@ -2838,6 +2865,8 @@ async function doGoogleSignIn() {
     closeAuth();
     showToast(isNew ? `Welcome, ${update.name.split(' ')[0]}!` : `Welcome back, ${update.name.split(' ')[0]}!`, 'good');
     // Send welcome email to NEW Google users only
+    // Google gives us no phone number, but it's mandatory — ask right away.
+    if (!existing.exists || !(existing.data() || {}).phone) requirePhoneNumber(user.uid);
     if (isNew) {
       sendWelcomeEmail({ name: update.name, email: update.email }, '');
       setTimeout(() => {
@@ -2866,6 +2895,29 @@ async function doGoogleSignIn() {
   }
 }
 
+// Blocking phone prompt for accounts created via Google (no phone from Google).
+function requirePhoneNumber(uid) {
+  if (document.getElementById('phoneGate')) return;
+  const d = document.createElement('div');
+  d.id = 'phoneGate';
+  d.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px';
+  d.innerHTML = `<form style="background:var(--surf);border:1px solid var(--brd2);border-radius:14px;padding:26px;max-width:380px;width:100%">
+    <div style="font-family:var(--fd);font-size:18px;font-weight:700;margin-bottom:6px">One last thing</div>
+    <div style="color:var(--dim);font-size:13.5px;line-height:1.5;margin-bottom:14px">Add your phone number to finish setting up your account.</div>
+    <input id="pg-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel" required style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:14px;margin-bottom:8px" />
+    <div id="pg-err" style="color:#ff6b6b;font-size:12.5px;min-height:16px;margin-bottom:8px"></div>
+    <button type="submit" class="btn btn-primary" style="width:100%">Save &amp; continue</button></form>`;
+  document.body.appendChild(d);
+  d.querySelector('form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const phone = document.getElementById('pg-phone').value.trim();
+    if (!isValidPhone(phone)) { document.getElementById('pg-err').textContent = 'Enter a valid phone number (at least 10 digits).'; return; }
+    try {
+      await fbDb.collection('users').doc(uid).set({ phone, profile: { phone } }, { merge: true });
+      d.remove();
+    } catch (e) { document.getElementById('pg-err').textContent = e.message || 'Could not save. Try again.'; }
+  };
+}
 async function doResetPassword(e) {
   e.preventDefault();
   const email = document.getElementById('rs-email').value.trim();
@@ -2907,17 +2959,20 @@ async function doResetPassword(e) {
   }
 }
 
+function isValidPhone(v) { return String(v || '').replace(/\D/g, '').length >= 10; }
 async function doSignup(e) {
   e.preventDefault();
   const name       = document.getElementById('su-name').value.trim();
   const garageName = document.getElementById('su-garage').value.trim();
   const email      = document.getElementById('su-email').value.trim();
+  const phone      = document.getElementById('su-phone').value.trim();
   const pass       = document.getElementById('su-pass').value;
   const conf       = document.getElementById('su-conf').value;
   const err        = document.getElementById('signupErr');
   err.textContent = '';
   if (!name)              { err.textContent = 'Enter your full name.'; return; }
   if (!garageName)        { err.textContent = 'Enter your garage / company name.'; return; }
+  if (!isValidPhone(phone)) { err.textContent = 'Enter a valid phone number (at least 10 digits).'; return; }
   if (pass !== conf)      { err.textContent = 'Passwords do not match.'; return; }
   if (pass.length < 6)    { err.textContent = 'Password must be at least 6 characters.'; return; }
   if (!fbAuth)            { err.textContent = 'Site not connected to Firebase yet. Contact support.'; return; }
@@ -2935,8 +2990,9 @@ async function doSignup(e) {
       email,
       name,
       garageName,                // company / workshop name — used in license keys
+      phone,                     // mandatory at signup — shown in the admin panel
       createdAt:  firebase.firestore.FieldValue.serverTimestamp(),
-      profile:    { phone: '', address: '' },
+      profile:    { phone, address: '' },
       bankDetails: { holderName: '', accountNumber: '', ifsc: '', bankName: '' }
     }, { merge: true });
     // 3b) Public-safe mirror for Track Repair's workshop picker — see
@@ -3035,7 +3091,7 @@ function switchAdminTab(tab) {
   document.querySelectorAll('.anav')[idx].classList.add('active');
   if (tab === 'leads')     renderLeadsTab();
   if (tab === 'licenses')  renderLicensesTab();
-  if (tab === 'customers') renderCustomersTab();
+  if (tab === 'customers') { renderCustomersTab(); if (usersListenerError) loadCustomersViaFunction().then(renderCustomersTab); }
   if (tab === 'firebase')  renderFirebaseTab();
   if (tab === 'plans')     renderAdminPlansGrid();
   if (tab === 'audit')     renderAuditTab();
@@ -3151,6 +3207,18 @@ function fmtCustomerDate(v) {
   return d.toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
 }
 
+// Relative "last used" with a green dot when seen in the past 7 days, so an
+// inactive customer stands out at a glance.
+function fmtLastUsed(v) {
+  if (!v) return '<span style="color:var(--faint)">Never</span>';
+  if (v.toDate) v = v.toDate();
+  const d = (v instanceof Date) ? v : new Date(v);
+  if (isNaN(d.getTime())) return '<span style="color:var(--faint)">—</span>';
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  const when = days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : days + ' days ago';
+  const dot = days <= 7 ? '#2fd08a' : days <= 30 ? '#f5a524' : '#ff6b6b';
+  return `<span title="${escapeHtml(d.toLocaleString('en-IN'))}"><span style="color:${dot}">●</span> ${when}<span style="color:var(--faint);font-size:11.5px;display:block">${fmtCustomerDate(d)}</span></span>`;
+}
 function getCustomerList() {
   // Build the unified list from the Firestore-backed `manualCustomers` (live
   // listener on /users) and decorate each with their license + expiry data.
@@ -3161,6 +3229,7 @@ function getCustomerList() {
       name:       c.name,
       email:      c.email,
       garageName: c.garageName || '',
+      phone:      c.phone || '',
       plan:       lic ? (lic.planName || lic.plan || '—') : '—',
       status:     lic ? lic.status : 'none',
       expiry:     lic ? lic.expiry : null,
@@ -3206,6 +3275,7 @@ function renderCustomersTab() {
       (c.name       || '').toLowerCase().includes(q) ||
       (c.email      || '').toLowerCase().includes(q) ||
       (c.garageName || '').toLowerCase().includes(q) ||
+      (c.phone      || '').toLowerCase().includes(q) ||
       (c.plan       || '').toLowerCase().includes(q)
     );
   }
@@ -3222,7 +3292,7 @@ function renderCustomersTab() {
     <div class="atab-stat"><div class="n">${none}</div><div class="l">No license yet</div></div>`;
 
   if (!list.length) {
-    document.getElementById('customerTable').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>${manualCustomers.length ? 'No customers match that search.' : 'No customers signed up yet.'}</p></div>`;
+    document.getElementById('customerTable').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>${manualCustomers.length ? 'No customers match that search.' : (usersListenerError === 'permission-denied' ? 'Can\'t load customers. Deploy the adminListCustomers Cloud Function (firebase deploy --only functions) and set the Cloud Functions URL in the Firebase tab — or link a real admin identity there.' : 'No customers signed up yet.')}</p></div>`;
     return;
   }
   const arrow = key => customerSortKey !== key ? '<span style="opacity:.3">↕</span>' : (customerSortDir === 'asc' ? '↑' : '↓');
@@ -3235,20 +3305,24 @@ function renderCustomersTab() {
     <thead><tr>
       <th onclick="setCustomerSort('name')"       style="cursor:pointer">Name ${arrow('name')}</th>
       <th onclick="setCustomerSort('email')"      style="cursor:pointer">Email ${arrow('email')}</th>
+      <th onclick="setCustomerSort('phone')"      style="cursor:pointer">Phone ${arrow('phone')}</th>
       <th onclick="setCustomerSort('garageName')" style="cursor:pointer">Garage ${arrow('garageName')}</th>
       <th onclick="setCustomerSort('plan')"       style="cursor:pointer">Plan ${arrow('plan')}</th>
       <th onclick="setCustomerSort('status')"     style="cursor:pointer">Status ${arrow('status')}</th>
       <th onclick="setCustomerSort('expiry')"     style="cursor:pointer">Expiry ${arrow('expiry')}</th>
       <th onclick="setCustomerSort('createdAt')"  style="cursor:pointer">Joined ${arrow('createdAt')}</th>
+      <th onclick="setCustomerSort('lastLogin')"  style="cursor:pointer">Last used ${arrow('lastLogin')}</th>
     </tr></thead>
     <tbody>${list.map(c => `<tr>
       <td>${escapeHtml(c.name)}</td>
       <td><a href="mailto:${escapeHtml(c.email)}" style="color:var(--acc2)">${escapeHtml(c.email)}</a></td>
+      <td>${c.phone ? `<a href="tel:${escapeHtml(c.phone)}" style="color:var(--acc2)">${escapeHtml(c.phone)}</a>` : '<span style="color:var(--faint)">—</span>'}</td>
       <td>${c.garageName ? escapeHtml(c.garageName) : '<span style="color:var(--faint)">—</span>'}</td>
       <td>${escapeHtml(c.plan)}</td>
       <td>${statusPill(c.status)}</td>
       <td style="color:var(--faint)">${fmtCustomerDate(c.expiry)}</td>
       <td style="color:var(--faint)">${fmtCustomerDate(c.createdAt)}</td>
+      <td>${fmtLastUsed(c.lastLogin)}</td>
     </tr>`).join('')}</tbody>
   </table>`;
 }
@@ -3256,10 +3330,10 @@ function renderCustomersTab() {
 function exportCustomersCsv() {
   const list = sortCustomers(getCustomerList());
   if (!list.length) { showToast('No customers to export', 'bad'); return; }
-  const headers = ['Name','Email','Garage','Plan','Status','Expiry','Joined'];
+  const headers = ['Name','Email','Phone','Garage','Plan','Status','Expiry','Joined','Last used'];
   const rows = list.map(c => [
-    c.name, c.email, c.garageName, c.plan, c.status,
-    fmtCustomerDate(c.expiry), fmtCustomerDate(c.createdAt)
+    c.name, c.email, c.phone, c.garageName, c.plan, c.status,
+    fmtCustomerDate(c.expiry), fmtCustomerDate(c.createdAt), fmtCustomerDate(c.lastLogin)
   ]);
   const csv = [headers, ...rows].map(r => r.map(cell => {
     const v = String(cell == null ? '' : cell).replace(/"/g, '""');
@@ -5210,11 +5284,17 @@ async function deleteLicense(id) {
 // ── Customer cache for the searchable dropdown ──
 let manualCustomers = [];  // [{uid, name, email, garageName}, …]
 let fbUsersUnsub = null;
+// Set when the users listener is rejected (firestore.rules only lets a REAL
+// admin — a Firebase Auth uid present in admin_uids — read the users
+// collection). A rejected listener is dead for good, so it has to be
+// re-subscribed once the admin identity is linked.
+let usersListenerError = '';
 
 function subscribeAllUsersFromFirebase() {
   if (!fbDb) return;
   if (fbUsersUnsub) { try { fbUsersUnsub(); } catch(e){} fbUsersUnsub = null; }
   fbUsersUnsub = fbDb.collection('users').onSnapshot(snap => {
+    usersListenerError = '';
     manualCustomers = [];
     snap.forEach(doc => {
       const d = doc.data() || {};
@@ -5224,8 +5304,10 @@ function subscribeAllUsersFromFirebase() {
         name:       d.name || '(no name)',
         email:      d.email,
         garageName: d.garageName || '',
+        phone:      d.phone || (d.profile && d.profile.phone) || '',
         _createdAt: d.createdAt || null,
-        _lastLogin: d.lastLoginAt || null
+        // lastActiveAt is stamped by the workshop web/mobile app while in use
+        _lastLogin: d.lastActiveAt || d.lastLoginAt || null
       });
     });
     manualCustomers.sort((a,b) => (a.name || '').localeCompare(b.name || ''));
@@ -5236,7 +5318,15 @@ function subscribeAllUsersFromFirebase() {
     if (document.getElementById('tab-customers') && document.getElementById('tab-customers').classList.contains('active')) {
       renderCustomersTab();
     }
-  }, e => console.warn('Users listener:', e));
+  }, e => {
+    console.warn('Users listener:', e);
+    usersListenerError = (e && e.code) || 'error';
+    manualCustomers = [];
+    // Not a real Firebase admin → fetch through the server-side function.
+    loadCustomersViaFunction().then(() => {
+      if (document.getElementById('tab-customers')?.classList.contains('active')) renderCustomersTab();
+    });
+  });
 }
 
 function populateManualCustomerList() {
@@ -6121,10 +6211,17 @@ function renderBranchesPanel() {
   const badge = document.getElementById('udBranchesBadge');
   const badgeTop = document.getElementById('udBranchesBadgeTop');
   if (!card || !currentUser) return;
-  // ALWAYS visible to a signed-in user. The Chain plan is *recommended* for
-  // multi-branch workshops but the create flow is never blocked.
-  card.style.display = 'block';
+  // Branches are a Chain-plan feature. Everyone else doesn't see this card at
+  // all — except an account that already has legacy branches, which keeps
+  // the card (list + unlink) but can't create any more (see udCreateBranch).
   const isChain = currentSubscription && isChainTier(currentSubscription);
+  card.style.display = isChain ? 'block' : 'none';
+  if (!isChain && fbAuth.currentUser) {
+    fbDb.collection('users').doc(fbAuth.currentUser.uid).get().then(d => {
+      const has = d.exists && Array.isArray(d.data().branches) && d.data().branches.length > 0;
+      if (has) card.style.display = 'block';
+    }).catch(() => {});
+  }
   const setBadge = (el, text, bg, col) => { if (!el) return; el.textContent = text; el.style.background = bg; el.style.color = col; };
   if (isChain) {
     setBadge(badge,    'CHAIN PLAN',             'rgba(var(--tint-rgb),.16)', 'var(--teal)');
@@ -6204,7 +6301,11 @@ window.udCreateBranch = async function() {
   if (!fbAuth.currentUser) { msg.textContent = 'Sign in to your account first.'; return; }
   // Branch cap: Chain → 5. Past that it's a direct conversation with
   // support, not a self-serve upgrade.
-  const maxBranches = isChainTier(currentSubscription) ? 5 : Infinity;
+  const maxBranches = isChainTier(currentSubscription) ? 5 : 0;
+  if (!maxBranches) {
+    msg.innerHTML = `Branches are only available on the <b>Chain</b> plan. Upgrade your plan to create branch logins.`;
+    return;
+  }
   try {
     const parentSnap = await fbDb.collection('users').doc(fbAuth.currentUser.uid).get();
     const existingBranches = (parentSnap.exists && Array.isArray(parentSnap.data().branches)) ? parentSnap.data().branches : [];
@@ -6481,10 +6582,11 @@ async function saveUserProfile() {
   const msg = document.getElementById('udProfileMsg');
   if (!name)       { msg.style.color = '#ff6b6b'; msg.textContent = 'Full name is required.';   return; }
   if (!garageName) { msg.style.color = '#ff6b6b'; msg.textContent = 'Garage name is required.'; return; }
+  if (!isValidPhone(phone)) { msg.style.color = '#ff6b6b'; msg.textContent = 'A valid phone number is required.'; return; }
   try {
     await fbAuth.currentUser.updateProfile({ displayName: name });
     await fbDb.collection('users').doc(fbAuth.currentUser.uid).set({
-      name, garageName,
+      name, garageName, phone,
       profile: { phone, address },
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
@@ -6585,6 +6687,9 @@ function initFirebase() {
 // Called whenever the Firebase Auth user changes (sign-in, sign-out, refresh).
 // Updates currentUser unless an admin session is active in sessionStorage.
 function handleAuthStateChanged(fbUser) {
+  // A users listener rejected before any real Firebase sign-in existed stays
+  // dead — restart it as soon as an identity appears (admin linking flow).
+  if (fbUser && usersListenerError) subscribeAllUsersFromFirebase();
   // Don't touch admin sessions — those are tracked separately via sessionStorage
   if (currentUser && currentUser.isAdmin) return;
   if (fbUser) {
@@ -6814,6 +6919,9 @@ async function renderAdminIdentityStatus() {
     linked = doc.exists;
   } catch (e) { /* permission-denied means not linked — fall through */ }
   if (linked) {
+    // The users listener started before this identity existed and was
+    // rejected; restart it now that rules will accept it.
+    if (usersListenerError) subscribeAllUsersFromFirebase();
     card.innerHTML = `
       <div style="background:rgba(var(--tint-rgb),.06);border:1px solid var(--brd2);border-radius:10px;padding:16px">
         <b style="font-size:14px">✓ Real admin identity linked</b>
