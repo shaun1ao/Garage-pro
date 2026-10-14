@@ -730,6 +730,7 @@ input[list]{background:var(--bg2)}
       <div><label>Workshop / branch name</label><input id="su-garage" type="text" placeholder="Speed Auto Care — Mumbai" required /></div>
       <div><label>Your name (owner)</label><input id="su-name" type="text" placeholder="Rajesh Kumar" required /></div>
       <div><label>Email</label><input id="su-email" type="email" placeholder="branch@yourgarage.in" autocomplete="email" required /></div>
+      <div><label>Phone number</label><input id="su-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel" required /></div>
       <div><label>Password</label><input id="su-pass" type="password" placeholder="At least 6 characters" autocomplete="new-password" required minlength="6" /></div>
       <div>
         <label>Your owner PIN (4 digits)</label>
@@ -791,10 +792,11 @@ input[list]{background:var(--bg2)}
     <!-- STEP 1: Workshop -->
     <div class="setup-pane" data-pane="1">
       <h2>Set up your workshop</h2>
-      <div class="a-sub">Just three things and you're in.</div>
+      <div class="a-sub">Just a few things and you're in.</div>
       <form class="auth-form active" autocomplete="off" onsubmit="doFirstSetup(event)">
         <div><label>Workshop name</label><input id="fs-garage" name="fs-garage-x" type="text" placeholder="Speed Auto Care" required autocomplete="off" /></div>
         <div><label>Your name</label><input id="fs-name" name="fs-name-x" type="text" placeholder="Rajesh Kumar" required autocomplete="off" /></div>
+        <div><label>Phone number</label><input id="fs-phone" type="tel" placeholder="+91 98765 43210" required autocomplete="off" /></div>
         <div>
           <label>Owner PIN (4 digits)</label>
           <input id="fs-pin" name="fs-pin-x" type="text" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" placeholder="e.g. 1234" required autocomplete="off" />
@@ -807,7 +809,6 @@ input[list]{background:var(--bg2)}
           </summary>
           <div style="padding:4px 13px 13px">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div><label>Phone</label><input id="fs-phone" type="text" placeholder="+91 …" autocomplete="off" /></div>
               <div><label>Contact email</label><input id="fs-email" type="email" placeholder="service@yourshop.in" autocomplete="off" /></div>
               <div><label>City</label><input id="fs-city" type="text" placeholder="Pune" autocomplete="off" /></div>
               <div><label>State</label><input id="fs-state" type="text" placeholder="Maharashtra" autocomplete="off" /></div>
@@ -2440,7 +2441,9 @@ window.doEmailSignUp = async function(e) {
   const email  = document.getElementById('su-email').value.trim();
   const pass   = document.getElementById('su-pass').value;
   const pin    = document.getElementById('su-pin').value.trim();
+  const phone  = document.getElementById('su-phone').value.trim();
   const err    = document.getElementById('su-err'); err.textContent = '';
+  if (phone.replace(/\D/g, '').length < 10) { err.textContent = 'Enter a valid phone number (at least 10 digits).'; return; }
   if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true; btn.textContent = 'Creating…';
@@ -2448,7 +2451,7 @@ window.doEmailSignUp = async function(e) {
     const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
     if (cred.user.updateProfile) await cred.user.updateProfile({ displayName: name });
     // Write workshop profile + bootstrap owner worker in one go
-    await provisionNewWorkshop(cred.user.uid, garage, name, pin, email);
+    await provisionNewWorkshop(cred.user.uid, garage, name, pin, email, { phone });
     // onAuthStateChanged fires next → loads everything → shows PIN-pad
   } catch (e2) {
     err.textContent = friendlyAuthError(e2);
@@ -2531,6 +2534,7 @@ window.doFirstSetup = async function(e) {
   const pin    = document.getElementById('fs-pin').value.trim();
   const err    = document.getElementById('fs-err'); err.textContent = '';
   if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
+  if ((document.getElementById('fs-phone').value || '').replace(/\D/g, '').length < 10) { err.textContent = 'Enter a valid phone number (at least 10 digits).'; return; }
   const gv = (id) => (document.getElementById(id)?.value || '').trim();
   const details = {
     phone:    gv('fs-phone'),
@@ -2727,6 +2731,7 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
     uid, email,
     name:           ownerName,
     workshop_name:  garage,
+    ...(details.phone ? { phone: details.phone, profile: { phone: details.phone } } : {}),
     ...(details.state ? { state: details.state } : {}),
     ...(details.city  ? { city:  details.city }  : {}),
     createdAt:      firebase.firestore.FieldValue.serverTimestamp(),
@@ -2941,7 +2946,24 @@ window.switchWorker = function() {
 // ══════════════════════════════════════════
 //  ENTER APP (after PIN-pad success)
 // ══════════════════════════════════════════
+// Stamp users/{workshop}.lastActiveAt so the admin panel can see who's actually
+// using the software. Throttled to once per 10 min; refreshes while the app is
+// visible (staff devices stay open all day).
+function _stampLastActive() {
+  try {
+    if (!fbDb || !currentUser) return;
+    const now = Date.now();
+    if (now - (window._lastActiveStamp || 0) < 10 * 60 * 1000) return;
+    window._lastActiveStamp = now;
+    fbDb.collection('users').doc(wsUid()).set({ lastActiveAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+      .catch(e => console.warn('[lastActive]', e));
+  } catch (_) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && currentWorker) _stampLastActive(); });
+setInterval(() => { if (!document.hidden && currentWorker) _stampLastActive(); }, 10 * 60 * 1000);
+
 function enterApp() {
+  _stampLastActive();
   showOnly(null);
   renderHeader();
   renderSidebarVisibility();
