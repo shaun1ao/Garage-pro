@@ -19689,5 +19689,104 @@ async function renderWorkload(force = false) {
   tryNext();
 })();
 </script>
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  USAGE ANALYTICS — anonymous, aggregated counters for the Garage Pro admin
+//  panel ("App Usage"). Records WHICH pages/features are used and for how
+//  long, never WHAT is in them: no customer names, plates, amounts or text.
+//  Written as increments to usage_daily/{date} and usage_workshops/{ws}.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const TRACKED_ACTIONS = ['saveBooking','saveWalkin','saveQuickBooking','saveJob','saveCustomer','saveWorker','saveInventory',
+    'savePartRequest','saveInvoice','sendJobEstimate','shareEstimateLink','shareConcernEstimate','forwardEstimateDecision','passQC',
+    'printJobCard','chasePayment','_quickMarkPaid','uploadJobPhoto','_csvImport','_showQRFromVehicle','sendCustomerNotification',
+    '_assignQueueToBay','qAssignNow','_printVehicleQR','_dviAddToEstimate','_prAddToEstimate'];
+  const FLUSH_MS = 30000, TICK_MS = 15000, IDLE_MS = 60000;
+  let buf = null, started = false, curTab = null, curStart = 0, lastInput = Date.now(), lastFlush = 0;
+  const reset = () => { buf = { tabs:{}, tabSecs:{}, actions:{}, secs:0, sessions:0, tabViews:0, actionsTotal:0, hours:{}, devices:{}, roles:{} }; };
+  reset();
+  const inc = (o, k, n = 1) => { if (!k) return; k = String(k).replace(/[^\w]/g, '_').slice(0, 40); o[k] = (o[k] || 0) + n; };
+  const dev = () => { const u = navigator.userAgent; return /iPad|Tablet/i.test(u) ? 'tablet' : /Mobi|Android|iPhone/i.test(u) ? 'mobile' : 'desktop'; };
+  const today = () => new Date().toISOString().slice(0, 10);
+  const optedOut = () => { try { return localStorage.getItem('gp_notrack') === '1'; } catch (_) { return false; } };
+
+  function closeTab() {
+    if (curTab && curStart) {
+      const secs = Math.round((Date.now() - curStart) / 1000);
+      if (secs > 0 && secs < 3600) inc(buf.tabSecs, curTab, secs);
+    }
+    curStart = Date.now();
+  }
+  window._trackTab = function (tab) {
+    try {
+      if (!started || !tab) return;
+      closeTab(); curTab = tab;
+      inc(buf.tabs, tab); buf.tabViews++;
+    } catch (_) {}
+  };
+  function trackAction(name) { try { if (!started) return; inc(buf.actions, name); buf.actionsTotal++; } catch (_) {} }
+
+  function flush(final) {
+    try {
+      if (!started || !fbDb || !currentWorker || optedOut()) return;
+      closeTab();
+      const b = buf;
+      if (!b.sessions && !b.secs && !b.tabViews && !b.actionsTotal) return;
+      reset();
+      const FV = firebase.firestore.FieldValue, n = v => FV.increment(v);
+      const map = o => Object.keys(o).reduce((a, k) => (a[k] = n(o[k]), a), {});
+      const now = new Date(), hour = String(now.getHours());
+      const base = { sessions: n(b.sessions), activeSecs: n(b.secs), tabViews: n(b.tabViews), actionsTotal: n(b.actionsTotal),
+                     tabs: map(b.tabs), tabSecs: map(b.tabSecs), actions: map(b.actions) };
+      const daily = Object.assign({ date: today(), updatedMs: Date.now() }, base,
+        { hours: { [hour]: n(b.sessions ? b.sessions : 0) }, devices: map(b.devices), roles: map(b.roles) });
+      if (!b.sessions) delete daily.hours;
+      const prof = (typeof userProfile !== 'undefined' && userProfile) || {};
+      const sub = prof.subscription || {};
+      const ws = Object.assign({ lastSeenMs: Date.now(), name: prof.workshop_name || prof.name || '', plan: sub.planName || sub.plan || '',
+                                 daysActive: FV.arrayUnion(today()) }, base);
+      fbDb.collection('usage_daily').doc(today()).set(daily, { merge: true }).catch(e => console.warn('[usage]', e.code || e));
+      fbDb.collection('usage_workshops').doc(wsUid()).set(ws, { merge: true }).catch(e => console.warn('[usage]', e.code || e));
+      lastFlush = Date.now();
+    } catch (e) { console.warn('[usage flush]', e); }
+  }
+
+  function begin() {
+    if (started || optedOut() || !currentWorker) return;
+    started = true; curTab = null; curStart = Date.now();
+    buf.sessions = 1; inc(buf.devices, dev()); inc(buf.roles, currentWorker.role || 'unknown');
+    buf.hours = {};
+    window._trackTab(typeof currentTab !== 'undefined' ? currentTab : 'dashboard');
+    setTimeout(() => flush(), 4000);
+  }
+
+  // wrap enterApp → session start; wrap switchTab → page views
+  if (typeof window.enterApp === 'function') {
+    const _e = window.enterApp;
+    window.enterApp = function () { const r = _e.apply(this, arguments); try { begin(); } catch (_) {} return r; };
+  }
+  if (typeof window.switchTab === 'function') {
+    const _s = window.switchTab;
+    window.switchTab = function (tab) { const r = _s.apply(this, arguments); window._trackTab(tab); return r; };
+  }
+  // wrap feature entry points (only those that exist as globals)
+  TRACKED_ACTIONS.forEach(name => {
+    const f = window[name];
+    if (typeof f !== 'function' || f.__gpTracked) return;
+    const w = function () { trackAction(name); return f.apply(this, arguments); };
+    w.__gpTracked = true;
+    try { window[name] = w; } catch (_) {}
+  });
+
+  ['click', 'keydown', 'touchstart', 'mousemove'].forEach(ev => document.addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true }));
+  setInterval(() => { if (started && !document.hidden && Date.now() - lastInput < IDLE_MS) buf.secs += TICK_MS / 1000; }, TICK_MS);
+  setInterval(() => { if (started && !document.hidden) flush(); }, FLUSH_MS);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flush(true); else curStart = Date.now(); });
+  window.addEventListener('pagehide', () => flush(true));
+  // the app may already be signed in by the time this runs
+  setTimeout(() => { try { if (currentWorker) begin(); } catch (_) {} }, 1500);
+  setInterval(() => { try { if (!started && currentWorker) begin(); } catch (_) {} }, 5000);
+})();
+</script>
 </body>
 </html>
