@@ -52,12 +52,12 @@
      the script-src gap the harder way. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
-  script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.google.com https://apis.google.com https://accounts.google.com https://*.firebaseapp.com;
+  script-src 'self' 'unsafe-inline' https://assets.lemonsqueezy.com https://www.googletagmanager.com https://www.gstatic.com https://www.google.com https://apis.google.com https://accounts.google.com https://*.firebaseapp.com;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com data:;
   img-src 'self' data: blob: https:;
   connect-src 'self' https: wss:;
-  frame-src 'self' https://www.google.com https://apis.google.com https://accounts.google.com https://*.firebaseapp.com;
+  frame-src 'self' https://*.lemonsqueezy.com https://pay.garagepro.me https://www.google.com https://apis.google.com https://accounts.google.com https://*.firebaseapp.com;
   object-src 'none';
   base-uri 'self';
   frame-ancestors 'self';
@@ -90,6 +90,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
 <style>
 /* ── tokens ──
    Monochrome ink system: --ink / --ink-soft / --tint-rgb / --ink-text swap
@@ -221,6 +222,49 @@ header.nav.scrolled{background:rgba(12,12,11,.86);backdrop-filter:blur(14px);bor
 .atab-stat{background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:20px 24px;min-width:140px}
 .atab-stat .n{font-family:var(--fd);font-size:32px;font-weight:800;color:var(--txt)}
 .atab-stat .l{font-size:13px;color:var(--dim);margin-top:4px}
+.admin-nav{overflow-y:auto;min-height:0;padding-right:2px}
+.anav-group{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);opacity:.7;padding:16px 12px 6px}
+.anav-group:first-child{padding-top:2px}
+/* analytics */
+.an-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+.an-head .atab-sub{margin-bottom:0}
+.an-range{display:flex;gap:4px;background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:3px}
+.an-range button{border:0;background:transparent;color:var(--dim);font:600 13px var(--fb);padding:7px 13px;border-radius:7px;cursor:pointer}
+.an-range button.on{background:rgba(var(--tint-rgb),.16);color:var(--txt)}
+.an-live{display:flex;align-items:center;gap:14px;background:var(--surf);border:1px solid var(--brd);border-radius:16px;padding:18px 24px;margin-bottom:16px;flex-wrap:wrap}
+.an-live .big{font-family:var(--fd);font-size:46px;font-weight:800;line-height:1}
+.an-live .lab{color:var(--dim);font-size:13px}
+.an-dot{width:10px;height:10px;border-radius:50%;background:#2fd47a;box-shadow:0 0 0 0 rgba(47,212,122,.6);animation:anpulse 1.8s infinite;flex:none}
+@keyframes anpulse{70%{box-shadow:0 0 0 10px rgba(47,212,122,0)}100%{box-shadow:0 0 0 0 rgba(47,212,122,0)}}
+.an-chips{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.an-chip{font-size:12.5px;background:var(--bg2);border:1px solid var(--brd);border-radius:20px;padding:5px 11px;color:var(--txt)}
+.an-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px}
+.an-card{background:var(--surf);border:1px solid var(--brd);border-radius:16px;padding:20px 22px;min-width:0}
+.an-card h4{font-family:var(--fd);font-size:15px;margin:0 0 14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.an-card h4 small{font:500 12px var(--fb);color:var(--dim)}
+.an-bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;margin-bottom:10px;font-size:13.5px}
+.an-bar .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-bar .v{color:var(--dim);font-variant-numeric:tabular-nums}
+.an-bar .tr{grid-column:1/3;height:6px;background:var(--bg2);border-radius:4px;overflow:hidden}
+.an-bar .tr i{display:block;height:100%;background:rgba(var(--tint-rgb),.85);border-radius:4px}
+.an-empty{color:var(--dim);font-size:13.5px;padding:8px 0}
+.an-map{position:relative;background:var(--bg2);border:1px solid var(--brd);border-radius:16px;overflow:hidden;margin-bottom:16px}
+.an-map canvas{display:block;width:100%;height:auto}
+.an-map .note{position:absolute;left:14px;bottom:10px;font-size:12px;color:var(--dim)}
+.an-cols{display:flex;align-items:flex-end;gap:3px;height:110px}
+.an-cols div{flex:1;background:rgba(var(--tint-rgb),.7);border-radius:3px 3px 0 0;min-height:2px;position:relative}
+.an-cols div:hover{background:rgba(var(--tint-rgb),1)}
+.an-axis{display:flex;justify-content:space-between;color:var(--dim);font-size:11.5px;margin-top:6px}
+.an-table{width:100%;border-collapse:collapse;font-size:13.5px}
+.an-table th{text-align:left;color:var(--dim);font-weight:600;font-size:12px;padding:8px 10px;border-bottom:1px solid var(--brd);white-space:nowrap}
+.an-table td{padding:9px 10px;border-bottom:1px solid var(--brd);vertical-align:top}
+.an-table tr:last-child td{border-bottom:0}
+.an-scroll{overflow-x:auto}
+.an-pill{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:10px;background:var(--bg2);border:1px solid var(--brd);color:var(--dim)}
+.an-pill.live{color:#2fd47a;border-color:rgba(47,212,122,.4)}
+.an-grid{grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
+@media(max-width:900px){.anav-group{display:none}.an-live .big{font-size:38px}.an-chips{margin-left:0}.atab-stat{min-width:calc(50% - 8px);flex:1}}
+.an-warn{background:rgba(255,180,60,.08);border:1px solid rgba(255,180,60,.3);color:var(--txt);border-radius:12px;padding:12px 16px;font-size:13.5px;margin-bottom:16px}
 /* purchases table */
 .ptable{width:100%;border-collapse:collapse;font-size:14px}
 .ptable th{text-align:left;padding:12px 16px;color:var(--faint);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--brd)}
@@ -924,6 +968,23 @@ html,body{max-width:100%;overflow-x:hidden}
   .nav-cta .nav-user{display:none}
 }
 </style>
+<link rel="canonical" href="https://garagepro.me/" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Garage Pro" />
+<meta property="og:locale" content="en_IN" />
+<meta property="og:title" content="Garage Pro — Garage Management Software for Indian Workshops" />
+<meta property="og:description" content="Garage Pro is all-in-one garage management software for Indian workshops. Manage job cards, bays, parts, inventory, GST invoices, customers and your team in one place." />
+<meta property="og:url" content="https://garagepro.me/" />
+<meta property="og:image" content="https://garagepro.me/garage-pro-logo.png" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Garage Pro — Garage Management Software for Indian Workshops" />
+<meta name="twitter:description" content="Garage Pro is all-in-one garage management software for Indian workshops. Manage job cards, bays, parts, inventory, GST invoices, customers and your team in one place." />
+<meta name="twitter:image" content="https://garagepro.me/garage-pro-logo.png" />
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "Organization", "@id": "https://garagepro.me/#org", "name": "Garage Pro", "url": "https://garagepro.me/", "logo": "https://garagepro.me/garage-pro-logo.png", "parentOrganization": {"@type": "Organization", "name": "Chassys"}, "contactPoint": {"@type": "ContactPoint", "email": "support@garagepro.me", "contactType": "customer support", "areaServed": "IN", "availableLanguage": ["en", "hi"]}}, {"@type": "WebSite", "@id": "https://garagepro.me/#site", "url": "https://garagepro.me/", "name": "Garage Pro", "publisher": {"@id": "https://garagepro.me/#org"}, "inLanguage": "en-IN"}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Does Garage Pro need an internet connection?", "acceptedAnswer": {"@type": "Answer", "text": "Yes \u2014 Garage Pro is a cloud-based web app, so it needs a connection to sync in real time. That's what makes it possible for the front desk, the workshop floor and your phone to always show the exact same live data, with nothing to lose if a device breaks or goes missing."}}, {"@type": "Question", "name": "Are the invoices GST compliant?", "acceptedAnswer": {"@type": "Answer", "text": "Absolutely. Every PDF invoice includes GST, HSN/SAC codes, a clear discount breakdown and the amount in words \u2014 exactly what your accountant and the tax department expect."}}, {"@type": "Question", "name": "Which devices does it run on?", "acceptedAnswer": {"@type": "Answer", "text": "Garage Pro runs entirely in the browser \u2014 open garagepro.me/app from any device on any network. No install required. Sign in with your workshop account, mechanics use their PIN, and everything stays in sync in real time via Firebase."}}, {"@type": "Question", "name": "How quickly can I get started?", "acceptedAnswer": {"@type": "Answer", "text": "Same day. The setup wizard walks you through creating your workshop, adding your bays and workers, and taking your first booking on first launch \u2014 most workshops are up and running within an hour, no installation required."}}, {"@type": "Question", "name": "How does multi-mechanic tracking work?", "acceptedAnswer": {"@type": "Answer", "text": "Each job card can have multiple mechanics assigned, with parts and labour logged against the work. You always know who did what \u2014 accountability is clear and costing is accurate."}}, {"@type": "Question", "name": "What does it cost?", "acceptedAnswer": {"@type": "Answer", "text": "Final pricing is being finalised \u2014 see the pricing section above. You can start free with no card required and get the full feature set from day one."}}]}</script>
+<meta name="theme-color" content="#0c0c0b" />
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
+<meta name="keywords" content="garage management software, workshop management software India, job card software, garage billing software, GST invoice software for garages, auto repair shop software, garage inventory management" />
 </head>
 <body>
 
@@ -1000,34 +1061,44 @@ html,body{max-width:100%;overflow-x:hidden}
     </div>
     <div class="admin-divider"></div>
     <nav class="admin-nav">
-      <button class="anav active" onclick="switchAdminTab('purchases')">
+      <div class="anav-group">Analytics</div>
+      <button class="anav active" data-tab="analytics" onclick="switchAdminTab('analytics')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>Live &amp; Traffic
+      </button>
+      <button class="anav" data-tab="appusage" onclick="switchAdminTab('appusage')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M7 12l3-3 2 2 4-4"/></svg>App Usage
+      </button>
+      <div class="anav-group">Business</div>
+      <button class="anav" data-tab="purchases" onclick="switchAdminTab('purchases')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Purchases
       </button>
-      <button class="anav" onclick="switchAdminTab('leads')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>Leads
-      </button>
-      <button class="anav" onclick="switchAdminTab('licenses')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Licenses
-      </button>
-      <button class="anav" onclick="switchAdminTab('customers')">
+      <button class="anav" data-tab="customers" onclick="switchAdminTab('customers')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers
       </button>
-      <button class="anav" onclick="switchAdminTab('reviews')">
+      <button class="anav" data-tab="leads" onclick="switchAdminTab('leads')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>Leads
+      </button>
+      <button class="anav" data-tab="reviews" onclick="switchAdminTab('reviews')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Reviews
       </button>
-      <button class="anav" onclick="switchAdminTab('plans')">
+      <div class="anav-group">Product &amp; Sales</div>
+      <button class="anav" data-tab="plans" onclick="switchAdminTab('plans')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Plans
       </button>
-      <button class="anav" onclick="switchAdminTab('pricing')">
+      <button class="anav" data-tab="pricing" onclick="switchAdminTab('pricing')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Pricing
       </button>
-      <button class="anav" onclick="switchAdminTab('firebase')">
+      <button class="anav" data-tab="licenses" onclick="switchAdminTab('licenses')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Licenses
+      </button>
+      <div class="anav-group">System</div>
+      <button class="anav" data-tab="firebase" onclick="switchAdminTab('firebase')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17l4.5-13L14 12l2-3 4 8z"/><path d="M5 17l15-5"/></svg>Firebase
       </button>
-      <button class="anav" onclick="switchAdminTab('audit')">
+      <button class="anav" data-tab="audit" onclick="switchAdminTab('audit')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Audit Log
       </button>
-      <button class="anav" onclick="switchAdminTab('account')">
+      <button class="anav" data-tab="account" onclick="switchAdminTab('account')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7"/></svg>Account
       </button>
     </nav>
@@ -1042,8 +1113,69 @@ html,body{max-width:100%;overflow-x:hidden}
   </div>
 
   <div class="admin-main">
+    <!-- ANALYTICS: LIVE & TRAFFIC TAB -->
+    <div class="admin-tab" id="tab-analytics">
+      <div class="an-head">
+        <div><div class="atab-title">Live &amp; Traffic</div>
+        <div class="atab-sub">Who is on the website right now, where they are, and how people find and use it.</div></div>
+        <div class="an-range" id="anRange">
+          <button data-d="1">Today</button><button data-d="7" class="on">7 days</button><button data-d="30">30 days</button><button data-d="90">90 days</button>
+        </div>
+      </div>
+      <div id="anNotice"></div>
+      <div class="an-live">
+        <span class="an-dot"></span>
+        <div><div class="big" id="anLiveN">0</div><div class="lab">visitors on the site right now</div></div>
+        <div class="an-chips" id="anLiveChips"></div>
+      </div>
+      <div class="atab-stat-row" id="anStats"></div>
+      <div class="an-map" id="anMapWrap"><canvas id="anMap" width="1400" height="640"></canvas><div class="note" id="anMapNote">Loading map…</div></div>
+      <div class="an-grid">
+        <div class="an-card"><h4>Visitors per day <small id="anTrendSub"></small></h4><div class="an-cols" id="anTrend"></div><div class="an-axis" id="anTrendAxis"></div></div>
+        <div class="an-card"><h4>Busiest hours <small>your local time</small></h4><div class="an-cols" id="anHours"></div><div class="an-axis"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>11pm</span></div></div>
+      </div>
+      <div class="an-grid">
+        <div class="an-card"><h4>Countries</h4><div id="anCountries"></div></div>
+        <div class="an-card"><h4>Cities</h4><div id="anCities"></div></div>
+        <div class="an-card"><h4>Traffic sources</h4><div id="anSources"></div></div>
+        <div class="an-card"><h4>Sections viewed <small>scrolled into view</small></h4><div id="anSections"></div></div>
+        <div class="an-card"><h4>Buttons clicked</h4><div id="anClicks"></div></div>
+        <div class="an-card"><h4>Devices</h4><div id="anDevices"></div></div>
+        <div class="an-card"><h4>Browsers</h4><div id="anBrowsers"></div></div>
+        <div class="an-card"><h4>Operating systems</h4><div id="anOS"></div></div>
+        <div class="an-card"><h4>Languages</h4><div id="anLangs"></div></div>
+      </div>
+      <div class="an-card"><h4>Recent visitors <small id="anRecentSub"></small></h4><div class="an-scroll" id="anRecent"></div></div>
+    </div>
+
+    <!-- ANALYTICS: APP USAGE TAB -->
+    <div class="admin-tab" id="tab-appusage">
+      <div class="an-head">
+        <div><div class="atab-title">App Usage</div>
+        <div class="atab-sub">Which pages and features of the Garage Pro web app people actually use.</div></div>
+        <div class="an-range" id="auRange">
+          <button data-d="1">Today</button><button data-d="7" class="on">7 days</button><button data-d="30">30 days</button><button data-d="90">90 days</button>
+        </div>
+      </div>
+      <div id="auNotice"></div>
+      <div class="atab-stat-row" id="auStats"></div>
+      <div class="an-grid">
+        <div class="an-card"><h4>Most-used pages <small>views</small></h4><div id="auTabs"></div></div>
+        <div class="an-card"><h4>Most-used features <small>times used</small></h4><div id="auActions"></div></div>
+        <div class="an-card"><h4>Time spent per page</h4><div id="auTabTime"></div></div>
+        <div class="an-card"><h4>Pages nobody opened <small>in this range</small></h4><div id="auUnused"></div></div>
+      </div>
+      <div class="an-grid">
+        <div class="an-card"><h4>Sessions per day</h4><div class="an-cols" id="auTrend"></div><div class="an-axis" id="auTrendAxis"></div></div>
+        <div class="an-card"><h4>Busiest hours <small>workshop local time</small></h4><div class="an-cols" id="auHours"></div><div class="an-axis"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>11pm</span></div></div>
+        <div class="an-card"><h4>Who is using it <small>sessions by role</small></h4><div id="auRoles"></div></div>
+        <div class="an-card"><h4>Devices</h4><div id="auDevices"></div></div>
+      </div>
+      <div class="an-card"><h4>Workshops <small id="auWsSub"></small></h4><div class="an-scroll" id="auWorkshops"></div></div>
+    </div>
+
     <!-- PURCHASES TAB -->
-    <div class="admin-tab active" id="tab-purchases">
+    <div class="admin-tab" id="tab-purchases">
       <div class="atab-title">Purchases & Sign-ups</div>
       <div class="atab-sub">Every download click and account created on the site.</div>
       <div class="atab-stat-row" id="purchaseStats"></div>
@@ -1104,9 +1236,8 @@ html,body{max-width:100%;overflow-x:hidden}
         </div>
         <div class="form-row">
           <div class="form-group"><label>Monthly price (INR base)</label><input id="pf-monthly" type="number" placeholder="2999" /></div>
-          <div class="form-group"><label>Weekly price (INR base)</label><input id="pf-weekly" type="number" placeholder="899" /></div>
+          <div class="form-group"><label>Yearly price (INR base)</label><input id="pf-yearly" type="number" placeholder="29990" /></div>
         </div>
-        <div class="form-group"><label>Yearly price (INR base)</label><input id="pf-yearly" type="number" placeholder="29990" /></div>
         <div class="form-group">
           <label>Available billing cycles</label>
           <div style="display:flex;gap:18px;padding:8px 0;flex-wrap:wrap">
@@ -1115,9 +1246,6 @@ html,body{max-width:100%;overflow-x:hidden}
             </label>
             <label style="display:flex;align-items:center;gap:7px;font-weight:500;color:var(--txt);cursor:pointer">
               <input type="checkbox" id="pf-cycle-yearly" checked /> Yearly
-            </label>
-            <label style="display:flex;align-items:center;gap:7px;font-weight:500;color:var(--txt);cursor:pointer">
-              <input type="checkbox" id="pf-cycle-weekly" checked /> Weekly
             </label>
           </div>
           <span style="font-size:12px;color:var(--faint)">Uncheck a cycle to hide it from this plan's card on the website.</span>
@@ -1180,7 +1308,7 @@ html,body{max-width:100%;overflow-x:hidden}
       <div class="settings-section" style="max-width:560px;margin-top:22px">
         <h4>Cloud Functions endpoint</h4>
         <p style="color:var(--dim);font-size:13.5px;margin-bottom:18px;line-height:1.6">
-          The site calls <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12px">/activateSubscription</code> on this base URL to record purchases server-side. Find it in Firebase Console &rarr; Functions &rarr; Dashboard after deploying.
+          Base URL of your deployed Cloud Functions. Paid plans are activated by the Lemon Squeezy webhook (<code style="background:var(--bg2);padding:1px 6px;border-radius:4px;color:var(--acc2);font-size:12px">/lsWebhook</code>) — set that URL in Lemon Squeezy → Settings → Webhooks. Find it in Firebase Console &rarr; Functions &rarr; Dashboard after deploying.
         </p>
         <div class="form-group">
           <label>Cloud Functions base URL</label>
@@ -1422,70 +1550,30 @@ html,body{max-width:100%;overflow-x:hidden}
           <div class="bplan-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></div>
           <div><b>Garage Pro — Full License</b><span id="bplanDesc">Annual subscription · unlimited bays</span></div>
         </div>
-        <h3>Card Details</h3>
-        <div class="bf-card-visual">
-          <div class="bf-card-brand">VISA</div>
-          <div class="bf-card-num" id="cardNumDisplay">•••• •••• •••• ••••</div>
-          <div class="bf-card-name" id="cardNameDisplay">CARDHOLDER NAME</div>
-          <div class="bf-card-exp" id="cardExpDisplay">MM/YY</div>
-        </div>
-        <div class="form-group">
-          <label>Card Number</label>
-          <input id="bf-num" type="text" maxlength="19" placeholder="4242 4242 4242 4242" oninput="formatCardInput()" />
-        </div>
-        <div class="form-group">
-          <label>Cardholder Name</label>
-          <input id="bf-name" type="text" placeholder="Rajesh Kumar" oninput="updateCardVisual()" />
-        </div>
-        <div class="bf-row-3">
-          <div class="form-group">
-            <label>Expiry (MM/YY)</label>
-            <input id="bf-exp" type="text" maxlength="5" placeholder="12/28" oninput="formatExpInput()" />
-          </div>
-          <div class="form-group">
-            <label>CVV</label>
-            <input id="bf-cvv" type="text" maxlength="4" placeholder="123" />
-          </div>
-          <div class="form-group">
-            <label>ZIP / PIN</label>
-            <input id="bf-zip" type="text" maxlength="10" placeholder="411001" />
-          </div>
-        </div>
-        <h3 style="margin-top:24px">Billing Address</h3>
-        <div class="form-group">
-          <label>Address Line 1</label>
-          <input id="bf-addr" type="text" placeholder="Shop 12, MG Road" />
-        </div>
-        <div class="bf-row">
-          <div class="form-group"><label>City</label><input id="bf-city" type="text" placeholder="Pune" /></div>
-          <div class="form-group"><label>State</label><input id="bf-state" type="text" placeholder="Maharashtra" /></div>
-        </div>
+        <h3>Secure checkout</h3>
+        <p style="color:var(--dim);font-size:14px;line-height:1.65;margin:0 0 16px">You'll pay in a secure popup run by <b style="color:var(--txt)">Lemon Squeezy</b>, our payment partner. We never see or store your card details.</p>
+        <ul style="list-style:none;padding:0;margin:0 0 18px;display:grid;gap:10px;font-size:14px;color:var(--txt)">
+          <li>✓ Cards, UPI and wallets where available</li>
+          <li>✓ Your plan activates automatically as soon as payment succeeds</li>
+          <li>✓ Invoices, card updates and cancellation any time from your account</li>
+        </ul>
+        <div id="lsTestBanner" style="display:none;background:rgba(255,180,60,.1);border:1px solid rgba(255,180,60,.35);border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.55;color:var(--txt)"><b>Test mode.</b> No real money is taken. Pay with card <code>4242 4242 4242 4242</code>, any future expiry and any CVC.</div>
       </div>
       <div class="billing-summary">
         <h3>Order Summary</h3>
         <div class="bsum-item"><span class="lbl">Garage Pro License</span><span class="val" id="bsumPrice">₹4,999</span></div>
         <div class="bsum-item"><span class="lbl">Cloud sync (Firebase)</span><span class="val">Included</span></div>
-        <div class="bsum-item"><span class="lbl">Subtotal</span><span class="val" id="bsumSubtotal">₹4,999</span></div>
-        <div class="bsum-item"><span class="lbl">GST (18%)</span><span class="val" id="bsumGst">₹900</span></div>
-        <!-- Discount code row -->
-        <div style="padding:14px 0;border-bottom:1px dashed var(--brd)">
-          <div style="display:flex;gap:8px;margin-bottom:4px">
-            <input id="bf-discount" type="text" placeholder="Discount code" style="flex:1;background:var(--bg);border:1px solid var(--brd2);border-radius:8px;padding:8px 12px;color:var(--txt);font-family:'Courier New',monospace;font-size:13px;text-transform:uppercase;outline:none" />
-            <button type="button" onclick="applyDiscountCode()" style="background:var(--surf);border:1px solid var(--brd2);color:var(--dim);padding:8px 14px;border-radius:8px;font-family:var(--fb);font-weight:600;font-size:12.5px;cursor:pointer">Apply</button>
-          </div>
-          <div id="bf-discount-msg" style="font-size:12px;min-height:14px"></div>
-        </div>
-        <div class="bsum-item" id="bsumDiscountRow" style="display:none"><span class="lbl" id="bsumDiscountLabel">Discount</span><span class="val" id="bsumDiscount" style="color:var(--teal)">-₹0</span></div>
-        <div class="bsum-total"><span>Total</span><span class="val" id="bsumTotal">₹5,899</span></div>
-        <button class="btn btn-primary" onclick="completePurchase()" style="width:100%;justify-content:center;margin-top:24px">
+        <div class="bsum-item"><span class="lbl">Billing</span><span class="val" id="bsumCycle">Monthly</span></div>
+        <div class="bsum-total"><span>Total</span><span class="val" id="bsumTotal">₹0</span></div>
+        <div style="font-size:12px;color:var(--faint);margin-top:6px">Taxes (e.g. GST) and any discount code are applied at checkout.</div>
+        <button class="btn btn-primary" id="lsPayBtn" onclick="startLemonCheckout()" style="width:100%;justify-content:center;margin-top:24px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
-          Pay &amp; get my license
+          Continue to secure checkout
         </button>
         <div class="pay-secure">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
-          Secure 256-bit encrypted payment
+          Payments processed securely by Lemon Squeezy
         </div>
-        <p style="font-size:11.5px;color:var(--faint);text-align:center;margin-top:18px;line-height:1.6">This is a demo — no real charge is made. Test card 4242 4242 4242 4242 works.</p>
       </div>
     </div>
   </div>
@@ -1526,7 +1614,6 @@ html,body{max-width:100%;overflow-x:hidden}
         <select id="ml-cycle">
           <option value="monthly">Monthly</option>
           <option value="yearly">Yearly</option>
-          <option value="weekly">Weekly</option>
         </select>
       </div>
       <div class="form-group">
@@ -1665,38 +1752,30 @@ html,body{max-width:100%;overflow-x:hidden}
     <!-- BRANCHES PANEL — promoted to its own first-class tab. Was the chain-only
          card inside Account; now the default landing screen for all owners. -->
     <div class="user-tab-panel active" id="upanel-branches">
-      <h1 class="greet">Branches &middot; individual logins</h1>
+      <div role="heading" aria-level="2" class="greet">Branches &middot; individual logins</div>
       <p class="greet-sub">Spin up a separate sign-in for every branch in your chain. Each one is its own isolated workshop with its own bookings, inventory, and team. Your chain owner ID is stamped on every branch so reports roll up later.</p>
       <div id="udBranchesPanelHost"></div>
     </div>
     <!-- SUBSCRIPTION PANEL (was License — license keys removed) -->
     <div class="user-tab-panel" id="upanel-subscription">
-      <h1 class="greet" id="udGreet">Your subscription</h1>
+      <div role="heading" aria-level="2" class="greet" id="udGreet">Your subscription</div>
       <p class="greet-sub">Sign in to the web app at <a href="app/" target="_blank" rel="noopener" style="color:var(--acc2)">garagepro.me/app</a> with your account email and password.</p>
       <div id="udLicenseArea"></div>
     </div>
     <!-- BILLING PANEL -->
     <div class="user-tab-panel" id="upanel-billing">
-      <h1 class="greet">Billing</h1>
-      <p class="greet-sub">Your payment history and saved billing info.</p>
+      <div role="heading" aria-level="2" class="greet">Billing</div>
+      <p class="greet-sub">Invoices, payment method and plan changes are managed securely with Lemon Squeezy.</p>
       <div class="user-card">
-        <h4>Payment History</h4>
-        <div id="udBillingHistory"></div>
-      </div>
-      <div class="user-card" id="udSavedCard" style="display:none">
-        <h4>Saved Payment Method</h4>
-        <div style="display:flex;align-items:center;gap:14px">
-          <div style="width:44px;height:30px;background:linear-gradient(135deg,var(--ink),var(--ink));border-radius:5px"></div>
-          <div>
-            <div style="font-weight:700;font-family:'Courier New',monospace" id="udCardLast4">VISA •••• ••••</div>
-            <div style="color:var(--faint);font-size:13px" id="udCardName">—</div>
-          </div>
-        </div>
+        <h4>Manage billing</h4>
+        <p style="color:var(--dim);font-size:14px;line-height:1.6;margin:0 0 14px">Download invoices, update your card, switch plan or cancel — all in your billing portal. You'll be asked for the email you paid with.</p>
+        <button class="btn btn-primary" onclick="lsOpenPortal()">Open billing portal</button>
+        <div id="udBillingHistory" style="margin-top:16px;color:var(--faint);font-size:13px"></div>
       </div>
     </div>
     <!-- ACCOUNT PANEL -->
     <div class="user-tab-panel" id="upanel-account">
-      <h1 class="greet">Account</h1>
+      <div role="heading" aria-level="2" class="greet">Account</div>
       <p class="greet-sub">Edit your personal details, garage info, and saved bank account.</p>
 
       <div class="user-card">
@@ -2403,8 +2482,8 @@ const DEFAULT_PLANS = [
     id:'solo',
     name:'Solo',
     tag:'For the one-bay operation',
-    monthly: 0, weekly: 0, yearly: 0,
-    cycles: ['monthly','weekly','yearly'],
+    monthly: 0, yearly: 0,
+    cycles: ['monthly','yearly'],
     maxBays: 1, maxWorkers: 2, maxBookings: 5,
     features: [
       '1 bay',
@@ -2418,8 +2497,8 @@ const DEFAULT_PLANS = [
     id:'standard',
     name:'Standard',
     tag:'Growing workshop',
-    monthly: 999, weekly: 299, yearly: 9990,
-    cycles: ['monthly','weekly','yearly'],
+    monthly: 999, yearly: 9990,
+    cycles: ['monthly','yearly'],
     maxBays: 3, maxWorkers: 5, maxBookings: 10,
     features: [
       'Up to 3 bays',
@@ -2433,8 +2512,8 @@ const DEFAULT_PLANS = [
     id:'workshop',
     name:'Workshop',
     tag:'Full-floor control',
-    monthly: 2499, weekly: 749, yearly: 24990,
-    cycles: ['monthly','weekly','yearly'],
+    monthly: 2499, yearly: 24990,
+    cycles: ['monthly','yearly'],
     maxBays: 6, maxWorkers: 10, maxBookings: 20,
     features: [
       'Up to 6 bays',
@@ -2448,8 +2527,8 @@ const DEFAULT_PLANS = [
     id:'chain',
     name:'Chain',
     tag:'Multi-branch operation',
-    monthly: 4999, weekly: 1499, yearly: 49990,
-    cycles: ['monthly','weekly','yearly'],
+    monthly: 4999, yearly: 49990,
+    cycles: ['monthly','yearly'],
     maxBays: 999, maxWorkers: 999, maxBookings: 999,
     features: [
       'Unlimited bays & workers',
@@ -2465,6 +2544,17 @@ const DEFAULT_PLANS = [
 // A saved catalogue is only kept if its stored version matches; otherwise the
 // new defaults win once, then the admin can edit freely from there.
 const PLANS_VERSION = 2;
+
+// Weekly billing was removed — strip it from any catalogue saved earlier
+// (localStorage / Firestore) so old data can't resurface it.
+function sanitizePlans() {
+  (S.plans || []).forEach(p => {
+    delete p.weekly;
+    p.cycles = (Array.isArray(p.cycles) ? p.cycles : ['monthly','yearly']).filter(c => c === 'monthly' || c === 'yearly');
+    if (!p.cycles.length) p.cycles = ['monthly','yearly'];
+  });
+  if (S.billingCycle !== 'yearly') S.billingCycle = 'monthly';
+}
 
 // Tiny helpers for the cycle-aware price + duration logic
 function planCyclePrice(plan, cycle) {
@@ -2488,11 +2578,11 @@ function allEnabledCycles() {
   // Cycles that at least one active plan supports
   const set = new Set();
   S.plans.filter(p => p.active).forEach(p => {
-    const c = Array.isArray(p.cycles) ? p.cycles : ['monthly','weekly','yearly'];
+    const c = Array.isArray(p.cycles) ? p.cycles : ['monthly','yearly'];
     c.forEach(x => set.add(x));
   });
   // Preferred display order
-  return ['monthly','yearly','weekly'].filter(c => set.has(c));
+  return ['monthly','yearly'].filter(c => set.has(c));
 }
 const DEFAULT_REVIEWS = [
   {id:1,stars:5,text:'"We threw out the paper job cards in week one. The lads update everything from any device and I can see the whole floor from my desk. Invoices that used to take ten minutes now take ten seconds."',name:'Rajesh Kumar',role:'Owner, Speed Auto Care · Pune',initials:'RK'},
@@ -2590,6 +2680,7 @@ function load() {
     else S.plans = DEFAULT_PLANS.map(p => ({ ...p }));
     const cur = localStorage.getItem(KEYS.currency); if(cur) S.currency = cur;
     const cyc = localStorage.getItem(KEYS.cycle); if(cyc) S.billingCycle = cyc;
+    sanitizePlans();
     const cch = localStorage.getItem(KEYS.credsChanged); if(cch === 'true') S.credsChanged = true;
     const cfu = localStorage.getItem(KEYS.cloudFnUrl); if(cfu) S.cloudFnUrl = cfu;
     const dmo = localStorage.getItem(KEYS.demo); if(dmo) S.demo = Object.assign({}, S.demo, JSON.parse(dmo));
@@ -3070,8 +3161,11 @@ document.getElementById('authModal').addEventListener('click', e => { if(e.targe
 // ══════════════════════════════════════════
 function openAdminPanel() {
   if (!currentUser || !currentUser.isAdmin) return;
+  // never count the admin's own browsing as a website visit
+  try { localStorage.setItem('gp_notrack', '1'); } catch (e) {}
+  trackerStop();
   document.getElementById('adminPanel').classList.add('open');
-  switchAdminTab('purchases');
+  switchAdminTab('analytics');
   renderPurchasesTab();
   renderAdminReviewsGrid();
   renderAdminPricing();
@@ -3081,14 +3175,17 @@ function openAdminPanel() {
 function closeAdminPanel() {
   document.getElementById('adminPanel').classList.remove('open');
   document.body.style.overflow = '';
+  anStop();
 }
 function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.anav').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.anav').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('tab-' + tab).classList.add('active');
-  // sidebar order: purchases, leads, licenses, customers, reviews, plans, pricing, firebase, audit, account
-  const idx = {purchases:0,leads:1,licenses:2,customers:3,reviews:4,plans:5,pricing:6,firebase:7,audit:8,account:9}[tab];
-  document.querySelectorAll('.anav')[idx].classList.add('active');
+  document.querySelector('.admin-main').scrollTop = 0;
+  if (tab !== 'analytics' && tab !== 'appusage') anStop();
+  if (tab === 'analytics') anStart();
+  if (tab === 'appusage')  auStart();
+  if (tab === 'purchases') renderPurchasesTab();
   if (tab === 'leads')     renderLeadsTab();
   if (tab === 'licenses')  renderLicensesTab();
   if (tab === 'customers') { renderCustomersTab(); if (usersListenerError) loadCustomersViaFunction().then(renderCustomersTab); }
@@ -4190,21 +4287,18 @@ function renderReviews() {
 async function detectCountry() {
   // Try the IP API first (precise). Fall back to browser timezone guessing.
   try {
-    const res = await fetch('https://ipapi.co/json/', {cache:'no-store'});
-    if (res.ok) {
-      const j = await res.json();
-      if (j.country) {
-        S.detectedCountry = j.country;
-        const ccy = (j.currency && CURRENCIES[j.currency]) ? j.currency : (COUNTRY_CURRENCY[j.country] || 'USD');
-        // Only override the saved currency the very first time
-        if (!localStorage.getItem(KEYS.currency)) {
-          S.currency = ccy;
-          save();
-        }
-        const tag = document.getElementById('detectedCountry');
-        if (tag) tag.textContent = `· auto-detected: ${j.country_name || j.country}`;
-        return;
+    const g = await getGeo();
+    if (g && g.country) {
+      S.detectedCountry = g.country;
+      const ccy = (g.currency && CURRENCIES[g.currency]) ? g.currency : (COUNTRY_CURRENCY[g.country] || 'USD');
+      // Only override the saved currency the very first time
+      if (!localStorage.getItem(KEYS.currency)) {
+        S.currency = ccy;
+        save();
       }
+      const tag = document.getElementById('detectedCountry');
+      if (tag) tag.textContent = `· auto-detected: ${g.countryName || g.country}`;
+      return;
     }
   } catch(e) { /* fall through */ }
   // Fallback — timezone heuristic
@@ -4399,13 +4493,8 @@ function selectPlan(planId) {
   pendingPlatform = 'windows';
   if (!currentUser) { openAuth('win'); return; }
   if (currentUser.isAdmin) { showToast('Admins cannot buy plans (sign in as a user)', 'bad'); return; }
-  // If already has an active license → this is an upgrade flow
-  const existing = S.licenses.find(l => l.email === currentUser.email && l.status === 'active');
-  if (existing) {
-    // direct upgrade path (no card re-entry)
-    upgradeUserPlan(planId);
-    return;
-  }
+  // Already on a paid plan → changes happen in the billing portal / upgrade screen
+  if (lsHasPaidSub()) { openUpgradeModal(); return; }
   openBilling();
 }
 
@@ -4542,12 +4631,10 @@ function renderAdminPlansGrid() {
     <h4>${p.name} ${p.featured ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(var(--tint-rgb),.16);color:var(--acc2);margin-left:6px;vertical-align:middle">FEATURED</span>' : ''} ${!p.active ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(255,107,107,.14);color:#ff6b6b;margin-left:6px;vertical-align:middle">HIDDEN</span>' : ''}</h4>
     <div class="pa-tag">${p.tag}</div>
     <div class="pa-price">
-      ${!(p.monthly || p.weekly || p.yearly) ? 'Free' : ''}
+      ${!(p.monthly || p.yearly) ? 'Free' : ''}
       ${p.monthly ? `${formatPrice(p.monthly, 'INR')} / mo` : ''}
       ${p.monthly && p.yearly ? ' · ' : ''}
       ${p.yearly  ? `${formatPrice(p.yearly,  'INR')} / yr` : ''}
-      ${(p.monthly || p.yearly) && p.weekly ? ' · ' : ''}
-      ${p.weekly  ? `${formatPrice(p.weekly,  'INR')} / wk` : ''}
       ${p.contact ? ' <span style="color:var(--acc2)">· Contact us</span>' : ''}
     </div>
     <div class="pa-limits">
@@ -4571,7 +4658,6 @@ function openPlanForm(id) {
     document.getElementById('pf-name').value = p.name;
     document.getElementById('pf-tag').value = p.tag;
     document.getElementById('pf-monthly').value = p.monthly || '';
-    document.getElementById('pf-weekly').value  = p.weekly  || '';
     document.getElementById('pf-yearly').value  = p.yearly  || '';
     document.getElementById('pf-bays').value = p.maxBays;
     document.getElementById('pf-workers').value = p.maxWorkers;
@@ -4583,16 +4669,14 @@ function openPlanForm(id) {
     const cycles = Array.isArray(p.cycles) ? p.cycles : ['monthly','yearly','weekly'];
     document.getElementById('pf-cycle-monthly').checked = cycles.includes('monthly');
     document.getElementById('pf-cycle-yearly').checked  = cycles.includes('yearly');
-    document.getElementById('pf-cycle-weekly').checked  = cycles.includes('weekly');
   } else {
     document.getElementById('planFormTitle').textContent = 'Add Plan';
-    ['planEditId','pf-name','pf-tag','pf-monthly','pf-weekly','pf-yearly','pf-bays','pf-workers','pf-bookings','pf-features'].forEach(i => document.getElementById(i).value = '');
+    ['planEditId','pf-name','pf-tag','pf-monthly','pf-yearly','pf-bays','pf-workers','pf-bookings','pf-features'].forEach(i => document.getElementById(i).value = '');
     document.getElementById('pf-featured').value = 'false';
     document.getElementById('pf-active').value   = 'true';
     document.getElementById('pf-contact').value  = 'false';
     document.getElementById('pf-cycle-monthly').checked = true;
     document.getElementById('pf-cycle-yearly').checked  = true;
-    document.getElementById('pf-cycle-weekly').checked  = true;
   }
   f.scrollIntoView({behavior:'smooth'});
 }
@@ -4617,7 +4701,6 @@ function savePlan() {
   const name   = document.getElementById('pf-name').value.trim();
   const tag    = document.getElementById('pf-tag').value.trim();
   const monthly= parseInt(document.getElementById('pf-monthly').value, 10) || 0;
-  const weekly = parseInt(document.getElementById('pf-weekly').value, 10) || 0;
   const yearly = parseInt(document.getElementById('pf-yearly').value, 10) || (monthly ? monthly * 10 : 0);
   const maxBays    = parseInt(document.getElementById('pf-bays').value, 10) || 1;
   const maxWorkers = parseInt(document.getElementById('pf-workers').value, 10) || 1;
@@ -4629,7 +4712,6 @@ function savePlan() {
   const cycles   = [];
   if (document.getElementById('pf-cycle-monthly').checked) cycles.push('monthly');
   if (document.getElementById('pf-cycle-yearly').checked)  cycles.push('yearly');
-  if (document.getElementById('pf-cycle-weekly').checked)  cycles.push('weekly');
   if (!cycles.length) { showToast('Pick at least one billing cycle', 'bad'); return; }
   if (!name)          { showToast('Plan name is required', 'bad'); return; }
   if (featured) {
@@ -4639,12 +4721,12 @@ function savePlan() {
   if (editId) {
     const idx = S.plans.findIndex(p => p.id === editId);
     if (idx !== -1) {
-      S.plans[idx] = { ...S.plans[idx], name, tag, monthly, weekly, yearly, cycles, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active, contact };
+      S.plans[idx] = { ...S.plans[idx], name, tag, monthly, yearly, cycles, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active, contact };
     }
   } else {
     const id = name.toLowerCase().replace(/[^a-z0-9]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || ('plan-' + Date.now().toString(36));
     if (S.plans.find(p => p.id === id)) { showToast('A plan with that name already exists', 'bad'); return; }
-    S.plans.push({ id, name, tag, monthly, weekly, yearly, cycles, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active });
+    S.plans.push({ id, name, tag, monthly, yearly, cycles, maxBays, maxWorkers, maxBookings, features: featuresArr, featured, active });
   }
   save(); closePlanForm(); renderAdminPlansGrid(); renderPlansGrid();
   syncPlansToFirebase();
@@ -4714,110 +4796,27 @@ function renderUpgradePlans() {
     </div>`;
   }).join('');
 }
+// Plan changes for paying customers are handled in Lemon Squeezy's billing portal
+// (proration, card updates, cancellation). Free / trial users simply buy a plan.
+function lsHasPaidSub() {
+  const s = currentSubscription;
+  return !!(s && s.lastPaymentMethod === 'lemonsqueezy' && s.status === 'active' && isSubscriptionActive(s));
+}
 async function upgradeUserPlan(planId, cycle) {
-  if (!currentUser || currentUser.isAdmin) {
-    showToast('Sign in as a customer to change plans', 'bad');
+  if (!currentUser || currentUser.isAdmin) { showToast('Sign in as a customer to change plans', 'bad'); return; }
+  if (!fbAuth || !fbAuth.currentUser) { closeUpgrade(); openAuth('win'); return; }
+  const plan = S.plans.find(p => p.id === planId);
+  if (!plan) { showToast('Plan not found', 'bad'); return; }
+  if (lsHasPaidSub()) {
+    showToast('Opening your billing portal to change plan…', 'good');
+    lsOpenPortal();
     return;
   }
-  if (!fbAuth || !fbAuth.currentUser) {
-    closeUpgrade();
-    openAuth('win');
-    return;
-  }
-  const newPlan = S.plans.find(p => p.id === planId);
-  if (!newPlan) { showToast('Plan not found', 'bad'); return; }
-  const newCycle = cycle || S.billingCycle;
-
-  // Compute upgrade/downgrade pricing
-  const sub          = currentSubscription;
-  const curPlan      = sub ? S.plans.find(p => p.id === sub.plan) : null;
-  const curCyclePrice= sub && curPlan ? planCyclePrice(curPlan, sub.billingCycle) : 0;
-  const newCyclePrice= planCyclePrice(newPlan, newCycle);
-  const isUpgrade    = !sub || newCyclePrice > curCyclePrice;
-  const chargeNow    = isUpgrade ? Math.max(0, newCyclePrice - curCyclePrice) : newCyclePrice;
-  const fmt          = n => formatPrice(n);
-
-  // Show a brief processing animation (fake payment)
+  S.billingCycle = (cycle === 'yearly') ? 'yearly' : 'monthly';
+  pendingPlanId = planId;
   closeUpgrade();
-  const title = isUpgrade
-    ? `Upgrading to ${newPlan.name}…`
-    : `Scheduling downgrade to ${newPlan.name}…`;
-  const subTxt = isUpgrade
-    ? `You'll be charged the difference: ${fmt(chargeNow)}. Plan changes immediately.`
-    : `You'll be charged ${fmt(chargeNow)} now. The new plan starts when your current one ends.`;
-  showProcessing(title, subTxt);
-  await new Promise(r => setTimeout(r, 800));
-  processingStep(1);
-  await new Promise(r => setTimeout(r, 600));
-  processingStep(2);
-
-  try {
-    const result = await callActivateSubscription(currentUser.email, newPlan.id, newCycle, {
-      isUpgrade,
-      chargeNow,
-      previousSubscription: sub
-    });
-    processingStep(3);
-    await new Promise(r => setTimeout(r, 400));
-    processingSuccess(result.licenseKey, newPlan.name, result.expiry);
-    logPurchase(`${isUpgrade ? 'Upgrade' : 'Downgrade'} · ${newPlan.name} (${newCycle}) · ${fmt(chargeNow)}`, currentUser);
-    save();
-    renderPlansGrid();
-  } catch (err) {
-    processingError(err.message || 'Could not switch plan.');
-  }
-  return;
-
-  // ── Dead code path below — kept harmless so old refs compile ──
-  let lic = null;
-  if (false) {
-    pendingPlanId = planId;
-    upgradeCycle = newCycle;
-    openBilling();
-    return;
-  }
-  // Update license in place
-  lic.upgradeHistory = lic.upgradeHistory || [];
-  lic.upgradeHistory.push({
-    from: { planId: lic.planId, plan: lic.plan, billingCycle: lic.billingCycle, maxBays: lic.maxBays, maxWorkers: lic.maxWorkers, maxBookings: lic.maxBookings },
-    to:   { planId: newPlan.id, plan: newPlan.name, billingCycle: newCycle, maxBays: newPlan.maxBays, maxWorkers: newPlan.maxWorkers, maxBookings: newPlan.maxBookings },
-    ts: new Date().toISOString()
-  });
-  lic.planId = newPlan.id;
-  lic.plan = newPlan.name;
-  lic.billingCycle = newCycle;
-  lic.maxBays = newPlan.maxBays;
-  lic.maxWorkers = newPlan.maxWorkers;
-  lic.maxBookings = newPlan.maxBookings;
-  lic.currency = S.currency;
-  lic.amount = newCycle === 'weekly' ? newPlan.weekly : newPlan.monthly;
-  lic.upgradedAt = new Date().toISOString();
-  // Add a billing record
-  const billRec = {
-    id: Date.now(),
-    email: currentUser.email,
-    name: currentUser.name,
-    amount: lic.amount,
-    currency: S.currency,
-    status: 'paid',
-    cardLast4: (S.accounts.find(a => a.email === currentUser.email) || {}).cardLast4 || null,
-    invoiceId: 'INV-' + Date.now().toString(36).toUpperCase(),
-    planId: newPlan.id,
-    plan: newPlan.name,
-    billingCycle: newCycle,
-    ts: new Date().toLocaleString('en-IN')
-  };
-  S.billing.unshift(billRec);
-  syncBillingToFirebase(billRec);
-  logPurchase(`Upgrade · ${newPlan.name} (${newCycle})`, currentUser);
-  save();
-  // Sync to Firebase
-  const acc = S.accounts.find(a => a.email === currentUser.email);
-  syncLicenseToFirebase(lic, acc);
-  closeUpgrade();
-  showToast(`Switched to ${newPlan.name} (${newCycle})`, 'good');
-  if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
-  renderPlansGrid();
+  if (!(plan.monthly || plan.yearly)) { activateFreePlan(planId); return; }
+  openBilling();
 }
 
 // ══════════════════════════════════════════
@@ -5486,13 +5485,6 @@ async function submitManualLicense() {
 let pendingPlatform = 'windows';
 function openBilling() {
   if (!currentUser) { openAuth('win'); return; }
-  // Prefill name + clear any stale discount from a previous open
-  document.getElementById('bf-name').value = currentUser.name || '';
-  const dcInput = document.getElementById('bf-discount');
-  const dcMsg   = document.getElementById('bf-discount-msg');
-  if (dcInput) dcInput.value = '';
-  if (dcMsg)   dcMsg.textContent = '';
-  appliedDiscount = null;
   updateBillingPrices();
   document.getElementById('billingModal').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -5501,93 +5493,112 @@ function closeBilling() {
   document.getElementById('billingModal').classList.remove('open');
   document.body.style.overflow = '';
 }
-// State for an applied discount (cleared each time the billing modal opens)
-let appliedDiscount = null;
+// ══════════════════════════════════════════
+//  LEMON SQUEEZY CHECKOUT
+//  • The customer pays in Lemon Squeezy's overlay (lemon.js).
+//  • Plans are NEVER activated from this page. Lemon Squeezy calls our
+//    `lsWebhook` Cloud Function (HMAC-signed), which writes the subscription.
+//    This page just waits for users/{uid}.subscription to change.
+//  • Fill in the checkout links below (Lemon Squeezy → Products → variant →
+//    Share → "Checkout link"). One per paid plan × billing cycle.
+// ══════════════════════════════════════════
+const LS_CONFIG = {
+  testMode: true,                       // flip to false when you go live
+  checkout: {
+    standard: { monthly: 'https://garagepro.lemonsqueezy.com/checkout/buy/bfb6ae18-ca82-443f-9624-cc55ae03bee8',
+                yearly:  'https://garagepro.lemonsqueezy.com/checkout/buy/87d3e76e-7a7e-4d75-9c12-027b52078366' },
+    workshop: { monthly: 'https://garagepro.lemonsqueezy.com/checkout/buy/d669ce20-56ea-48c6-8dbb-3c77a28f4a58',
+                yearly:  'https://garagepro.lemonsqueezy.com/checkout/buy/ee81dee9-b429-4d45-b781-a95e1e9edfe0' }
+  },
+  // Customer billing portal: invoices, card, cancel / change plan.
+  billingPortal: 'https://garagepro.lemonsqueezy.com/billing'
+};
+let lsWatch = null;
 
 function updateBillingPrices() {
-  // Resolve the plan the user is buying
   const planId = pendingPlanId || (S.plans.find(p => p.featured && p.active) || S.plans[0]).id;
   const plan = S.plans.find(p => p.id === planId) || S.plans[0];
-  const cycle = S.billingCycle || 'monthly';
-  const baseInr = cycle === 'weekly' ? plan.weekly : (cycle === 'yearly' ? plan.yearly : plan.monthly);
-  // Convert to user's currency
+  const cycle = S.billingCycle === 'yearly' ? 'yearly' : 'monthly';
+  const baseInr = cycle === 'yearly' ? plan.yearly : plan.monthly;
   const ccy = CURRENCIES[S.currency] || CURRENCIES.INR;
-  const base = Math.round(baseInr * ccy.rate);
-  // 18% GST only for INR (Indian customers). Others see just the subtotal.
-  const gst = ccy.code === 'INR' ? Math.round(base * 0.18) : 0;
-  // Apply discount if there's one
-  const discPct  = appliedDiscount ? appliedDiscount.percent : 0;
-  const discAmt  = Math.round((base + gst) * discPct / 100);
-  const total    = base + gst - discAmt;
-  const fmt = n => `${ccy.sym}${n.toLocaleString('en-IN')}`;
-  document.getElementById('bsumPrice').textContent = fmt(base);
-  document.getElementById('bsumSubtotal').textContent = fmt(base);
-  document.getElementById('bsumGst').textContent = gst ? fmt(gst) : 'Not applicable';
-  document.getElementById('bsumTotal').textContent = fmt(total);
-  // Show / hide the discount row
-  const row = document.getElementById('bsumDiscountRow');
-  if (row) {
-    if (appliedDiscount) {
-      row.style.display = 'flex';
-      document.getElementById('bsumDiscountLabel').textContent = `Discount (${appliedDiscount.code})`;
-      document.getElementById('bsumDiscount').textContent = '-' + fmt(discAmt);
-    } else {
-      row.style.display = 'none';
-    }
-  }
-  document.getElementById('bplanDesc').textContent = `${plan.name} · ${cycle === 'yearly' ? 'Billed yearly' : (cycle === 'weekly' ? 'Billed weekly' : 'Billed monthly')} · ${plan.maxBays >= 999 ? 'unlimited' : plan.maxBays} bays · ${plan.maxWorkers >= 999 ? 'unlimited' : plan.maxWorkers} workers`;
-  // Update header text from "Garage Pro — Full License" to plan name
+  const total = Math.round(baseInr * ccy.rate);
+  document.getElementById('bsumPrice').textContent = `${ccy.sym}${total.toLocaleString('en-IN')}`;
+  document.getElementById('bsumTotal').textContent = `${ccy.sym}${total.toLocaleString('en-IN')}`;
+  document.getElementById('bsumCycle').textContent = cycle === 'yearly' ? 'Yearly' : 'Monthly';
+  document.getElementById('bplanDesc').textContent = `${plan.name} · ${cycle === 'yearly' ? 'Billed yearly' : 'Billed monthly'} · ${plan.maxBays >= 999 ? 'unlimited' : plan.maxBays} bays · ${plan.maxWorkers >= 999 ? 'unlimited' : plan.maxWorkers} workers`;
   const planLabel = document.querySelector('#billingModal .bplan b');
   if (planLabel) planLabel.textContent = `Garage Pro — ${plan.name}`;
+  const tb = document.getElementById('lsTestBanner'); if (tb) tb.style.display = LS_CONFIG.testMode ? 'block' : 'none';
 }
-
-function applyDiscountCode() {
-  const input = document.getElementById('bf-discount');
-  const msg   = document.getElementById('bf-discount-msg');
-  const code  = input.value.trim().toUpperCase();
-  if (!code) {
-    appliedDiscount = null;
-    msg.textContent = '';
-    updateBillingPrices();
-    return;
-  }
-  const res = validateDiscountCode(code);
-  if (!res.valid) {
-    appliedDiscount = null;
-    msg.style.color = '#ff6b6b';
-    msg.textContent = {
-      not_found: 'Code not recognised.',
-      disabled:  'This code is disabled.',
-      expired:   'This code has expired.',
-      used_up:   'This code has reached its usage limit.'
-    }[res.reason] || 'Invalid code.';
-  } else {
-    appliedDiscount = res;
-    msg.style.color = 'var(--teal)';
-    msg.textContent = `✓ ${res.percent}% off applied`;
-  }
-  updateBillingPrices();
+function lsOpenPortal() {
+  if (!LS_CONFIG.billingPortal) { showToast('Billing portal not configured yet — contact support.', 'bad'); return; }
+  window.open(LS_CONFIG.billingPortal, '_blank', 'noopener');
 }
-function formatCardInput() {
-  const inp = document.getElementById('bf-num');
-  let v = inp.value.replace(/\D/g,'').slice(0,16);
-  inp.value = v.replace(/(.{4})/g,'$1 ').trim();
-  updateCardVisual();
+async function startLemonCheckout() {
+  if (!currentUser || currentUser.isAdmin || !fbAuth || !fbAuth.currentUser) { closeBilling(); openAuth('win'); return; }
+  const planId = pendingPlanId || (S.plans.find(p => p.featured && p.active) || S.plans[0]).id;
+  const plan   = S.plans.find(p => p.id === planId);
+  const cycle  = S.billingCycle === 'yearly' ? 'yearly' : 'monthly';
+  const link   = plan && LS_CONFIG.checkout[plan.id] && LS_CONFIG.checkout[plan.id][cycle];
+  if (!link) { showToast('Checkout for this plan isn\'t set up yet — please contact support.', 'bad'); return; }
+  let url;
+  try {
+    url = new URL(link);
+    url.searchParams.set('embed', '1');
+    url.searchParams.set('media', '0');
+    url.searchParams.set('checkout[email]', fbAuth.currentUser.email || '');
+    url.searchParams.set('checkout[name]', currentUser.name || '');
+    url.searchParams.set('checkout[custom][uid]', fbAuth.currentUser.uid);
+    url.searchParams.set('checkout[custom][plan]', plan.id);
+    url.searchParams.set('checkout[custom][cycle]', cycle);
+  } catch (e) { showToast('Checkout link is invalid.', 'bad'); return; }
+  const startSub = currentSubscription;
+  const opened = () => {
+    closeBilling();
+    lsWatchActivation(plan, cycle, startSub);
+  };
+  try {
+    if (window.createLemonSqueezy) window.createLemonSqueezy();
+    if (window.LemonSqueezy && LemonSqueezy.Url) {
+      LemonSqueezy.Setup({ eventHandler: ev => {
+        if (ev && ev.event === 'Checkout.Success') opened();
+      }});
+      LemonSqueezy.Url.Open(url.toString());
+      return;
+    }
+  } catch (e) { console.warn('[lemon.js]', e); }
+  // lemon.js blocked / not loaded → fall back to the hosted checkout page in a new tab
+  window.open(url.toString().replace('embed=1', 'embed=0'), '_blank', 'noopener');
+  opened();
 }
-function formatExpInput() {
-  const inp = document.getElementById('bf-exp');
-  let v = inp.value.replace(/\D/g,'').slice(0,4);
-  if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
-  inp.value = v;
-  updateCardVisual();
-}
-function updateCardVisual() {
-  const num = document.getElementById('bf-num').value || '•••• •••• •••• ••••';
-  const name = document.getElementById('bf-name').value.toUpperCase() || 'CARDHOLDER NAME';
-  const exp = document.getElementById('bf-exp').value || 'MM/YY';
-  document.getElementById('cardNumDisplay').textContent = num.padEnd(19,'•').slice(0,19);
-  document.getElementById('cardNameDisplay').textContent = name;
-  document.getElementById('cardExpDisplay').textContent = exp;
+// After payment the webhook activates the plan; wait for the Firestore listener to see it.
+function lsWatchActivation(plan, cycle, before) {
+  if (lsWatch) clearInterval(lsWatch);
+  showProcessing('Payment received', 'Activating your plan — this usually takes a few seconds…');
+  processingStep(1);
+  const t0 = Date.now();
+  const beforeKey = before && before.lsSubscriptionId + '|' + before.plan + '|' + before.billingCycle;
+  lsWatch = setInterval(async () => {
+    const s = currentSubscription;
+    const fresh = s && s.status === 'active' && s.lastPaymentMethod === 'lemonsqueezy' && (s.lsSubscriptionId + '|' + s.plan + '|' + s.billingCycle) !== beforeKey;
+    if (fresh) {
+      clearInterval(lsWatch); lsWatch = null;
+      processingStep(3);
+      await new Promise(r => setTimeout(r, 400));
+      processingSuccess(s.licenseKey, s.planName || plan.name, s.expiry);
+      logPurchase(`Subscribe · ${plan.name} (${cycle}) · Lemon Squeezy`, currentUser);
+      save();
+      sendLicenseEmail(currentUser, {
+        licenseKey: s.licenseKey, planName: s.planName || plan.name,
+        billingCycle: cycle.charAt(0).toUpperCase() + cycle.slice(1), expiry: s.expiry,
+        isTrial: false, isManual: false,
+        garageName: (S.accounts.find(a => a.email === currentUser.email) || {}).garageName || ''
+      });
+    } else if (Date.now() - t0 > 120000) {
+      clearInterval(lsWatch); lsWatch = null;
+      processingError('Your payment went through, but activation is taking longer than usual. Your plan will switch on automatically within a few minutes — refresh this page, or contact support if it doesn\'t.');
+    } else if (Date.now() - t0 > 4000) { processingStep(2); }
+  }, 2000);
 }
 // ══════════════════════════════════════════
 //  PROCESSING-PAYMENT OVERLAY
@@ -5752,7 +5763,7 @@ async function callActivateSubscription(_legacyUserId, planId, billingCycle, opt
       maxBookings:  plan.maxBookings,
       lastPaymentAmount: chargeNow,
       currency:     S.currency,
-      lastPaymentMethod: 'fake-test-payment',
+      lastPaymentMethod: (chargeNow > 0 ? 'unknown' : 'free-plan'),
       pendingChange: null
     };
     mirrorDoc = {
@@ -5998,65 +6009,6 @@ function isSubscriptionActive(sub) {
 // ══════════════════════════════════════════
 //  COMPLETE PURCHASE — fake payment then Cloud Function activation
 // ══════════════════════════════════════════
-async function completePurchase() {
-  if (!currentUser) { closeBilling(); openAuth('win'); return; }
-  // We still keep the card form for visual realism, but accept any values in
-  // the fake-payment mode. (Stripe Elements would replace this in production.)
-  const num  = document.getElementById('bf-num').value.replace(/\s/g,'');
-  const name = document.getElementById('bf-name').value.trim();
-  const exp  = document.getElementById('bf-exp').value;
-  const cvv  = document.getElementById('bf-cvv').value;
-  if (num.length < 13)               { showToast('Enter a card number',     'bad'); return; }
-  if (!name)                          { showToast('Enter cardholder name',  'bad'); return; }
-  if (!/^\d{2}\/\d{2}$/.test(exp))    { showToast('Expiry must be MM/YY',    'bad'); return; }
-  if (cvv.length < 3)                 { showToast('Enter CVV',                'bad'); return; }
-
-  const planId = pendingPlanId || (S.plans.find(p => p.featured && p.active) || S.plans[0]).id;
-  const plan   = S.plans.find(p => p.id === planId);
-  const cycle  = S.billingCycle || 'monthly';
-
-  // 1) Fake processing screen — 1.5s of "payment authorisation"
-  showProcessing();
-  await new Promise(r => setTimeout(r, 800));
-  processingStep(1);
-  await new Promise(r => setTimeout(r, 700));
-  processingStep(2);
-
-  try {
-    // 2) Call the Cloud Function to record the subscription in Firestore
-    const result = await callActivateSubscription(currentUser.email, planId, cycle);
-    processingStep(3);
-    await new Promise(r => setTimeout(r, 400));
-    // 3) Done — the Firestore listener has already updated currentSubscription
-    processingSuccess(result.licenseKey, plan ? plan.name : planId, result.expiry);
-    // Increment the discount code usage if one was applied
-    if (appliedDiscount) {
-      incrementDiscountUse(appliedDiscount.code);
-      logPurchase(`Subscribe · ${plan ? plan.name : planId} (${cycle}) · code ${appliedDiscount.code}`, currentUser);
-    } else {
-      logPurchase(`Subscribe · ${plan ? plan.name : planId} (${cycle})`, currentUser);
-    }
-    appliedDiscount = null;
-    save();
-    // 4) Email the license key (no-op if disabled / not configured)
-    sendLicenseEmail(currentUser, {
-      licenseKey:   result.licenseKey,
-      planName:     plan ? plan.name : planId,
-      billingCycle: cycle.charAt(0).toUpperCase() + cycle.slice(1),
-      expiry:       result.expiry,
-      isTrial:      false,
-      isManual:     false,
-      garageName:   (S.accounts.find(a => a.email === currentUser.email) || {}).garageName || ''
-    });
-    // Open the web app once the subscription is live
-    setTimeout(() => triggerDownload(), 400);
-  } catch (err) {
-    processingError(err.message || 'Could not activate subscription. Try again or contact support.');
-  } finally {
-    pendingPlanId = null;
-  }
-}
-
 // ══════════════════════════════════════════
 //  Cloud Function URL admin save
 // ══════════════════════════════════════════
@@ -6178,22 +6130,11 @@ function renderUserDashboard() {
       <button class="btn btn-primary" onclick="closeUserDashboard();setTimeout(()=>document.getElementById('pricing').scrollIntoView({behavior:'smooth'}),200)">View plans</button>
     </div>`;
   }
-  // Billing history — read from Firestore-backed S.billing cache
-  const userBilling = S.billing.filter(b => b.email === currentUser.email);
+  const bsub = currentSubscription;
   const hist = document.getElementById('udBillingHistory');
-  if (!userBilling.length) {
-    hist.innerHTML = `<p style="color:var(--faint);padding:14px 0">No payments yet.</p>`;
-  } else {
-    hist.innerHTML = `<table class="bhist-table"><thead><tr><th>Invoice</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>${userBilling.map(b=>`<tr><td>${b.invoiceId}</td><td>₹${b.amount.toLocaleString('en-IN')}</td><td><span class="bhist-status paid">PAID</span></td><td style="color:var(--faint)">${b.ts}</td></tr>`).join('')}</tbody></table>`;
-  }
-  // Saved card
-  if (acc && acc.cardLast4) {
-    document.getElementById('udSavedCard').style.display = 'block';
-    document.getElementById('udCardLast4').textContent = `VISA  ••••  ••••  ••••  ${acc.cardLast4}`;
-    document.getElementById('udCardName').textContent = acc.cardName || acc.name;
-  } else {
-    document.getElementById('udSavedCard').style.display = 'none';
-  }
+  if (hist) hist.innerHTML = lsHasPaidSub()
+    ? `Plan: <b style="color:var(--txt)">${escapeHtml(bsub.planName || bsub.plan)}</b> · ${bsub.billingCycle === 'yearly' ? 'billed yearly' : 'billed monthly'}${bsub.cancelAtPeriodEnd ? ' · <span style="color:#ff6b6b">cancels at end of period</span>' : ''}${bsub.expiry ? ' · ' + (bsub.cancelAtPeriodEnd ? 'access until ' : 'renews ') + new Date(bsub.expiry).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : ''}`
+    : 'No paid subscription yet.';
   // Branches panel — chain-plan only
   renderBranchesPanel();
 }
@@ -7466,6 +7407,7 @@ function subscribePlansFromFirebase() {
       if ((d.version || 0) >= PLANS_VERSION) {
         // Firestore catalogue is current — adopt it.
         S.plans = d.plans;
+        sanitizePlans();
         save();
         renderPlansGrid();
         renderComparisonTable();
@@ -7747,10 +7689,319 @@ function subscribeAdminCredsFromFirebase() {
 }
 
 // ══════════════════════════════════════════
+//  ANALYTICS — visitor tracking (public side) + admin dashboards
+//  Stores NO IP address. Each visit is one doc in site_sessions/{sessionId}
+//  with coarse location (country / region / city), device, source and the
+//  sections/buttons the visitor interacted with.
+// ══════════════════════════════════════════
+async function getGeo() {
+  try { const c = sessionStorage.getItem('gp_geo'); if (c) return JSON.parse(c); } catch (e) {}
+  let g = null;
+  try {
+    const r = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
+    if (r.ok) { const j = await r.json();
+      if (j.country) g = { country: j.country, countryName: j.country_name || j.country, region: j.region || '', city: j.city || '', lat: +j.latitude || null, lon: +j.longitude || null, currency: j.currency || '' }; }
+  } catch (e) {}
+  if (!g) {
+    try {
+      const r = await fetch('https://get.geojs.io/v1/ip/geo.json');
+      if (r.ok) { const j = await r.json();
+        if (j.country_code) g = { country: j.country_code, countryName: j.country || j.country_code, region: j.region || '', city: j.city || '', lat: +j.latitude || null, lon: +j.longitude || null, currency: '' }; }
+    } catch (e) {}
+  }
+  if (g) { try { sessionStorage.setItem('gp_geo', JSON.stringify(g)); } catch (e) {} }
+  return g;
+}
+
+const TRK = { on: false, sid: null, timer: null, sections: new Set(), events: new Set(), dirty: false };
+function _rid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
+function trkUA() {
+  const u = navigator.userAgent;
+  const device = /iPad|Tablet/i.test(u) ? 'Tablet' : /Mobi|Android|iPhone/i.test(u) ? 'Mobile' : 'Desktop';
+  const browser = /Edg\//.test(u) ? 'Edge' : /OPR\/|Opera/.test(u) ? 'Opera' : /SamsungBrowser/.test(u) ? 'Samsung Internet'
+    : /Firefox|FxiOS/.test(u) ? 'Firefox' : /Chrome|CriOS/.test(u) ? 'Chrome' : /Safari/.test(u) ? 'Safari' : 'Other';
+  const os = /Windows/.test(u) ? 'Windows' : /Android/.test(u) ? 'Android' : /iPhone|iPad|iPod/.test(u) ? 'iOS'
+    : /Mac OS X/.test(u) ? 'macOS' : /CrOS/.test(u) ? 'ChromeOS' : /Linux/.test(u) ? 'Linux' : 'Other';
+  return { device, browser, os };
+}
+function trkSource() {
+  const q = new URLSearchParams(location.search);
+  const utm = q.get('utm_source') || q.get('ref');
+  if (utm) return utm.slice(0, 40);
+  let host = '';
+  try { host = new URL(document.referrer).hostname.replace(/^www\./, ''); } catch (e) {}
+  if (!host || host === location.hostname.replace(/^www\./, '')) return 'Direct';
+  const map = [[/google\./, 'Google'], [/bing\./, 'Bing'], [/duckduckgo/, 'DuckDuckGo'], [/yahoo\./, 'Yahoo'], [/instagram|l\.instagram/, 'Instagram'],
+    [/facebook|fb\.com|l\.facebook/, 'Facebook'], [/^t\.co$|twitter|x\.com/, 'X / Twitter'], [/linkedin|lnkd/, 'LinkedIn'],
+    [/youtube|youtu\.be/, 'YouTube'], [/whatsapp|wa\.me/, 'WhatsApp'], [/chatgpt|openai/, 'ChatGPT'], [/perplexity/, 'Perplexity']];
+  for (const [re, n] of map) if (re.test(host)) return n;
+  return host.slice(0, 40);
+}
+function trackerStop() {
+  TRK.on = false;
+  if (TRK.timer) { clearInterval(TRK.timer); TRK.timer = null; }
+  // remove the admin's own session if one was already written
+  try { const sid = sessionStorage.getItem('gp_sid'); if (sid && fbDb) fbDb.collection('site_sessions').doc(sid).delete().catch(() => {}); } catch (e) {}
+}
+function siteTrackerStart() {
+  try {
+    if (location.protocol === 'file:' || !fbDb) return;
+    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && !/[?&]track=1/.test(location.search)) return;
+    if (localStorage.getItem('gp_notrack') === '1') return;
+    if (navigator.doNotTrack === '1') return;
+    if (/bot|crawl|spider|slurp|headless|lighthouse|preview/i.test(navigator.userAgent)) return;
+    let vid = localStorage.getItem('gp_vid'); const returning = !!vid;
+    if (!vid) { vid = _rid(); localStorage.setItem('gp_vid', vid); }
+    let sid = sessionStorage.getItem('gp_sid'); const fresh = !sid;
+    if (!sid) { sid = _rid(); sessionStorage.setItem('gp_sid', sid); }
+    TRK.sid = sid; TRK.on = true;
+    const ref = fbDb.collection('site_sessions').doc(sid);
+    const ua = trkUA();
+    const base = { sid, vid, returning, path: location.pathname || '/', lastSeenMs: Date.now(), lang: (navigator.language || '').slice(0, 10),
+      tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || '').slice(0, 40), screen: `${screen.width}x${screen.height}`, ...ua };
+    if (fresh) { base.startedMs = Date.now(); base.source = trkSource(); }
+    ref.set(base, { merge: true }).catch(e => { console.warn('[track]', e.code || e); TRK.on = false; });
+    // location arrives asynchronously, then is merged in
+    getGeo().then(g => { if (g && TRK.on) ref.set({ country: g.country, countryName: g.countryName, region: g.region, city: g.city, lat: g.lat, lon: g.lon }, { merge: true }).catch(() => {}); });
+    // sections scrolled into view
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting && e.target.id && !TRK.sections.has(e.target.id)) { TRK.sections.add(e.target.id); TRK.dirty = true; } }), { threshold: 0.35 });
+      document.querySelectorAll('section[id]').forEach(el => io.observe(el));
+    }
+    // buttons / links clicked
+    document.addEventListener('click', ev => {
+      const el = ev.target.closest && ev.target.closest('a,button'); if (!el) return;
+      let label = el.dataset.track || el.id || (el.textContent || '').replace(/\s+/g, ' ').trim();
+      label = label.replace(/[^\w &+\-.']/g, '').trim().slice(0, 30); if (!label || TRK.events.size >= 40) return;
+      const k = 'btn:' + label; if (!TRK.events.has(k)) { TRK.events.add(k); TRK.dirty = true; }
+    }, true);
+    const beat = () => {
+      if (!TRK.on || document.hidden) return;
+      if (currentUser && currentUser.isAdmin) { trackerStop(); return; }
+      const u = { lastSeenMs: Date.now() };
+      if (TRK.dirty) { u.sections = Array.from(TRK.sections); u.events = Array.from(TRK.events); TRK.dirty = false; }
+      ref.set(u, { merge: true }).catch(() => {});
+    };
+    TRK.timer = setInterval(beat, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) beat(); else if (TRK.dirty) { TRK.dirty = false; ref.set({ lastSeenMs: Date.now(), sections: Array.from(TRK.sections), events: Array.from(TRK.events) }, { merge: true }).catch(() => {}); } });
+    window.addEventListener('pagehide', () => { if (TRK.on) ref.set({ lastSeenMs: Date.now(), sections: Array.from(TRK.sections), events: Array.from(TRK.events) }, { merge: true }).catch(() => {}); });
+  } catch (e) { console.warn('[track] start failed', e); }
+}
+
+// ───────── admin: shared helpers ─────────
+const AN_DAY = 86400000;
+function anFlag(cc) { return (cc && /^[A-Za-z]{2}$/.test(cc)) ? String.fromCodePoint(...cc.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0))) : '🌐'; }
+function anTally(arr, fn) { const m = new Map(); arr.forEach(x => { const k = fn(x); if (k == null || k === '') return; m.set(k, (m.get(k) || 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1]); }
+function anBars(id, entries, opts = {}) {
+  const el = document.getElementById(id); if (!el) return;
+  const rows = entries.slice(0, opts.max || 8);
+  if (!rows.length) { el.innerHTML = `<div class="an-empty">${opts.empty || 'No data yet.'}</div>`; return; }
+  const top = Math.max(...rows.map(r => r[1])) || 1, total = entries.reduce((a, r) => a + r[1], 0) || 1;
+  el.innerHTML = rows.map(([k, v]) => `<div class="an-bar"><span class="nm">${opts.label ? opts.label(k) : escapeHtml(String(k))}</span><span class="v">${opts.fmt ? opts.fmt(v) : v.toLocaleString()}${opts.pct === false ? '' : ` · ${Math.round(v / total * 100)}%`}</span><div class="tr"><i style="width:${Math.max(2, v / top * 100)}%"></i></div></div>`).join('');
+}
+function anCols(id, vals, titles) {
+  const el = document.getElementById(id); if (!el) return;
+  const mx = Math.max(1, ...vals);
+  el.innerHTML = vals.map((v, i) => `<div style="height:${Math.max(2, v / mx * 100)}%" title="${escapeHtml(titles[i])}: ${v}"></div>`).join('');
+}
+function anDur(sec) { sec = Math.round(sec); if (sec < 60) return sec + 's'; const m = Math.floor(sec / 60); if (m < 60) return m + 'm ' + (sec % 60) + 's'; return Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; }
+function anAgo(ms) { const d = (Date.now() - ms) / 1000; if (d < 60) return 'just now'; if (d < 3600) return Math.floor(d / 60) + ' min ago'; if (d < 86400) return Math.floor(d / 3600) + ' h ago'; return Math.floor(d / 86400) + ' d ago'; }
+function anStat(n, l) { return `<div class="atab-stat"><div class="n">${n}</div><div class="l">${l}</div></div>`; }
+function anPermNotice(id, e) {
+  const el = document.getElementById(id); if (!el) return;
+  el.innerHTML = e ? `<div class="an-warn"><b>Couldn't read analytics data.</b> ${escapeHtml(e.code === 'permission-denied' ? 'Firestore is blocking it — publish the latest firestore.rules (firebase deploy --only firestore:rules).' : (e.message || String(e)))}</div>` : '';
+}
+function anWire(rangeId, getD, setD, rerender) {
+  document.querySelectorAll('#' + rangeId + ' button').forEach(b => {
+    b.onclick = () => { setD(+b.dataset.d); document.querySelectorAll('#' + rangeId + ' button').forEach(x => x.classList.toggle('on', x === b)); rerender(true); };
+    b.classList.toggle('on', +b.dataset.d === getD());
+  });
+}
+
+// ───────── admin: Live & Traffic ─────────
+const AN = { days: 7, byId: new Map(), unsub: null, tick: null, timer: null, started: false, since: 0 };
+function anStop() {
+  if (AN.unsub) { try { AN.unsub(); } catch (e) {} AN.unsub = null; }
+  if (AN.tick) { clearInterval(AN.tick); AN.tick = null; }
+  if (AU.unsub) { try { AU.unsub(); } catch (e) {} AU.unsub = null; }
+  AN.started = false;
+}
+async function anStart() {
+  anStop(); AN.started = true;
+  anWire('anRange', () => AN.days, d => AN.days = d, anLoad);
+  if (!fbDb) { anPermNotice('anNotice', { message: 'Connect Firebase first (Firebase tab).' }); return; }
+  await anLoad(true);
+  anMapInit();
+  // realtime: any new visit / heartbeat flows straight in
+  try {
+    AN.unsub = fbDb.collection('site_sessions').where('lastSeenMs', '>', Date.now() - 20 * 60000).onSnapshot(snap => {
+      snap.docChanges().forEach(c => { if (c.type !== 'removed') AN.byId.set(c.doc.id, c.doc.data()); else AN.byId.delete(c.doc.id); });
+      anRender();
+    }, e => anPermNotice('anNotice', e));
+  } catch (e) { anPermNotice('anNotice', e); }
+  AN.tick = setInterval(anRender, 5000);
+}
+async function anLoad(force) {
+  const days = Math.max(AN.days, 7);
+  const since = Date.now() - days * AN_DAY;
+  try {
+    const snap = await fbDb.collection('site_sessions').where('startedMs', '>=', since).orderBy('startedMs', 'desc').limit(3000).get();
+    const keep = new Map(); snap.forEach(d => keep.set(d.id, d.data()));
+    AN.byId.forEach((v, k) => { if (!keep.has(k) && v.startedMs >= since) keep.set(k, v); });
+    AN.byId = keep; anPermNotice('anNotice', null);
+  } catch (e) { anPermNotice('anNotice', e); }
+  anRender();
+}
+function anRender() {
+  if (!document.getElementById('tab-analytics').classList.contains('active')) return;
+  const now = Date.now(), all = [...AN.byId.values()].filter(s => s.startedMs);
+  const live = all.filter(s => now - (s.lastSeenMs || 0) < 75000);
+  document.getElementById('anLiveN').textContent = live.length;
+  const lc = anTally(live, s => s.country ? `${anFlag(s.country)} ${s.countryName || s.country}` : null).slice(0, 5);
+  document.getElementById('anLiveChips').innerHTML = lc.length ? lc.map(([k, v]) => `<span class="an-chip">${escapeHtml(k)} · ${v}</span>`).join('') : `<span class="an-chip">${live.length ? 'location resolving…' : 'no one online right now'}</span>`;
+  const since = now - AN.days * AN_DAY;
+  const inR = AN.days === 1 ? all.filter(s => new Date(s.startedMs).toDateString() === new Date().toDateString()) : all.filter(s => s.startedMs >= since);
+  const visitors = new Set(inR.map(s => s.vid || s.sid)).size;
+  const retV = new Set(inR.filter(s => s.returning).map(s => s.vid)).size;
+  const durs = inR.map(s => Math.max(0, ((s.lastSeenMs || s.startedMs) - s.startedMs) / 1000)).filter(x => x > 0);
+  const avg = durs.length ? durs.reduce((a, b) => a + b, 0) / durs.length : 0;
+  const bounce = inR.length ? inR.filter(s => ((s.lastSeenMs || s.startedMs) - s.startedMs) < 10000 && !(s.events || []).length && (s.sections || []).length < 2).length / inR.length : 0;
+  const topC = anTally(inR, s => s.countryName || s.country)[0];
+  document.getElementById('anStats').innerHTML = anStat(visitors.toLocaleString(), 'Visitors') + anStat(inR.length.toLocaleString(), 'Sessions')
+    + anStat(visitors ? Math.round(retV / visitors * 100) + '%' : '—', 'Returning visitors') + anStat(avg ? anDur(avg) : '—', 'Avg time on site')
+    + anStat(inR.length ? Math.round(bounce * 100) + '%' : '—', 'Bounce rate') + anStat(topC ? escapeHtml(topC[0]) : '—', 'Top country');
+  // trend (per day, last max(days,7))
+  const nd = Math.max(AN.days, 7), tr = [], tl = [];
+  for (let i = nd - 1; i >= 0; i--) { const d = new Date(Date.now() - i * AN_DAY); const k = d.toDateString();
+    tr.push(new Set(all.filter(s => new Date(s.startedMs).toDateString() === k).map(s => s.vid || s.sid)).size); tl.push(d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })); }
+  anCols('anTrend', tr, tl);
+  document.getElementById('anTrendAxis').innerHTML = `<span>${tl[0]}</span><span>${tl[tl.length - 1]}</span>`;
+  document.getElementById('anTrendSub').textContent = `last ${nd} days`;
+  const hrs = Array(24).fill(0); inR.forEach(s => hrs[new Date(s.startedMs).getHours()]++);
+  anCols('anHours', hrs, hrs.map((_, i) => i + ':00'));
+  anBars('anCountries', anTally(inR, s => s.country ? s.country : null).map(([k, v]) => [k, v]), { label: k => { const n = (inR.find(s => s.country === k) || {}).countryName || k; return `${anFlag(k)} ${escapeHtml(n)}`; } });
+  anBars('anCities', anTally(inR, s => s.city ? `${s.city}${s.region ? ', ' + s.region : ''}|${s.country}` : null), { label: k => { const [c, cc] = k.split('|'); return `${anFlag(cc)} ${escapeHtml(c)}`; } });
+  anBars('anSources', anTally(inR, s => s.source || 'Direct'));
+  const secLbl = { features: 'Features', how: 'How it works', screens: 'Screenshots', pricing: 'Pricing', reviews: 'Reviews', faq: 'FAQ' };
+  const secT = new Map(); inR.forEach(s => (s.sections || []).forEach(x => secT.set(x, (secT.get(x) || 0) + 1)));
+  anBars('anSections', [...secT.entries()].sort((a, b) => b[1] - a[1]), { label: k => escapeHtml(secLbl[k] || k), fmt: v => v + ' visits', pct: false, empty: 'No scroll data yet.' });
+  const evT = new Map(); inR.forEach(s => (s.events || []).forEach(x => { if (x.startsWith('btn:')) evT.set(x.slice(4), (evT.get(x.slice(4)) || 0) + 1); }));
+  anBars('anClicks', [...evT.entries()].sort((a, b) => b[1] - a[1]), { fmt: v => v + ' visits', pct: false, empty: 'No clicks recorded yet.' });
+  anBars('anDevices', anTally(inR, s => s.device)); anBars('anBrowsers', anTally(inR, s => s.browser)); anBars('anOS', anTally(inR, s => s.os));
+  anBars('anLangs', anTally(inR, s => (s.lang || '').split('-')[0].toUpperCase() || null));
+  const rec = [...all].sort((a, b) => (b.lastSeenMs || b.startedMs) - (a.lastSeenMs || a.startedMs)).slice(0, 40);
+  document.getElementById('anRecentSub').textContent = `latest ${rec.length}`;
+  document.getElementById('anRecent').innerHTML = rec.length ? `<table class="an-table"><thead><tr><th>Last seen</th><th>Location</th><th>Source</th><th>Device</th><th>Time</th><th>Viewed</th></tr></thead><tbody>${rec.map(s => {
+    const isLive = now - (s.lastSeenMs || 0) < 75000, d = ((s.lastSeenMs || s.startedMs) - s.startedMs) / 1000;
+    return `<tr><td>${isLive ? '<span class="an-pill live">● live</span>' : anAgo(s.lastSeenMs || s.startedMs)}</td><td>${anFlag(s.country)} ${escapeHtml([s.city, s.countryName || s.country].filter(Boolean).join(', ') || 'Unknown')}</td><td>${escapeHtml(s.source || 'Direct')}</td><td>${escapeHtml([s.device, s.browser, s.os].filter(Boolean).join(' · '))}</td><td>${anDur(d)}</td><td>${(s.sections || []).length ? escapeHtml((s.sections || []).map(x => secLbl[x] || x).join(', ')) : '—'}</td></tr>`;
+  }).join('')}</tbody></table>` : '<div class="an-empty">No visits recorded yet. Visits appear here the moment someone opens the site.</div>';
+  anMapDraw(inR, live);
+}
+// map — drawn by hand (Natural Earth projection) from the public world-atlas data, so no extra scripts are needed (the site's CSP stays strict)
+const ANMAP = { rings: null, failed: false };
+function anNE(lon, lat) {
+  const l = lon * Math.PI / 180, f = lat * Math.PI / 180, f2 = f * f, f4 = f2 * f2;
+  return [l * (0.8707 - 0.131979 * f2 + f4 * (-0.013791 + f4 * (0.003971 * f2 - 0.001529 * f4))),
+          -f * (1.007226 + f2 * (0.015085 + f4 * (-0.044475 + 0.028874 * f2 - 0.005916 * f4)))];
+}
+async function anMapInit() {
+  if (ANMAP.rings || ANMAP.failed) return;
+  try {
+    const topo = await (await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')).json();
+    const [sx, sy] = topo.transform.scale, [tx, ty] = topo.transform.translate;
+    const arcs = topo.arcs.map(a => { let x = 0, y = 0; return a.map(([dx, dy]) => { x += dx; y += dy; return [x * sx + tx, y * sy + ty]; }); });
+    const ring = idxs => { const pts = []; idxs.forEach(i => { const a = i < 0 ? arcs[~i].slice().reverse() : arcs[i]; pts.push(...(pts.length ? a.slice(1) : a)); }); return pts; };
+    const rings = [];
+    topo.objects.countries.geometries.forEach(g => {
+      if (g.type === 'Polygon') g.arcs.forEach(r => rings.push(ring(r)));
+      else if (g.type === 'MultiPolygon') g.arcs.forEach(poly => poly.forEach(r => rings.push(ring(r))));
+    });
+    ANMAP.rings = rings; anRender();
+  } catch (e) { ANMAP.failed = true; const n = document.getElementById('anMapNote'); if (n) n.textContent = "Map unavailable (couldn't load map data) — the lists below still work."; }
+}
+function anMapDraw(inR, live) {
+  const cv = document.getElementById('anMap'); if (!cv || !ANMAP.rings) return;
+  const ctx = cv.getContext('2d'), W = cv.width, H = cv.height, cs = getComputedStyle(document.documentElement);
+  const xm = anNE(180, 0)[0], ym = anNE(0, 90)[1] * -1;
+  const sc = Math.min((W - 40) / (2 * xm), (H - 50) / (2 * ym)), ox = W / 2, oy = H / 2 + 4;
+  const proj = (lon, lat) => { const p = anNE(lon, lat); return [ox + p[0] * sc, oy + p[1] * sc]; };
+  ctx.clearRect(0, 0, W, H);
+  ctx.beginPath();
+  ANMAP.rings.forEach(r => { let prev = null; r.forEach(pt => { const q = proj(pt[0], pt[1]); (prev && Math.abs(pt[0] - prev[0]) < 170) ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); prev = pt; }); });
+  ctx.fillStyle = (cs.getPropertyValue('--surf') || '#222').trim(); ctx.fill();
+  ctx.strokeStyle = (cs.getPropertyValue('--brd2') || '#444').trim(); ctx.lineWidth = 1; ctx.stroke();
+  const pts = new Map();
+  inR.forEach(s => { if (s.lat == null || s.lon == null) return; const k = (+s.lat).toFixed(1) + ',' + (+s.lon).toFixed(1); const p = pts.get(k) || { lat: +s.lat, lon: +s.lon, n: 0, live: 0 }; p.n++; pts.set(k, p); });
+  live.forEach(s => { if (s.lat == null) return; const k = (+s.lat).toFixed(1) + ',' + (+s.lon).toFixed(1); const p = pts.get(k) || { lat: +s.lat, lon: +s.lon, n: 0, live: 0 }; p.live++; pts.set(k, p); });
+  let plotted = 0;
+  pts.forEach(p => {
+    const xy = proj(p.lon, p.lat); plotted += p.n || p.live;
+    const r = 5 + Math.sqrt(p.n || 1) * 3.5;
+    ctx.beginPath(); ctx.arc(xy[0], xy[1], r, 0, 7); ctx.fillStyle = p.live ? 'rgba(47,212,122,.92)' : 'rgba(120,150,255,.7)'; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = p.live ? 'rgba(47,212,122,.35)' : 'rgba(120,150,255,.3)';
+    ctx.beginPath(); ctx.arc(xy[0], xy[1], r + 6, 0, 7); ctx.stroke();
+  });
+  const n = document.getElementById('anMapNote'); if (n) n.textContent = plotted ? `${pts.size} location${pts.size === 1 ? '' : 's'} · green = online now` : 'No located visits in this range yet.';
+}
+
+// ───────── admin: App Usage ─────────
+const AU = { days: 7, daily: [], ws: [], unsub: null };
+const AU_TABS = { dashboard: 'Dashboard', bookings: 'Appointments', jobs: 'Job Cards', queue: 'Live Queue', customers: 'Customers', workers: 'Workers', bays: 'Bays', inventory: 'Inventory', request_parts: 'Request Parts', parts: 'Manage Requests', invoices: 'Invoices', reports: 'Reports', workload: 'Technician Workload', feedback: 'Feedback', timesheets: 'Timesheets', notifications: 'Notifications', chat: 'Chat', audit: 'Audit Log', settings: 'Settings' };
+const AU_ACTIONS = { saveBooking: 'Create appointment', saveWalkin: 'Walk-in check-in', saveQuickBooking: 'Quick booking', saveJob: 'Save job card', saveCustomer: 'Save customer', saveWorker: 'Save worker', saveInventory: 'Save inventory item', savePartRequest: 'Request parts', saveInvoice: 'Save invoice', sendJobEstimate: 'Send estimate', shareEstimateLink: 'Share estimate link', shareConcernEstimate: 'Share concern estimate', forwardEstimateDecision: 'Forward estimate decision', passQC: 'Pass QC', printJobCard: 'Print job card', chasePayment: 'Chase payment', _quickMarkPaid: 'Mark invoice paid', uploadJobPhoto: 'Upload job photo', _csvImport: 'CSV import', _showQRFromVehicle: 'Vehicle QR', sendCustomerNotification: 'Customer notification', _assignQueueToBay: 'Assign queue to bay', qAssignNow: 'Quick assign', _printVehicleQR: 'Print vehicle QR', _dviAddToEstimate: 'Inspection item to estimate', _prAddToEstimate: 'Parts to estimate' };
+const AU_ROLES = { owner: 'Owner', manager: 'Manager', floor_manager: 'Floor manager', service_advisor: 'Service advisor', mechanic: 'Mechanic', receptionist: 'Receptionist' };
+function auStart() {
+  anWire('auRange', () => AU.days, d => AU.days = d, auLoad);
+  if (!fbDb) { anPermNotice('auNotice', { message: 'Connect Firebase first (Firebase tab).' }); return; }
+  auLoad();
+  try { AU.unsub = fbDb.collection('usage_workshops').orderBy('lastSeenMs', 'desc').limit(300).onSnapshot(snap => { AU.ws = snap.docs.map(d => ({ id: d.id, ...d.data() })); auRender(); }, e => anPermNotice('auNotice', e)); } catch (e) { anPermNotice('auNotice', e); }
+}
+async function auLoad() {
+  const since = new Date(Date.now() - Math.max(AU.days, 7) * AN_DAY).toISOString().slice(0, 10);
+  try {
+    const snap = await fbDb.collection('usage_daily').where('date', '>=', since).orderBy('date').get();
+    AU.daily = snap.docs.map(d => d.data()); anPermNotice('auNotice', null);
+  } catch (e) { anPermNotice('auNotice', e); }
+  auRender();
+}
+function auSum(rows, key) { const o = {}; rows.forEach(r => Object.entries(r[key] || {}).forEach(([k, v]) => o[k] = (o[k] || 0) + v)); return Object.entries(o).sort((a, b) => b[1] - a[1]); }
+function auRender() {
+  if (!document.getElementById('tab-appusage').classList.contains('active')) return;
+  const lo = new Date(Date.now() - (AU.days === 1 ? 0 : AU.days - 1) * AN_DAY).toISOString().slice(0, 10);
+  const rows = AU.daily.filter(r => r.date >= lo);
+  const now = Date.now(), tdy = new Date().toISOString().slice(0, 10), wk = new Date(now - 6 * AN_DAY).toISOString().slice(0, 10);
+  const sessions = rows.reduce((a, r) => a + (r.sessions || 0), 0), secs = rows.reduce((a, r) => a + (r.activeSecs || 0), 0);
+  const views = rows.reduce((a, r) => a + (r.tabViews || 0), 0), acts = rows.reduce((a, r) => a + (r.actionsTotal || 0), 0);
+  const activeNow = AU.ws.filter(w => now - (w.lastSeenMs || 0) < 5 * 60000).length;
+  const dau = AU.ws.filter(w => (w.daysActive || []).includes(tdy)).length;
+  const wau = AU.ws.filter(w => (w.daysActive || []).some(d => d >= wk)).length;
+  document.getElementById('auStats').innerHTML = anStat(`<span class="an-dot" style="display:inline-block;margin-right:8px;vertical-align:middle"></span>${activeNow}`, 'Workshops online now') + anStat(dau, 'Active today') + anStat(wau, 'Active this week')
+    + anStat(sessions.toLocaleString(), 'Sessions') + anStat(sessions ? anDur(secs / sessions) : '—', 'Avg active time / session') + anStat(views.toLocaleString(), 'Page views') + anStat(acts.toLocaleString(), 'Actions taken');
+  const tabs = auSum(rows, 'tabs');
+  anBars('auTabs', tabs, { max: 12, label: k => escapeHtml(AU_TABS[k] || k), empty: 'No usage recorded yet. Data appears once workshops use the updated web app.' });
+  anBars('auActions', auSum(rows, 'actions'), { max: 12, label: k => escapeHtml(AU_ACTIONS[k] || k), empty: 'No feature usage recorded yet.' });
+  anBars('auTabTime', auSum(rows, 'tabSecs'), { max: 10, label: k => escapeHtml(AU_TABS[k] || k), fmt: v => anDur(v), empty: 'No time data yet.' });
+  const used = new Set(tabs.map(t => t[0]));
+  const unused = Object.keys(AU_TABS).filter(k => !used.has(k));
+  document.getElementById('auUnused').innerHTML = !tabs.length ? '<div class="an-empty">Waiting for data.</div>' : unused.length ? unused.map(k => `<span class="an-pill" style="margin:0 6px 6px 0">${escapeHtml(AU_TABS[k])}</span>`).join('') : '<div class="an-empty">Every page was opened at least once 🎉</div>';
+  const nd = Math.max(AU.days, 7), tr = [], tl = [];
+  for (let i = nd - 1; i >= 0; i--) { const d = new Date(now - i * AN_DAY), k = d.toISOString().slice(0, 10); tr.push((AU.daily.find(r => r.date === k) || {}).sessions || 0); tl.push(d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })); }
+  anCols('auTrend', tr, tl); document.getElementById('auTrendAxis').innerHTML = `<span>${tl[0]}</span><span>${tl[tl.length - 1]}</span>`;
+  const hrs = Array(24).fill(0); rows.forEach(r => Object.entries(r.hours || {}).forEach(([h, v]) => hrs[+h] += v)); anCols('auHours', hrs, hrs.map((_, i) => i + ':00'));
+  anBars('auRoles', auSum(rows, 'roles'), { label: k => escapeHtml(AU_ROLES[k] || k) });
+  anBars('auDevices', auSum(rows, 'devices'), { label: k => escapeHtml(k.charAt(0).toUpperCase() + k.slice(1)) });
+  const ws = AU.ws; document.getElementById('auWsSub').textContent = `${ws.length} total`;
+  document.getElementById('auWorkshops').innerHTML = ws.length ? `<table class="an-table"><thead><tr><th>Workshop</th><th>Plan</th><th>Last active</th><th>Sessions</th><th>Active time</th><th>Actions</th><th>Favourite page</th></tr></thead><tbody>${ws.map(w => {
+    const top = Object.entries(w.tabs || {}).sort((a, b) => b[1] - a[1])[0], on = now - (w.lastSeenMs || 0) < 5 * 60000;
+    return `<tr><td><b>${escapeHtml(w.name || w.id.slice(0, 8))}</b></td><td>${escapeHtml(w.plan || '—')}</td><td>${on ? '<span class="an-pill live">● online</span>' : anAgo(w.lastSeenMs || 0)}</td><td>${(w.sessions || 0).toLocaleString()}</td><td>${anDur(w.activeSecs || 0)}</td><td>${(w.actionsTotal || 0).toLocaleString()}</td><td>${top ? escapeHtml(AU_TABS[top[0]] || top[0]) : '—'}</td></tr>`;
+  }).join('')}</tbody></table>` : '<div class="an-empty">No workshop has used the updated app yet.</div>';
+}
+
+// ══════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════
 load();
 initFirebase();
+siteTrackerStart();
 renderNav();
 renderReviews();
 populateCurrencySelect();
