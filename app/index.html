@@ -2018,6 +2018,19 @@ function _showNoSub() {
 // first-run wizard entirely. We create its workshop profile + owner login from
 // what signup already captured, give the owner a random PIN (shown once), and
 // drop them straight in.
+// A branch login that the chain owner just created still has the placeholder
+// owner seeded at creation time (no username/PIN of its own). Its first sign-in
+// runs the setup wizard so the branch's manager picks their own name, username
+// and PIN. Flag set at creation; the single-seeded-owner check also catches
+// branches created before the flag existed.
+function _clearWorkerCacheSafe() { try { const k = _workerCacheKey(); sessionStorage.removeItem(k); localStorage.removeItem(k); } catch (_) {} }
+function _branchNeedsSetup() {
+  const p = userProfile || {};
+  if (!p.chain_parent_uid || p.setup_done_at) return false;
+  if (p.branch_setup_pending === true) return true;
+  const m = D.mechanics || [];
+  return m.length === 1 && m[0].id === 'mech-owner';
+}
 function _isChainHQ() {
   try { return !!currentSub().isChain && !userProfile?.chain_parent_uid; } catch (_) { return false; }
 }
@@ -2190,6 +2203,13 @@ fbAuth.onAuthStateChanged(async (user) => {
       catch(e) { currentWorker = null; }
     }
     await loadAllData(true);
+    // New branch login → first-run wizard (set the branch's own admin name + PIN)
+    if (!isStaffSession && _branchNeedsSetup()) {
+      currentWorker = null; _clearWorkerCacheSafe();
+      showOnly('overlayNoWorkshop');
+      _prefillWizard();
+      return;
+    }
     // Need at least one worker to log in. If no workers exist yet, set up an owner.
     if (!D.mechanics.length) {
       if (isStaffSession) {
@@ -2739,7 +2759,8 @@ window._wizFinish = async function() {
       .set({ setup_done_at: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
       .catch(() => {});
   }
-  showToast(su ? 'All set! Staff login created.' : 'All set! Sign in with your username and PIN.', 'good');
+  const _ownerW = (D.mechanics || []).find(m => m.role === 'owner');
+  showToast((su ? 'All set! Staff login created.' : 'All set!') + (_ownerW && _ownerW.username ? ` Your username is "${_ownerW.username}" — sign in with it and your PIN.` : ' Sign in with your username and PIN.'), 'good');
   showPinpad();
 };
 
@@ -2763,7 +2784,11 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
   let existingSub = null;
   try {
     const existing = await fbDb.collection('users').doc(uid).get();
-    if (existing.exists) existingSub = existing.data().subscription || null;
+    if (existing.exists) {
+      existingSub = existing.data().subscription || null;
+      // A branch runs on its chain owner's plan — never give it a plan of its own.
+      if (!existingSub && existing.data().chain_parent_uid) existingSub = { inherited: true };
+    }
   } catch (e) { console.warn('[provisionNewWorkshop] existing sub check failed', e); }
   await fbDb.collection('users').doc(uid).set({
     uid, email,
@@ -2774,6 +2799,7 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
     ...(details.city  ? { city:  details.city }  : {}),
     createdAt:      firebase.firestore.FieldValue.serverTimestamp(),
     settings_done:  false,
+    branch_setup_pending: false,
     ...(existingSub ? {} : {
       subscription: {
         status:      'active',
@@ -15867,6 +15893,7 @@ window.createBranch = async function(ev) {
       chain_parent_uid: currentUser.uid,
       chain_parent_name: userProfile?.workshop_name || '',
       branch: true,
+      branch_setup_pending: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
     // Public-safe mirror for Track Repair's workshop picker (see
