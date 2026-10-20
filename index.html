@@ -2736,6 +2736,9 @@ function renderNav() {
     cta.innerHTML = `<button class="btn btn-ghost" style="padding:9px 18px;font-size:14px" onclick="openAuth(null)">Sign In</button><button class="btn btn-primary" style="padding:9px 18px;font-size:14px" onclick="openAuth('win')">Get Garage Pro</button>`;
   } else if (currentUser.isAdmin) {
     cta.innerHTML = `<span class="nav-user"><span class="admin-badge">ADMIN</span><span class="uname">${currentUser.name}</span></span><button class="btn btn-primary" style="padding:9px 18px;font-size:14px" onclick="openAdminPanel()">Admin Panel</button><button class="btn btn-ghost" style="padding:9px 18px;font-size:14px" onclick="doLogout()">Sign out</button>`;
+  } else if (currentUser.isBranch) {
+    // Branch logins have no account/billing of their own — the chain owner's plan covers them.
+    cta.innerHTML = `<span class="nav-user">Hi, <span class="uname">${currentUser.name.split(' ')[0]}</span></span><button class="btn btn-primary" style="padding:9px 18px;font-size:14px" onclick="openWebApp()">Open app</button><button class="btn btn-ghost" style="padding:9px 18px;font-size:14px" onclick="doLogout()">Sign out</button>`;
   } else {
     cta.innerHTML = `<span class="nav-user">Hi, <span class="uname">${currentUser.name.split(' ')[0]}</span></span><button class="btn btn-primary" style="padding:9px 18px;font-size:14px" onclick="openUserDashboard()">My Account</button><button class="btn btn-ghost" style="padding:9px 18px;font-size:14px" onclick="doLogout()">Sign out</button>`;
   }
@@ -3135,12 +3138,17 @@ function doLogout() {
   renderNav();
   showToast('Signed out', 'good');
 }
+function openWebApp() {
+  window.open('app/', '_blank', 'noopener');
+  showToast('Opening Garage Pro…', 'good');
+}
 function handleDownload(action, user) {
   // "Download" is now web-app access — no installer. Log the click + push to the app
   // if they have an active subscription, otherwise nudge them to pick a plan first.
   logPurchase('Open Web App', user);
   save();
   pendingPlatform = 'web';
+  if (user && user.isBranch) { openWebApp(); return; }
   const sub = currentSubscription;
   if (sub && isSubscriptionActive(sub)) {
     // Active sub: open the actual web app in a new tab
@@ -4489,6 +4497,7 @@ function renderPlansGrid() {
   setTimeout(() => positionCycleSlider(), 30);
 }
 function selectPlan(planId) {
+  if (currentUser && currentUser.isBranch) { showToast('Branch accounts use your head office\'s plan — open the app instead.', 'good'); openWebApp(); return; }
   pendingPlanId = planId;
   pendingPlatform = 'windows';
   if (!currentUser) { openAuth('win'); return; }
@@ -5989,6 +5998,15 @@ function subscribeToUserSubscription() {
         sub.activatedAt = sub.activatedAt.toDate().toISOString();
       }
       currentSubscription = sub;
+      // A branch login (created by a chain owner) has no plan of its own — it
+      // runs on the head office's plan, so the site shows "Open app" for it.
+      const isBranch = !!(data.branch === true || data.chain_parent_uid);
+      if (currentUser && !currentUser.isAdmin && !!currentUser.isBranch !== isBranch) {
+        currentUser.isBranch = isBranch;
+        try { sessionStorage.setItem('gp_user', JSON.stringify(currentUser)); } catch (e) {}
+        renderNav();
+        if (isBranch) closeUserDashboard();
+      }
       if (document.getElementById('userDashboard').classList.contains('open')) renderUserDashboard();
       renderDemoCta();
       renderPlansGrid();    // re-renders so the "Choose plan" buttons reflect the new sub state
@@ -6032,6 +6050,7 @@ function saveCloudFnUrl() {
 // ══════════════════════════════════════════
 function openUserDashboard() {
   if (!currentUser || currentUser.isAdmin) return;
+  if (currentUser.isBranch) { openWebApp(); return; }
   document.getElementById('userDashboard').classList.add('open');
   document.body.style.overflow = 'hidden';
   switchUserTab('branches');
