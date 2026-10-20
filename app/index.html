@@ -2012,6 +2012,35 @@ function _showNoSub() {
   showOnly('overlayNoSub');
 }
 
+// ── CHAIN HQ AUTO-SETUP ─────────────────────────────────────────────────
+// A chain's head office is an oversight console (Reports / Feedback across its
+// branches), not a workshop with bays and mechanics — so it skips the
+// first-run wizard entirely. We create its workshop profile + owner login from
+// what signup already captured, give the owner a random PIN (shown once), and
+// drop them straight in.
+function _isChainHQ() {
+  try { return !!currentSub().isChain && !userProfile?.chain_parent_uid; } catch (_) { return false; }
+}
+async function _hqAutoSetupAndEnter() {
+  const p = userProfile || {};
+  const garage = p.workshop_name || p.garageName || p.company_name || p.companyName || ((p.name || currentUser?.displayName || 'Chain') + ' HQ');
+  const owner  = p.name || currentUser?.displayName || (currentUser?.email || 'owner').split('@')[0];
+  const pin    = String(Math.floor(1000 + Math.random() * 9000));
+  await provisionNewWorkshop(currentUser.uid, garage, owner, pin, currentUser.email, {
+    phone: p.phone || p.profile?.phone || '', city: p.city || '', state: p.state || '', address: p.address || p.profile?.address || ''
+  });
+  await loadUserProfile();
+  await loadAllData(true);
+  const w = (D.mechanics || []).find(m => m.role === 'owner') || D.mechanics[0];
+  if (!w) { showOnly('overlayNoWorkshop'); _prefillWizard(); return; }
+  currentWorker = w;
+  _saveWorkerCache(w, true);
+  enterApp();
+  setTimeout(() => {
+    try { customAlert(`Your head-office account is ready.\n\nUsername: ${w.username || _slugUsername(owner)}\nPIN: ${pin}\n\nNote these down — you can change the PIN any time in Settings → Workers.`, { title: 'Welcome, HQ', okLabel: 'Got it' }); } catch (_) {}
+  }, 600);
+}
+
 // "I've subscribed — re-check" button. Re-reads the user doc and re-boots if
 // the plan is now active.
 window._recheckSub = async function() {
@@ -2148,6 +2177,7 @@ fbAuth.onAuthStateChanged(async (user) => {
         if (err) err.textContent = 'That workshop hasn\'t finished setup yet. Ask the owner to sign in first.';
         return;
       }
+      if (_isChainHQ()) { await _hqAutoSetupAndEnter(); return; }
       showOnly('overlayNoWorkshop');
       _prefillWizard();   // auto-fill garage name + owner name from signup data
       return;
@@ -2170,6 +2200,7 @@ fbAuth.onAuthStateChanged(async (user) => {
         if (err) err.textContent = 'No workers have been added yet. Ask the owner to add staff in Settings → Workers.';
         return;
       }
+      if (_isChainHQ()) { await _hqAutoSetupAndEnter(); return; }
       showOnly('overlayNoWorkshop');
       _prefillWizard();
       return;
@@ -19254,11 +19285,13 @@ async function publishBranchSummary() {
   try {
     if (!currentUser || !fbDb) return;
     await fbDb.collection('users').doc(wsUid()).set({
-      branch_summary: { ..._branchLiveSummary(), updated_at: nowStr() }
+      branch_summary: { ..._branchLiveSummary(), ..._branchSummaryExtra(), updated_at: nowStr() }
     }, { merge: true });
   } catch (e) { console.warn('[branch-summary]', e); }
 }
 window.publishBranchSummary = publishBranchSummary;
+// keep the chain HQ's numbers fresh while a branch has the app open
+setInterval(() => { try { if (!document.hidden && currentWorker && !isChainHQMode()) publishBranchSummary(); } catch (_) {} }, 10 * 60 * 1000);
 
 async function renderReports(force = false) {
   // A chain HQ account (has registered branches) gets a completely different
@@ -19484,101 +19517,317 @@ async function renderReports(force = false) {
 }
 window.renderReports = renderReports;
 
+// Extra aggregated metrics published with each branch's summary (v2). Counts and
+// totals only — never customer names, plates or invoice lines — so the chain HQ
+// gets the full operational picture without raw records leaving the branch.
+function _branchSummaryExtra() {
+  const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  const ageOf = d => Math.floor((t0 - new Date(d + 'T00:00:00')) / 86400000);
+  const totalOf = i => { try { return Number(_invoiceTotals(i).roundOff || 0); } catch (_) { return 0; } };
+  const paidOf = (i, t) => i.payment_status === 'Paid' ? t : (i.payment_status === 'Partial' ? Number(i.amount_paid || 0) : 0);
+  const top = (obj, n) => Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
+
+  // ── money ──
+  const daily = Array(14).fill(0);
+  let rev7 = 0, rev30 = 0, revPrev30 = 0, paid30 = 0, invN30 = 0, outAll = 0, overdueInv = 0;
+  const aged = { d0_7: 0, d8_30: 0, d31_60: 0, d60p: 0 };
+  (D.invoices || []).forEach(i => {
+    if (i.status === 'Cancelled' || i.is_estimate) return;
+    const d = i.issue_date || (i.created_at || '').slice(0, 10); if (!d) return;
+    const age = ageOf(d), t = totalOf(i), paid = paidOf(i, t), due = Math.max(0, t - paid);
+    if (age >= 0 && age < 14) daily[13 - age] += t;
+    if (age >= 0 && age < 7) rev7 += t;
+    if (age >= 0 && age < 30) { rev30 += t; paid30 += paid; invN30++; } else if (age >= 30 && age < 60) revPrev30 += t;
+    if (due > 0) {
+      outAll += due;
+      if (age <= 7) aged.d0_7 += due; else if (age <= 30) aged.d8_30 += due; else if (age <= 60) aged.d31_60 += due; else aged.d60p += due;
+      if (age > 30) overdueInv++;
+    }
+  });
+
+  // ── jobs ──
+  const jobs = D.jobs || [], closed = s => s === 'Delivered' || s === 'Cancelled';
+  const active = jobs.filter(j => !closed(j.status || ''));
+  const byStatus = {};
+  active.forEach(j => { const s = j.status || 'Awaiting Assignment'; byStatus[s] = (byStatus[s] || 0) + 1; });
+  const ageD = j => { const t = _slaParseTs(j.created_at); return t ? (Date.now() - t) / 86400000 : 0; };
+  const since30 = ymd(new Date(Date.now() - 30 * 86400000));
+  const jobs30 = jobs.filter(j => (j.created_at || '').slice(0, 10) >= since30);
+  const decided = jobs.filter(j => j.last_customer_decision && (j.last_customer_decision.at || '').slice(0, 10) >= since30);
+  const approved = decided.filter(j => j.last_customer_decision.status !== 'rejected').length;
+  const svc = {};
+  jobs30.forEach(j => { const k = String(j.type || j.service || 'Other').trim().slice(0, 40) || 'Other'; svc[k] = (svc[k] || 0) + 1; });
+
+  // ── people ──
+  const workers = (D.mechanics || []).filter(m => m.active !== false);
+  const roles = {}; workers.forEach(m => { roles[m.role || 'staff'] = (roles[m.role || 'staff'] || 0) + 1; });
+  const techs = workers.filter(m => m.role === 'mechanic').map(m => {
+    const mine = j => ((j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : [])).includes(m.name);
+    return { name: m.name, active: active.filter(mine).length, done_30d: jobs30.filter(j => j.status === 'Delivered' && mine(j)).length };
+  }).sort((a, b) => (b.active + b.done_30d) - (a.active + a.done_30d)).slice(0, 15);
+
+  // ── floor, bookings, customers, stock ──
+  const bays = D.bays || [];
+  const busy = bays.filter(b => (D.bookings || []).some(k => k.bay_id === b.id && !['Delivered', 'Cancelled', 'Completed', 'No-show'].includes(k.status || ''))).length;
+  const today = ymd(new Date()), in7 = ymd(new Date(Date.now() + 7 * 86400000));
+  const bks = D.bookings || [];
+  const inv = D.inventory || [];
+  const stockVal = inv.reduce((s, i) => s + (Number(i.qty) || 0) * Number(i.cost_price ?? i.cost ?? i.unit_cost ?? i.price ?? 0), 0);
+  const nCount = (arr, st) => arr.filter(j => st.includes(j.status)).length;
+  return {
+    v: 2,
+    revenue_7d: Math.round(rev7), revenue_prev_30d: Math.round(revPrev30), revenue_daily: daily.map(Math.round),
+    paid_30d: Math.round(paid30), invoices_30d: invN30, avg_invoice: invN30 ? Math.round(rev30 / invN30) : null,
+    outstanding_all: Math.round(outAll), overdue_invoices: overdueInv,
+    aged: { d0_7: Math.round(aged.d0_7), d8_30: Math.round(aged.d8_30), d31_60: Math.round(aged.d31_60), d60p: Math.round(aged.d60p) },
+    jobs_created_30d: jobs30.length, jobs_cancelled_30d: jobs30.filter(j => j.status === 'Cancelled').length,
+    overdue_jobs: active.filter(j => ageD(j) > 3).length, oldest_job_days: active.length ? Math.round(Math.max(...active.map(ageD))) : 0,
+    by_status: byStatus,
+    ready_for_pickup: nCount(active, ['Ready for Pickup', 'Ready for Delivery']),
+    awaiting_qc: nCount(active, ['Awaiting QC']), waiting_parts: nCount(active, ['Parts Ordered', 'Parts Not Available']),
+    est_decided_30d: decided.length, est_approved_30d: approved, est_conversion_pct: decided.length ? Math.round(approved / decided.length * 100) : null,
+    top_services: top(svc, 6),
+    staff_total: workers.length, staff_roles: roles, techs,
+    bays_total: bays.length, bays_busy: busy, bay_util_pct: bays.length ? Math.round(busy / bays.length * 100) : null,
+    bookings_today: bks.filter(b => b.date === today && b.status !== 'Cancelled').length,
+    bookings_next7: bks.filter(b => b.date > today && b.date <= in7 && b.status !== 'Cancelled').length,
+    customers_total: (D.customers || []).length, customers_new_30d: (D.customers || []).filter(c => (c.created_at || '').slice(0, 10) >= since30).length,
+    stock_items: inv.length, stock_low: inv.filter(i => isLowStock(i) && (Number(i.qty) || 0) > 0).length,
+    stock_out: inv.filter(i => (Number(i.qty) || 0) <= 0).length, stock_value: Math.round(stockVal),
+    parts_open: (D.parts_requests || []).filter(r => !['Received', 'Cancelled'].includes(_prRollupStatus(r))).length,
+    queue_len: (D.queue || []).length
+  };
+}
+
 // ══════════════════════════════════════════════════════════════════════════
-//  CHAIN HQ REPORTS — shown instead of the normal Reports tab once this
-//  account has branches registered (see isChainHQMode). Each branch (and
-//  this HQ account itself) publishes a summary onto its own public-read root
-//  doc (see _branchLiveSummary / publishBranchSummary); this reads them by
-//  uid and renders either a side-by-side comparison ("All locations") or a
-//  single branch's report card, picked via the filter dropdown.
+//  CHAIN HQ — full oversight console (replaces the normal Reports tab once the
+//  account has branches). Every branch publishes an aggregated summary
+//  (_branchLiveSummary + _branchSummaryExtra) onto its own user doc, which the
+//  chain parent is allowed to read. "All locations" = chain KPIs, alerts,
+//  trend, sortable leaderboard and pooled breakdowns; picking one location
+//  opens that branch's full dashboard.
 // ══════════════════════════════════════════════════════════════════════════
+let _hqSort = { key: 'revenue_30d', dir: -1 };
+let _hqFbCache = { at: 0, byUid: {} };
+function hqSort(key) { _hqSort = { key, dir: _hqSort.key === key ? -_hqSort.dir : -1 }; renderChainReports(); }
+window.hqSort = hqSort;
+
+async function _hqFeedback(branches, force) {
+  if (!force && Date.now() - _hqFbCache.at < 5 * 60000 && Object.keys(_hqFbCache.byUid).length) return _hqFbCache.byUid;
+  const out = {};
+  await Promise.all(branches.map(async b => {
+    try {
+      const snap = await fbDb.collection('users').doc(b.uid).collection('feedback_links').where('submitted', '==', true).get();
+      const rows = snap.docs.map(d => d.data());
+      const vals = rows.map(f => Number(f.workshop_rating ?? f.rating ?? 0)).filter(v => v > 0);
+      out[b.uid] = { n: rows.length, avg: vals.length ? vals.reduce((a, c) => a + c, 0) / vals.length : null,
+        latest: rows.filter(f => f.comment || f.workshop_comment).sort((a, c) => (c.submitted_at || '').localeCompare(a.submitted_at || '')).slice(0, 3)
+          .map(f => ({ who: f.cust_name || 'Customer', stars: Number(f.workshop_rating ?? f.rating ?? 0), text: f.workshop_comment || f.comment || '', at: (f.submitted_at || '').slice(0, 10) })) };
+    } catch (e) { out[b.uid] = { n: 0, avg: null, latest: [] }; }
+  }));
+  _hqFbCache = { at: Date.now(), byUid: out };
+  return out;
+}
+
 async function renderChainReports(force = false) {
   const branches = Array.isArray(userProfile?.branches) ? userProfile.branches : [];
   const sel = document.getElementById('rptBranchFilter');
   const rangeSel = document.getElementById('rptRange');
-  if (rangeSel) rangeSel.style.display = 'none';   // the 30-day window is fixed in this view
+  if (rangeSel) rangeSel.style.display = 'none';
   if (sel) {
     sel.style.display = '';
     if (!sel._built || force) {
       const cur = sel.value;
-      sel.innerHTML = `<option value="all">All locations</option><option value="${escapeHtml(currentUser.uid)}">HQ (this account)</option>` +
-        branches.map(b => `<option value="${escapeHtml(b.uid)}">${escapeHtml(b.name || 'Branch')}</option>`).join('');
+      sel.innerHTML = `<option value="all">All locations</option>` + branches.map(b => `<option value="${escapeHtml(b.uid)}">${escapeHtml(b.name || 'Branch')}</option>`).join('');
       if (cur && sel.querySelector(`option[value="${CSS.escape(cur)}"]`)) sel.value = cur;
       sel._built = true;
     }
   }
   const filter = sel ? sel.value : 'all';
-
   const cur = D.settings?.currency || '₹';
-  const inr = (n) => `${cur}${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
-  const card = (label, val, color = 'var(--txt)', sub = '') => `
-    <div style="background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:18px">
-      <div style="font-family:var(--fd);font-size:24px;font-weight:800;color:${color};line-height:1.1">${val}</div>
-      <div style="font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:6px">${escapeHtml(label)}</div>
-      ${sub ? `<div style="font-size:12px;color:var(--dim);margin-top:6px">${sub}</div>` : ''}
-    </div>`;
+  const inr = n => `${cur}${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  const num = n => (n == null ? '—' : Number(n).toLocaleString('en-IN'));
+  const body = document.getElementById('rptBody');
+  body.innerHTML = '<div class="placeholder"><p>Loading branch data…</p></div>';
 
-  // Load this HQ's own live data (it may not operate as a workshop day-to-day
-  // once branches exist, but this keeps its own card accurate if it does)
-  // plus every branch's last-published summary.
-  await loadAllData(force);
-  const own = _branchLiveSummary();
-  let branchRows = [];
+  // 1) every branch's summary + last-active
+  let rows = [];
   try {
     const snaps = await Promise.all(branches.map(br => fbDb.collection('users').doc(br.uid).get().catch(() => null)));
-    branchRows = snaps.map((snap, i) => ({
-      uid:  branches[i].uid,
-      name: branches[i].name || (snap && snap.exists && snap.data().workshop_name) || 'Branch',
-      s:    (snap && snap.exists) ? (snap.data().branch_summary || {}) : {}
-    }));
-  } catch (e) { console.warn('[chain-reports] branch fetch failed:', e); }
+    rows = snaps.map((snap, i) => {
+      const d = (snap && snap.exists) ? snap.data() : {};
+      const s = d.branch_summary || {};
+      const upd = s.updated_at ? new Date(String(s.updated_at).replace(' ', 'T') + 'Z').getTime() : 0;
+      const last = d.lastActiveAt && d.lastActiveAt.toDate ? d.lastActiveAt.toDate().getTime() : upd;
+      return { uid: branches[i].uid, name: branches[i].name || d.workshop_name || 'Branch', s, upd, last, rich: s.v === 2,
+               fresh: upd && Date.now() - upd < 36 * 3600000 };
+    });
+  } catch (e) { console.warn('[hq] branch fetch failed:', e); }
+  const fb = await _hqFeedback(branches, force);
+  rows.forEach(r => { r.fb = fb[r.uid] || { n: 0, avg: null, latest: [] }; });
+  document.getElementById('rptCrumb').textContent = `Chain overview · ${branches.length} branch${branches.length === 1 ? '' : 'es'} · ${rows.filter(r => r.fresh).length} synced in the last 36h`;
 
-  document.getElementById('rptCrumb').textContent = `Chain oversight · ${branches.length} branch${branches.length === 1 ? '' : 'es'}`;
-  const body = document.getElementById('rptBody');
+  const sum = k => rows.reduce((a, r) => a + Number(r.s?.[k] || 0), 0);
+  const growth = (a, b) => (b > 0 ? Math.round((a - b) / b * 100) : null);
+  const arrow = g => g == null ? '' : `<span style="font-size:11.5px;font-weight:700;color:${g >= 0 ? 'var(--teal)' : 'var(--red)'}">${g >= 0 ? '▲' : '▼'} ${Math.abs(g)}%</span>`;
+  const ago = ms => { if (!ms) return 'never'; const m = Math.round((Date.now() - ms) / 60000); return m < 2 ? 'just now' : m < 90 ? m + ' min ago' : m < 2880 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+  const kpi = (label, val, color = 'var(--txt)', sub = '') => `<div style="background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:16px">
+    <div style="font-family:var(--fd);font-size:23px;font-weight:800;color:${color};line-height:1.1">${val}</div>
+    <div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:6px">${escapeHtml(label)}</div>
+    ${sub ? `<div style="font-size:12px;color:var(--dim);margin-top:5px">${sub}</div>` : ''}</div>`;
+  const grid = inner => `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin-bottom:16px">${inner}</div>`;
+  const panel = (title, inner, sub = '') => `<div class="card" style="padding:18px;min-width:0"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px"><div style="font-weight:700;font-size:14px;color:var(--txt)">${title}</div><div style="font-size:11.5px;color:var(--faint)">${sub}</div></div>${inner}</div>`;
+  const cols2 = inner => `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px">${inner}</div>`;
+  const bars = (entries, fmt = num, color = 'linear-gradient(90deg,var(--acc),var(--acc2))') => {
+    if (!entries.length) return `<div style="color:var(--faint);font-size:13px">No data yet.</div>`;
+    const mx = Math.max(...entries.map(e => e[1])) || 1;
+    return `<div style="display:flex;flex-direction:column;gap:9px">${entries.map(([k, v]) => `<div>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px"><span style="color:var(--dim)">${escapeHtml(String(k))}</span><span style="color:var(--txt);font-weight:600">${fmt(v)}</span></div>
+      <div style="height:6px;background:var(--bg2);border-radius:100px;overflow:hidden"><div style="width:${Math.max(2, v / mx * 100)}%;height:100%;background:${color}"></div></div></div>`).join('')}</div>`;
+  };
+  const cols = (vals, labelFn) => { const mx = Math.max(1, ...vals); return `<div style="display:flex;align-items:flex-end;gap:4px;height:120px">${vals.map((v, i) => `<div title="${escapeHtml(labelFn(i))}: ${inr(v)}" style="flex:1;height:${Math.max(2, v / mx * 100)}%;background:var(--acc);opacity:${0.45 + 0.55 * (i + 1) / vals.length};border-radius:3px 3px 0 0"></div>`).join('')}</div>`; };
+  const dayLabel = i => { const d = new Date(Date.now() - (13 - i) * 86400000); return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); };
+  const spark = vals => { if (!vals || !vals.length) return ''; const mx = Math.max(1, ...vals), w = 90, h = 24; const pts = vals.map((v, i) => `${(i / (vals.length - 1) * w).toFixed(1)},${(h - 2 - v / mx * (h - 4)).toFixed(1)}`).join(' '); return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="var(--acc)" stroke-width="1.8" points="${pts}"/></svg>`; };
+  const chip = (txt, color) => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;background:var(--bg2);color:${color}">${txt}</span>`;
+  const noRich = `<div style="color:var(--faint);font-size:12.5px;margin-bottom:12px">Some branches haven't synced since this update, so detailed figures show "—". They fill in the next time someone opens the app at that branch (or within 10 minutes if it's already open).</div>`;
 
+  // alerts across (or within) locations
+  const alertsFor = r => {
+    const s = r.s, a = [];
+    if (!r.upd) a.push(['warn', 'Has never synced — nobody has opened the app there yet']);
+    else if (!r.fresh) a.push(['warn', `No sync for ${ago(r.upd)}`]);
+    if (s.overdue_jobs > 0) a.push(['bad', `${s.overdue_jobs} job${s.overdue_jobs === 1 ? '' : 's'} open for more than 3 days (oldest ${s.oldest_job_days}d)`]);
+    if (s.revenue_30d > 0 && s.outstanding_all / s.revenue_30d > 0.35) a.push(['bad', `${inr(s.outstanding_all)} unpaid — ${Math.round(s.outstanding_all / s.revenue_30d * 100)}% of 30-day revenue`]);
+    if ((s.aged?.d60p || 0) > 0) a.push(['warn', `${inr(s.aged.d60p)} unpaid for over 60 days`]);
+    if (s.pending_approvals >= 5) a.push(['warn', `${s.pending_approvals} estimates waiting on customers`]);
+    if (s.ready_for_pickup >= 4) a.push(['warn', `${s.ready_for_pickup} cars ready for pickup but not collected`]);
+    if (s.stock_out > 0) a.push(['warn', `${s.stock_out} item${s.stock_out === 1 ? '' : 's'} out of stock`]);
+    if (s.bay_util_pct != null && s.bay_util_pct >= 90) a.push(['info', `Bays ${s.bay_util_pct}% full — at capacity`]);
+    if (r.fb.avg != null && r.fb.n >= 3 && r.fb.avg < 3.5) a.push(['bad', `Customer rating ${r.fb.avg.toFixed(1)}★ across ${r.fb.n} reviews`]);
+    const g = growth(s.revenue_30d || 0, s.revenue_prev_30d || 0);
+    if (g != null && g <= -20) a.push(['bad', `Revenue down ${Math.abs(g)}% vs the previous 30 days`]);
+    return a;
+  };
+  const alertHtml = (r, showName) => alertsFor(r).map(([lvl, t]) => `<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-radius:9px;background:var(--bg2);margin-bottom:6px;font-size:13px">
+    <span style="color:${lvl === 'bad' ? 'var(--red)' : lvl === 'warn' ? 'var(--acc2)' : 'var(--teal)'};font-weight:800">${lvl === 'bad' ? '●' : lvl === 'warn' ? '▲' : 'ℹ'}</span>
+    <span style="color:var(--txt)">${showName ? `<b>${escapeHtml(r.name)}</b> — ` : ''}${t}</span></div>`).join('');
+
+  // ─────────── ALL LOCATIONS ───────────
   if (filter === 'all') {
-    const rows = [{ name: (own.workshop_name || 'HQ') + ' · HQ', s: own, live: true }, ...branchRows];
-    const sum = (k) => rows.reduce((a, r) => a + Number(r.s?.[k] || 0), 0);
-    body.innerHTML = `
-      <div class="card" style="padding:18px">
-        <div style="color:var(--faint);font-size:12px;margin-bottom:14px">Branch figures come from each location's last app sync — open a branch to refresh its numbers. Revenue/jobs are a rolling 30-day window.</div>
-        <div style="overflow:auto"><table class="list-tbl" style="min-width:820px">
-          <thead><tr><th>Location</th><th style="text-align:right">Revenue (30d)</th><th style="text-align:right">Jobs completed (30d)</th><th style="text-align:right">Avg turnaround</th><th style="text-align:right">Repeat rate</th><th style="text-align:right">Outstanding</th><th>Updated</th></tr></thead>
-          <tbody>${rows.map(r => `<tr>
-            <td class="k">${escapeHtml(r.name)}${r.live ? ' <span style="font-size:10px;color:var(--teal)">● live</span>' : ''}</td>
-            <td style="text-align:right;color:var(--teal);font-weight:700">${inr(r.s?.revenue_30d || 0)}</td>
-            <td style="text-align:right">${escapeHtml(String(r.s?.jobs_completed_30d ?? '—'))}</td>
-            <td style="text-align:right">${r.s?.avg_turnaround_h != null ? _fmtDurH(r.s.avg_turnaround_h) : '—'}</td>
-            <td style="text-align:right">${r.s?.repeat_rate_pct != null ? r.s.repeat_rate_pct + '%' : '—'}</td>
-            <td style="text-align:right;${Number(r.s?.outstanding || 0) ? 'color:var(--red);font-weight:700' : ''}">${inr(r.s?.outstanding || 0)}</td>
-            <td style="font-size:11.5px;color:var(--faint);white-space:nowrap">${escapeHtml((r.s?.updated_at || '').slice(0, 16) || '—')}</td>
-          </tr>`).join('')}
-          <tr style="border-top:2px solid var(--brd2)"><td class="k" style="font-weight:800">All locations</td>
-            <td style="text-align:right;color:var(--teal);font-weight:800">${inr(sum('revenue_30d'))}</td>
-            <td style="text-align:right;font-weight:800">${sum('jobs_completed_30d')}</td>
-            <td></td><td></td>
-            <td style="text-align:right;font-weight:800">${inr(sum('outstanding'))}</td><td></td></tr>
-          </tbody>
+    if (!rows.length) { body.innerHTML = `<div class="placeholder"><h3>No branches yet</h3><p>Create branch logins from your account on garagepro.me.</p></div>`; return; }
+    const rev30 = sum('revenue_30d'), revPrev = sum('revenue_prev_30d');
+    const ratedFb = rows.filter(r => r.fb.avg != null), nFb = ratedFb.reduce((a, r) => a + r.fb.n, 0);
+    const avgRating = nFb ? ratedFb.reduce((a, r) => a + r.fb.avg * r.fb.n, 0) / nFb : null;
+    const trend = Array(14).fill(0); rows.forEach(r => (r.s.revenue_daily || []).forEach((v, i) => trend[i] += v));
+    const anyRich = rows.some(r => r.rich);
+    const sorted = rows.slice().sort((a, b) => {
+      const av = a.s[_hqSort.key] ?? (_hqSort.key === 'name' ? a.name : -1), bv = b.s[_hqSort.key] ?? (_hqSort.key === 'name' ? b.name : -1);
+      return typeof av === 'string' ? av.localeCompare(bv) * _hqSort.dir : (av - bv) * _hqSort.dir;
+    });
+    const allAlerts = rows.map(r => alertHtml(r, true)).join('');
+    const th = (k, label, right = true) => `<th style="${right ? 'text-align:right;' : ''}cursor:pointer;white-space:nowrap" onclick="hqSort('${k}')">${label}${_hqSort.key === k ? (_hqSort.dir < 0 ? ' ↓' : ' ↑') : ''}</th>`;
+    const pooled = (key, mapFn) => { const m = {}; rows.forEach(r => (r.s[key] || []).forEach(mapFn(m))); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
+    const statusPool = {}; rows.forEach(r => Object.entries(r.s.by_status || {}).forEach(([k, v]) => statusPool[k] = (statusPool[k] || 0) + v));
+    const svcPool = pooled('top_services', m => ([k, v]) => { m[k] = (m[k] || 0) + v; }).slice(0, 8);
+    const techPool = [];
+    rows.forEach(r => (r.s.techs || []).forEach(t => techPool.push([`${t.name} · ${r.name}`, t.done_30d])));
+    techPool.sort((a, b) => b[1] - a[1]);
+    body.innerHTML = (anyRich ? '' : noRich) + `
+      ${grid(
+        kpi('Revenue · 30 days', inr(rev30), 'var(--teal)', arrow(growth(rev30, revPrev)) + (revPrev ? ` <span style="color:var(--faint)">vs ${inr(revPrev)}</span>` : '')) +
+        kpi('Revenue · today', inr(sum('revenue_today')), 'var(--txt)', `7 days: ${inr(sum('revenue_7d'))}`) +
+        kpi('Unpaid (all time)', inr(sum('outstanding_all')), sum('outstanding_all') ? 'var(--red)' : 'var(--faint)', `${num(sum('overdue_invoices'))} invoices past 30 days`) +
+        kpi('Jobs completed · 30d', num(sum('jobs_completed_30d')), 'var(--acc)', `${num(sum('jobs_created_30d'))} opened`) +
+        kpi('Active jobs now', num(sum('active_jobs')), 'var(--txt)', `${num(sum('overdue_jobs'))} overdue · ${num(sum('awaiting_qc'))} in QC`) +
+        kpi('Cars on the floor', num(sum('cars_on_floor')), 'var(--txt)', `${num(sum('ready_for_pickup'))} ready for pickup`) +
+        kpi('Estimates awaiting approval', num(sum('pending_approvals')), sum('pending_approvals') ? 'var(--acc2)' : 'var(--txt)') +
+        kpi('Customer rating', avgRating != null ? avgRating.toFixed(1) + ' ★' : '—', 'var(--acc2)', nFb ? `${nFb} reviews` : 'no reviews yet') +
+        kpi('Team', num(sum('staff_total')), 'var(--txt)', `${num(sum('bays_total'))} bays · ${num(sum('bookings_today'))} bookings today`) +
+        kpi('Customers', num(sum('customers_total')), 'var(--txt)', `${num(sum('customers_new_30d'))} new in 30d`)
+      )}
+      ${allAlerts ? panel('Needs attention', allAlerts, 'across all locations') : ''}
+      ${cols2(
+        panel('Revenue · last 14 days (all locations)', cols(trend, dayLabel) + `<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:6px"><span>${dayLabel(0)}</span><span>${dayLabel(13)}</span></div>`) +
+        panel('Share of revenue · 30 days', bars(rows.map(r => [r.name, r.s.revenue_30d || 0]).sort((a, b) => b[1] - a[1]), inr))
+      )}
+      <div class="card" style="padding:18px;margin-bottom:16px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:12px">Branch leaderboard <span style="font-weight:400;font-size:11.5px;color:var(--faint)">— click a column to sort</span></div>
+        <div style="overflow:auto"><table class="list-tbl" style="min-width:1180px">
+          <thead><tr>${th('name', 'Location', false)}${th('revenue_30d', 'Revenue 30d')}<th style="text-align:right">vs prior</th>${th('revenue_today', 'Today')}${th('outstanding_all', 'Unpaid')}${th('jobs_completed_30d', 'Done 30d')}${th('active_jobs', 'Active')}${th('overdue_jobs', 'Overdue')}${th('cars_on_floor', 'On floor')}${th('bay_util_pct', 'Bay use')}${th('avg_turnaround_h', 'Turnaround')}${th('est_conversion_pct', 'Estimate win')}<th style="text-align:right">Rating</th><th>14-day</th><th>Synced</th></tr></thead>
+          <tbody>${sorted.map(r => { const s = r.s, g = growth(s.revenue_30d || 0, s.revenue_prev_30d || 0); return `<tr style="cursor:pointer" onclick="document.getElementById('rptBranchFilter').value='${escapeHtml(r.uid)}';renderChainReports()">
+            <td class="k"><span style="color:${r.fresh ? 'var(--teal)' : 'var(--faint)'}">●</span> ${escapeHtml(r.name)}</td>
+            <td style="text-align:right;color:var(--teal);font-weight:700">${inr(s.revenue_30d)}</td><td style="text-align:right">${arrow(g) || '—'}</td>
+            <td style="text-align:right">${inr(s.revenue_today)}</td>
+            <td style="text-align:right;${s.outstanding_all > 0 ? 'color:var(--red);font-weight:700' : ''}">${s.outstanding_all != null ? inr(s.outstanding_all) : inr(s.outstanding)}</td>
+            <td style="text-align:right">${num(s.jobs_completed_30d)}</td><td style="text-align:right">${num(s.active_jobs)}</td>
+            <td style="text-align:right;${s.overdue_jobs ? 'color:var(--red);font-weight:700' : ''}">${num(s.overdue_jobs)}</td>
+            <td style="text-align:right">${num(s.cars_on_floor)}</td><td style="text-align:right">${s.bay_util_pct != null ? s.bay_util_pct + '%' : '—'}</td>
+            <td style="text-align:right">${s.avg_turnaround_h != null ? _fmtDurH(s.avg_turnaround_h) : '—'}</td>
+            <td style="text-align:right">${s.est_conversion_pct != null ? s.est_conversion_pct + '%' : '—'}</td>
+            <td style="text-align:right">${r.fb.avg != null ? r.fb.avg.toFixed(1) + ' ★' : '—'}</td>
+            <td>${spark(s.revenue_daily)}</td>
+            <td style="font-size:11.5px;color:var(--faint);white-space:nowrap">${ago(r.upd)}</td></tr>`; }).join('')}</tbody>
         </table></div>
-      </div>`;
-  } else {
-    const isOwn = filter === currentUser.uid;
-    const b = isOwn ? { name: own.workshop_name || 'HQ', s: own } : branchRows.find(x => x.uid === filter);
-    const s = b ? b.s : {};
-    body.innerHTML = `
-      <div style="color:var(--faint);font-size:12px;margin-bottom:14px">${isOwn ? 'Live data from this account.' : `Snapshot from ${escapeHtml((s.updated_at || '').slice(0, 16) || 'last sync')} — refreshes each time someone opens the app at that branch.`}</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
-        ${card('Revenue (30d)', inr(s.revenue_30d || 0), 'var(--teal)')}
-        ${card('Jobs completed (30d)', s.jobs_completed_30d ?? '—', 'var(--acc)')}
-        ${card('Avg turnaround', s.avg_turnaround_h != null ? _fmtDurH(s.avg_turnaround_h) : '—')}
-        ${card('Repeat customer rate', s.repeat_rate_pct != null ? s.repeat_rate_pct + '%' : '—')}
-        ${card('Insurance jobs (30d)', s.insurance_jobs ?? '—', 'var(--acc2)', s.insurance_approved ? `${inr(s.insurance_approved)} approved` : '')}
-        ${card('Outstanding', inr(s.outstanding || 0), Number(s.outstanding || 0) > 0 ? 'var(--red)' : 'var(--faint)')}
-        ${card('Cars on floor (live)', s.cars_on_floor ?? '—')}
-        ${card('Active jobs (live)', s.active_jobs ?? '—')}
-        ${card('Pending approvals (live)', s.pending_approvals ?? '—', Number(s.pending_approvals || 0) ? 'var(--acc2)' : 'var(--txt)')}
-      </div>`;
+      </div>
+      ${cols2(
+        panel('Job pipeline · chain-wide', bars(Object.entries(statusPool).sort((a, b) => b[1] - a[1]), num), 'open jobs by stage') +
+        panel('Top services · 30 days', bars(svcPool, num)) +
+        panel('Top technicians · jobs delivered 30d', bars(techPool.slice(0, 8), num)) +
+        panel('Money owed by age', bars([['0–7 days', sum_aged('d0_7')], ['8–30 days', sum_aged('d8_30')], ['31–60 days', sum_aged('d31_60')], ['60+ days', sum_aged('d60p')]], inr, 'linear-gradient(90deg,var(--acc2),var(--red))'))
+      )}`;
+    function sum_aged(k) { return rows.reduce((a, r) => a + Number(r.s?.aged?.[k] || 0), 0); }
+    return;
   }
+
+  // ─────────── ONE BRANCH ───────────
+  const r = rows.find(x => x.uid === filter); if (!r) { body.innerHTML = ''; return; }
+  const s = r.s, g = growth(s.revenue_30d || 0, s.revenue_prev_30d || 0);
+  const alerts = alertHtml(r, false);
+  const aged = s.aged || {};
+  body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div style="font-family:var(--fd);font-size:20px;font-weight:800">${escapeHtml(r.name)}</div>
+      <div style="font-size:12px;color:var(--faint)"><span style="color:${r.fresh ? 'var(--teal)' : 'var(--acc2)'}">●</span> last synced ${ago(r.upd)} · last active ${ago(r.last)}</div>
+    </div>
+    ${r.rich ? '' : noRich}
+    ${alerts ? panel('Needs attention', alerts) + '<div style="height:16px"></div>' : ''}
+    ${grid(
+      kpi('Revenue · 30 days', inr(s.revenue_30d), 'var(--teal)', arrow(g) + (s.revenue_prev_30d ? ` <span style="color:var(--faint)">vs ${inr(s.revenue_prev_30d)}</span>` : '')) +
+      kpi('Revenue · today', inr(s.revenue_today), 'var(--txt)', `7 days: ${s.revenue_7d != null ? inr(s.revenue_7d) : '—'}`) +
+      kpi('Collected · 30d', s.paid_30d != null ? inr(s.paid_30d) : '—', 'var(--teal)', s.revenue_30d ? `${Math.round((s.paid_30d || 0) / s.revenue_30d * 100)}% of billed` : '') +
+      kpi('Unpaid (all time)', inr(s.outstanding_all ?? s.outstanding), (s.outstanding_all ?? s.outstanding) ? 'var(--red)' : 'var(--faint)', s.overdue_invoices != null ? `${s.overdue_invoices} invoices past 30 days` : '') +
+      kpi('Avg invoice', s.avg_invoice != null ? inr(s.avg_invoice) : '—', 'var(--txt)', s.invoices_30d != null ? `${s.invoices_30d} invoices in 30d` : '') +
+      kpi('Jobs completed · 30d', num(s.jobs_completed_30d), 'var(--acc)', s.jobs_created_30d != null ? `${s.jobs_created_30d} opened · ${s.jobs_cancelled_30d} cancelled` : '') +
+      kpi('Avg turnaround', s.avg_turnaround_h != null ? _fmtDurH(s.avg_turnaround_h) : '—') +
+      kpi('Estimate win rate', s.est_conversion_pct != null ? s.est_conversion_pct + '%' : '—', 'var(--txt)', s.est_decided_30d ? `${s.est_approved_30d} of ${s.est_decided_30d} approved` : 'no decisions yet') +
+      kpi('Active jobs', num(s.active_jobs), 'var(--txt)', s.overdue_jobs != null ? `${s.overdue_jobs} overdue · oldest ${s.oldest_job_days}d` : '') +
+      kpi('Cars on floor', num(s.cars_on_floor), 'var(--txt)', s.ready_for_pickup != null ? `${s.ready_for_pickup} ready for pickup` : '') +
+      kpi('Awaiting approval', num(s.pending_approvals), s.pending_approvals ? 'var(--acc2)' : 'var(--txt)', s.waiting_parts != null ? `${s.waiting_parts} waiting on parts` : '') +
+      kpi('Bay use', s.bay_util_pct != null ? s.bay_util_pct + '%' : '—', 'var(--txt)', s.bays_total != null ? `${s.bays_busy} of ${s.bays_total} bays busy` : '') +
+      kpi('Bookings', num(s.bookings_today), 'var(--txt)', s.bookings_next7 != null ? `today · ${s.bookings_next7} in the next 7 days` : 'today') +
+      kpi('Customers', num(s.customers_total), 'var(--txt)', s.customers_new_30d != null ? `${s.customers_new_30d} new · ${s.repeat_rate_pct ?? '—'}% repeat` : '') +
+      kpi('Team', num(s.staff_total), 'var(--txt)', Object.entries(s.staff_roles || {}).map(([k, v]) => `${v} ${k.replace('_', ' ')}`).join(' · ')) +
+      kpi('Customer rating', r.fb.avg != null ? r.fb.avg.toFixed(1) + ' ★' : '—', 'var(--acc2)', r.fb.n ? `${r.fb.n} reviews` : 'no reviews yet')
+    )}
+    ${cols2(
+      panel('Revenue · last 14 days', cols(s.revenue_daily || [], dayLabel) + `<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:6px"><span>${dayLabel(0)}</span><span>${dayLabel(13)}</span></div>`) +
+      panel('Money owed by age', bars([['0–7 days', aged.d0_7 || 0], ['8–30 days', aged.d8_30 || 0], ['31–60 days', aged.d31_60 || 0], ['60+ days', aged.d60p || 0]], inr, 'linear-gradient(90deg,var(--acc2),var(--red))'))
+    )}
+    ${cols2(
+      panel('Job pipeline', bars(Object.entries(s.by_status || {}).sort((a, b) => b[1] - a[1]), num), 'open jobs by stage') +
+      panel('Top services · 30 days', bars(s.top_services || [], num)) +
+      panel('Technicians', (s.techs || []).length ? `<table class="list-tbl"><thead><tr><th>Name</th><th style="text-align:right">Active now</th><th style="text-align:right">Delivered 30d</th></tr></thead><tbody>${s.techs.map(t => `<tr><td class="k">${escapeHtml(t.name)}</td><td style="text-align:right">${t.active}</td><td style="text-align:right">${t.done_30d}</td></tr>`).join('')}</tbody></table>` : `<div style="color:var(--faint);font-size:13px">No technicians reported.</div>`) +
+      panel('Stock & parts', `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>${chip('Items tracked', 'var(--dim)')}<div style="font-size:20px;font-weight:800;margin-top:6px">${num(s.stock_items)}</div></div>
+        <div>${chip('Stock value', 'var(--dim)')}<div style="font-size:20px;font-weight:800;margin-top:6px">${s.stock_value != null ? inr(s.stock_value) : '—'}</div></div>
+        <div>${chip('Low stock', 'var(--acc2)')}<div style="font-size:20px;font-weight:800;margin-top:6px">${num(s.stock_low)}</div></div>
+        <div>${chip('Out of stock', 'var(--red)')}<div style="font-size:20px;font-weight:800;margin-top:6px">${num(s.stock_out)}</div></div>
+        <div>${chip('Open part requests', 'var(--dim)')}<div style="font-size:20px;font-weight:800;margin-top:6px">${num(s.parts_open)}</div></div>
+        <div>${chip('Live queue', 'var(--dim)')}<div style="font-size:20px;font-weight:800;margin-top:6px">${num(s.queue_len)}</div></div></div>`) +
+      panel('Insurance · 30 days', `<div style="font-size:22px;font-weight:800">${num(s.insurance_jobs)} jobs</div><div style="color:var(--dim);font-size:13px;margin-top:4px">${inr(s.insurance_approved)} approved</div>`) +
+      panel('Latest customer comments', r.fb.latest.length ? r.fb.latest.map(f => `<div style="padding:9px 0;border-bottom:1px solid var(--brd)"><div style="font-size:12px;color:var(--faint)">${escapeHtml(f.who)} · ${'★'.repeat(Math.round(f.stars))} · ${escapeHtml(f.at)}</div><div style="font-size:13.5px;margin-top:3px">${escapeHtml(f.text)}</div></div>`).join('') : `<div style="color:var(--faint);font-size:13px">No written feedback yet.</div>`)
+    )}`;
 }
 window.renderChainReports = renderChainReports;
 
@@ -19789,4 +20038,11 @@ async function renderWorkload(force = false) {
   setInterval(() => { if (started && !document.hidden && Date.now() - lastInput < IDLE_MS) buf.secs += TICK_MS / 1000; }, TICK_MS);
   setInterval(() => { if (started && !document.hidden) flush(); }, FLUSH_MS);
   document.addEventListener('visibilitychange', () => { if (document.hidden) flush(true); else curStart = Date.now(); });
-  windo
+  window.addEventListener('pagehide', () => flush(true));
+  // the app may already be signed in by the time this runs
+  setTimeout(() => { try { if (currentWorker) begin(); } catch (_) {} }, 1500);
+  setInterval(() => { try { if (!started && currentWorker) begin(); } catch (_) {} }, 5000);
+})();
+</script>
+</body>
+</html>
