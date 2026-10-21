@@ -5540,6 +5540,8 @@ function updateBillingPrices() {
   const tb = document.getElementById('lsTestBanner'); if (tb) tb.style.display = LS_CONFIG.testMode ? 'block' : 'none';
 }
 function lsOpenPortal() {
+  // Lemon Squeezy only serves the customer portal for an ACTIVATED (live) store.
+  if (LS_CONFIG.testMode) { showToast('The billing portal isn\'t available while payments are in test mode — it switches on when the store goes live. Contact support to change plan.', 'bad'); return; }
   if (!LS_CONFIG.billingPortal) { showToast('Billing portal not configured yet — contact support.', 'bad'); return; }
   window.open(LS_CONFIG.billingPortal, '_blank', 'noopener');
 }
@@ -6289,6 +6291,7 @@ window.udCreateBranch = async function() {
       chain_parent_uid: fbAuth.currentUser.uid,
       chain_parent_name: (await fbDb.collection('users').doc(fbAuth.currentUser.uid).get()).data()?.workshop_name || '',
       branch: true,
+      branch_setup_pending: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
     // Public-safe mirror for Track Repair's workshop picker (see
