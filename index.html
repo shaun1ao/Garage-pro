@@ -5539,6 +5539,27 @@ function updateBillingPrices() {
   if (planLabel) planLabel.textContent = `Garage Pro — ${plan.name}`;
   const tb = document.getElementById('lsTestBanner'); if (tb) tb.style.display = LS_CONFIG.testMode ? 'block' : 'none';
 }
+// "Renew" = buy again the plan the customer was last on (or the plan picker if
+// that plan is free / a trial / no longer offered), straight into checkout.
+function renewSubscription() {
+  if (!currentUser || currentUser.isAdmin) { openAuth(null); return; }
+  if (currentUser.isBranch) { openWebApp(); return; }
+  const sub = currentSubscription || {};
+  const plan = S.plans.find(p => p.id === sub.plan && p.active);
+  const paid = plan && (plan.monthly || plan.yearly) && !plan.contact;
+  closeUserDashboard();
+  if (!paid) {
+    const el = document.getElementById('pricing');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+    showToast('Choose a plan to renew your subscription', 'good');
+    return;
+  }
+  const cycle = sub.billingCycle === 'yearly' ? 'yearly' : 'monthly';
+  pendingPlanId = plan.id;
+  S.billingCycle = (plan.cycles || []).includes(cycle) ? cycle : (plan.cycles || ['monthly'])[0];
+  pendingPlatform = 'windows';
+  openBilling();
+}
 function lsOpenPortal() {
   // Lemon Squeezy only serves the customer portal for an ACTIVATED (live) store.
   if (LS_CONFIG.testMode) { showToast('The billing portal isn\'t available while payments are in test mode — it switches on when the store goes live. Contact support to change plan.', 'bad'); return; }
@@ -6000,6 +6021,10 @@ function subscribeToUserSubscription() {
         sub.activatedAt = sub.activatedAt.toDate().toISOString();
       }
       currentSubscription = sub;
+      if (window.__pendingRenew && currentUser && !currentUser.isAdmin) {
+        window.__pendingRenew = false;
+        setTimeout(() => { if (!(currentUser && currentUser.isBranch) && !lsHasPaidSub()) renewSubscription(); }, 400);
+      }
       // A branch login (created by a chain owner) has no plan of its own — it
       // runs on the head office's plan, so the site shows "Open app" for it.
       const isBranch = !!(data.branch === true || data.chain_parent_uid);
@@ -6122,7 +6147,7 @@ function renderUserDashboard() {
       : '';
     const upgradeBtn = isActive
       ? `<button class="btn btn-ghost" style="margin-top:14px;margin-left:10px" onclick="openUpgradeModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Change plan</button>`
-      : `<button class="btn btn-primary" style="margin-top:14px" onclick="closeUserDashboard()">Renew subscription</button>`;
+      : `<button class="btn btn-primary" style="margin-top:14px" onclick="renewSubscription()">Renew subscription</button>`;
     area.innerHTML = `<div class="lic-card">
       <div class="lic-label">Subscription  ${statusTag}</div>
       <div class="lic-meta">
@@ -8024,6 +8049,14 @@ function auRender() {
 load();
 initFirebase();
 siteTrackerStart();
+// Deep link from the web app's "No plan / expired" screen: garagepro.me/?renew=1
+try {
+  if (/[?&]renew=1\b/.test(location.search)) {
+    window.__pendingRenew = true;
+    history.replaceState(null, '', location.pathname + location.hash);
+    setTimeout(() => { if (window.__pendingRenew && !currentUser) openAuth(null); }, 2500);
+  }
+} catch (e) {}
 renderNav();
 renderReviews();
 populateCurrencySelect();
