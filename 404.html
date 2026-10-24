@@ -28,6 +28,8 @@
 
   /track/<slug>  ->  /track.html?ws=<slug>   (the standalone tracker page reads
                                                ?ws= and jumps straight to that workshop)
+  /book/<slug>   ->  /book.html?w=<slug>     (public online booking)
+  /portal/<id>/<token> -> /portal.html?w=<id>&t=<token>  (customer portal)
   anything else  ->  /                        (home)
 */
 (function () {
@@ -38,6 +40,18 @@
   var m = path.match(/\/track\/([^\/?#]+)/i);
   if (m) {
     window.location.replace('/track.html?ws=' + encodeURIComponent(m[1]));
+    return;
+  }
+  // /book/<slug>  ->  /book.html?w=<slug>      (public online-booking page)
+  var b = path.match(/\/book\/([^\/?#]+)/i);
+  if (b) {
+    window.location.replace('/book.html?w=' + encodeURIComponent(b[1]));
+    return;
+  }
+  // /portal/<workshop-id>/<token>  ->  /portal.html?w=<id>&t=<token>   (customer portal)
+  var c = path.match(/\/portal\/([^\/?#]+)\/([^\/?#]+)/i);
+  if (c) {
+    window.location.replace('/portal.html?w=' + encodeURIComponent(c[1]) + '&t=' + encodeURIComponent(c[2]));
     return;
   }
   // Unknown path -> send home
