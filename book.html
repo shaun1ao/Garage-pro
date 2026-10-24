@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Book a service · Garage Pro</title>
+<meta name="description" content="Book your car's service online — pick a service, choose a time, done." />
+<meta name="robots" content="noindex, follow" />
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e14; --bg2:#121722; --surf:#0e1420; --border:#26303f;
+    --text:#e7ecf3; --dim:#9fb0c6; --faint:#69788f;
+    --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2; --red:#ff6b6b;
+    --fd:'Sora',sans-serif; --fb:'Inter',sans-serif;
+  }
+  @media (prefers-color-scheme: light){
+    :root{--bg:#f6f4ef;--bg2:#efece4;--surf:#ffffff;--border:#e2ddd2;--text:#16130e;--dim:#5b564b;--faint:#8b8576;--teal:#0c8f6c;--red:#d63b3b}
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--fb);-webkit-font-smoothing:antialiased}
+  a{color:var(--acc2)}
+  .top{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border)}
+  .brand{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;font:700 15px var(--fd)}
+  .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center}
+  .top small{color:var(--faint);font-size:12px}
+  .wrap{max-width:640px;margin:0 auto;padding:26px 18px 70px}
+  h1{font:800 clamp(24px,5vw,32px)/1.15 var(--fd);margin:0 0 6px}
+  .sub{color:var(--dim);font-size:14.5px;line-height:1.6;margin:0 0 6px}
+  .meta{color:var(--faint);font-size:13px;margin-bottom:22px;display:flex;gap:14px;flex-wrap:wrap}
+  .step{background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px}
+  .step h2{font:700 15px var(--fd);margin:0 0 12px;display:flex;align-items:center;gap:10px}
+  .num{width:24px;height:24px;border-radius:50%;background:rgba(255,122,24,.16);color:var(--acc);display:grid;place-items:center;font-size:12px}
+  .step.done .num{background:var(--teal);color:#06150f}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:10px 14px;border-radius:10px;font:600 13.5px var(--fb);cursor:pointer}
+  .chip:hover{border-color:var(--acc)}
+  .chip.on{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;border-color:transparent}
+  .days{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}
+  .day{flex:none;scroll-snap-align:start;min-width:64px;text-align:center;border:1px solid var(--border);background:var(--bg2);border-radius:12px;padding:9px 6px;cursor:pointer;color:var(--text)}
+  .day b{display:block;font:800 18px var(--fd)}
+  .day span{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+  .day.on{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;border-color:transparent}
+  .day.on span{color:#4a2e0b}
+  .day.off{opacity:.35;cursor:not-allowed}
+  .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px}
+  .slot{border:1px solid var(--border);background:var(--bg2);border-radius:10px;padding:10px 4px;text-align:center;font:600 13.5px var(--fb);cursor:pointer;color:var(--text)}
+  .slot:hover{border-color:var(--acc)}
+  .slot.on{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;border-color:transparent}
+  .slot.full{opacity:.35;text-decoration:line-through;cursor:not-allowed}
+  .slot small{display:block;font-size:10px;font-weight:600;color:var(--faint);margin-top:2px}
+  .slot.few small{color:var(--acc2)}
+  label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px;font-weight:600}
+  input,textarea,select{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:11px 12px;font:500 15px var(--fb);outline:none}
+  input:focus,textarea:focus{border-color:var(--acc)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:480px){.grid2{grid-template-columns:1fr}}
+  .btn{width:100%;margin-top:18px;border:0;border-radius:12px;padding:14px;font:800 15px var(--fd);cursor:pointer;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .err{color:var(--red);font-size:13px;min-height:18px;margin-top:10px}
+  .empty{color:var(--faint);font-size:13.5px;padding:6px 0}
+  .ok{text-align:center;padding:34px 22px}
+  .tick{width:64px;height:64px;border-radius:50%;background:rgba(32,227,178,.15);color:var(--teal);display:grid;place-items:center;margin:0 auto 16px}
+  .sum{margin:18px auto 0;max-width:380px;text-align:left;background:var(--bg2);border-radius:12px;padding:14px 16px;font-size:14px;line-height:1.9}
+  .sum b{color:var(--text)} .sum span{color:var(--dim)}
+  .hp{position:absolute;left:-9999px;opacity:0}
+  footer{padding:22px;text-align:center;color:var(--faint);font-size:12.5px}
+  .skeleton{height:90px;border-radius:14px;background:linear-gradient(90deg,var(--bg2),var(--surf),var(--bg2));background-size:200% 100%;animation:sh 1.2s infinite}
+  @keyframes sh{to{background-position:-200% 0}}
+</style>
+</head>
+<body>
+<div class="top">
+  <a class="brand" href="/"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>Garage Pro</a>
+  <small>Online booking</small>
+</div>
+
+<div class="wrap" id="app"><div class="skeleton"></div></div>
+<footer>Booking powered by <a href="/">Garage Pro</a> — a product of Chassys</footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyA1PzbhboU9Qdlpqs5cbLR3hsvFpWXCI54",
+  authDomain: "garagepro26.firebaseapp.com",
+  projectId: "garagepro26",
+  storageBucket: "garagepro26.firebasestorage.app",
+  messagingSenderId: "605094681607",
+  appId: "1:605094681607:web:095fbfb8ff0446faaedea2"
+});
+const db = firebase.firestore();
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DAYS = ['sun','mon','tue','wed','thu','fri','sat'];
+const DAY_LBL = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DEFAULT_HOURS = { mon:{open:true,from:'09:00',to:'18:00'}, tue:{open:true,from:'09:00',to:'18:00'}, wed:{open:true,from:'09:00',to:'18:00'},
+  thu:{open:true,from:'09:00',to:'18:00'}, fri:{open:true,from:'09:00',to:'18:00'}, sat:{open:true,from:'09:00',to:'18:00'}, sun:{open:false,from:'09:00',to:'13:00'} };
+
+let W = null, SLUG = '', holds = {}, sel = { service: '', date: '', time: '' }, loadedAt = Date.now();
+
+// ───── time helpers (all calculated in the WORKSHOP's timezone) ─────
+function tzParts(tz, d) {
+  const f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+  const o = {}; f.formatToParts(d || new Date()).forEach(p => { o[p.type] = p.value; });
+  return { date: `${o.year}-${o.month}-${o.day}`, min: (+o.hour) * 60 + (+o.minute) };
+}
+const toMin = t => { const [h, m] = String(t || '0:0').split(':').map(Number); return h * 60 + (m || 0); };
+const toHHMM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const addDays = (ds, n) => { const d = new Date(ds + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const dow = ds => new Date(ds + 'T00:00:00Z').getUTCDay();
+const fmt12 = hhmm => { const m = toMin(hhmm), h = Math.floor(m / 60); return `${((h + 11) % 12) + 1}:${String(m % 60).padStart(2,'0')} ${h < 12 ? 'AM' : 'PM'}`; };
+const prettyDate = ds => new Date(ds + 'T00:00:00Z').toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', timeZone:'UTC' });
+
+function slotsFor(date) {
+  const hrs = (W.hours || DEFAULT_HOURS)[DAYS[dow(date)]] || { open: false };
+  if (!hrs.open) return [];
+  const step = Math.max(10, +W.slotMins || 30), cap = Math.max(1, +W.capacity || 1);
+  const now = tzParts(W.tz || 'Asia/Kolkata');
+  const earliest = now.date === date ? now.min + (+W.minNoticeH >= 0 ? +W.minNoticeH : 2) * 60 : -1;
+  const blocks = (W.blocks || []).filter(b => b.date === date);
+  if (blocks.some(b => b.allDay)) return [];
+  const out = [];
+  for (let t = toMin(hrs.from); t + step <= toMin(hrs.to); t += step) {
+    const end = t + step;
+    if ((W.breaks || []).some(b => t < toMin(b.to) && end > toMin(b.from))) continue;       // lunch etc.
+    if (blocks.some(b => t < toMin(b.to) && end > toMin(b.from))) continue;                   // specific blocked window
+    if (earliest >= 0 && t < earliest) continue;                                              // too soon
+    const key = `${date}|${toHHMM(t)}`, taken = ((W.busy || {})[key] || 0) + (holds[key] || 0);
+    out.push({ time: toHHMM(t), left: Math.max(0, cap - taken) });
+  }
+  return out;
+}
+function openDays() {
+  const tz = W.tz || 'Asia/Kolkata', today = tzParts(tz).date, out = [];
+  for (let i = 0; i <= Math.min(90, +W.maxDays || 30); i++) {
+    const d = addDays(today, i);
+    out.push({ date: d, ok: slotsFor(d).some(s => s.left > 0) });
+  }
+  return out;
+}
+
+// ───── load ─────
+(async function init() {
+  const q = new URLSearchParams(location.search);
+  SLUG = (q.get('w') || location.pathname.split('/').filter(Boolean).pop() || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+  if (!SLUG || SLUG === 'book' || SLUG === 'book.html') return deny('link');
+  try {
+    const snap = await db.collection('public_booking').doc(SLUG).get();
+    if (!snap.exists) return deny('link');
+    W = snap.data();
+    if (!W.enabled) return deny('booking');
+    await loadHolds();
+    document.title = `Book a service · ${W.name || 'Garage'}`;
+    render();
+  } catch (e) {
+    $('app').innerHTML = `<div class="step"><h2>Couldn't load this page</h2><div class="empty">${esc(e.message || e)}. Please refresh, or call the workshop directly.</div></div>`;
+  }
+})();
+function deny(why) { location.replace('/403.html?why=' + why); }
+async function loadHolds() {
+  holds = {};
+  try {
+    const today = tzParts(W.tz || 'Asia/Kolkata').date;
+    const snap = await db.collection('users').doc(W.uid).collection('slot_holds').where('date', '>=', today).get();
+    snap.forEach(d => { const h = d.data(), k = `${h.date}|${h.time}`; holds[k] = (holds[k] || 0) + 1; });
+  } catch (e) { /* holds are best-effort */ }
+}
+
+// ───── render ─────
+function render() {
+  const services = (W.services || []).map(s => typeof s === 'string' ? s : s.name).filter(Boolean);
+  const days = openDays();
+  if (!sel.date) { const f = days.find(d => d.ok); if (f) sel.date = f.date; }
+  const slots = sel.date ? slotsFor(sel.date) : [];
+  const canPick = days.some(d => d.ok);
+  $('app').innerHTML = `
+    <h1>${esc(W.name || 'Book a service')}</h1>
+    ${W.welcome ? `<p class="sub">${esc(W.welcome)}</p>` : `<p class="sub">Pick a service and a time that suits you — it takes a minute.</p>`}
+    <div class="meta">${W.city ? `<span>📍 ${esc([W.address, W.city].filter(Boolean).join(', ').slice(0, 90))}</span>` : ''}${W.phone ? `<a href="tel:${esc(W.phone)}" style="color:var(--dim);text-decoration:none">📞 ${esc(W.phone)}</a>` : ''}</div>
+
+    <div class="step ${sel.service ? 'done' : ''}"><h2><span class="num">1</span>What do you need?</h2>
+      ${services.length ? `<div class="chips">${services.map(s => `<button type="button" class="chip ${sel.service === s ? 'on' : ''}" data-svc="${esc(s)}">${esc(s)}</button>`).join('')}</div>`
+        : `<input id="svcFree" placeholder="e.g. Full service, brake check, AC repair" value="${esc(sel.service)}" />`}
+    </div>
+
+    <div class="step ${sel.time ? 'done' : ''}"><h2><span class="num">2</span>Pick a day &amp; time</h2>
+      ${canPick ? `<div class="days" id="days">${days.map(d => `<button type="button" class="day ${d.date === sel.date ? 'on' : ''} ${d.ok ? '' : 'off'}" data-d="${d.date}" ${d.ok ? '' : 'disabled'}><span>${DAY_LBL[dow(d.date)]}</span><b>${+d.date.slice(8)}</b><span>${new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' })}</span></button>`).join('')}</div>
+        <div style="height:12px"></div>
+        ${slots.length ? `<div class="slots">${slots.map(s => `<button type="button" class="slot ${s.left ? '' : 'full'} ${s.left && s.left <= 1 ? 'few' : ''} ${sel.time === s.time ? 'on' : ''}" data-t="${s.time}" ${s.left ? '' : 'disabled'}>${fmt12(s.time)}${s.left && s.left <= 1 ? '<small>last slot</small>' : ''}</button>`).join('')}</div>` : `<div class="empty">No times available on this day.</div>`}`
+        : `<div class="empty">No online slots are open right now. Please call the workshop${W.phone ? ' on ' + esc(W.phone) : ''}.</div>`}
+    </div>
+
+    <div class="step"><h2><span class="num">3</span>Your details</h2>
+      <div class="grid2"><div><label>Your name *</label><input id="fName" autocomplete="name" /></div>
+        <div><label>Mobile number *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" /></div></div>
+      <div class="grid2"><div><label>Vehicle number *</label><input id="fPlate" placeholder="MH12 AB 1234" style="text-transform:uppercase" /></div>
+        <div><label>Make &amp; model</label><input id="fVeh" placeholder="Maruti Swift 2019" /></div></div>
+      <label>Email <span style="font-weight:400;color:var(--faint)">(optional, for the confirmation)</span></label><input id="fEmail" type="email" autocomplete="email" />
+      <label>Anything we should know? <span style="font-weight:400;color:var(--faint)">(optional)</span></label><textarea id="fNotes" rows="3" maxlength="500" placeholder="Noise, warning light, pickup needed…"></textarea>
+      <input class="hp" id="fHp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+      <div class="err" id="err"></div>
+      <button class="btn" id="go" type="button" ${canPick ? '' : 'disabled'}>Request this booking</button>
+      <p class="sub" style="font-size:12.5px;margin-top:12px;text-align:center">The workshop will confirm your slot by phone or WhatsApp. No payment needed now.</p>
+    </div>`;
+  document.querySelectorAll('[data-svc]').forEach(b => b.onclick = () => { sel.service = b.dataset.svc; keepForm(); });
+  const free = $('svcFree'); if (free) free.oninput = () => { sel.service = free.value.trim(); };
+  document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { sel.date = b.dataset.d; sel.time = ''; keepForm(); });
+  document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { sel.time = b.dataset.t; keepForm(); });
+  $('go').onclick = submit;
+}
+function keepForm() {            // re-render without losing what the customer typed
+  const ids = ['fName', 'fPhone', 'fPlate', 'fVeh', 'fEmail', 'fNotes'], v = {};
+  ids.forEach(i => v[i] = ($(i) || {}).value || '');
+  render(); ids.forEach(i => { if ($(i)) $(i).value = v[i]; });
+}
+
+// ───── submit ─────
+async function submit() {
+  const err = $('err'); err.textContent = '';
+  const v = id => ($(id).value || '').trim();
+  const name = v('fName'), phone = v('fPhone').replace(/[^\d+]/g, ''), plate = v('fPlate').toUpperCase().replace(/\s+/g, ' '), email = v('fEmail');
+  if ($('fHp').value) return;                                      // bot
+  if (Date.now() - loadedAt < 2500) { err.textContent = 'One moment…'; return; }
+  const services = (W.services || []).length;
+  if (!sel.service && services) return err.textContent = 'Please choose what you need.';
+  if (!sel.service) sel.service = ($('svcFree') || {}).value || 'General service';
+  if (!sel.date || !sel.time) return err.textContent = 'Please pick a day and a time.';
+  if (name.length < 2) return err.textContent = 'Please enter your name.';
+  if (phone.replace(/\D/g, '').length < 10) return err.textContent = 'Please enter a valid mobile number.';
+  if (plate.replace(/\W/g, '').length < 4) return err.textContent = 'Please enter your vehicle number.';
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) return err.textContent = 'That email looks wrong.';
+  const btn = $('go'); btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    // make sure the slot hasn't just filled up
+    await loadHolds();
+    const fresh = slotsFor(sel.date).find(s => s.time === sel.time);
+    if (!fresh || !fresh.left) { sel.time = ''; keepForm(); $('err').textContent = 'Sorry — that slot was just taken. Please pick another.'; return; }
+    const ref = db.collection('users').doc(W.uid).collection('booking_requests').doc();
+    const batch = db.batch();
+    batch.set(ref, { slug: SLUG, name, phone, email, plate, vehicle: v('fVeh').slice(0, 80), service: sel.service.slice(0, 100),
+      date: sel.date, time: sel.time, notes: v('fNotes').slice(0, 500), status: 'pending', created_at: new Date().toISOString() });
+    batch.set(db.collection('users').doc(W.uid).collection('slot_holds').doc(ref.id), { slug: SLUG, date: sel.date, time: sel.time, created_at: new Date().toISOString() });
+    await batch.commit();
+    done(ref.id, { name, plate });
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Request this booking';
+    err.textContent = (e && e.code === 'permission-denied') ? 'Online booking just closed for this workshop. Please call them instead.' : 'Something went wrong: ' + (e.message || e);
+  }
+}
+function done(id, d) {
+  const end = toHHMM(toMin(sel.time) + (+W.slotMins || 30));
+  const ics = 'BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:' + (sel.service + ' · ' + (W.name || 'Garage')).replace(/[,;\n]/g, ' ') +
+    '\nDTSTART:' + sel.date.replace(/-/g, '') + 'T' + sel.time.replace(':', '') + '00\nDTEND:' + sel.date.replace(/-/g, '') + 'T' + end.replace(':', '') + '00\nLOCATION:' + (W.address || W.city || '').replace(/[,;\n]/g, ' ') + '\nEND:VEVENT\nEND:VCALENDAR';
+  $('app').innerHTML = `<div class="step ok"><div class="tick"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+    <h1 style="font-size:24px">Request sent!</h1>
+    <p class="sub">${esc(W.name || 'The workshop')} will confirm your booking by phone or WhatsApp shortly.</p>
+    <div class="sum"><span>Service</span> <b>${esc(sel.service)}</b><br><span>When</span> <b>${esc(prettyDate(sel.date))}, ${fmt12(sel.time)}</b><br><span>Vehicle</span> <b>${esc(d.plate)}</b><br><span>Reference</span> <b>${esc(id.slice(0, 6).toUpperCase())}</b></div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px">
+      <a class="chip" download="booking.ics" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}" style="text-decoration:none">📅 Add to calendar</a>
+      ${W.phone ? `<a class="chip" href="tel:${esc(W.phone)}" style="text-decoration:none">📞 Call the workshop</a>` : ''}
+    </div></div>`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
