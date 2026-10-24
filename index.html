@@ -1032,6 +1032,7 @@ html,body{max-width:100%;overflow-x:hidden}
       <div><label>Garage / Company Name</label><input id="su-garage" type="text" placeholder="Speed Auto Care" required /></div>
       <div><label>Email</label><input id="su-email" type="email" placeholder="raj@speedauto.in" required /></div>
       <div><label>Phone number</label><input id="su-phone" type="tel" placeholder="+91 98765 43210" required autocomplete="tel" /></div>
+      <div><label>How did you find out about Garage Pro?</label><select id="su-heard" required onchange="document.getElementById('su-heard-other').style.display=this.value==='other'?'block':'none'"><option value="">Select one…</option><option value="google">Google search</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp (shared with me)</option><option value="word_of_mouth">Word of mouth (friend / colleague)</option><option value="workshop_owner">Another workshop owner</option><option value="ai">AI assistant (ChatGPT, Claude, Gemini…)</option><option value="ad">An advertisement</option><option value="event">Trade show / event</option><option value="article">Blog or news article</option><option value="email">Email / newsletter</option><option value="other">Other</option></select><input id="su-heard-other" type="text" maxlength="80" placeholder="Please tell us where (e.g. Facebook group, a podcast…)" style="display:none;margin-top:8px" /></div>
       <div><label>Password</label><input id="su-pass" type="password" placeholder="Min 6 characters" required minlength="6" /></div>
       <div><label>Confirm Password</label><input id="su-conf" type="password" placeholder="Repeat password" required /></div>
       <div class="modal-err" id="signupErr"></div>
@@ -1254,7 +1255,6 @@ html,body{max-width:100%;overflow-x:hidden}
           <div class="form-group"><label>Max bays</label><input id="pf-bays" type="number" placeholder="6" /></div>
           <div class="form-group"><label>Max workers (mechanics)</label><input id="pf-workers" type="number" placeholder="8" /></div>
         </div>
-        <div class="form-group"><label>Max concurrent bookings</label><input id="pf-bookings" type="number" placeholder="20" /></div>
         <div class="form-group"><label>Highlight features (one per line)</label><textarea id="pf-features" placeholder="GST invoices&#10;Inventory tracking&#10;Daily briefing email" style="min-height:90px"></textarea></div>
         <div class="form-row">
           <div class="form-group"><label>Featured? (most popular)</label>
@@ -2484,7 +2484,7 @@ const DEFAULT_PLANS = [
     tag:'For the one-bay operation',
     monthly: 0, yearly: 0,
     cycles: ['monthly','yearly'],
-    maxBays: 1, maxWorkers: 2, maxBookings: 5,
+    maxBays: 1, maxWorkers: 2, maxBookings: 999,
     features: [
       '1 bay',
       '2 workers',
@@ -2499,7 +2499,7 @@ const DEFAULT_PLANS = [
     tag:'Growing workshop',
     monthly: 999, yearly: 9990,
     cycles: ['monthly','yearly'],
-    maxBays: 3, maxWorkers: 5, maxBookings: 10,
+    maxBays: 3, maxWorkers: 5, maxBookings: 999,
     features: [
       'Up to 3 bays',
       '5 workers',
@@ -2514,7 +2514,7 @@ const DEFAULT_PLANS = [
     tag:'Full-floor control',
     monthly: 2499, yearly: 24990,
     cycles: ['monthly','yearly'],
-    maxBays: 6, maxWorkers: 10, maxBookings: 20,
+    maxBays: 6, maxWorkers: 10, maxBookings: 999,
     features: [
       'Up to 6 bays',
       '10 workers',
@@ -2550,6 +2550,7 @@ const PLANS_VERSION = 2;
 function sanitizePlans() {
   (S.plans || []).forEach(p => {
     delete p.weekly;
+    p.maxBookings = 999;                 // bookings/appointments are unlimited on every plan
     p.cycles = (Array.isArray(p.cycles) ? p.cycles : ['monthly','yearly']).filter(c => c === 'monthly' || c === 'yearly');
     if (!p.cycles.length) p.cycles = ['monthly','yearly'];
   });
@@ -2796,7 +2797,7 @@ async function loadCustomersViaFunction() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
     manualCustomers = (j.customers || []).map(c => ({
-      uid: c.uid, name: c.name, email: c.email, garageName: c.garageName, phone: c.phone,
+      uid: c.uid, name: c.name, email: c.email, garageName: c.garageName, phone: c.phone, heardFrom: c.heardFrom || '', heardFromOther: c.heardFromOther || '',
       _createdAt: c.createdAt, _lastLogin: c.lastActiveAt
     })).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
     usersListenerError = '';
@@ -2960,7 +2961,7 @@ async function doGoogleSignIn() {
     showToast(isNew ? `Welcome, ${update.name.split(' ')[0]}!` : `Welcome back, ${update.name.split(' ')[0]}!`, 'good');
     // Send welcome email to NEW Google users only
     // Google gives us no phone number, but it's mandatory — ask right away.
-    if (!existing.exists || !(existing.data() || {}).phone) requirePhoneNumber(user.uid);
+    if (!existing.exists || !(existing.data() || {}).phone) requirePhoneNumber(user.uid);   // also asks how they found us
     if (isNew) {
       sendWelcomeEmail({ name: update.name, email: update.email }, '');
       setTimeout(() => {
@@ -2998,6 +2999,7 @@ function requirePhoneNumber(uid) {
   d.innerHTML = `<form style="background:var(--surf);border:1px solid var(--brd2);border-radius:14px;padding:26px;max-width:380px;width:100%">
     <div style="font-family:var(--fd);font-size:18px;font-weight:700;margin-bottom:6px">One last thing</div>
     <div style="color:var(--dim);font-size:13.5px;line-height:1.5;margin-bottom:14px">Add your phone number to finish setting up your account.</div>
+    <div style="font-size:12.5px;color:var(--dim);margin-bottom:6px">How did you find out about Garage Pro?</div><div id="pg-heard-wrap" style="margin-bottom:12px"><select id="pg-heard" required onchange="document.getElementById('pg-heard-other').style.display=this.value==='other'?'block':'none'"><option value="">Select one…</option><option value="google">Google search</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp (shared with me)</option><option value="word_of_mouth">Word of mouth (friend / colleague)</option><option value="workshop_owner">Another workshop owner</option><option value="ai">AI assistant (ChatGPT, Claude, Gemini…)</option><option value="ad">An advertisement</option><option value="event">Trade show / event</option><option value="article">Blog or news article</option><option value="email">Email / newsletter</option><option value="other">Other</option></select><input id="pg-heard-other" type="text" maxlength="80" placeholder="Please tell us where (e.g. Facebook group, a podcast…)" style="display:none;margin-top:8px" /></div>
     <input id="pg-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel" required style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:14px;margin-bottom:8px" />
     <div id="pg-err" style="color:#ff6b6b;font-size:12.5px;min-height:16px;margin-bottom:8px"></div>
     <button type="submit" class="btn btn-primary" style="width:100%">Save &amp; continue</button></form>`;
@@ -3006,8 +3008,11 @@ function requirePhoneNumber(uid) {
     ev.preventDefault();
     const phone = document.getElementById('pg-phone').value.trim();
     if (!isValidPhone(phone)) { document.getElementById('pg-err').textContent = 'Enter a valid phone number (at least 10 digits).'; return; }
+    const heardFrom = document.getElementById('pg-heard').value, heardOther = (document.getElementById('pg-heard-other').value || '').trim();
+    if (!heardFrom) { document.getElementById('pg-err').textContent = 'Please tell us how you found out about Garage Pro.'; return; }
+    if (heardFrom === 'other' && heardOther.length < 2) { document.getElementById('pg-err').textContent = 'Please say where you heard about us.'; return; }
     try {
-      await fbDb.collection('users').doc(uid).set({ phone, profile: { phone } }, { merge: true });
+      await fbDb.collection('users').doc(uid).set({ phone, profile: { phone }, heardFrom, heardFromOther: heardFrom === 'other' ? heardOther : '' }, { merge: true });
       d.remove();
     } catch (e) { document.getElementById('pg-err').textContent = e.message || 'Could not save. Try again.'; }
   };
@@ -3060,6 +3065,8 @@ async function doSignup(e) {
   const garageName = document.getElementById('su-garage').value.trim();
   const email      = document.getElementById('su-email').value.trim();
   const phone      = document.getElementById('su-phone').value.trim();
+  const heardFrom  = document.getElementById('su-heard').value;
+  const heardOther = (document.getElementById('su-heard-other').value || '').trim();
   const pass       = document.getElementById('su-pass').value;
   const conf       = document.getElementById('su-conf').value;
   const err        = document.getElementById('signupErr');
@@ -3067,6 +3074,8 @@ async function doSignup(e) {
   if (!name)              { err.textContent = 'Enter your full name.'; return; }
   if (!garageName)        { err.textContent = 'Enter your garage / company name.'; return; }
   if (!isValidPhone(phone)) { err.textContent = 'Enter a valid phone number (at least 10 digits).'; return; }
+  if (!heardFrom)         { err.textContent = 'Please tell us how you found out about Garage Pro.'; return; }
+  if (heardFrom === 'other' && heardOther.length < 2) { err.textContent = 'Please say where you heard about us.'; return; }
   if (pass !== conf)      { err.textContent = 'Passwords do not match.'; return; }
   if (pass.length < 6)    { err.textContent = 'Password must be at least 6 characters.'; return; }
   if (!fbAuth)            { err.textContent = 'Site not connected to Firebase yet. Contact support.'; return; }
@@ -3085,6 +3094,8 @@ async function doSignup(e) {
       name,
       garageName,                // company / workshop name — used in license keys
       phone,                     // mandatory at signup — shown in the admin panel
+      heardFrom,                 // how they found Garage Pro (mandatory) — admin Customers tab
+      heardFromOther: heardFrom === 'other' ? heardOther : '',
       createdAt:  firebase.firestore.FieldValue.serverTimestamp(),
       profile:    { phone, address: '' },
       bankDetails: { holderName: '', accountNumber: '', ifsc: '', bankName: '' }
@@ -3335,6 +3346,8 @@ function getCustomerList() {
       email:      c.email,
       garageName: c.garageName || '',
       phone:      c.phone || '',
+      heardFrom:  c.heardFrom || '',
+      heardOther: c.heardFromOther || '',
       plan:       lic ? (lic.planName || lic.plan || '—') : '—',
       status:     lic ? lic.status : 'none',
       expiry:     lic ? lic.expiry : null,
@@ -3372,6 +3385,9 @@ function setCustomerSort(key) {
   renderCustomersTab();
 }
 
+const HEARD_LABELS = {google:'Google search',youtube:'YouTube',instagram:'Instagram',facebook:'Facebook',linkedin:'LinkedIn',whatsapp:'WhatsApp',word_of_mouth:'Word of mouth',workshop_owner:'Another workshop owner',ai:'AI assistant',ad:'An advertisement',event:'Trade show / event',article:'Blog or news article',email:'Email / newsletter',other:'Other'};
+function heardText(c) { return c.heardFrom ? (c.heardFrom === 'other' ? 'Other: ' + (c.heardOther || '—') : (HEARD_LABELS[c.heardFrom] || c.heardFrom)) : ''; }
+function heardLabel(c) { const t = heardText(c); return t ? escapeHtml(t) : '<span style="color:var(--faint)">—</span>'; }
 function renderCustomersTab() {
   const q = (document.getElementById('customerSearch')?.value || '').toLowerCase().trim();
   let list = getCustomerList();
@@ -3412,6 +3428,7 @@ function renderCustomersTab() {
       <th onclick="setCustomerSort('email')"      style="cursor:pointer">Email ${arrow('email')}</th>
       <th onclick="setCustomerSort('phone')"      style="cursor:pointer">Phone ${arrow('phone')}</th>
       <th onclick="setCustomerSort('garageName')" style="cursor:pointer">Garage ${arrow('garageName')}</th>
+      <th onclick="setCustomerSort('heardFrom')"  style="cursor:pointer">Found us via ${arrow('heardFrom')}</th>
       <th onclick="setCustomerSort('plan')"       style="cursor:pointer">Plan ${arrow('plan')}</th>
       <th onclick="setCustomerSort('status')"     style="cursor:pointer">Status ${arrow('status')}</th>
       <th onclick="setCustomerSort('expiry')"     style="cursor:pointer">Expiry ${arrow('expiry')}</th>
@@ -3423,6 +3440,7 @@ function renderCustomersTab() {
       <td><a href="mailto:${escapeHtml(c.email)}" style="color:var(--acc2)">${escapeHtml(c.email)}</a></td>
       <td>${c.phone ? `<a href="tel:${escapeHtml(c.phone)}" style="color:var(--acc2)">${escapeHtml(c.phone)}</a>` : '<span style="color:var(--faint)">—</span>'}</td>
       <td>${c.garageName ? escapeHtml(c.garageName) : '<span style="color:var(--faint)">—</span>'}</td>
+      <td>${heardLabel(c)}</td>
       <td>${escapeHtml(c.plan)}</td>
       <td>${statusPill(c.status)}</td>
       <td style="color:var(--faint)">${fmtCustomerDate(c.expiry)}</td>
@@ -3435,9 +3453,9 @@ function renderCustomersTab() {
 function exportCustomersCsv() {
   const list = sortCustomers(getCustomerList());
   if (!list.length) { showToast('No customers to export', 'bad'); return; }
-  const headers = ['Name','Email','Phone','Garage','Plan','Status','Expiry','Joined','Last used'];
+  const headers = ['Name','Email','Phone','Garage','Found us via','Plan','Status','Expiry','Joined','Last used'];
   const rows = list.map(c => [
-    c.name, c.email, c.phone, c.garageName, c.plan, c.status,
+    c.name, c.email, c.phone, c.garageName, heardText(c), c.plan, c.status,
     fmtCustomerDate(c.expiry), fmtCustomerDate(c.createdAt), fmtCustomerDate(c.lastLogin)
   ]);
   const csv = [headers, ...rows].map(r => r.map(cell => {
@@ -3675,7 +3693,6 @@ function comparisonRows() {
     { section: 'Workshop Capacity' },
     { label: 'Bays / service points',     render: p => unlim(p.maxBays) },
     { label: 'Mechanics / workers',       render: p => unlim(p.maxWorkers) },
-    { label: 'Concurrent live bookings',  render: p => unlim(p.maxBookings) },
     { section: 'Day-to-Day Operations' },
     { label: 'Digital job cards (7-state workflow)',  render: () => yes },
     { label: 'Customer & vehicle history',            render: () => yes },
@@ -4584,7 +4601,7 @@ function computeByopPlan() {
     // chain-tier features (isChainTier() checks maxBays >= 999) as the Chain plan.
     maxBays:     isChainLike ? 999 : bays,
     maxWorkers:  isChainLike ? 999 : workers,
-    maxBookings: Math.max(bays * 3, workers * 2, 5),
+    maxBookings: 999,
     features: [
       `${bays} bay${bays === 1 ? '' : 's'}`,
       `${workers} worker${workers === 1 ? '' : 's'}`,
@@ -4647,7 +4664,7 @@ function renderAdminPlansGrid() {
       ${p.contact ? ' <span style="color:var(--acc2)">· Contact us</span>' : ''}
     </div>
     <div class="pa-limits">
-      <div><b>${p.maxBays >= 999 ? '∞' : p.maxBays}</b> bays · <b>${p.maxWorkers >= 999 ? '∞' : p.maxWorkers}</b> workers · <b>${p.maxBookings >= 999 ? '∞' : p.maxBookings}</b> concurrent bookings</div>
+      <div><b>${p.maxBays >= 999 ? '∞' : p.maxBays}</b> bays · <b>${p.maxWorkers >= 999 ? '∞' : p.maxWorkers}</b> workers</div>
       <div style="margin-top:6px;font-size:12px;color:var(--faint)">Cycles: ${(Array.isArray(p.cycles) ? p.cycles : ['monthly','yearly','weekly']).join(', ')} · ID: <code style="background:var(--bg2);padding:1px 5px;border-radius:3px">${p.id}</code></div>
     </div>
     <div class="pa-actions">
@@ -4670,7 +4687,6 @@ function openPlanForm(id) {
     document.getElementById('pf-yearly').value  = p.yearly  || '';
     document.getElementById('pf-bays').value = p.maxBays;
     document.getElementById('pf-workers').value = p.maxWorkers;
-    document.getElementById('pf-bookings').value = p.maxBookings;
     document.getElementById('pf-features').value = p.features.join('\n');
     document.getElementById('pf-featured').value = p.featured ? 'true' : 'false';
     document.getElementById('pf-active').value   = p.active   ? 'true' : 'false';
@@ -4680,7 +4696,7 @@ function openPlanForm(id) {
     document.getElementById('pf-cycle-yearly').checked  = cycles.includes('yearly');
   } else {
     document.getElementById('planFormTitle').textContent = 'Add Plan';
-    ['planEditId','pf-name','pf-tag','pf-monthly','pf-yearly','pf-bays','pf-workers','pf-bookings','pf-features'].forEach(i => document.getElementById(i).value = '');
+    ['planEditId','pf-name','pf-tag','pf-monthly','pf-yearly','pf-bays','pf-workers','pf-features'].forEach(i => document.getElementById(i).value = '');
     document.getElementById('pf-featured').value = 'false';
     document.getElementById('pf-active').value   = 'true';
     document.getElementById('pf-contact').value  = 'false';
@@ -4713,7 +4729,7 @@ function savePlan() {
   const yearly = parseInt(document.getElementById('pf-yearly').value, 10) || (monthly ? monthly * 10 : 0);
   const maxBays    = parseInt(document.getElementById('pf-bays').value, 10) || 1;
   const maxWorkers = parseInt(document.getElementById('pf-workers').value, 10) || 1;
-  const maxBookings= parseInt(document.getElementById('pf-bookings').value, 10) || 1;
+  const maxBookings= 999;   // unlimited on every plan
   const featuresArr= document.getElementById('pf-features').value.split('\n').map(s => s.trim()).filter(Boolean);
   const featured = document.getElementById('pf-featured').value === 'true';
   const active   = document.getElementById('pf-active').value === 'true';
@@ -4776,7 +4792,7 @@ function renderUpgradePlans() {
     const limits = `<div class="plan-limits">
       <div class="plan-limit"><b>${p.maxBays >= 999 ? 'Unlimited' : p.maxBays}</b> bays</div>
       <div class="plan-limit"><b>${p.maxWorkers >= 999 ? 'Unlimited' : p.maxWorkers}</b> workers</div>
-      <div class="plan-limit"><b>${p.maxBookings >= 999 ? 'Unlimited' : p.maxBookings}</b> bookings</div>
+      <div class="plan-limit"><b>Unlimited</b> bookings</div>
     </div>`;
     const isCurrent = sub && sub.plan === p.id && sub.billingCycle === cycle;
     const currentTag = isCurrent ? '<div class="plan-current-tag">● Current plan</div>' : '';
@@ -5313,6 +5329,8 @@ function subscribeAllUsersFromFirebase() {
         email:      d.email,
         garageName: d.garageName || '',
         phone:      d.phone || (d.profile && d.profile.phone) || '',
+        heardFrom:  d.heardFrom || '',
+        heardFromOther: d.heardFromOther || '',
         _createdAt: d.createdAt || null,
         // lastActiveAt is stamped by the workshop web/mobile app while in use
         _lastLogin: d.lastActiveAt || d.lastLoginAt || null
@@ -6158,7 +6176,6 @@ function renderUserDashboard() {
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px;padding-top:18px;border-top:1px solid rgba(255,255,255,.08)">
         <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Max bays</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${maxBays === 999 ? '∞' : maxBays}</div></div>
         <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Max workers</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${maxWorkers === 999 ? '∞' : maxWorkers}</div></div>
-        <div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Concurrent bookings</div><div style="font-family:var(--fd);font-weight:800;font-size:18px">${maxBookings === 999 ? '∞' : maxBookings}</div></div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:0">${dlButton}${upgradeBtn}</div>
       <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:var(--faint);display:flex;align-items:center;gap:8px">
