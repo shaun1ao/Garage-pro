@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Your car · Garage Pro</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0a0e14;--bg2:#121722;--surf:#0e1420;--border:#26303f;--text:#e7ecf3;--dim:#9fb0c6;--faint:#69788f;--acc:#ff7a18;--acc2:#ffb347;--teal:#20e3b2;--red:#ff6b6b;--fd:'Sora',sans-serif;--fb:'Inter',sans-serif}
+  @media (prefers-color-scheme: light){:root{--bg:#f6f4ef;--bg2:#efece4;--surf:#fff;--border:#e2ddd2;--text:#16130e;--dim:#5b564b;--faint:#8b8576;--teal:#0c8f6c;--red:#d63b3b}}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--fb);-webkit-font-smoothing:antialiased}
+  a{color:var(--acc2)}
+  .top{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border)}
+  .brand{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;font:700 15px var(--fd)}
+  .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center}
+  .wrap{max-width:720px;margin:0 auto;padding:24px 16px 70px}
+  h1{font:800 clamp(24px,5vw,30px)/1.15 var(--fd);margin:0 0 4px}
+  .sub{color:var(--dim);font-size:14.5px;line-height:1.6;margin:0 0 4px}
+  .ws{display:flex;gap:10px;flex-wrap:wrap;align-items:center;color:var(--faint);font-size:13px;margin:6px 0 20px}
+  .pill{display:inline-block;padding:4px 11px;border-radius:100px;background:var(--bg2);border:1px solid var(--border);color:var(--dim);font-size:12.5px;text-decoration:none}
+  .tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+  .tab{background:none;border:0;color:var(--dim);font:600 14px var(--fb);padding:10px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.on{color:var(--text);border-color:var(--acc)}
+  .card{background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px}
+  .plate{display:inline-block;background:#f6c332;color:#16130e;font:800 14px 'Courier New',monospace;padding:3px 10px;border-radius:5px;letter-spacing:1px}
+  .row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .svc{font:700 17px var(--fd);margin:8px 0 2px}
+  .stat{display:inline-block;padding:4px 11px;border-radius:100px;font:700 12.5px var(--fb);background:rgba(255,122,24,.14);color:var(--acc2)}
+  .stat.done{background:rgba(32,227,178,.14);color:var(--teal)} .stat.bad{background:rgba(255,107,107,.14);color:var(--red)}
+  .track{display:flex;align-items:flex-start;margin:20px 2px 6px;overflow-x:auto;padding-bottom:6px}
+  .st{flex:1;min-width:58px;text-align:center;position:relative;font-size:10.5px;color:var(--faint);line-height:1.25}
+  .st i{display:block;width:16px;height:16px;border-radius:50%;background:var(--bg2);border:2px solid var(--border);margin:0 auto 6px;position:relative;z-index:1}
+  .st:not(:last-child)::after{content:'';position:absolute;top:7px;left:50%;width:100%;height:2px;background:var(--border)}
+  .st.d i{background:var(--teal);border-color:var(--teal)} .st.d:not(:last-child)::after{background:var(--teal)}
+  .st.c i{background:var(--acc);border-color:var(--acc);box-shadow:0 0 0 4px rgba(255,122,24,.2)} .st.c{color:var(--text);font-weight:700}
+  .cta{display:block;text-align:center;margin-top:14px;padding:13px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05;font:800 15px var(--fd);text-decoration:none}
+  .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:14px}
+  .photos a{position:relative;display:block;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+  .photos img{width:100%;height:100%;object-fit:cover;display:block}
+  .photos span{position:absolute;left:5px;top:5px;font:700 10px var(--fb);background:rgba(0,0,0,.65);color:#fff;padding:2px 7px;border-radius:100px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;color:var(--faint);font:600 11.5px var(--fb);text-transform:uppercase;letter-spacing:.06em;padding:8px 6px;border-bottom:1px solid var(--border)}
+  td{padding:11px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  .muted{color:var(--faint);font-size:13.5px}
+  .empty{text-align:center;padding:30px 10px;color:var(--faint)}
+  footer{padding:22px;text-align:center;color:var(--faint);font-size:12.5px}
+  .skeleton{height:120px;border-radius:14px;background:linear-gradient(90deg,var(--bg2),var(--surf),var(--bg2));background-size:200% 100%;animation:sh 1.2s infinite}
+  @keyframes sh{to{background-position:-200% 0}}
+  .lb{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;place-items:center;z-index:50;padding:16px}
+  .lb.on{display:grid} .lb img{max-width:100%;max-height:92vh;border-radius:10px}
+</style>
+</head>
+<body>
+<div class="top"><a class="brand" href="/"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>Garage Pro</a><span class="muted" id="upd"></span></div>
+<div class="wrap" id="app"><div class="skeleton"></div></div>
+<div class="lb" id="lb" onclick="this.classList.remove('on')"><img id="lbimg" alt=""></div>
+<footer>Powered by <a href="/">Garage Pro</a> — a product of Chassys</footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp({ apiKey: "AIzaSyA1PzbhboU9Qdlpqs5cbLR3hsvFpWXCI54", authDomain: "garagepro26.firebaseapp.com", projectId: "garagepro26",
+  storageBucket: "garagepro26.firebasestorage.app", messagingSenderId: "605094681607", appId: "1:605094681607:web:095fbfb8ff0446faaedea2" });
+const db = firebase.firestore();
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN');
+const safeUrl = u => /^https:\/\//.test(u || '') ? u : '';
+const q = new URLSearchParams(location.search);
+const parts = location.pathname.split('/').filter(Boolean);
+const W = q.get('w') || (parts[0] === 'portal' ? parts[1] : ''), T = q.get('t') || (parts[0] === 'portal' ? parts[2] : '');
+let P = null, tab = 'cars';
+
+async function load(first) {
+  if (!W || !T || !/^[A-Za-z0-9_-]{8,64}$/.test(T)) return location.replace('/403.html?why=link');
+  try {
+    const snap = await db.collection('users').doc(W).collection('customer_portal').doc(T).get();
+    if (!snap.exists) return location.replace('/403.html?why=link');
+    P = snap.data(); render();
+  } catch (e) {
+    if (first) { if (e && e.code === 'permission-denied') return location.replace('/403.html?why=link'); $('app').innerHTML = `<div class="card empty">Couldn't load your page. ${esc(e.message || e)}<br><br><button class="pill" onclick="location.reload()">Try again</button></div>`; }
+  }
+}
+function render() {
+  document.title = `Your car · ${P.workshop.name || 'Garage Pro'}`;
+  const w = P.workshop, jobs = P.jobs || [], active = jobs.filter(j => j.status !== 'Delivered' && j.status !== 'Cancelled');
+  $('upd').textContent = P.updated_at ? 'Updated ' + new Date(P.updated_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  const approve = jobs.find(j => j.estimate_url);
+  $('app').innerHTML = `
+    <h1>Hi ${esc(P.customer.first)} 👋</h1>
+    <p class="sub">${active.length ? `${active.length} car${active.length > 1 ? 's' : ''} currently with ${esc(w.name || 'your workshop')}.` : `Your car history with ${esc(w.name || 'your workshop')}.`}</p>
+    <div class="ws"><b style="color:var(--text)">${esc(w.name)}</b>${w.city ? `<span>· ${esc(w.city)}</span>` : ''}${w.phone ? `<a class="pill" href="tel:${esc(w.phone)}">📞 Call</a><a class="pill" href="https://wa.me/${esc(String(w.phone).replace(/\D/g, '').replace(/^(\d{10})$/, '91$1'))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</div>
+    ${approve ? `<a class="cta" href="${esc(safeUrl(approve.estimate_url))}" style="margin:0 0 16px">Your estimate is ready — review &amp; approve →</a>` : ''}
+    <div class="tabs">${[['cars', 'My cars'], ['inv', 'Invoices'], ['hist', 'Service history']].map(([k, l]) => `<button class="tab ${tab === k ? 'on' : ''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>
+    <div id="pane"></div>`;
+  pane();
+}
+function setTab(t) { tab = t; render(); }
+function pane() {
+  const el = $('pane');
+  if (tab === 'cars') {
+    const jobs = P.jobs || [];
+    if (!jobs.length) { el.innerHTML = `<div class="card empty">No jobs yet. When your car comes in, you'll see its progress here.</div>`; return; }
+    el.innerHTML = jobs.map(j => {
+      const stages = P.stages || [], cancelled = j.stage < 0, cur = Math.max(0, j.stage);
+      return `<div class="card">
+        <div class="row"><div><span class="plate">${esc(j.plate)}</span> <span class="muted">${esc(j.vehicle)}</span><div class="svc">${esc(j.service)}</div></div>
+          <span class="stat ${cancelled ? 'bad' : j.status === 'Delivered' ? 'done' : ''}">${esc(j.status)}</span></div>
+        ${cancelled ? '' : `<div class="track">${stages.map((s, i) => `<div class="st ${i < cur ? 'd' : i === cur ? 'c' : ''}"><i></i>${esc(s)}</div>`).join('')}</div>`}
+        <div class="muted">Booked ${esc(j.created)}${j.mechanic ? ` · technician ${esc(j.mechanic)}` : ''} · last update ${esc(j.updated.replace('T', ' '))}</div>
+        ${j.estimate_url ? `<a class="cta" href="${esc(safeUrl(j.estimate_url))}">Review &amp; approve estimate →</a>` : ''}
+        ${(j.photos || []).length ? `<div class="photos">${j.photos.map(p => `<a href="#" onclick="zoom('${esc(safeUrl(p.url))}');return false"><img loading="lazy" src="${esc(safeUrl(p.url))}" alt="${esc(p.label)}"><span>${esc(p.label)}</span></a>`).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+  } else if (tab === 'inv') {
+    const inv = P.invoices || [];
+    el.innerHTML = inv.length ? `<div class="card"><table><thead><tr><th>Invoice</th><th>Date</th><th>Vehicle</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody>${inv.map(i => `<tr>
+      <td><b>${esc(i.no || '—')}</b><div class="muted" style="font-size:12px">${esc(i.paid)}</div></td><td>${esc(i.date)}</td><td>${esc(i.plate)}</td><td style="text-align:right;font-weight:700">${inr(i.total)}</td>
+      <td style="text-align:right">${safeUrl(i.url) ? `<a class="pill" href="${esc(safeUrl(i.url))}" target="_blank" rel="noopener">View</a>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="card empty">No invoices yet.</div>`;
+  } else {
+    const h = P.history || [];
+    el.innerHTML = h.length ? `<div class="card">${h.map(x => `<div style="display:flex;gap:14px;padding:11px 0;border-bottom:1px solid var(--border)"><div style="min-width:86px;color:var(--faint);font-size:13px">${esc(x.date)}</div><div style="flex:1"><b>${esc(x.service)}</b><div class="muted">${esc(x.plate)}</div></div><div style="font-weight:700">${x.total ? inr(x.total) : ''}</div></div>`).join('')}</div>`
+      : `<div class="card empty">Your past services will appear here.</div>`;
+  }
+}
+function zoom(u) { if (!u) return; $('lbimg').src = u; $('lb').classList.add('on'); }
+load(true);
+setInterval(() => { if (!document.hidden) load(false); }, 60000);
+</script>
+</body>
+</html>
