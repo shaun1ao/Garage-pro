@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>403 · Access denied · Garage Pro</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0a0e14;--surf:#0e1420;--border:#26303f;--text:#e7ecf3;--dim:#9fb0c6;--faint:#69788f;--acc:#ff7a18;--acc2:#ffb347}
+  @media (prefers-color-scheme: light){:root{--bg:#f6f4ef;--surf:#fff;--border:#e2ddd2;--text:#16130e;--dim:#5b564b;--faint:#8b8576}}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .top{display:flex;align-items:center;padding:16px 22px}
+  .brand{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;font:700 16px 'Sora',sans-serif}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center}
+  main{min-height:calc(100vh - 140px);display:grid;place-items:center;padding:24px;text-align:center}
+  .card{max-width:520px;background:var(--surf);border:1px solid var(--border);border-radius:20px;padding:44px 34px}
+  .code{font:800 84px/1 'Sora',sans-serif;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:-2px}
+  .lock{width:54px;height:54px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;background:rgba(255,122,24,.12);color:var(--acc)}
+  h1{font:700 24px 'Sora',sans-serif;margin:14px 0 8px}
+  p{color:var(--dim);line-height:1.65;margin:0 0 22px;font-size:15px}
+  .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  a.btn{display:inline-block;padding:11px 20px;border-radius:10px;font:700 14px 'Sora',sans-serif;text-decoration:none}
+  a.p{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05}
+  a.g{border:1px solid var(--border);color:var(--dim)}
+  a.g:hover{color:var(--text)}
+  footer{padding:20px;text-align:center;color:var(--faint);font-size:12.5px}
+  .why{margin-top:22px;font-size:12.5px;color:var(--faint);line-height:1.6}
+</style>
+</head>
+<body>
+<div class="top"><a class="brand" href="/"><span class="logo"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>Garage Pro</a></div>
+<main>
+  <div class="card">
+    <div class="lock"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+    <div class="code">403</div>
+    <h1>You don't have access to this page</h1>
+    <p id="msg">This page is private, the link has expired, or your account doesn't have permission to open it.</p>
+    <div class="row">
+      <a class="btn p" href="/">Go to garagepro.me</a>
+      <a class="btn g" href="/app/">Open the app</a>
+      <a class="btn g" href="mailto:support@garagepro.me">Contact support</a>
+    </div>
+    <div class="why">If you followed a link from a workshop, ask them to send it again. If you're a workshop owner, make sure you're signed in with the right account and your plan is active.</div>
+  </div>
+</main>
+<footer>Garage Pro — a product of Chassys</footer>
+<script>
+  // Optional: other pages can send people here with ?why=... to explain the block.
+  var w = new URLSearchParams(location.search).get('why');
+  var map = { plan: "This workshop's plan isn't active right now.", booking: 'Online booking is switched off for this workshop.', link: 'This link is invalid or has expired.' };
+  if (w && map[w]) document.getElementById('msg').textContent = map[w];
+</script>
+</body>
+</html>
