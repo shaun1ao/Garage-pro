@@ -30,18 +30,30 @@
   .eyebrow{font-family:var(--fd);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--acc2);margin-bottom:10px}
   .sec-head h2{font-family:var(--fd);font-size:clamp(24px,4vw,34px);margin:0;line-height:1.2}
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;font-family:var(--fd);font-weight:700;cursor:pointer;border:0;transition:filter .15s}
-  .btn-primary{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#170f05}
+  .btn-primary{background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--onacc,#170f05)}
   .btn-primary:hover{filter:brightness(1.08)}
   .btn-ghost{background:none;border:1px solid var(--border);color:var(--dim)}
   .btn-ghost:hover{color:var(--text)}
   footer{padding:26px 22px;text-align:center;color:var(--faint);font-size:12.5px;border-top:1px solid var(--border)}
 </style>
+<link rel="canonical" href="https://garagepro.me/track.html" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Garage Pro" />
+<meta property="og:locale" content="en_IN" />
+<meta property="og:title" content="Track your repair · Garage Pro" />
+<meta property="og:description" content="See where your car is in real time — pick your workshop, type your plate or booking number. No login needed." />
+<meta property="og:url" content="https://garagepro.me/track.html" />
+<meta property="og:image" content="https://garagepro.me/garage-pro-logo.png" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Track your repair · Garage Pro" />
+<meta name="twitter:description" content="See where your car is in real time — pick your workshop, type your plate or booking number. No login needed." />
+<meta name="twitter:image" content="https://garagepro.me/garage-pro-logo.png" />
 </head>
 <body>
 
 <div class="topbar">
-  <a class="brand" href="/"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span><b id="tb-name">Garage Pro</b></a>
-  <a class="back" href="/">&larr; garagepro.me</a>
+  <a class="brand" href="/"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span><b id="tb-name" class="bname">Garage Pro</b></a>
+  <a class="back" id="poweredby" href="/">&larr; garagepro.me</a>
 </div>
 
 <!-- ═══════════════ TRACK REPAIR ═══════════════
@@ -185,7 +197,7 @@
 
 
 
-<footer>Powered by <a href="/">Garage Pro</a> — workshop management for Indian garages.</footer>
+<footer>Powered by <a href="/">Garage Pro</a> — a product of Chassys. Workshop management for Indian garages.</footer>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -227,6 +239,31 @@ let _trackLastResult   = null;
 let _trackMode         = 'plate';   // 'plate' | 'booking'
 let _trackLocked       = false;     // true when opened via ?ws=<slug> — one garage only
 
+
+// Workshop branding: logo + name + colour scheme, with "Powered by Garage Pro" kept visible.
+function applyBrand(b, name) {
+  b = b || {};
+  const root = document.documentElement.style;
+  if (/^#[0-9a-fA-F]{6}$/.test(b.color || '')) {
+    const n = parseInt(b.color.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, bl = n & 255, mix = x => Math.round(x + (255 - x) * 0.28);
+    root.setProperty('--acc', b.color); root.setProperty('--acc2', `rgb(${mix(r)},${mix(g)},${mix(bl)})`);
+    root.setProperty('--onacc', (0.299 * r + 0.587 * g + 0.114 * bl) / 255 > 0.62 ? '#16130e' : '#ffffff');
+  }
+  const brand = document.querySelector('.brand'); if (!brand) return;
+  const logoEl = brand.querySelector('.logo'), nm = brand.querySelector('.bname');
+  if (name && nm) nm.textContent = name;
+  if (logoEl) {
+    if (/^(data:image\/(png|jpeg|webp);base64,|https:\/\/)/.test(b.logo || '')) {
+      logoEl.style.cssText = 'background:#fff;padding:3px 6px;width:auto;min-width:32px;height:34px';
+      logoEl.innerHTML = '<img alt="" style="height:26px;max-width:120px;object-fit:contain;display:block">'; logoEl.firstChild.src = b.logo;
+    } else if (name) {
+      logoEl.innerHTML = '<span style="font:800 16px var(--fd);color:var(--onacc,#170f05)"></span>'; logoEl.firstChild.textContent = name.trim().charAt(0).toUpperCase();
+    }
+  }
+  const pb = document.getElementById('poweredby');
+  if (pb) pb.innerHTML = 'Powered by <a href="/" style="color:inherit;font-weight:700;text-decoration:none">Garage Pro</a>';
+}
+
 function _trackPlateNorm(p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function _trackEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -265,7 +302,9 @@ async function _trackLoadWorkshops() {
       state:    (d.state || '').trim(),
       city:     (d.city  || '').trim(),
       isBranch: !!d.branch,
-      parent:   d.chain_parent_name || ''
+      parent:   d.chain_parent_name || '',
+      color:    d.brand_color || '',
+      logo:     d.brand_logo  || ''
     });
   });
   list.sort((a, b) => a.name.localeCompare(b.name));
@@ -651,6 +690,7 @@ async function _trackAutoPickFromUrl() {
   }
   // Deep-linked from a workshop's own share link → lock to this shop only.
   _trackLockToWorkshop(match.name);
+  applyBrand({ color: match.color, logo: match.logo }, match.name);   // their logo, name & colour — still "Powered by Garage Pro"
   // Jump straight to step 3 (plate input) bypassing state + workshop pickers.
   _trackPickedState = match.state || '__unspecified__';
   _trackPickWorkshop(match.uid, match.name);
