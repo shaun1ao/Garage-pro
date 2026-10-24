@@ -731,6 +731,7 @@ input[list]{background:var(--bg2)}
       <div><label>Your name (owner)</label><input id="su-name" type="text" placeholder="Rajesh Kumar" required /></div>
       <div><label>Email</label><input id="su-email" type="email" placeholder="branch@yourgarage.in" autocomplete="email" required /></div>
       <div><label>Phone number</label><input id="su-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel" required /></div>
+      <div><label>How did you find out about Garage Pro?</label><select id="su-heard" required onchange="document.getElementById('su-heard-other').style.display=this.value==='other'?'block':'none'"><option value="">Select one…</option><option value="google">Google search</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp (shared with me)</option><option value="word_of_mouth">Word of mouth (friend / colleague)</option><option value="workshop_owner">Another workshop owner</option><option value="ai">AI assistant (ChatGPT, Claude, Gemini…)</option><option value="ad">An advertisement</option><option value="event">Trade show / event</option><option value="article">Blog or news article</option><option value="email">Email / newsletter</option><option value="other">Other</option></select><input id="su-heard-other" type="text" maxlength="80" placeholder="Please tell us where (e.g. Facebook group, a podcast…)" style="display:none;margin-top:8px" /></div>
       <div><label>Password</label><input id="su-pass" type="password" placeholder="At least 6 characters" autocomplete="new-password" required minlength="6" /></div>
       <div>
         <label>Your owner PIN (4 digits)</label>
@@ -767,7 +768,7 @@ input[list]{background:var(--bg2)}
       Signed in as <b style="color:var(--txt)" id="noSubEmail">—</b><br>
       Plan status: <b style="color:var(--red)" id="noSubStatus">Inactive</b>
     </div>
-    <a class="btn full-btn" href="https://garagepro.me/#pricing" target="_blank" rel="noopener" style="text-decoration:none;display:block">Get a subscription →</a>
+    <a class="btn full-btn" id="noSubBtn" href="https://garagepro.me/?renew=1" target="_blank" rel="noopener" style="text-decoration:none;display:block">Renew / choose a plan →</a>
     <button type="button" class="btn full-btn" style="margin-top:10px;background:transparent;color:var(--dim);border:1px solid var(--brd2)" onclick="_recheckSub()">I've subscribed — re-check</button>
     <div class="auth-hint">Already paid? It can take a minute to sync. Click re-check, or <button type="button" class="forgot" style="display:inline" onclick="doSignOut()">sign out</button> and back in.</div>
   </div>
@@ -797,6 +798,7 @@ input[list]{background:var(--bg2)}
         <div><label>Workshop name</label><input id="fs-garage" name="fs-garage-x" type="text" placeholder="Speed Auto Care" required autocomplete="off" /></div>
         <div><label>Your name</label><input id="fs-name" name="fs-name-x" type="text" placeholder="Rajesh Kumar" required autocomplete="off" /></div>
         <div><label>Phone number</label><input id="fs-phone" type="tel" placeholder="+91 98765 43210" required autocomplete="off" /></div>
+        <div id="fs-heard-wrap"><label>How did you find out about Garage Pro?</label><select id="fs-heard" required onchange="document.getElementById('fs-heard-other').style.display=this.value==='other'?'block':'none'"><option value="">Select one…</option><option value="google">Google search</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp (shared with me)</option><option value="word_of_mouth">Word of mouth (friend / colleague)</option><option value="workshop_owner">Another workshop owner</option><option value="ai">AI assistant (ChatGPT, Claude, Gemini…)</option><option value="ad">An advertisement</option><option value="event">Trade show / event</option><option value="article">Blog or news article</option><option value="email">Email / newsletter</option><option value="other">Other</option></select><input id="fs-heard-other" type="text" maxlength="80" placeholder="Please tell us where (e.g. Facebook group, a podcast…)" style="display:none;margin-top:8px" /></div>
         <div>
           <label>Owner PIN (4 digits)</label>
           <input id="fs-pin" name="fs-pin-x" type="text" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" placeholder="e.g. 1234" required autocomplete="off" />
@@ -1766,7 +1768,7 @@ let currentTab     = 'dashboard';
 //  (bays, workers, bookings). If no subscription exists we fall back to the
 //  most-restrictive defaults so the app stays usable but won't grow unbounded.
 // ══════════════════════════════════════════
-const FREE_TIER_LIMITS = { maxBays: 1, maxWorkers: 2, maxBookings: 5, planName: 'Free / unverified' };
+const FREE_TIER_LIMITS = { maxBays: 1, maxWorkers: 2, maxBookings: 999, planName: 'Free / unverified' };
 
 // ── Departments ───────────────────────────────────────────────────────────
 // Used on booking + job-card forms. Workshop can add their own custom ones
@@ -1921,7 +1923,7 @@ function currentSub() {
     planName:    planLabel || 'Plan',
     maxBays:     Number(s.maxBays || 0)     || FREE_TIER_LIMITS.maxBays,
     maxWorkers:  Number(s.maxWorkers || 0)  || FREE_TIER_LIMITS.maxWorkers,
-    maxBookings: Number(s.maxBookings || 0) || FREE_TIER_LIMITS.maxBookings,
+    maxBookings: 999,   // bookings & appointments are unlimited on every plan
     expiry:      exp,
     licenseKey:  s.licenseKey || '',
     isChain,
@@ -1932,7 +1934,8 @@ function currentSub() {
 // Returns true if action is allowed; false (and shows a modal) when blocked.
 async function checkLimit(kind, currentCount, extra = 1) {
   const sub = currentSub();
-  const map = { bays: sub.maxBays, workers: sub.maxWorkers, bookings: sub.maxBookings };
+  if (kind === 'bookings') return true;   // appointments are unlimited
+  const map = { bays: sub.maxBays, workers: sub.maxWorkers };
   const cap = map[kind];
   if (cap == null || cap >= 999) return true;
   if (currentCount + extra <= cap) return true;
@@ -2004,7 +2007,12 @@ function _showNoSub() {
     else if (exp && exp < new Date())statusEl.textContent = 'Expired ' + exp.toLocaleDateString('en-IN');
     else                            statusEl.textContent = 'Inactive';
   }
-  if (reasonEl) {
+  const isBranch = !!userProfile?.chain_parent_uid;
+  const subBtn = document.getElementById('noSubBtn');
+  if (subBtn) subBtn.style.display = isBranch ? 'none' : 'block';
+  if (reasonEl && isBranch) {
+    reasonEl.textContent = "Your head office's plan is inactive or expired. Ask the chain owner to renew it, then re-check.";
+  } else if (reasonEl) {
     reasonEl.textContent = userProfile?.subscription
       ? 'Your plan is inactive or expired. Renew to keep using Garage Pro.'
       : 'No active Garage Pro plan found for this account. Pick a plan to get started.';
@@ -2266,6 +2274,7 @@ async function _resolveStaffSession() {
 function _prefillWizard() {
   try {
     const p = userProfile || {};
+    const hw = document.getElementById('fs-heard-wrap'); if (hw) { hw.style.display = (p.heardFrom || p.chain_parent_uid) ? 'none' : ''; const hs = document.getElementById('fs-heard'); if (hs) hs.required = !(p.heardFrom || p.chain_parent_uid); }
     const garage = p.workshop_name || p.garageName || p.garage || p.company_name || p.companyName || '';
     const ownerName = p.name || p.owner_name || currentUser?.displayName || '';
     const set = (id, val) => { const el = document.getElementById(id); if (el && val && !el.value) el.value = val; };
@@ -2500,7 +2509,10 @@ window.doEmailSignUp = async function(e) {
   const pass   = document.getElementById('su-pass').value;
   const pin    = document.getElementById('su-pin').value.trim();
   const phone  = document.getElementById('su-phone').value.trim();
+  const heardFrom = document.getElementById('su-heard').value, heardOther = (document.getElementById('su-heard-other').value || '').trim();
   const err    = document.getElementById('su-err'); err.textContent = '';
+  if (!heardFrom) { err.textContent = 'Please tell us how you found out about Garage Pro.'; return; }
+  if (heardFrom === 'other' && heardOther.length < 2) { err.textContent = 'Please say where you heard about us.'; return; }
   if (phone.replace(/\D/g, '').length < 10) { err.textContent = 'Enter a valid phone number (at least 10 digits).'; return; }
   if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
   const btn = e.target.querySelector('button[type="submit"]');
@@ -2509,7 +2521,7 @@ window.doEmailSignUp = async function(e) {
     const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
     if (cred.user.updateProfile) await cred.user.updateProfile({ displayName: name });
     // Write workshop profile + bootstrap owner worker in one go
-    await provisionNewWorkshop(cred.user.uid, garage, name, pin, email, { phone });
+    await provisionNewWorkshop(cred.user.uid, garage, name, pin, email, { phone, heardFrom, heardFromOther: heardFrom === 'other' ? heardOther : '' });
     // onAuthStateChanged fires next → loads everything → shows PIN-pad
   } catch (e2) {
     err.textContent = friendlyAuthError(e2);
@@ -2594,7 +2606,14 @@ window.doFirstSetup = async function(e) {
   if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
   if ((document.getElementById('fs-phone').value || '').replace(/\D/g, '').length < 10) { err.textContent = 'Enter a valid phone number (at least 10 digits).'; return; }
   const gv = (id) => (document.getElementById(id)?.value || '').trim();
+  const _hf = document.getElementById('fs-heard');
+  const heardFrom = userProfile?.heardFrom || (_hf ? _hf.value : '');
+  const heardOther = userProfile?.heardFromOther || gv('fs-heard-other');
+  const _isBranch = !!userProfile?.chain_parent_uid;   // branches are set up by their head office
+  if (!heardFrom && !_isBranch) { err.textContent = 'Please tell us how you found out about Garage Pro.'; return; }
+  if (heardFrom === 'other' && heardOther.length < 2) { err.textContent = 'Please say where you heard about us.'; return; }
   const details = {
+    heardFrom, heardFromOther: heardFrom === 'other' ? heardOther : '',
     phone:    gv('fs-phone'),
     email:    gv('fs-email'),
     city:     gv('fs-city'),
@@ -2795,6 +2814,7 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
     name:           ownerName,
     workshop_name:  garage,
     ...(details.phone ? { phone: details.phone, profile: { phone: details.phone } } : {}),
+    ...(details.heardFrom ? { heardFrom: details.heardFrom, heardFromOther: details.heardFromOther || '' } : {}),
     ...(details.state ? { state: details.state } : {}),
     ...(details.city  ? { city:  details.city }  : {}),
     createdAt:      firebase.firestore.FieldValue.serverTimestamp(),
@@ -2809,7 +2829,7 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
         activatedAt: firebase.firestore.Timestamp.now(),
         maxBays:     1,
         maxWorkers:  2,
-        maxBookings: 5,
+        maxBookings: 999,
         lastPaymentAmount: 0,
         lastPaymentMethod: 'free-signup'
       }
@@ -12852,9 +12872,10 @@ function _renderSubBadge() {
       <span style="font-size:10.5px;opacity:.85">${expired ? 'EXPIRED' : sub.active ? 'ACTIVE' : 'INACTIVE'}</span>
     </div>
     <div style="font-size:10.5px;color:var(--faint);margin-top:4px;font-family:'Courier New',monospace">
-      Bays ${used.bays}/${fmtCap(sub.maxBays)} · Workers ${used.workers}/${fmtCap(sub.maxWorkers)} · Bookings ${used.bookings}/${fmtCap(sub.maxBookings)}
+      Bays ${used.bays}/${fmtCap(sub.maxBays)} · Workers ${used.workers}/${fmtCap(sub.maxWorkers)}
     </div>${sub.expiry ? `<div style="font-size:10.5px;color:var(--faint);margin-top:2px">${expired ? 'Expired' : 'Renews'} ${sub.expiry.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}</div>` : ''}`;
   el.title = sub.active ? 'Click to manage your subscription' : 'Click to subscribe / renew';
+  el.href = sub.active ? '../#pricing' : '../?renew=1';   // expired/inactive → straight to renewal checkout
 }
 window._renderSubBadge = _renderSubBadge;
 
@@ -18146,6 +18167,8 @@ function _emailSubjectRef(d) {
 
 // Canonical list of customer-email events. label/headline drive the UI copy.
 const EMAIL_EVENTS = [
+  { id: 'booking_requested',  label: 'Online booking request received', headline: 'We\'ve received your booking request', subject: (d) => `Booking request received · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'booking_declined',   label: 'Online booking request declined', headline: 'About your booking request',          subject: (d) => `About your booking request · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'booking_confirmed',  label: 'Booking confirmed',     headline: 'Your booking is confirmed',         subject: (d) => `Booking confirmed · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'estimate_ready',     label: 'Estimate ready',        headline: 'Your repair estimate is ready',     subject: (d) => `Repair estimate ready · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'customer_approved',  label: 'Customer approved',     headline: 'Thanks — we\'re proceeding',         subject: (d) => `Approval received · ${d.workshop_name}${_emailSubjectRef(d)}` },
@@ -18480,7 +18503,9 @@ async function _enqueueMail({ to, subject, html, fromName, logo, kind, event }) 
 
 async function sendCustomerNotification(eventId, opts = {}) {
   const s = D.settings || {};
-  if (!s.email_enabled) return { ok: false, skipped: 'disabled' };
+  // opts.force = a message the customer is waiting for (online-booking confirmations) — sent even if
+  // the workshop switched general email notifications off.
+  if (!s.email_enabled && !opts.force) return { ok: false, skipped: 'disabled' };
   const triggers = s.email_triggers || {};
   // Per-event toggle gates the default case, but a customer who explicitly
   // prefers email overrides it — they opted in, so every wired update auto-fires.
@@ -20069,6 +20094,635 @@ async function renderWorkload(force = false) {
   // the app may already be signed in by the time this runs
   setTimeout(() => { try { if (currentWorker) begin(); } catch (_) {} }, 1500);
   setInterval(() => { try { if (!started && currentWorker) begin(); } catch (_) {} }, 5000);
+})();
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  ONLINE BOOKING — public page garagepro.me/book/<slug>
+//  Settings → "Online booking" controls everything: on/off, opening hours,
+//  breaks, blocked dates/times, slot length, capacity, notice, window.
+//  The workshop's public settings + counts of already-booked slots are
+//  mirrored to public_booking/{slug}; customer requests arrive in
+//  users/{uid}/booking_requests and show up as an inbox at the top of
+//  Appointments, where staff Accept (→ a normal appointment) or Decline.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const DAYS = ['mon','tue','wed','thu','fri','sat','sun'];
+  const DAY_NAME = { mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday', fri:'Friday', sat:'Saturday', sun:'Sunday' };
+  const toMin = t => { const [h, m] = String(t || '0:0').split(':').map(Number); return h * 60 + (m || 0); };
+  const toHHMM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const slugify = x => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const tzNow = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
+  const defaults = () => ({
+    enabled: false, slug: '', welcome: '', brandColor: '', services: [], slotMins: 30, capacity: 2, minNoticeH: 2, maxDays: 30, autoAccept: false,
+    hours: { mon:{open:true,from:'09:00',to:'18:00'}, tue:{open:true,from:'09:00',to:'18:00'}, wed:{open:true,from:'09:00',to:'18:00'},
+             thu:{open:true,from:'09:00',to:'18:00'}, fri:{open:true,from:'09:00',to:'18:00'}, sat:{open:true,from:'09:00',to:'18:00'}, sun:{open:false,from:'09:00',to:'13:00'} },
+    breaks: [{ from: '13:00', to: '14:00' }], blocks: [], tz: tzNow()
+  });
+  const cfg = () => Object.assign(defaults(), (D.settings && D.settings.online_booking) || {});
+  const canManage = () => { try { return isAdminRole(); } catch (_) { return false; } };
+  const siteBase = () => (typeof _apprSiteBase === 'function' ? _apprSiteBase() : 'https://garagepro.me');
+  let reqs = [], unsub = null, pubTimer = null, blocksDraft = null;
+
+  // ───────────── publish the public mirror ─────────────
+  function busyMap(c) {
+    const busy = {}, step = Math.max(10, +c.slotMins || 30);
+    const today = new Date().toISOString().slice(0, 10);
+    (D.bookings || []).forEach(b => {
+      if (!b.date || b.date < today || ['Cancelled', 'Delivered', 'Completed', 'No-show'].includes(b.status || '')) return;
+      const s = b.time_start || b.time; if (!s) return;
+      const start = toMin(s), end = Math.max(start + step, toMin(b.time_end || s));
+      for (let t = Math.floor(start / step) * step; t < end; t += step) { const k = `${b.date}|${toHHMM(t)}`; busy[k] = (busy[k] || 0) + 1; }
+    });
+    return busy;
+  }
+  // Workshop branding shown on the public booking / tracking / portal pages.
+  // The logo is shrunk to a small image so the public documents stay tiny.
+  let _logoCache = { src: null, out: '' };
+  async function brandLogo() {
+    const src = (D.settings || {}).logo || '';
+    if (!src) return '';
+    if (_logoCache.src === src) return _logoCache.out;
+    let out = '';
+    try {
+      if (/^https:\/\//.test(src) && src.length < 400) out = src;
+      else out = await new Promise(res => {
+        const im = new Image(); im.onload = () => {
+          const h = Math.min(120, im.naturalHeight || 120), w = Math.round((im.naturalWidth || h) * h / (im.naturalHeight || h));
+          const cv = document.createElement('canvas'); cv.width = Math.min(w, 360); cv.height = h;
+          cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+          let d = cv.toDataURL('image/png'); if (d.length > 70000) d = cv.toDataURL('image/jpeg', 0.8);
+          res(d.length > 90000 ? '' : d);
+        }; im.onerror = () => res(''); im.src = src;
+      });
+    } catch (_) { out = ''; }
+    _logoCache = { src, out }; return out;
+  }
+  window.obBrand = async function () { return { color: /^#[0-9a-fA-F]{6}$/.test(cfg().brandColor || '') ? cfg().brandColor : '', logo: await brandLogo() }; };
+  async function publish(opts) {
+    try {
+      if (!fbDb || !currentUser) return;
+      const c = cfg(); if (!c.slug) return;
+      const today = new Date().toISOString().slice(0, 10), s = D.settings || {};
+      const doc = {
+        uid: wsUid(), enabled: !!c.enabled, slug: c.slug, name: s.workshop_name || userProfile?.workshop_name || '',
+        city: s.city || '', address: (s.address || '').split('\n')[0].slice(0, 120), phone: s.phone || '', welcome: (c.welcome || '').slice(0, 300),
+        services: (c.services || []).slice(0, 40), hours: c.hours, breaks: c.breaks || [], blocks: (c.blocks || []).filter(b => b.date >= today).slice(0, 120),
+        slotMins: +c.slotMins || 30, capacity: +c.capacity || 1, minNoticeH: +c.minNoticeH >= 0 ? +c.minNoticeH : 2, maxDays: +c.maxDays || 30,
+        tz: c.tz || tzNow(), busy: busyMap(c), brand: await window.obBrand(), updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      await fbDb.collection('public_booking').doc(c.slug).set(doc);
+      // same branding for the public Track Repair page (it reads the public workshop directory)
+      fbDb.collection('public_workshops').doc(wsUid()).set({ brand_color: doc.brand.color, brand_logo: doc.brand.logo }, { merge: true }).catch(() => {});
+    } catch (e) { console.warn('[online-booking publish]', e); if (opts && opts.throwErr) throw e; }
+  }
+  window.obPublish = publish;
+  function schedulePublish() { clearTimeout(pubTimer); pubTimer = setTimeout(() => { if (cfg().slug) publish(); }, 3500); }
+
+  // keep the public "already booked" counts fresh whenever appointments change
+  const _ws = window.wsSave;
+  window.wsSave = function (name) { const r = _ws.apply(this, arguments); if (name === 'bookings') schedulePublish(); return r; };
+
+  // ───────────── Settings card ─────────────
+  async function renderCard() {
+    const body = document.getElementById('settingsBody'); if (!body || !canManage()) return;
+    let host = document.getElementById('obCardHost');
+    if (!host) {
+      host = document.createElement('div'); host.id = 'obCardHost';
+      const grid = body.firstElementChild; if (!grid) return;
+      grid.insertBefore(host, grid.children[2] || null);       // right after Branding + Workshop info
+    }
+    const c = cfg(); if (blocksDraft === null) blocksDraft = (c.blocks || []).slice();
+    const slug = c.slug || slugify((D.settings || {}).workshop_name || '');
+    const url = `${siteBase()}/book/${slug}`;
+    host.innerHTML = `
+    <div class="card" style="padding:18px" id="obCard">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div><h3 style="margin:0 0 6px">Online booking</h3>
+        <div style="color:var(--faint);font-size:13px;max-width:560px">A public page where customers pick a service and a time. Requests land in <b>Appointments</b> for you to accept. Turn it off any time — the link stops working immediately.</div></div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:700;cursor:pointer"><input type="checkbox" id="ob-enabled" ${c.enabled ? 'checked' : ''} style="width:18px;height:18px"> Online booking ${c.enabled ? '<span style="color:var(--teal)">ON</span>' : '<span style="color:var(--faint)">OFF</span>'}</label>
+      </div>
+      <div class="f-row r1" style="margin-top:12px"><div class="f-grp"><label>Your booking link</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="color:var(--faint);font-size:13px">${esc(siteBase().replace(/^https?:\/\//, ''))}/book/</span>
+          <input id="ob-slug" type="text" value="${esc(slug)}" style="flex:1;min-width:160px" maxlength="48" placeholder="your-workshop" ${c.slug ? 'readonly' : ''} />
+          ${c.slug ? '<button class="mini-btn" type="button" onclick="obUnlockSlug()">Change…</button>' : ''}
+          <button class="mini-btn" type="button" onclick="obCopy()">Copy link</button>
+          <a class="mini-btn" href="${esc(url)}" target="_blank" rel="noopener" style="text-decoration:none">Preview</a>
+        </div><div id="ob-slug-msg" style="font-size:12px;margin-top:4px;color:var(--faint)">${c.slug ? '🔒 This link is permanent — put it on your website, Google profile or business cards and it won\'t change. If you ever rename it, the old link keeps working.' : 'Letters, numbers and dashes only (3–48 characters). Once saved, this link is permanent.'}</div></div></div>
+      ${c.slug ? `<details style="margin:2px 0 12px"><summary style="cursor:pointer;font-weight:700">Put booking on your own website</summary>
+        <div style="color:var(--faint);font-size:12.5px;margin:8px 0">Paste one of these into your site. They always point at your permanent link, so you never need to update them.</div>
+        ${[['Button / link', `<a href="${url}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 22px;background:#ff7a18;color:#170f05;font-weight:700;border-radius:10px;text-decoration:none">Book a service</a>`],
+           ['Embedded booking form (iframe)', `<iframe src="${url}?embed=1" title="Book a service" style="width:100%;border:0;min-height:820px" loading="lazy"></iframe>`],
+           ['Embedded, auto-resizing + your colours', `<iframe id="gp-book" src="${url}?embed=1&theme=light&accent=%23ff7a18" title="Book a service" style="width:100%;border:0;min-height:600px" loading="lazy"></iframe>\n<script>addEventListener('message',function(e){if(e.data&&e.data.type==='gp-book-height'){document.getElementById('gp-book').style.height=e.data.height+'px'}})<\/script>`]]
+          .map(([t, code], i) => `<div style="margin-bottom:10px"><div style="font-size:12.5px;font-weight:600;margin-bottom:4px">${t}</div>
+            <textarea readonly rows="${i === 2 ? 5 : 3}" onclick="this.select()" style="width:100%;font:12px 'Courier New',monospace;padding:8px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)">${esc(code)}</textarea>
+            <button class="mini-btn" type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.value).then(()=>showToast('Embed code copied','good'))">Copy</button></div>`).join('')}
+        <div style="font-size:12px;color:var(--faint)">Options on the link: <code>?embed=1</code> (no header/footer), <code>&amp;theme=light</code> or <code>dark</code>, <code>&amp;accent=%23ff7a18</code> (button colour).</div></details>` : ''}
+      <div class="f-row r1"><div class="f-grp"><label>Brand colour <span style="color:var(--faint);font-weight:500">— your booking, tracking and customer-portal pages use your logo (Branding above), name and this colour, with "Powered by Garage Pro"</span></label>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><input type="color" id="ob-brand" value="${/^#[0-9a-fA-F]{6}$/.test(c.brandColor || '') ? c.brandColor : '#ff7a18'}" style="width:54px;height:38px;padding:2px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:500"><input type="checkbox" id="ob-brand-default" ${/^#[0-9a-fA-F]{6}$/.test(c.brandColor || '') ? '' : 'checked'} style="width:16px;height:16px"> Use the default orange</label></div></div></div>
+      <div class="f-row r1"><div class="f-grp"><label>Welcome message <span style="color:var(--faint);font-weight:500">(optional)</span></label><input id="ob-welcome" type="text" maxlength="300" value="${esc(c.welcome)}" placeholder="Book your service in under a minute — we'll confirm on WhatsApp." /></div></div>
+      <div class="f-row r1"><div class="f-grp"><label>Services customers can pick <span style="color:var(--faint);font-weight:500">(one per line — leave empty to let them type their own)</span></label>
+        <textarea id="ob-services" rows="4" placeholder="Full service&#10;Oil change&#10;Brake check&#10;AC service">${esc((c.services || []).join('\n'))}</textarea></div></div>
+
+      <div style="font-weight:700;margin:14px 0 8px">Opening hours</div>
+      <div style="display:grid;gap:6px">${DAYS.map(d => { const h = c.hours[d] || { open: false, from: '09:00', to: '18:00' }; return `
+        <div style="display:grid;grid-template-columns:130px 1fr 1fr;gap:10px;align-items:center">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:600"><input type="checkbox" id="ob-open-${d}" ${h.open ? 'checked' : ''} style="width:16px;height:16px">${DAY_NAME[d]}</label>
+          <input type="time" id="ob-from-${d}" value="${esc(h.from)}"><input type="time" id="ob-to-${d}" value="${esc(h.to)}"></div>`; }).join('')}</div>
+      <div class="f-row" style="margin-top:12px">
+        <div class="f-grp"><label>Daily break — no bookings from</label><input type="time" id="ob-br-from" value="${esc((c.breaks[0] || {}).from || '')}"></div>
+        <div class="f-grp"><label>…until</label><input type="time" id="ob-br-to" value="${esc((c.breaks[0] || {}).to || '')}"></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>Slot length</label><select id="ob-slot">${[15, 30, 45, 60, 90, 120].map(m => `<option value="${m}" ${+c.slotMins === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></div>
+        <div class="f-grp"><label>Bookings per slot</label><input type="number" id="ob-cap" min="1" max="50" value="${+c.capacity || 2}"></div>
+        <div class="f-grp"><label>Minimum notice (hours)</label><input type="number" id="ob-notice" min="0" max="168" value="${+c.minNoticeH >= 0 ? +c.minNoticeH : 2}"></div>
+      </div>
+      <div class="f-row r3">
+        <div class="f-grp"><label>How far ahead (days)</label><input type="number" id="ob-days" min="1" max="90" value="${+c.maxDays || 30}"></div>
+        <div class="f-grp" style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;margin-top:22px"><input type="checkbox" id="ob-auto" ${c.autoAccept ? 'checked' : ''} style="width:16px;height:16px"> Auto-accept requests that fit a free slot <span style="color:var(--faint);font-weight:500">(while the app is open)</span></label></div>
+      </div>
+
+      <div style="font-weight:700;margin:14px 0 6px">Blocked dates &amp; times <span style="color:var(--faint);font-weight:500;font-size:12px">— holidays, stock-take, a day off, staff training</span></div>
+      <div id="ob-blocks" style="display:grid;gap:6px;margin-bottom:8px"></div>
+      <div class="f-row" style="align-items:end">
+        <div class="f-grp"><label>Date</label><input type="date" id="ob-b-date"></div>
+        <div class="f-grp"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ob-b-all" checked onchange="document.getElementById('ob-b-times').style.display=this.checked?'none':'grid'" style="width:16px;height:16px"> Whole day</label>
+          <div id="ob-b-times" style="display:none;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px"><input type="time" id="ob-b-from" value="09:00"><input type="time" id="ob-b-to" value="12:00"></div></div>
+        <div class="f-grp"><label>Reason (private)</label><input type="text" id="ob-b-why" placeholder="Diwali"></div>
+        <div class="f-grp"><button class="mini-btn" type="button" onclick="obAddBlock()">Add block</button></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:16px"><button class="add-btn" type="button" onclick="obSave()">Save online booking</button><span id="ob-save-msg" style="font-size:12.5px;color:var(--faint)"></span></div>
+    </div>`;
+    drawBlocks();
+  }
+  function drawBlocks() {
+    const el = document.getElementById('ob-blocks'); if (!el) return;
+    const list = (blocksDraft || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    el.innerHTML = list.length ? list.map((b, i) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;background:var(--bg2);border-radius:8px;font-size:13px">
+      <span><b>${esc(b.date)}</b> · ${b.allDay ? 'whole day' : esc(b.from) + '–' + esc(b.to)}${b.reason ? ` <span style="color:var(--faint)">· ${esc(b.reason)}</span>` : ''}</span>
+      <button class="mini-btn danger" type="button" onclick="obRemoveBlock(${(blocksDraft || []).indexOf(b)})">Remove</button></div>`).join('')
+      : `<div style="color:var(--faint);font-size:13px">No blocked dates. Customers can book any open day.</div>`;
+  }
+  window.obAddBlock = function () {
+    const date = document.getElementById('ob-b-date').value, all = document.getElementById('ob-b-all').checked;
+    const from = document.getElementById('ob-b-from').value, to = document.getElementById('ob-b-to').value;
+    if (!date) return showToast('Pick a date to block', 'bad');
+    if (!all && (!from || !to || to <= from)) return showToast('Enter a valid time range', 'bad');
+    blocksDraft.push({ date, allDay: all, from: all ? '' : from, to: all ? '' : to, reason: document.getElementById('ob-b-why').value.trim().slice(0, 60) });
+    document.getElementById('ob-b-why').value = ''; drawBlocks();
+  };
+  window.obUnlockSlug = async function () {
+    if (!(await customConfirm('Your current link keeps working forever — it will redirect to the new one — but anything printed or typed manually should use the new link. Rename it?', { title: 'Change booking link', okLabel: 'Change link' }))) return;
+    const i = document.getElementById('ob-slug'); i.removeAttribute('readonly'); i.focus(); i.select();
+  };
+  window.obRemoveBlock = function (i) { blocksDraft.splice(i, 1); drawBlocks(); };
+  window.obCopy = function () {
+    const slug = document.getElementById('ob-slug').value.trim();
+    const url = `${siteBase()}/book/${slug}`;
+    (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => showToast('Booking link copied', 'good')).catch(() => customAlert(url, { title: 'Your booking link' }));
+  };
+  window.obSave = async function () {
+    const v = id => (document.getElementById(id) || {}).value || '';
+    const msg = document.getElementById('ob-save-msg');
+    const slug = slugify(v('ob-slug'));
+    if (slug.length < 3) { msg.style.color = 'var(--red)'; msg.textContent = 'The link needs at least 3 letters or numbers.'; return; }
+    const hours = {};
+    for (const d of DAYS) {
+      const open = document.getElementById('ob-open-' + d).checked, from = v('ob-from-' + d), to = v('ob-to-' + d);
+      if (open && (!from || !to || to <= from)) { msg.style.color = 'var(--red)'; msg.textContent = `${DAY_NAME[d]}: closing time must be after opening time.`; return; }
+      hours[d] = { open, from: from || '09:00', to: to || '18:00' };
+    }
+    const bf = v('ob-br-from'), bt = v('ob-br-to');
+    if ((bf || bt) && (!bf || !bt || bt <= bf)) { msg.style.color = 'var(--red)'; msg.textContent = 'Break: enter both times, end after start (or clear both).'; return; }
+    const prev = cfg(), enabled = document.getElementById('ob-enabled').checked;
+    const next = Object.assign({}, prev, {
+      enabled, slug, welcome: v('ob-welcome').trim(), tz: prev.tz || tzNow(), brandColor: document.getElementById('ob-brand-default').checked ? '' : v('ob-brand'),
+      services: v('ob-services').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 40), hours, breaks: bf ? [{ from: bf, to: bt }] : [],
+      slotMins: +v('ob-slot') || 30, capacity: Math.max(1, +v('ob-cap') || 1), minNoticeH: Math.max(0, +v('ob-notice') || 0),
+      maxDays: Math.min(90, Math.max(1, +v('ob-days') || 30)), autoAccept: document.getElementById('ob-auto').checked, blocks: blocksDraft || []
+    });
+    msg.style.color = 'var(--faint)'; msg.textContent = 'Saving…';
+    try {
+      // is the link free?
+      const ref = fbDb.collection('public_booking').doc(slug), snap = await ref.get();
+      if (snap.exists && snap.data().uid !== wsUid()) { msg.style.color = 'var(--red)'; msg.textContent = 'That link is already used by another workshop — try a different one.'; return; }
+      D.settings = D.settings || {}; D.settings.online_booking = next;
+      await wsSaveSettings();
+      await publish({ throwErr: true });
+      if (prev.slug && prev.slug !== slug) { fbDb.collection('public_booking').doc(prev.slug).set({ uid: wsUid(), slug: prev.slug, enabled: true, redirect: slug, name: next.slug ? (D.settings || {}).workshop_name || '' : '' }).catch(() => {}); }   // old link → new link, forever
+      msg.style.color = 'var(--teal)'; msg.textContent = enabled ? 'Saved — your booking page is live.' : 'Saved — online booking is OFF.';
+      showToast(enabled ? 'Online booking is live' : 'Online booking turned off', 'good');
+      renderCard(); startInbox();
+    } catch (e) {
+      msg.style.color = 'var(--red)';
+      msg.textContent = (e && e.code === 'permission-denied') ? "Couldn't publish — deploy the latest firestore.rules, then try again." : 'Could not save: ' + (e.message || e);
+    }
+  };
+
+  // ───────────── Requests inbox ─────────────
+  function startInbox() {
+    if (unsub) { try { unsub(); } catch (_) {} unsub = null; }
+    const c = cfg(); if (!c.slug || !fbDb || !currentWorker) return;
+    try {
+      unsub = wsCol('booking_requests').where('status', '==', 'pending').onSnapshot(snap => {
+        reqs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+        drawInbox(); drawBadge();
+        reqs.filter(r => !r.ack_sent).forEach(r => acknowledge(r));
+        if (cfg().autoAccept) autoAcceptAll();
+      }, e => console.warn('[booking inbox]', e.code || e));
+    } catch (e) { console.warn('[booking inbox]', e); }
+  }
+  function drawBadge() {
+    const btn = document.querySelector('.snav[data-tab="bookings"]'); if (!btn) return;
+    let b = document.getElementById('obBadge');
+    if (!b) { b = document.createElement('span'); b.id = 'obBadge'; b.style.cssText = 'margin-left:auto;min-width:18px;height:18px;padding:0 6px;border-radius:100px;background:var(--acc);color:var(--ink-text,#170f05);font-size:11px;font-weight:800;display:none;align-items:center;justify-content:center'; btn.appendChild(b); }
+    b.textContent = reqs.length; b.style.display = reqs.length ? 'inline-flex' : 'none';
+  }
+  // Customer + workshop emails the moment a request is seen. Delivery is queued (mail_queue) before sending, so
+  // it still goes out if the tab closes; the relay cron covers requests that arrive while no device is open.
+  const asBooking = r => ({ id: r.id, cust_name: r.name, cust_phone: r.phone, cust_email: r.email || '', plate: r.plate, service: r.service, date: r.date, time: r.time, time_start: r.time, notes: r.notes || '', booking_no: '' });
+  const ackBusy = new Set();
+  async function acknowledge(r) {
+    if (ackBusy.has(r.id)) return; ackBusy.add(r.id);
+    try {
+      await wsCol('booking_requests').doc(r.id).update({ ack_sent: true, owner_notified: true });     // claim first so two devices don't both send
+      if (r.email) sendCustomerNotification('booking_requested', { booking: asBooking(r), to: r.email, force: true }).catch(() => {});
+      const s = D.settings || {};
+      if (s.email) {
+        const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6"><h2 style="margin:0 0 8px">New online booking request</h2>
+          <p><b>${esc(r.name)}</b> · ${esc(r.phone)}${r.email ? ' · ' + esc(r.email) : ''}<br>${esc(r.service || 'Service')} — <b>${esc(prettyWhen(r))}</b><br>Vehicle: ${esc(r.plate)}${r.vehicle ? ' · ' + esc(r.vehicle) : ''}${r.notes ? `<br>Notes: ${esc(r.notes)}` : ''}</p>
+          <p>Open Garage Pro → Appointments to accept or decline.</p></div>`;
+        _smtpSend({ to: s.email, subject: `New online booking request — ${r.name}, ${prettyWhen(r)}`, html, fromName: s.workshop_name || 'Garage Pro' }).catch(() => {});
+      }
+    } catch (e) { ackBusy.delete(r.id); console.warn('[booking ack]', e.code || e); }
+  }
+  function prettyWhen(r) { try { return new Date(r.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + new Date('2000-01-01T' + r.time).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }); } catch (_) { return r.date + ' ' + r.time; } }
+  function waLink(r, text) { const p = String(r.phone || '').replace(/\D/g, ''); return `https://wa.me/${p.length === 10 ? '91' + p : p}?text=${encodeURIComponent(text)}`; }
+  function drawInbox() {
+    const tab = document.getElementById('tab-bookings'); if (!tab) return;
+    let host = document.getElementById('obInbox');
+    if (!host) { host = document.createElement('div'); host.id = 'obInbox'; const tb = tab.querySelector('.toolbar'); if (!tb) return; tb.parentNode.insertBefore(host, tb); }
+    if (!reqs.length) { host.innerHTML = ''; return; }
+    const ws = (D.settings || {}).workshop_name || 'our workshop', today = new Date().toISOString().slice(0, 10);
+    host.innerHTML = `<div class="card" style="padding:16px;margin-bottom:14px;border-color:var(--acc)">
+      <div style="font-weight:800;margin-bottom:10px">🌐 Online booking requests <span style="background:var(--acc);color:var(--ink-text,#170f05);border-radius:100px;padding:1px 9px;font-size:12px;margin-left:6px">${reqs.length}</span></div>
+      <div style="display:grid;gap:8px">${reqs.map(r => `<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;background:var(--bg2);border-radius:10px;padding:11px 13px">
+        <div style="min-width:220px;flex:1">
+          <div style="font-weight:700">${esc(r.name)} <span style="color:var(--faint);font-weight:500">· ${esc(r.phone)}</span></div>
+          <div style="font-size:13px;color:var(--dim);margin-top:2px"><b>${esc(prettyWhen(r))}</b> · ${esc(r.service || 'Service')} · ${esc(r.plate)}${r.vehicle ? ' · ' + esc(r.vehicle) : ''}</div>
+          ${r.notes ? `<div style="font-size:12.5px;color:var(--faint);margin-top:3px">“${esc(r.notes)}”</div>` : ''}
+          ${r.date < today ? '<div style="font-size:12px;color:var(--red);margin-top:3px">This date has passed</div>' : ''}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${r.date < today ? '' : `<button class="add-btn" type="button" onclick="obAccept('${esc(r.id)}')">Accept</button>`}
+          <a class="mini-btn" target="_blank" rel="noopener" style="text-decoration:none" href="${esc(waLink(r, `Hi ${r.name}, this is ${ws}. About your booking request for ${r.service || 'a service'} on ${prettyWhen(r)} — `))}">WhatsApp</a>
+          <a class="mini-btn" style="text-decoration:none" href="tel:${esc(r.phone)}">Call</a>
+          <button class="mini-btn danger" type="button" onclick="obDecline('${esc(r.id)}')">Decline</button></div></div>`).join('')}</div></div>`;
+  }
+  function overlapCount(r) {
+    const step = +cfg().slotMins || 30, s = toMin(r.time), e = s + step;
+    return (D.bookings || []).filter(b => b.date === r.date && !['Cancelled', 'Delivered', 'Completed', 'No-show'].includes(b.status || '')
+      && toMin(b.time_start || b.time || '0:0') < e && Math.max(toMin(b.time_end || '0:0'), toMin(b.time_start || b.time || '0:0') + 1) > s).length;
+  }
+  async function accept(id, silent) {
+    const r = reqs.find(x => x.id === id); if (!r) return false;
+    const step = +cfg().slotMins || 30, cap = +cfg().capacity || 1;
+    if (!silent && overlapCount(r) >= cap && !(await customConfirm(`That slot already has ${overlapCount(r)} appointment(s) (your limit is ${cap}). Accept anyway?`, { title: 'Slot is full', okLabel: 'Accept anyway' }))) return false;
+    const plate = String(r.plate || '').toUpperCase().trim(), plateKey = plate.replace(/\s+/g, '');
+    const cust = (D.customers || []).find(c => (c.phone || '').replace(/\D/g, '').slice(-10) === r.phone.replace(/\D/g, '').slice(-10) || (c.name || '').toLowerCase() === r.name.toLowerCase());
+    const knownVeh = cust ? (cust.vehicles || []).find(x => (x.plate || '').replace(/\s+/g, '').toUpperCase() === plateKey) : null;
+    const end = toHHMM(toMin(r.time) + step), vehParts = String(r.vehicle || '').split(' ');
+    const patch = {
+      id: uid('bk'), booking_no: _nextBookingNo(), booking_ref: _shortRef(4),
+      cust_name: cust?.name || r.name, cust_phone: r.phone, cust_email: r.email || cust?.email || '',
+      contact_pref: cust?.contact_pref || 'whatsapp', customer_type: cust?.customer_type || 'individual',
+      plate, plate_state: '', plate_suffix: plate, vehicle: r.vehicle || (knownVeh ? [knownVeh.make, knownVeh.model, knownVeh.year].filter(Boolean).join(' ') : ''),
+      veh_make: knownVeh?.make || vehParts[0] || '', veh_model: knownVeh?.model || vehParts.slice(1).join(' '), veh_year: knownVeh?.year || '', vin: knownVeh?.vin || '',
+      service: r.service || 'Service', department: departments()[0] || 'Mechanical',
+      date: r.date, time: r.time, time_start: r.time, time_end: end, estimated_delivery: r.date,
+      cost_estimate: 0, notes: r.notes || '', complaints: r.notes ? [{ text: r.notes }] : [],
+      quick_created: true, source: 'online', online_request_id: id,
+      status: 'Scheduled', created_at: nowStr(), updated_at: nowStr()
+    };
+    D.bookings.push(patch);
+    const writes = [wsSave('bookings', D.bookings)];
+    if (!cust) { D.customers.push({ id: uid('c'), name: r.name, phone: r.phone, email: r.email || '', contact_pref: 'whatsapp', vehicles: plate ? [{ id: uid('veh'), plate, added_at: nowStr() }] : [], created_at: nowStr(), updated_at: nowStr() }); writes.push(wsSave('customers', D.customers)); }
+    else if (plate && !knownVeh) { cust.vehicles = Array.isArray(cust.vehicles) ? cust.vehicles : []; cust.vehicles.push({ id: uid('veh'), plate, added_at: nowStr() }); cust.updated_at = nowStr(); writes.push(wsSave('customers', D.customers)); }
+    await Promise.all(writes);
+    await wsCol('booking_requests').doc(id).update({ status: 'accepted', booking_id: patch.id, handled_at: nowStr() });
+    wsCol('slot_holds').doc(id).delete().catch(() => {});
+    try { publishTracking(patch.id); } catch (_) {}
+    try { if (patch.cust_email) sendCustomerNotification('booking_confirmed', { booking: patch, to: patch.cust_email, force: true }); } catch (_) {}
+    try { notifyWhatsAppForEvent('booking_confirmed', { booking: patch }); } catch (_) {}
+    audit('booking-create', `${plate} · ${r.name} (online)`, { booking_id: patch.id });
+    if (!silent) showToast(`Appointment ${patch.booking_no} created from the online request`, 'good');
+    if (typeof renderBookings === 'function' && currentTab === 'bookings') renderBookings();
+    return true;
+  }
+  window.obAccept = id => accept(id, false).catch(e => showToast('Could not accept: ' + (e.message || e), 'bad'));
+  window.obDecline = async function (id) {
+    const r = reqs.find(x => x.id === id); if (!r) return;
+    if (!(await customConfirm(`Decline the request from ${r.name}? Their slot is freed. You may want to WhatsApp them first.`, { title: 'Decline request', okLabel: 'Decline' }))) return;
+    try {
+      await wsCol('booking_requests').doc(id).update({ status: 'declined', handled_at: nowStr() });
+      wsCol('slot_holds').doc(id).delete().catch(() => {});
+      if (r.email) sendCustomerNotification('booking_declined', { booking: asBooking(r), to: r.email, force: true, notes: `Unfortunately we can't take your booking for ${prettyWhen(r)}. Please pick another time at ${((D.settings || {}).workshop_name) || 'our workshop'}'s booking page, or call us${(D.settings || {}).phone ? ' on ' + (D.settings || {}).phone : ''}.` }).catch(() => {});
+      showToast('Request declined', 'good');
+    } catch (e) { showToast('Could not decline: ' + (e.message || e), 'bad'); }
+  };
+  let autoBusy = false;
+  async function autoAcceptAll() {
+    if (autoBusy) return; autoBusy = true;
+    try { for (const r of reqs.slice()) { if (r.date >= new Date().toISOString().slice(0, 10) && overlapCount(r) < (+cfg().capacity || 1)) await accept(r.id, true); } }
+    catch (e) { console.warn('[auto-accept]', e); } finally { autoBusy = false; }
+  }
+  async function cleanupHolds() {         // drop holds for days that are over
+    try {
+      const today = new Date().toISOString().slice(0, 10), snap = await wsCol('slot_holds').where('date', '<', today).get();
+      snap.forEach(d => d.ref.delete().catch(() => {}));
+    } catch (_) {}
+  }
+
+  // ───────────── wiring ─────────────
+  const _rs = window.renderSettings;
+  if (typeof _rs === 'function') window.renderSettings = async function () { const r = await _rs.apply(this, arguments); blocksDraft = null; await renderCard(); return r; };
+  const _rb = window.renderBookings;
+  if (typeof _rb === 'function') window.renderBookings = async function () { const r = await _rb.apply(this, arguments); drawInbox(); return r; };
+  const _ea = window.enterApp;
+  if (typeof _ea === 'function') window.enterApp = function () {
+    const r = _ea.apply(this, arguments);
+    setTimeout(() => { try { if (!isChainHQMode()) { startInbox(); if (cfg().slug) { publish(); cleanupHolds(); } } } catch (_) {} }, 2500);
+    return r;
+  };
+})();
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  TECHNICIAN PRODUCTIVITY — time quoted vs time actually worked
+//  • "Time quoted (hrs)" is entered on the job card (flat-rate hours).
+//  • Actual working time is stamped automatically: every time a job's status
+//    changes we add the time it just spent "In Progress" to job.work_ms
+//    (waiting for parts / QC / pickup does NOT count as hands-on time).
+//  • Efficiency = quoted ÷ actual. 100% = on quote, >100% faster than quoted.
+//  Shown on the Technician Workload tab, below the live view.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const WORKING = ['In Progress'];
+  const DONE = ['Awaiting QC', 'QC Passed', 'Client Informed', 'Washing', 'Ready for Pickup', 'Ready for Delivery', 'Delivered'];
+  let days = 30;
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+
+  function stamp(items) {
+    const now = Date.now();
+    items.forEach(j => {
+      const st = j.status || '';
+      if (j.ts_status === st) return;
+      if (j.ts_status && WORKING.includes(j.ts_status) && j.ts_status_at) {
+        const dt = now - j.ts_status_at;
+        if (dt > 0 && dt < 14 * 86400000) j.work_ms = (j.work_ms || 0) + dt;      // ignore absurd gaps (device asleep for weeks)
+      }
+      if (WORKING.includes(st) && !j.work_started_at) j.work_started_at = now;
+      if (DONE.includes(st) && !j.work_done_at && j.work_started_at) {
+        j.work_done_at = now;
+        j.work_done_by = ((j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : [])).slice(0, 6);
+      }
+      if (!WORKING.includes(st) && !DONE.includes(st) && j.work_done_at && st !== 'Delivered' && st !== 'Cancelled') {
+        // job sent back (rework): reopen so the next completion is measured again
+        if (['In Progress', 'Technician Assigned', 'Inspected', 'Rejected — Reassembly', 'Returned to Advisor'].includes(st)) { j.work_done_at = null; }
+      }
+      j.ts_status = st; j.ts_status_at = now;
+    });
+  }
+  const _ws = window.wsSave;
+  window.wsSave = function (name, items) { if (name === 'jobs' && Array.isArray(items)) { try { stamp(items); } catch (e) { console.warn('[prod stamp]', e); } } return _ws.apply(this, arguments); };
+
+  // quoted-hours field on the job card
+  const _oj = window.openJobForm;
+  if (typeof _oj === 'function') window.openJobForm = async function () {
+    const r = await _oj.apply(this, arguments);
+    try {
+      const dept = document.getElementById('jf-dept');
+      if (dept && !document.getElementById('jf-quoted')) {
+        const id = arguments[0], j = (D.jobs || []).find(x => x.id === id) || {};
+        const row = dept.closest('.f-row');
+        const box = document.createElement('div'); box.className = 'f-row r1';
+        box.innerHTML = `<div class="f-grp"><label>Time quoted (hours) <span style="color:var(--faint);font-weight:500;font-size:11px">— flat-rate hours for this job; used for technician productivity</span></label>
+          <input id="jf-quoted" type="number" min="0" step="0.25" placeholder="e.g. 2.5" value="${j.quoted_hours ? esc(j.quoted_hours) : ''}" /></div>`;
+        if (row && row.parentNode) row.parentNode.insertBefore(box, row.nextSibling);
+      }
+    } catch (e) { console.warn('[quoted field]', e); }
+    return r;
+  };
+  const _sj = window.saveJob;
+  if (typeof _sj === 'function') window.saveJob = async function (id) {
+    const q = document.getElementById('jf-quoted'), j = (D.jobs || []).find(x => x.id === id);
+    if (q && j) j.quoted_hours = Math.max(0, Number(q.value) || 0);
+    return _sj.apply(this, arguments);
+  };
+
+  // ───────────── the report ─────────────
+  function compute() {
+    const since = Date.now() - days * 86400000, by = {};
+    const mine = (name) => (by[name] = by[name] || { name, jobs: 0, quoted: 0, actual: 0, qJobs: 0, beat: 0, over: 0, sumQ: 0, sumA: 0, list: [] });
+    (D.jobs || []).forEach(j => {
+      if (!j.work_done_at || j.work_done_at < since || !(j.work_ms > 0)) return;
+      const who = (j.work_done_by && j.work_done_by.length ? j.work_done_by : (j.mechanics && j.mechanics.length ? j.mechanics : (j.mechanic ? [j.mechanic] : []))).filter(Boolean);
+      if (!who.length) return;
+      const actualH = j.work_ms / 3600000, quotedH = Number(j.quoted_hours || 0), share = 1 / who.length;
+      who.forEach(n => {
+        const m = mine(n); m.jobs += share; m.actual += actualH * share;
+        if (quotedH > 0) {
+          m.qJobs += share; m.quoted += quotedH * share; m.sumQ += quotedH * share; m.sumA += actualH * share;
+          if (actualH <= quotedH) m.beat += share; else m.over += share;
+        }
+        m.list.push({ plate: j.plate, service: j.type, quotedH, actualH, id: j.id });
+      });
+    });
+    return Object.values(by).map(m => Object.assign(m, { eff: m.sumA > 0 && m.qJobs > 0 ? m.sumQ / m.sumA : null, avg: m.jobs ? m.actual / m.jobs : 0 }))
+      .sort((a, b) => (b.eff == null) - (a.eff == null) || (b.eff || 0) - (a.eff || 0) || b.jobs - a.jobs);
+  }
+  const fh = h => h == null ? '—' : (h < 1 ? Math.round(h * 60) + ' min' : h.toFixed(1) + ' h');
+  const pct = e => e == null ? '—' : Math.round(e * 100) + '%';
+  const col = e => e == null ? 'var(--faint)' : e >= 1 ? 'var(--teal)' : e >= 0.8 ? 'var(--acc2)' : 'var(--red)';
+
+  window.setProdRange = function (d) { days = d; drawProd(); };
+  function drawProd() {
+    const body = document.getElementById('wlBody'); if (!body) return;
+    let host = document.getElementById('wlProd');
+    if (!host) { host = document.createElement('div'); host.id = 'wlProd'; host.style.marginTop = '26px'; body.appendChild(host); }
+    const rows = compute();
+    const tot = rows.reduce((a, r) => ({ jobs: a.jobs + r.jobs, q: a.q + r.sumQ, a: a.a + r.sumA, act: a.act + r.actual, beat: a.beat + r.beat, qj: a.qj + r.qJobs }), { jobs: 0, q: 0, a: 0, act: 0, beat: 0, qj: 0 });
+    const eff = tot.a > 0 && tot.qj > 0 ? tot.q / tot.a : null;
+    const kpi = (l, v, c = 'var(--txt)', sub = '') => `<div style="background:var(--surf);border:1px solid var(--brd);border-radius:14px;padding:15px"><div style="font-family:var(--fd);font-size:22px;font-weight:800;color:${c}">${v}</div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:5px">${l}</div>${sub ? `<div style="font-size:12px;color:var(--dim);margin-top:4px">${sub}</div>` : ''}</div>`;
+    const rangeBtn = d => `<button class="mini-btn" type="button" onclick="setProdRange(${d})" style="${days === d ? 'background:var(--acc);color:var(--ink-text,#170f05)' : ''}">${d} days</button>`;
+    host.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div><h3 style="margin:0">Technician productivity</h3><div style="color:var(--faint);font-size:12.5px;margin-top:2px">Time worked on each completed job vs the hours quoted. 100% = exactly on quote; higher is faster.</div></div>
+        <div style="display:flex;gap:6px">${rangeBtn(7)}${rangeBtn(30)}${rangeBtn(90)}</div></div>
+      ${rows.length ? `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px">
+        ${kpi('Shop efficiency', pct(eff), col(eff), eff == null ? 'add quoted hours to jobs' : `${tot.q.toFixed(1)} h quoted · ${tot.a.toFixed(1)} h worked`)}
+        ${kpi('Jobs completed', Math.round(tot.jobs), 'var(--acc)', `${days}-day window`)}
+        ${kpi('Hands-on time', fh(tot.act), 'var(--txt)', `avg ${fh(tot.jobs ? tot.act / tot.jobs : null)} per job`)}
+        ${kpi('Beat the quote', tot.qj ? Math.round(tot.beat / tot.qj * 100) + '%' : '—', 'var(--teal)', tot.qj ? `${Math.round(tot.beat)} of ${Math.round(tot.qj)} quoted jobs` : '')}
+      </div>
+      <div class="card" style="padding:16px;overflow:auto"><table class="list-tbl" style="min-width:720px">
+        <thead><tr><th>Technician</th><th style="text-align:right">Jobs</th><th style="text-align:right">Quoted</th><th style="text-align:right">Worked</th><th style="text-align:right">Avg / job</th><th style="text-align:right">Beat quote</th><th style="text-align:right">Over quote</th><th style="text-align:right">Efficiency</th><th></th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td class="k">${esc(r.name)}</td><td style="text-align:right">${Math.round(r.jobs * 10) / 10}</td>
+          <td style="text-align:right">${r.qJobs ? fh(r.sumQ) : '—'}</td><td style="text-align:right">${fh(r.actual)}</td><td style="text-align:right">${fh(r.avg)}</td>
+          <td style="text-align:right;color:var(--teal)">${Math.round(r.beat)}</td><td style="text-align:right;${r.over ? 'color:var(--red)' : ''}">${Math.round(r.over)}</td>
+          <td style="text-align:right;font-weight:800;color:${col(r.eff)}">${pct(r.eff)}</td>
+          <td style="width:120px"><div style="height:7px;background:var(--bg2);border-radius:100px;overflow:hidden"><div style="width:${Math.min(100, (r.eff || 0) * 70)}%;height:100%;background:${col(r.eff)}"></div></div></td></tr>`).join('')}</tbody>
+      </table></div>
+      <div style="color:var(--faint);font-size:12px;margin-top:8px">Only time spent <b>In Progress</b> counts — waiting for parts, QC and pickup are excluded. Jobs shared by several technicians split the time equally. Jobs without quoted hours show in "Jobs" and "Worked" but not in efficiency.</div>`
+      : `<div class="placeholder"><h3>No finished jobs with timing yet</h3><p>Productivity builds up automatically as jobs move to <b>In Progress</b> and then on to QC or delivery. Add <b>Time quoted (hours)</b> on a job card to see efficiency against the quote.</p></div>`}`;
+  }
+  const _rw = window.renderWorkload;
+  if (typeof _rw === 'function') window.renderWorkload = async function () { const r = await _rw.apply(this, arguments); drawProd(); return r; };
+})();
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  CUSTOMER PORTAL — "track my car" in one link
+//  Customers → Portal link. Publishes users/{uid}/customer_portal/{token}:
+//  live job status + progress, before/after photos, the estimate to approve,
+//  past invoices and service history. The token is unguessable (≈130 bits) and
+//  the doc can only be fetched by token, never listed. Opens at
+//  garagepro.me/portal/<workshop>/<token>.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const norm = p => String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const siteBase = () => (typeof _apprSiteBase === 'function' ? _apprSiteBase() : 'https://garagepro.me');
+  const newToken = () => { const a = new Uint8Array(16); crypto.getRandomValues(a); return Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 26); };
+  const STAGES = ['Received', 'Inspection', 'Estimate', 'Approved', 'Repair', 'Quality check', 'Ready', 'Delivered'];
+  const stageOf = s => {
+    if (s === 'Cancelled') return -1;
+    if (['Awaiting Assignment', 'Technician Assigned', 'Returned to Advisor'].includes(s)) return 0;
+    if (s === 'Inspected') return 1;
+    if (['Estimate Sent', 'Awaiting Approval'].includes(s)) return 2;
+    if (['Estimate Approved', 'Estimate Approved (Partial)'].includes(s)) return 3;
+    if (['In Progress', 'Parts Ordered', 'Parts Not Available', 'Rejected — Reassembly'].includes(s)) return 4;
+    if (['Awaiting QC', 'QC Passed', 'Client Informed', 'Washing'].includes(s)) return 5;
+    if (['Ready for Pickup', 'Ready for Delivery'].includes(s)) return 6;
+    if (s === 'Delivered') return 7;
+    return 0;
+  };
+  const SHOW_LABELS = ['Before', 'After', 'Damage', 'Parts replaced'];   // never Insurance / Reference / Other
+
+  const mineFor = c => {
+    const plates = new Set((c.vehicles || []).map(v => norm(v.plate)).filter(Boolean)), nm = (c.name || '').toLowerCase().trim();
+    return j => (plates.size && plates.has(norm(j.plate || (j.invoice && j.invoice.plate)))) || (nm && (j.cust_name || '').toLowerCase().trim() === nm);
+  };
+  async function ensureInvoiceLinks(invs) {
+    let changed = false;
+    for (const inv of invs.slice(0, 12)) {
+      if (inv.view_token && inv.view_published_for === (inv.updated_at || '')) continue;
+      try {
+        const url = await _publishInvoiceView(inv.id), t = new URL(url).searchParams.get('t');
+        inv.view_token = t; inv.view_published_for = inv.updated_at || ''; changed = true;
+      } catch (e) { console.warn('[portal invoice link]', e); }
+    }
+    if (changed) await wsSave('invoices', D.invoices);
+  }
+  async function build(c) {
+    const mine = mineFor(c), s = D.settings || {}, uid = wsUid();
+    const myJobs = (D.jobs || []).filter(mine).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    const plates = new Set((c.vehicles || []).map(v => norm(v.plate)).filter(Boolean));
+    const myInvs = (D.invoices || []).filter(i => i.status !== 'Cancelled' && !i.is_estimate && ((plates.size && plates.has(norm(i.vehicle && i.vehicle.plate))) || ((i.customer && i.customer.name || '').toLowerCase().trim() === (c.name || '').toLowerCase().trim())))
+      .sort((a, b) => (b.issue_date || b.created_at || '').localeCompare(a.issue_date || a.created_at || ''));
+    await ensureInvoiceLinks(myInvs);
+    const totalOf = i => { try { return Math.round(Number(_invoiceTotals(i).roundOff || 0)); } catch (_) { return 0; } };
+    const jobs = [];
+    for (const j of myJobs.slice(0, 10)) {
+      const st = j.status || 'Awaiting Assignment', recent = st !== 'Delivered' || ((j.completed_at || j.updated_at || '').slice(0, 10) >= new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10));
+      let photos = [];
+      if (recent && typeof loadJobPhotos === 'function') {
+        try { photos = (await loadJobPhotos(j.id)).filter(p => SHOW_LABELS.includes(p.label) && /^https:\/\//.test(p.data || '')).slice(0, 8).map(p => ({ url: p.data, label: p.label })); } catch (_) {}
+      }
+      jobs.push({ id: j.id, plate: j.plate || '', vehicle: [j.veh_make, j.veh_model].filter(Boolean).join(' '), service: j.type || 'Service', status: st, stage: stageOf(st),
+        created: (j.created_at || '').slice(0, 10), updated: (j.updated_at || '').slice(0, 16), mechanic: (j.mechanic || '').split(' ')[0],
+        estimate_url: st === 'Estimate Sent' ? (_latestApprovalLink(j) || '') : '', photos });
+    }
+    const history = myJobs.filter(j => j.status === 'Delivered').slice(0, 25).map(j => {
+      const inv = (D.invoices || []).find(i => i.job_id === j.id);
+      return { date: (j.completed_at || j.updated_at || j.created_at || '').slice(0, 10), plate: j.plate || '', service: j.type || 'Service', total: inv ? totalOf(inv) : 0 };
+    });
+    return {
+      workshop: Object.assign({ name: s.workshop_name || '', phone: s.phone || '', city: s.city || '', address: (s.address || '').split('\n')[0].slice(0, 120) }, window.obBrand ? await window.obBrand() : {}),
+      customer: { first: String(c.name || 'there').split(' ')[0], vehicles: (c.vehicles || []).map(v => ({ plate: v.plate || '', model: [v.make, v.model, v.year].filter(Boolean).join(' ') })).slice(0, 8) },
+      jobs, stages: STAGES,
+      invoices: myInvs.slice(0, 12).map(i => ({ no: i.number || '', date: (i.issue_date || i.created_at || '').slice(0, 10), plate: (i.vehicle && i.vehicle.plate) || '', total: totalOf(i), paid: i.payment_status || 'Unpaid', url: i.view_token ? `${siteBase()}/invoice.html?w=${encodeURIComponent(uid)}&t=${encodeURIComponent(i.view_token)}` : '' })),
+      history, updated_at: new Date().toISOString()
+    };
+  }
+  async function publish(c) {
+    if (!c.portal_token) return '';
+    const doc = await build(c);
+    await wsCol('customer_portal').doc(c.portal_token).set(doc);
+    return `${siteBase()}/portal/${encodeURIComponent(wsUid())}/${encodeURIComponent(c.portal_token)}`;
+  }
+
+  // ── share dialog ──
+  window.obPortalShare = async function (id) {
+    const c = (D.customers || []).find(x => x.id === id); if (!c) return;
+    try {
+      showToast('Preparing customer portal…', 'good');
+      if (!c.portal_token) { c.portal_token = newToken(); c.updated_at = nowStr(); await wsSave('customers', D.customers); }
+      const url = await publish(c);
+      const ws = (D.settings || {}).workshop_name || 'your workshop';
+      const msg = `Hi ${String(c.name || '').split(' ')[0]}, track your car, see photos, approve estimates and view your invoices here: ${url}  — ${ws}`;
+      const wa = `https://wa.me/${(typeof _waDigits === 'function' ? _waDigits(c.phone) : String(c.phone || '').replace(/\D/g, ''))}?text=${encodeURIComponent(msg)}`;
+      const o = document.createElement('div');
+      o.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);display:grid;place-items:center;padding:20px';
+      o.innerHTML = `<div style="background:var(--surf);border:1px solid var(--brd2);border-radius:16px;padding:22px;max-width:480px;width:100%">
+        <div style="font:800 18px var(--fd);margin-bottom:4px">Customer portal for ${esc(c.name)}</div>
+        <div style="color:var(--dim);font-size:13px;line-height:1.55;margin-bottom:12px">One link with live status, photos, the estimate to approve, past invoices and service history. It updates by itself as you work on their car.</div>
+        <input readonly value="${esc(url)}" onclick="this.select()" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:12.5px" />
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+          <button class="add-btn" id="pt-copy" type="button">Copy link</button>
+          <a class="mini-btn" href="${esc(wa)}" target="_blank" rel="noopener" style="text-decoration:none;background:#25d366;color:#04210f;border-color:#25d366">Send on WhatsApp</a>
+          <a class="mini-btn" href="${esc(url)}" target="_blank" rel="noopener" style="text-decoration:none">Preview</a>
+          <button class="mini-btn" id="pt-close" type="button" style="margin-left:auto">Close</button></div></div>`;
+      document.body.appendChild(o);
+      o.querySelector('#pt-close').onclick = () => o.remove();
+      o.onclick = e => { if (e.target === o) o.remove(); };
+      o.querySelector('#pt-copy').onclick = () => { navigator.clipboard.writeText(url).then(() => showToast('Portal link copied', 'good')).catch(() => {}); };
+    } catch (e) {
+      console.error('[portal]', e);
+      showToast((e && e.code === 'permission-denied') ? "Couldn't publish — deploy the latest firestore.rules" : 'Could not create the portal: ' + (e.message || e), 'bad');
+    }
+  };
+
+  // keep every shared portal current as jobs / invoices change
+  let timer = null, busy = false;
+  async function refreshAll() {
+    if (busy) return; busy = true;
+    try { for (const c of (D.customers || []).filter(x => x.portal_token).slice(0, 25)) { try { await publish(c); } catch (e) { console.warn('[portal refresh]', e.code || e); } } }
+    finally { busy = false; }
+  }
+  const _ws = window.wsSave;
+  window.wsSave = function (name) { const r = _ws.apply(this, arguments); if (name === 'jobs' || name === 'invoices') { clearTimeout(timer); timer = setTimeout(refreshAll, 6000); } return r; };
+  // photos are stored outside wsSave — refresh shortly after an upload too
+  const _up = window._jobUploadPhotos;
+  if (typeof _up === 'function') window._jobUploadPhotos = async function () { const r = await _up.apply(this, arguments); clearTimeout(timer); timer = setTimeout(refreshAll, 8000); return r; };
+
+  // "Portal link" button on each customer row
+  const _rc = window.renderCustomers;
+  if (typeof _rc === 'function') window.renderCustomers = async function () {
+    const r = await _rc.apply(this, arguments);
+    document.querySelectorAll('#tab-customers .row-act').forEach(act => {
+      if (act.querySelector('.portal-btn')) return;
+      const edit = act.querySelector('button[onclick^="openCustomerForm("]'); if (!edit) return;
+      const id = (edit.getAttribute('onclick').match(/'([^']+)'/) || [])[1]; if (!id) return;
+      const b = document.createElement('button'); b.className = 'mini-btn portal-btn'; b.type = 'button'; b.title = 'Share a live tracking page with this customer';
+      b.textContent = '🔗 Portal'; b.onclick = () => obPortalShare(id); act.insertBefore(b, act.firstChild);
+    });
+    return r;
+  };
 })();
 </script>
 </body>
