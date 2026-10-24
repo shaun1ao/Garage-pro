@@ -2871,6 +2871,7 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
       gstin:    details.gstin    || '',
       currency: details.currency || '₹',
       summary_emails_enabled: !!details.summary_emails_enabled,
+      tax_pct: 18,
       bay_types: [], services: []
     }],
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -8456,7 +8457,7 @@ function _renderClientDecision(inv) {
   };
   const lines = (inv.lines || []).map((l, i) => {
     const taxable = Math.max(0, (l.unit_price * l.qty) * (1 - (l.disc_pct || 0) / 100));
-    const total   = taxable * (1 + (Number(inv.tax_pct || 0)) / 100);
+    const total   = taxable * (1 + _invTaxPct(inv) / 100);
     return lineRow('line', i, `${l.name} × ${l.qty}`, l.hsn ? `HSN ${l.hsn}` : '', total);
   }).join('');
   const charges = (inv.charges || []).map((c, i) => lineRow('charge', i, c.name, 'Service charge', c.amount)).join('');
@@ -8496,7 +8497,7 @@ function _renderClientDecision(inv) {
 
 function _cdTally(inv) {
   let approved = 0, rejected = 0, pending = 0, approvedValue = 0;
-  const taxPct = Number(inv.tax_pct || 0);
+  const taxPct = _invTaxPct(inv);
   for (const l of (inv.lines || [])) {
     const ap = l.approval || 'pending';
     if (ap === 'approved') {
@@ -9285,7 +9286,7 @@ window._waSendFromNotif = function(notifId) {
 // Photos are embedded as data URLs (the customer can't read the sub-gated
 // job_photos collection), capped so we stay well under Firestore's 1 MiB doc.
 async function _apprBuildDoc(j, inv, token) {
-  const taxPct = Number(inv.tax_pct || inv.workshop_snapshot?.tax_pct || D.settings?.tax_pct || 0);
+  const taxPct = _invTaxPct(inv);
   // Parts carry GST; services/labour (charges) don't — same convention as
   // _invoiceTotals(), so the estimate matches the final invoice's math.
   // amount_excl_gst is the pre-tax price, gst_amount is what GST adds, and
@@ -9313,7 +9314,7 @@ async function _apprBuildDoc(j, inv, token) {
       gst_amount: gstAmt,
       amount: exclGst + gstAmt,
       state: l.approval || 'pending',
-      ...(l.concern_id != null ? { concern_id: l.concern_id, concern_item_idx: l.concern_item_idx, concern_title: l.concern_title || '' } : {})
+      ...(l.concern_id != null ? { concern_id: l.concern_id, concern_item_idx: l.concern_item_idx ?? null, concern_title: l.concern_title || '' } : {})
     };
   });
   const charges = (inv.charges || []).map(c => {
@@ -9322,7 +9323,7 @@ async function _apprBuildDoc(j, inv, token) {
     const gstAmt = (c.taxable === true) ? Math.round(amt * taxPct / 100) : 0;
     return {
       name: c.name || '', amount_excl_gst: amt, gst_amount: gstAmt, amount: amt + gstAmt, state: c.approval || 'pending',
-      ...(c.concern_id != null ? { concern_id: c.concern_id, concern_item_idx: c.concern_item_idx, concern_title: c.concern_title || '' } : {})
+      ...(c.concern_id != null ? { concern_id: c.concern_id, concern_item_idx: c.concern_item_idx ?? null, concern_title: c.concern_title || '' } : {})
     };
   });
 
@@ -9352,7 +9353,7 @@ async function _apprBuildDoc(j, inv, token) {
   const total    = lines.filter(inScope).reduce((a, l) => a + l.amount, 0) + charges.filter(inScope).reduce((a, c) => a + c.amount, 0);
   const totalGst = lines.filter(inScope).reduce((a, l) => a + l.gst_amount, 0) + charges.filter(inScope).reduce((a, c) => a + c.gst_amount, 0);
 
-  return {
+  return _noUndef({
     token,
     job_id: j.id,
     invoice_id: inv.id,
@@ -9382,8 +9383,18 @@ async function _apprBuildDoc(j, inv, token) {
     created_at: nowStr(),
     responded_at: '',
     processed: false
-  };
+  });
 }
+
+// Firestore rejects `undefined` anywhere in a document. Drop those keys (deeply) before saving.
+function _noUndef(v) {
+  if (Array.isArray(v)) return v.map(_noUndef);
+  if (v && typeof v === 'object' && !(v instanceof Date) && (v.constructor === Object)) {
+    const o = {}; for (const k of Object.keys(v)) { if (v[k] !== undefined) o[k] = _noUndef(v[k]); } return o;
+  }
+  return v;
+}
+window._noUndef = _noUndef;
 
 // Advisor action — publish/refresh the link and show the share sheet.
 window.shareEstimateLink = async function(jobId) {
@@ -10880,7 +10891,7 @@ window.shareConcernEstimate = async function(jobId, ci) {
   const parts = items.filter(it => it.kind !== 'service');
   const svcs  = items.filter(it => it.kind === 'service');
   const synthetic = {
-    id: '', number: ec.title || '', tax_pct: Number(D.settings?.tax_pct || 0),
+    id: '', number: ec.title || '', tax_pct: wsTaxPct(),
     lines:   parts.map(it => ({ name: it.name.trim(), qty: Math.max(1, Number(it.qty || 1)), unit_price: Number(it.price || 0), disc_pct: 0, taxable: it.taxable !== false, approval: it.approval || 'pending' })),
     charges: svcs.map(it => ({ name: it.name.trim(), amount: Number(it.price || 0), taxable: it.taxable !== false, approval: it.approval || 'pending' }))
   };
@@ -10948,7 +10959,7 @@ window._sendSelectedConcernEstimates = async function(jobId) {
         concern_id: c.id, concern_item_idx: idx, concern_title: c.title || 'Concern'
       }));
     });
-    const synthetic = { id: '', number: '', tax_pct: Number(D.settings?.tax_pct || 0), lines: synLines, charges: synCharges };
+    const synthetic = { id: '', number: '', tax_pct: wsTaxPct(), lines: synLines, charges: synCharges };
     const token = _apprToken();
     let doc;
     try { doc = await _apprBuildDoc(j, synthetic, token); }
@@ -11146,7 +11157,7 @@ function _updateEstTotal() {
 function _updateJobPartsFooter() {
   const foot = document.getElementById('jf-parts-totals');
   if (!foot) return;
-  const taxPct = Number(D.settings.tax_pct || 0);
+  const taxPct = wsTaxPct();
   let taxable = 0, tax = 0;
   for (const p of _editingJob.parts) {
     const unit = Number(p.unit_price || 0), qty = Math.max(1, Number(p.qty || 1));
@@ -11433,7 +11444,7 @@ function _drawMechanicChips() {
 
 function _drawJobRows() {
   const inv = D.inventory || [];
-  const taxPct = Number(D.settings.tax_pct || 0);
+  const taxPct = wsTaxPct();
   // Read-only for anyone without edit rights (Parts Used → parts_dept/owner;
   // Service charges → service advisor/owner) — rows still render so the
   // assigned tech can see what's on the car, but can't change it.
@@ -16887,8 +16898,28 @@ window._quickMarkPaid = async function(invId) {
 // (inv.client_decision_at), totals pull ONLY from approved line items and
 // approved service charges. The estimate (pre-decision) sums everything; the
 // final invoice never bills a rejected concern.
+// Workshop default tax %. A workshop that never opened Settings has NO saved tax_pct, yet the
+// Settings screen displays 18 — so an unset value must read as 18, not 0 (that was making new
+// invoices and estimates come out with no tax at all). An explicitly saved 0 stays 0.
+function wsTaxPct() {
+  const v = (D.settings || {}).tax_pct;
+  return (v === undefined || v === null || v === '') ? 18 : (Number(v) || 0);
+}
+window.wsTaxPct = wsTaxPct;
+// The tax % that applies to a given invoice. Deliberate per-invoice overrides (tax_overridden) and
+// settled invoices keep exactly what they were saved with; an unpaid invoice that was saved with 0
+// by the old bug picks up the workshop's rate instead.
+function _invTaxPct(inv) {
+  const own = Number(inv && inv.tax_pct);
+  if (!inv) return wsTaxPct();
+  if (inv.tax_overridden || own > 0) return own || 0;
+  if (inv.payment_status === 'Paid') return own || 0;
+  const snap = Number(inv.workshop_snapshot && inv.workshop_snapshot.tax_pct);
+  return snap > 0 ? snap : wsTaxPct();
+}
+window._invTaxPct = _invTaxPct;
 function _invoiceTotals(inv) {
-  const taxPct = Number(inv.tax_pct ?? inv.workshop_snapshot?.tax_pct ?? D.settings.tax_pct ?? 0);
+  const taxPct = _invTaxPct(inv);
   const filterByApproval = !!inv.client_decision_at;
   const keep = (item) => !filterByApproval || (item.approval || 'pending') !== 'rejected';
   let partsTaxable = 0, gst = 0, disc = 0;
@@ -16981,7 +17012,7 @@ function _blankInvoice() {
     vehicle: { plate: '', model: '' },
     service: '', mechanic: '',
     lines: [], charges: [],
-    tax_pct: Number(D.settings.tax_pct || 0),
+    tax_pct: wsTaxPct(),
     payment_status: 'Outstanding', payment_method: '', amount_paid: 0,
     notes: '',
     workshop_snapshot: _workshopSnapshot(),    // bank fields now live here, not per-invoice
@@ -16997,7 +17028,7 @@ function _workshopSnapshot() {
   return {
     workshop_name: s.workshop_name || '', address: s.address || '', email: s.email || '',
     phone: s.phone || '', gstin: s.gstin || '', currency: s.currency || '₹',
-    tax_pct: Number(s.tax_pct || 0), logo: s.logo || '',
+    tax_pct: wsTaxPct(), logo: s.logo || '',
     bank_name:    s.bank_name    || '',
     bank_branch:  s.bank_branch  || '',
     bank_account: s.bank_account || '',
@@ -17113,7 +17144,7 @@ function _invoiceFormHTML() {
     <div class="f-row r3">
       <div class="f-grp"><label>Service</label><input id="if-service" type="text" value="${escapeHtml(inv.service || '')}" /></div>
       <div class="f-grp"><label>Mechanic</label><input id="if-mech" type="text" value="${escapeHtml(inv.mechanic || '')}" /></div>
-      <div class="f-grp"><label>Tax % (GST)</label><input id="if-tax" type="number" step="0.01" value="${escapeHtml(String(inv.tax_pct ?? 0))}" /></div>
+      <div class="f-grp"><label>Tax % (GST)</label><input id="if-tax" type="number" step="0.01" value="${escapeHtml(String(_invTaxPct(inv)))}" /></div>
     </div>
 
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
@@ -17280,6 +17311,7 @@ async function saveInvoice() {
   inv.service         = document.getElementById('if-service').value.trim();
   inv.mechanic        = document.getElementById('if-mech').value.trim();
   inv.tax_pct         = Number(document.getElementById('if-tax').value) || 0;
+  if (inv.tax_pct !== wsTaxPct()) inv.tax_overridden = true;     // a deliberate per-invoice rate — never auto-corrected
   inv.payment_method  = document.getElementById('if-pay-method').value.trim();
 
   // ── Reconcile the two status fields ──────────────────────────────────────
@@ -17738,7 +17770,7 @@ function _invoiceHTMLFromRecord(inv, opts) {
   const ws  = inv.workshop_snapshot || _workshopSnapshot();
   const t   = _invoiceTotals(inv);
   const cur = ws.currency || '₹';
-  const taxPct = Number(inv.tax_pct || 0);
+  const taxPct = _invTaxPct(inv);
   // Money formatters: with currency symbol, and the "₹ N,NNN.NN" style used everywhere
   const inr  = (n) => `${cur} ${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const inrR = (n) => `${cur} ${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
