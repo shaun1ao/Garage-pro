@@ -243,12 +243,12 @@ function render() {
         <div><label>Mobile number *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" /></div></div>
       <div class="grid2"><div><label>Vehicle number *</label><input id="fPlate" placeholder="MH12 AB 1234" style="text-transform:uppercase" /></div>
         <div><label>Make &amp; model</label><input id="fVeh" placeholder="Maruti Swift 2019" /></div></div>
-      <label>Email <span style="font-weight:400;color:var(--faint)">(optional, for the confirmation)</span></label><input id="fEmail" type="email" autocomplete="email" />
+      <label>Email *</label><input id="fEmail" type="email" autocomplete="email" placeholder="you@example.com" />
       <label>Anything we should know? <span style="font-weight:400;color:var(--faint)">(optional)</span></label><textarea id="fNotes" rows="3" maxlength="500" placeholder="Noise, warning light, pickup needed…"></textarea>
       <input class="hp" id="fHp" tabindex="-1" autocomplete="off" aria-hidden="true" />
       <div class="err" id="err"></div>
       <button class="btn" id="go" type="button" ${canPick ? '' : 'disabled'}>Request this booking</button>
-      <p class="sub" style="font-size:12.5px;margin-top:12px;text-align:center">The workshop will confirm your slot by phone or WhatsApp. No payment needed now.</p>
+      <p class="sub" style="font-size:12.5px;margin-top:12px;text-align:center">You'll receive a confirmation by phone, WhatsApp or email. No payment needed now.</p>
     </div>`;
   document.querySelectorAll('[data-svc]').forEach(b => b.onclick = () => { sel.service = b.dataset.svc; keepForm(); });
   const free = $('svcFree'); if (free) free.oninput = () => { sel.service = free.value.trim(); };
@@ -276,7 +276,7 @@ async function submit() {
   if (name.length < 2) return err.textContent = 'Please enter your name.';
   if (phone.replace(/\D/g, '').length < 10) return err.textContent = 'Please enter a valid mobile number.';
   if (plate.replace(/\W/g, '').length < 4) return err.textContent = 'Please enter your vehicle number.';
-  if (email && !/^\S+@\S+\.\S+$/.test(email)) return err.textContent = 'That email looks wrong.';
+  if (!/^\S+@\S+\.\S+$/.test(email)) return err.textContent = 'Please enter a valid email address.';
   const btn = $('go'); btn.disabled = true; btn.textContent = 'Sending…';
   try {
     // make sure the slot hasn't just filled up
@@ -301,7 +301,7 @@ function done(id, d) {
     '\nDTSTART:' + sel.date.replace(/-/g, '') + 'T' + sel.time.replace(':', '') + '00\nDTEND:' + sel.date.replace(/-/g, '') + 'T' + end.replace(':', '') + '00\nLOCATION:' + (W.address || W.city || '').replace(/[,;\n]/g, ' ') + '\nEND:VEVENT\nEND:VCALENDAR';
   $('app').innerHTML = `<div class="step ok"><div class="tick"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
     <h1 style="font-size:24px">Request sent!</h1>
-    <p class="sub">${esc(W.name || 'The workshop')} will confirm your booking by phone or WhatsApp shortly.${d.email ? ` We're also emailing a confirmation to <b>${esc(d.email)}</b>.` : ''}</p>
+    <p class="sub">${esc(W.name || 'The workshop')} will confirm your booking shortly. <b>You will receive a confirmation by phone, WhatsApp or email.</b></p>
     <div class="sum"><span>Service</span> <b>${esc(sel.service)}</b><br><span>When</span> <b>${esc(prettyDate(sel.date))}, ${fmt12(sel.time)}</b><br><span>Vehicle</span> <b>${esc(d.plate)}</b><br><span>Reference</span> <b>${esc(id.slice(0, 6).toUpperCase())}</b></div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px">
       <a class="chip" download="booking.ics" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}" style="text-decoration:none">📅 Add to calendar</a>
