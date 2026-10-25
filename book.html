@@ -64,6 +64,9 @@
   .tick{width:64px;height:64px;border-radius:50%;background:rgba(32,227,178,.15);color:var(--teal);display:grid;place-items:center;margin:0 auto 16px}
   .sum{margin:18px auto 0;max-width:380px;text-align:left;background:var(--bg2);border-radius:12px;padding:14px 16px;font-size:14px;line-height:1.9}
   .sum b{color:var(--text)} .sum span{color:var(--dim)}
+  .found{background:rgba(32,227,178,.1);border:1px solid rgba(32,227,178,.35);border-radius:10px;padding:9px 12px;font-size:13px;margin:10px 0 2px;color:var(--text)}
+  .oth{margin-top:8px}
+  select{appearance:auto}
   .hp{position:absolute;left:-9999px;opacity:0}
   footer{padding:22px;text-align:center;color:var(--faint);font-size:12.5px}
   body.embed .top{display:none}
@@ -214,6 +217,69 @@ async function loadHolds() {
   } catch (e) { /* holds are best-effort */ }
 }
 
+
+// ───── vehicle pickers — use the SAME make / model database as the workshop's app ─────
+const COLOURS = ['White', 'Silver', 'Grey', 'Black', 'Red', 'Blue', 'Brown', 'Beige', 'Green', 'Yellow', 'Orange', 'Maroon', 'Gold', 'Purple'];
+const FUELS = ['Petrol', 'Diesel', 'CNG', 'LPG', 'Electric', 'Hybrid'];
+const OTHER = '__other';
+let F = {};   // (fLang defaults to the language chosen in the 🌐 picker — set below)                                   // everything the customer has typed / picked (survives re-renders)
+try { F = JSON.parse(localStorage.getItem('gp_book_me') || '{}') || {}; } catch (e) { F = {}; }
+if (window.GP && GP.code() !== 'en') F.fLang = GP.code();      // someone browsing in Tamil gets Tamil messages unless they change it
+const VDB = () => (W && W.vehicles) || {};
+function makeOpts() { return Object.keys(VDB()).sort(); }
+function modelOpts() { const m = F.vMake && F.vMake !== OTHER ? VDB()[F.vMake] : null; return m ? Object.keys(m).sort() : []; }
+function yearOpts() {
+  const m = F.vMake && F.vModel && F.vMake !== OTHER && F.vModel !== OTHER ? (VDB()[F.vMake] || {})[F.vModel] : null;
+  const from = m && m.from ? +m.from : new Date().getFullYear() - 40, out = [];
+  for (let y = new Date().getFullYear() + 1; y >= from; y--) out.push(String(y));
+  return out;
+}
+function sel2(id, opts, noOther) {
+  const cur = F[id] || '';
+  return `<select id="${id}"><option value="">Select…</option>${opts.map(o => `<option value="${esc(o)}" ${cur === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}${noOther ? '' : `<option value="${OTHER}" ${cur === OTHER ? 'selected' : ''}>Other…</option>`}</select>`;
+}
+const vval = id => { const v = F[id]; return v === OTHER ? (F[id + 'O'] || '').trim() : (v || '').trim(); };
+function syncVehicleUI() {                    // show the "type it" box for Other, rebuild model/year lists
+  const mk = $('vModel'), yr = $('vYear');
+  if (mk) { const keep = F.vModel; mk.outerHTML = sel2('vModel', modelOpts()); $('vModel').onchange = onVeh; $('vModel').value = keep || ''; }
+  if (yr) { const keep = F.vYear; yr.outerHTML = sel2('vYear', yearOpts()); $('vYear').onchange = onVeh; $('vYear').value = keep || ''; }
+  ['vMake', 'vModel', 'vYear', 'vColour'].forEach(id => { const o = $(id + 'O'); if (o) { o.style.display = F[id] === OTHER ? 'block' : 'none'; o.value = F[id + 'O'] || ''; } });
+  // a make that isn't in the list means the model has to be typed too
+  if (F.vMake === OTHER && F.vModel !== OTHER) { F.vModel = OTHER; $('vModel').value = OTHER; if ($('vModelO')) $('vModelO').style.display = 'block'; }
+}
+function onVeh(e) {
+  const id = e.target.id; F[id] = e.target.value;
+  if (id === 'vMake') { F.vModel = ''; F.vYear = ''; }
+  if (id === 'vModel') { F.vYear = ''; }
+  syncVehicleUI();
+}
+// Fill from the shared vehicle registry (the app saves every serviced car here by plate), then
+// ask only for what's still missing. Only vehicle details are used — never the owner's personal info.
+let lookupT = null;
+function lookupPlateSoon() { clearTimeout(lookupT); lookupT = setTimeout(lookupPlate, 600); }
+async function lookupPlate() {
+  const pn = (F.fPlate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const box = $('vFound'); if (!box || pn.length < 6 || pn === lookupPlate.last) return; lookupPlate.last = pn;
+  try {
+    const snap = await db.collection('vehicle_registry').doc(pn).get();
+    if (!snap.exists) { box.style.display = 'none'; return; }
+    const r = snap.data(), got = [];
+    const setPick = (id, val, list) => { if (!val || F[id]) return; if (list && list.includes(val)) F[id] = val; else if (list && !list.some(x => x.toLowerCase() === String(val).toLowerCase())) { F[id] = OTHER; F[id + 'O'] = val; } else F[id] = (list || []).find(x => x.toLowerCase() === String(val).toLowerCase()) || val; got.push(id); };
+    setPick('vMake', r.make, makeOpts()); syncVehicleUI();
+    setPick('vModel', r.model, modelOpts()); syncVehicleUI();
+    setPick('vYear', String(r.year || ''), yearOpts());
+    setPick('vColour', r.color || r.colour, COLOURS);
+    if (r.fuel_type && !F.vFuel && FUELS.includes(r.fuel_type)) { F.vFuel = r.fuel_type; got.push('vFuel'); }
+    if (r.vin && !F.vVin) { F.vVin = String(r.vin).toUpperCase().slice(0, 17); got.push('vVin'); }
+    syncVehicleUI(); applyF();
+    const missing = [['vMake', 'make'], ['vModel', 'model'], ['vYear', 'year'], ['vColour', 'colour'], ['vFuel', 'fuel']].filter(([id]) => !vval(id)).map(x => x[1]);
+    box.style.display = 'block';
+    box.innerHTML = got.length ? `✓ We found your car and filled in what we know. Please check it${missing.length ? ` — we still need your <b>${missing.join(', ')}</b>` : ''}.` : '';
+    if (!got.length) box.style.display = 'none';
+  } catch (e) { /* registry is a convenience only */ }
+}
+function applyF() { document.querySelectorAll('#app input[id],#app select[id],#app textarea[id]').forEach(el => { if (el.id !== 'fHp' && F[el.id] !== undefined) el.value = F[el.id]; }); }
+
 // ───── render ─────
 function render() {
   const services = (W.services || []).map(s => typeof s === 'string' ? s : s.name).filter(Boolean);
@@ -238,12 +304,23 @@ function render() {
         : `<div class="empty">No online slots are open right now. Please call the workshop${W.phone ? ' on ' + esc(W.phone) : ''}.</div>`}
     </div>
 
-    <div class="step"><h2><span class="num">3</span>Your details</h2>
+    <div class="step"><h2><span class="num">3</span>Your vehicle</h2>
+      <label>Vehicle number *</label><input id="fPlate" placeholder="MH12 AB 1234" autocomplete="off" style="text-transform:uppercase" />
+      <div id="vFound" class="found" style="display:none"></div>
+      <div class="grid2"><div><label>Make *</label>${sel2('vMake', makeOpts())}<input id="vMakeO" class="oth" placeholder="Type the make" style="display:none" /></div>
+        <div><label>Model *</label>${sel2('vModel', modelOpts())}<input id="vModelO" class="oth" placeholder="Type the model" style="display:none" /></div></div>
+      <div class="grid2"><div><label>Year *</label>${sel2('vYear', yearOpts())}<input id="vYearO" class="oth" placeholder="e.g. 2016" inputmode="numeric" maxlength="4" style="display:none" /></div>
+        <div><label>Colour *</label>${sel2('vColour', COLOURS)}<input id="vColourO" class="oth" placeholder="Type the colour" style="display:none" /></div></div>
+      <div class="grid2"><div><label>Fuel *</label>${sel2('vFuel', FUELS, true)}</div>
+        <div><label>VIN / chassis no. <span style="font-weight:400;color:var(--faint)">(optional)</span></label><input id="vVin" maxlength="17" placeholder="17 characters" autocomplete="off" style="text-transform:uppercase" /></div></div>
+      <div style="font-size:12px;color:var(--faint);margin-top:6px">Your VIN is printed on your RC book and at the base of the windscreen. It helps us order the right parts.</div>
+    </div>
+
+    <div class="step"><h2><span class="num">4</span>Your details</h2>
       <div class="grid2"><div><label>Your name *</label><input id="fName" autocomplete="name" /></div>
         <div><label>Mobile number *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" /></div></div>
-      <div class="grid2"><div><label>Vehicle number *</label><input id="fPlate" placeholder="MH12 AB 1234" style="text-transform:uppercase" /></div>
-        <div><label>Make &amp; model</label><input id="fVeh" placeholder="Maruti Swift 2019" /></div></div>
       <label>Email *</label><input id="fEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+      <label>Language for our messages</label><select id="fLang">${(window.GP ? GP.LANGS : [['en', 'English', 'English']]).map(l => `<option value="${l[0]}">${esc(l[2])}${l[0] === 'en' ? '' : ' · ' + esc(l[1])}</option>`).join('')}</select>
       <label>Anything we should know? <span style="font-weight:400;color:var(--faint)">(optional)</span></label><textarea id="fNotes" rows="3" maxlength="500" placeholder="Noise, warning light, pickup needed…"></textarea>
       <input class="hp" id="fHp" tabindex="-1" autocomplete="off" aria-hidden="true" />
       <div class="err" id="err"></div>
@@ -255,12 +332,13 @@ function render() {
   document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { sel.date = b.dataset.d; sel.time = ''; keepForm(); });
   document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { sel.time = b.dataset.t; keepForm(); });
   $('go').onclick = submit;
+  const A = $('app');
+  A.oninput = A.onchange = e => { const id = e.target.id; if (!id || id === 'fHp') return; F[id] = e.target.value; if (id === 'fPlate') lookupPlateSoon(); };
+  ['vMake', 'vModel', 'vYear'].forEach(id => $(id) && ($(id).onchange = onVeh));
+  $('vColour').onchange = e => { F.vColour = e.target.value; syncVehicleUI(); };
+  applyF(); syncVehicleUI(); if (F.fPlate) lookupPlate();
 }
-function keepForm() {            // re-render without losing what the customer typed
-  const ids = ['fName', 'fPhone', 'fPlate', 'fVeh', 'fEmail', 'fNotes'], v = {};
-  ids.forEach(i => v[i] = ($(i) || {}).value || '');
-  render(); ids.forEach(i => { if ($(i)) $(i).value = v[i]; });
-}
+function keepForm() { render(); }      // all typed values live in F, so a re-render keeps them
 
 // ───── submit ─────
 async function submit() {
@@ -273,9 +351,17 @@ async function submit() {
   if (!sel.service && services) return err.textContent = 'Please choose what you need.';
   if (!sel.service) sel.service = ($('svcFree') || {}).value || 'General service';
   if (!sel.date || !sel.time) return err.textContent = 'Please pick a day and a time.';
+  if (plate.replace(/\W/g, '').length < 4) return err.textContent = 'Please enter your vehicle number.';
+  const lang = (window.GP && GP.valid(F.fLang)) ? F.fLang : 'en';
+  const make = vval('vMake'), model = vval('vModel'), year = vval('vYear'), colour = vval('vColour'), fuel = vval('vFuel'), vin = (v('vVin') || '').toUpperCase().replace(/\s+/g, '');
+  if (!make) return err.textContent = 'Please choose your vehicle\'s make.';
+  if (!model) return err.textContent = 'Please choose your vehicle\'s model.';
+  if (!/^(19|20)\d{2}$/.test(year)) return err.textContent = 'Please choose the year your car was made.';
+  if (!colour) return err.textContent = 'Please choose your car\'s colour.';
+  if (!fuel) return err.textContent = 'Please choose the fuel type.';
+  if (vin && !/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return err.textContent = 'A VIN has 17 letters/numbers (no I, O or Q). Leave it blank if you don\'t have it handy.';
   if (name.length < 2) return err.textContent = 'Please enter your name.';
   if (phone.replace(/\D/g, '').length < 10) return err.textContent = 'Please enter a valid mobile number.';
-  if (plate.replace(/\W/g, '').length < 4) return err.textContent = 'Please enter your vehicle number.';
   if (!/^\S+@\S+\.\S+$/.test(email)) return err.textContent = 'Please enter a valid email address.';
   const btn = $('go'); btn.disabled = true; btn.textContent = 'Sending…';
   try {
@@ -285,10 +371,12 @@ async function submit() {
     if (!fresh || !fresh.left) { sel.time = ''; keepForm(); $('err').textContent = 'Sorry — that slot was just taken. Please pick another.'; return; }
     const ref = db.collection('users').doc(W.uid).collection('booking_requests').doc();
     const batch = db.batch();
-    batch.set(ref, { slug: SLUG, name, phone, email, plate, vehicle: v('fVeh').slice(0, 80), service: sel.service.slice(0, 100),
+    batch.set(ref, { slug: SLUG, name, phone, email, lang, plate, make: make.slice(0, 40), model: model.slice(0, 50), year, colour: colour.slice(0, 30), fuel, vin,
+      vehicle: [year, make, model].filter(Boolean).join(' ').slice(0, 100), service: sel.service.slice(0, 100),
       date: sel.date, time: sel.time, notes: v('fNotes').slice(0, 500), status: 'pending', created_at: new Date().toISOString() });
     batch.set(db.collection('users').doc(W.uid).collection('slot_holds').doc(ref.id), { slug: SLUG, date: sel.date, time: sel.time, created_at: new Date().toISOString() });
     await batch.commit();
+    try { const keep = {}; ['fName', 'fPhone', 'fEmail', 'fLang', 'fPlate', 'vMake', 'vMakeO', 'vModel', 'vModelO', 'vYear', 'vYearO', 'vColour', 'vColourO', 'vFuel', 'vVin'].forEach(k => { if (F[k]) keep[k] = F[k]; }); localStorage.setItem('gp_book_me', JSON.stringify(keep)); } catch (e) {}
     done(ref.id, { name, plate, email });
   } catch (e) {
     btn.disabled = false; btn.textContent = 'Request this booking';
@@ -310,5 +398,6 @@ function done(id, d) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 </script>
+<script src="i18n/gp-lang.js"></script>
 </body>
 </html>
