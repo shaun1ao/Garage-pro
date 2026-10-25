@@ -68,7 +68,8 @@ firebase.initializeApp({ apiKey: "AIzaSyA1PzbhboU9Qdlpqs5cbLR3hsvFpWXCI54", auth
 const db = firebase.firestore();
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN');
+let CURR = '₹', AEP = false;
+const inr = n => CURR + (/^[A-Za-z]+$/.test(CURR) ? ' ' : '') + Number(n || 0).toLocaleString(AEP ? 'en-US' : 'en-IN', AEP ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : undefined);
 const safeUrl = u => /^https:\/\//.test(u || '') ? u : '';
 const q = new URLSearchParams(location.search);
 const parts = location.pathname.split('/').filter(Boolean);
@@ -80,7 +81,7 @@ async function load(first) {
   try {
     const snap = await db.collection('users').doc(W).collection('customer_portal').doc(T).get();
     if (!snap.exists) return location.replace('/403.html?why=link');
-    P = snap.data(); render();
+    P = snap.data(); CURR = (P.workshop && P.workshop.currency) || '₹'; AEP = !!(P.workshop && P.workshop.country === 'AE'); render();
   } catch (e) {
     if (first) { if (e && e.code === 'permission-denied') return location.replace('/403.html?why=link'); $('app').innerHTML = `<div class="card empty">Couldn't load your page. ${esc(e.message || e)}<br><br><button class="pill" onclick="location.reload()">Try again</button></div>`; }
   }
