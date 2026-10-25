@@ -73,7 +73,11 @@
 
       <!-- Step 1: state picker -->
       <div id="track-step-state">
-        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Which state is your workshop in?</label>
+        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Country</label>
+        <select id="track-country-input" style="width:100%;padding:14px 16px;margin-bottom:16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" onchange="_trackCountryChanged()">
+          <option value="IN">🇮🇳 India</option><option value="AE">🇦🇪 United Arab Emirates</option>
+        </select>
+        <label id="track-region-q" style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Which state is your workshop in?</label>
         <select id="track-state-input" style="width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" onchange="_trackStatePicked()">
           <option value="">— Pick a state —</option>
         </select>
@@ -83,7 +87,7 @@
       <!-- Step 2: workshop picker (filtered by state) -->
       <div id="track-step-workshop" style="display:none">
         <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-          <div style="font-size:13.5px"><span style="color:var(--faint)">State:</span><b id="track-state-name" style="color:var(--text);margin-left:6px"></b></div>
+          <div style="font-size:13.5px"><span id="track-region-lbl" style="color:var(--faint)">State:</span><b id="track-state-name" style="color:var(--text);margin-left:6px"></b></div>
           <button onclick="trackBack('state')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
         </div>
         <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Pick your workshop</label>
@@ -231,6 +235,9 @@ const TRACK_INDIA_STATES = [
   'Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry'
 ];
 
+const TRACK_UAE_EMIRATES = ['Abu Dhabi','Dubai','Sharjah','Ajman','Umm Al Quwain','Ras Al Khaimah','Fujairah'];
+let _trackCountry = 'IN';
+try { if (/Asia\/(Dubai|Muscat)/.test(Intl.DateTimeFormat().resolvedOptions().timeZone)) _trackCountry = 'AE'; } catch (_) {}
 let _trackAllWorkshops = null;   // cached list of {uid, name, state, isBranch, parent}
 let _trackPickedState  = null;
 let _trackPickedUid    = null;
@@ -300,6 +307,7 @@ async function _trackLoadWorkshops() {
       name,
       slug:     _trackSlugify(name),
       state:    (d.state || '').trim(),
+      country:  d.country === 'AE' ? 'AE' : 'IN',          // accounts created before UAE support are India
       city:     (d.city  || '').trim(),
       isBranch: !!d.branch,
       parent:   d.chain_parent_name || '',
@@ -320,29 +328,39 @@ function _trackBuildStateDropdown() {
   if (!sel || sel._trackBuilt) return;
   const haveStates = new Set();
   let haveUnspecified = false;
-  for (const w of (_trackAllWorkshops || [])) {
+  for (const w of (_trackAllWorkshops || []).filter(w => w.country === _trackCountry)) {
     if (w.state) haveStates.add(w.state);
     else         haveUnspecified = true;
   }
   // Show all India states ordered alphabetically; mark ones with no workshops
   // as disabled so the user doesn't pick an empty bucket by mistake.
   const opts = [];
-  opts.push(`<option value="">— Pick a state —</option>`);
-  for (const st of TRACK_INDIA_STATES) {
+  opts.push(`<option value="">— Pick ${_trackCountry === 'AE' ? 'an emirate' : 'a state'} —</option>`);
+  for (const st of (_trackCountry === 'AE' ? TRACK_UAE_EMIRATES : TRACK_INDIA_STATES)) {
     const has = haveStates.has(st);
     opts.push(`<option value="${_trackEsc(st)}" ${has ? '' : 'disabled style="color:#666"'}>${_trackEsc(st)}${has ? '' : ' (no workshops yet)'}</option>`);
   }
-  if (haveUnspecified) opts.push(`<option value="__unspecified__">Other / state not specified</option>`);
+  if (haveUnspecified) opts.push(`<option value="__unspecified__">Other / ${_trackCountry === 'AE' ? 'emirate' : 'state'} not specified</option>`);
   sel.innerHTML = opts.join('');
   sel._trackBuilt = true;
+  const q = document.getElementById('track-region-q'); if (q) q.textContent = _trackCountry === 'AE' ? 'Which emirate is your workshop in?' : 'Which state is your workshop in?';
+  const ci = document.getElementById('track-country-input'); if (ci) ci.value = _trackCountry;
 }
+window._trackCountryChanged = function () {
+  _trackCountry = document.getElementById('track-country-input').value === 'AE' ? 'AE' : 'IN';
+  const sel = document.getElementById('track-state-input'); if (sel) sel._trackBuilt = false;
+  _trackBuildStateDropdown();
+  const n = (_trackAllWorkshops || []).filter(w => w.country === _trackCountry).length;
+  document.getElementById('track-state-msg').textContent = n ? `${n} workshop${n === 1 ? '' : 's'} in ${_trackCountry === 'AE' ? 'the UAE' : 'India'} · pick ${_trackCountry === 'AE' ? 'an emirate' : 'a state'} to narrow down` : 'No workshops registered here yet';
+};
 
 // Filter the cached workshop list by the picked state. "__unspecified__"
 // matches workshops whose owner hasn't set a state yet.
 function _trackWorkshopsForState(state) {
   if (!_trackAllWorkshops) return [];
-  if (state === '__unspecified__') return _trackAllWorkshops.filter(w => !w.state);
-  return _trackAllWorkshops.filter(w => w.state === state);
+  const inCountry = _trackAllWorkshops.filter(w => w.country === _trackCountry);
+  if (state === '__unspecified__') return inCountry.filter(w => !w.state);
+  return inCountry.filter(w => w.state === state);
 }
 
 function _trackRenderDropdown(matches) {
@@ -370,9 +388,10 @@ function _trackInit() {
   stateMsg.textContent = 'Loading workshops…';
   _trackLoadWorkshops().then(list => {
     _trackBuildStateDropdown();
-    stateMsg.textContent = list.length
-      ? `${list.length} workshop${list.length === 1 ? '' : 's'} across India · pick a state to narrow down`
-      : 'No workshops registered yet';
+    const n = list.filter(w => w.country === _trackCountry).length;
+    stateMsg.textContent = n
+      ? `${n} workshop${n === 1 ? '' : 's'} in ${_trackCountry === 'AE' ? 'the UAE' : 'India'} · pick ${_trackCountry === 'AE' ? 'an emirate' : 'a state'} to narrow down`
+      : 'No workshops registered here yet';
   }).catch(e => {
     stateMsg.style.color = '#ff6b6b';
     stateMsg.textContent = e.message || String(e);
@@ -407,6 +426,7 @@ window._trackStatePicked = function() {
   document.getElementById('track-step-state').style.display    = 'none';
   document.getElementById('track-step-workshop').style.display = 'block';
   document.getElementById('track-state-name').textContent      = state === '__unspecified__' ? 'Other (not specified)' : state;
+  const rl = document.getElementById('track-region-lbl'); if (rl) rl.textContent = _trackCountry === 'AE' ? 'Emirate:' : 'State:';
   // Pre-populate workshop dropdown with the full list for this state
   const pool = _trackWorkshopsForState(state);
   _trackRenderDropdown(pool.slice(0, 20));
