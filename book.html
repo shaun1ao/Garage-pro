@@ -305,7 +305,7 @@ function render() {
     </div>
 
     <div class="step"><h2><span class="num">3</span>Your vehicle</h2>
-      <label>Vehicle number *</label><input id="fPlate" placeholder="MH12 AB 1234" autocomplete="off" style="text-transform:uppercase" />
+      <label>Vehicle number *</label><input id="fPlate" placeholder="${W.country === 'AE' ? 'A 12345' : 'MH12 AB 1234'}" autocomplete="off" style="text-transform:uppercase" />
       <div id="vFound" class="found" style="display:none"></div>
       <div class="grid2"><div><label>Make *</label>${sel2('vMake', makeOpts())}<input id="vMakeO" class="oth" placeholder="Type the make" style="display:none" /></div>
         <div><label>Model *</label>${sel2('vModel', modelOpts())}<input id="vModelO" class="oth" placeholder="Type the model" style="display:none" /></div></div>
@@ -318,7 +318,7 @@ function render() {
 
     <div class="step"><h2><span class="num">4</span>Your details</h2>
       <div class="grid2"><div><label>Your name *</label><input id="fName" autocomplete="name" /></div>
-        <div><label>Mobile number *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="98765 43210" /></div></div>
+        <div><label>Mobile number *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${W.country === 'AE' ? '50 123 4567' : '98765 43210'}" /></div></div>
       <label>Email *</label><input id="fEmail" type="email" autocomplete="email" placeholder="you@example.com" />
       <label>Language for our messages</label><select id="fLang">${(window.GP ? GP.LANGS : [['en', 'English', 'English']]).map(l => `<option value="${l[0]}">${esc(l[2])}${l[0] === 'en' ? '' : ' · ' + esc(l[1])}</option>`).join('')}</select>
       <label>Anything we should know? <span style="font-weight:400;color:var(--faint)">(optional)</span></label><textarea id="fNotes" rows="3" maxlength="500" placeholder="Noise, warning light, pickup needed…"></textarea>
@@ -361,7 +361,7 @@ async function submit() {
   if (!fuel) return err.textContent = 'Please choose the fuel type.';
   if (vin && !/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return err.textContent = 'A VIN has 17 letters/numbers (no I, O or Q). Leave it blank if you don\'t have it handy.';
   if (name.length < 2) return err.textContent = 'Please enter your name.';
-  if (phone.replace(/\D/g, '').length < 10) return err.textContent = 'Please enter a valid mobile number.';
+  if (phone.replace(/\D/g, '').length < (W.country === 'AE' ? 9 : 10)) return err.textContent = 'Please enter a valid mobile number.';
   if (!/^\S+@\S+\.\S+$/.test(email)) return err.textContent = 'Please enter a valid email address.';
   const btn = $('go'); btn.disabled = true; btn.textContent = 'Sending…';
   try {
