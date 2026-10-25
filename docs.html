@@ -181,16 +181,25 @@
       <a href="#notifications">Email &amp; WhatsApp updates</a>
       <a href="#tracking">Track Repair page</a>
       <a href="#feedback">Customer feedback</a>
+      <a href="#online-booking">Online booking page</a>
+      <a href="#portal">Customer portal</a>
+      <a href="#languages">Languages &amp; translation</a>
     </div>
     <div class="sidebar-group">
       <h4>Specialised workflows</h4>
       <a href="#insurance">Insurance claims</a>
       <a href="#multi-branch">Multi-branch chains</a>
+      <a href="#fleet">Fleet accounts</a>
+      <a href="#parts-exchange">Parts Exchange</a>
+      <a href="#scan-packages">Barcode scan &amp; job packages</a>
     </div>
     <div class="sidebar-group">
       <h4>Reference</h4>
       <a href="#reports">Reports &amp; analytics</a>
       <a href="#workload">Technician workload</a>
+      <a href="#productivity">Technician productivity</a>
+      <a href="#country-tax">Country, VAT &amp; GST</a>
+      <a href="#billing">Plans &amp; billing</a>
       <a href="#troubleshooting">Troubleshooting &amp; FAQ</a>
     </div>
   </nav>
@@ -256,7 +265,7 @@
       <p class="desc">Workshop info, bays, departments, and your first team members.</p>
       <p>Shown once, automatically, the first time a new workshop account signs in. It walks through everything Garage Pro needs before the floor can start using it:</p>
       <ol class="doc-steps">
-        <li><b>Workshop info</b> — name, address, state, GST number and logo. This feeds every invoice and email footer.</li>
+        <li><b>Workshop info</b> — name, address, <b>country</b>, state or emirate, tax number (GSTIN or TRN) and logo. This feeds every invoice and email footer.</li>
         <li><b>Bays</b> — how many service bays you have and their types (e.g. general, alignment, wash) — this is what powers the live bay-status board.</li>
         <li><b>Departments</b> — Mechanical, Electrical, Body Shop, etc. Each has its own list of service types, editable later from Settings.</li>
         <li><b>Team members</b> — add your first workers, assign a role to each, and a PIN is generated for them to sign in with.</li>
@@ -379,7 +388,7 @@
     <section id="invoicing" class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M9 13h6M9 17h4"/></svg></span>Invoicing &amp; payments</h2>
       <p class="desc">Generating GST invoices, partial payments, and checkout.</p>
-      <p>Once a job's actual parts and charges are in, generating the invoice produces a proper GST-ready PDF — GST/HSN-SAC codes, a discount breakdown, and the amount in words — numbered sequentially (e.g. <code>INV-000123</code>) so nothing duplicates or skips.</p>
+      <p>Once a job's actual parts and charges are in, generating the invoice produces a proper tax-ready PDF (GST for India; a VAT tax invoice with TRN for UAE workshops — see <a href="#country-tax" style="color:var(--acc2)">Country, VAT &amp; GST</a>) — GST/HSN-SAC codes, a discount breakdown, and the amount in words — numbered sequentially (e.g. <code>INV-000123</code>) so nothing duplicates or skips.</p>
       <h3>Checkout</h3>
       <ul class="doc-list">
         <li>Record the payment as cash, card, UPI, bank transfer or cheque — or split it as a <b>partial payment</b> with a balance still outstanding.</li>
@@ -502,6 +511,125 @@
       <p class="desc">Who's holding what, right now.</p>
       <p>Available to the Floor Manager and owner/manager roles, this is a live roster rather than a date-ranged report — each active technician alongside how many cars are currently assigned to them (any status except Delivered or Cancelled counts against their load). Tap a technician to expand their current job list, or jump straight into a job card from there. Jobs with no technician assigned yet are broken out separately at the bottom, so nothing gets missed when handing out work.</p>
       <p>Same view is available in the Garage Pro mobile app, under <b>Tech Workload</b> in the sidebar.</p>
+    </section>
+
+    <section id="country-tax" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Country, VAT &amp; GST</h2>
+      <p class="desc">Run Garage Pro as an Indian workshop (GST, ₹) or a UAE workshop (VAT, AED).</p>
+      <p>Every workshop has a <b>country</b>. Pick it when you first set up the workshop, or change it any time in <b>Settings → Workshop info → Country</b>. Existing workshops are set to <b>India</b> automatically, so nothing changes unless you switch.</p>
+      <h3>India</h3>
+      <ul class="doc-list">
+        <li>Currency ₹, <b>GST</b> (18% by default), GSTIN, HSN/SAC codes, state list, RTO-style number plates and the BH series.</li>
+        <li>Nothing UAE-related ever appears on screen, on invoices or in customer messages.</li>
+      </ul>
+      <h3>United Arab Emirates</h3>
+      <ul class="doc-list">
+        <li>Currency <b>AED</b> with fils (two decimals), <b>5% VAT</b> — the same in every emirate — and a 15-digit <b>TRN</b> (Tax Registration Number) instead of a GSTIN.</li>
+        <li>Pick your <b>emirate</b> (Abu Dhabi, Dubai, Sharjah, Ajman, Umm Al Quwain, Ras Al Khaimah, Fujairah). It drives the public Track Repair page and the Parts Exchange "nearby" matching.</li>
+        <li><b>VAT-registered?</b> Leave it on if you have a TRN. If your turnover is under the AED 375,000 registration threshold and you are not registered, switch it off: invoices then read "Invoice", show no VAT and no TRN.</li>
+        <li><b>Labour is VAT-able.</b> In the UAE, services are standard-rated, so labour and service charges carry VAT automatically (parts too, unless you untick a line).</li>
+        <li><b>Tax invoice layout:</b> the document is headed "Tax Invoice" (with the Arabic title), shows your TRN and the customer's TRN, the date of supply, and for every line the quantity, unit price, taxable value, VAT rate and VAT amount, followed by total excluding VAT, VAT, total including VAT and the amount in words (dirhams and fils). It follows the Federal Tax Authority's required fields — have your accountant confirm it before you rely on it.</li>
+        <li>Phone numbers use +971; WhatsApp links work with 05X or 5X numbers. Number plates use <b>emirate + code + number</b> (for example Dubai · A 12345). The make/model list adds Gulf-market vehicles (Land Cruiser, Patrol, Prado, F-150, Tesla and more).</li>
+        <li><b>Arabic</b> is available in the language picker and for customer emails and WhatsApp texts (right-to-left).</li>
+      </ul>
+      <h3>Changing country later</h3>
+      <ol class="doc-steps">
+        <li>Open <b>Settings → Workshop info</b> and choose the new country. Currency, tax % and the region list switch for you to review.</li>
+        <li>Re-enter your <b>tax ID</b> (GSTIN ↔ TRN) and pick your state or emirate.</li>
+        <li><b>Save.</b> The app reloads in the new country.</li>
+      </ol>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Invoices you already issued keep the country, currency and tax they were created with — switching never rewrites history. The public pages (booking, tracking, customer portal, estimate links) follow your workshop's country automatically.</div>
+      </div>
+    </section>
+
+    <section id="online-booking" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Online booking page</h2>
+      <p class="desc">A public page where customers book a slot without calling.</p>
+      <p>Turn it on in <b>Settings → Online booking</b>. You get a permanent link (<code>garagepro.me/book/your-name</code>) that never changes, so you can put it on your own website, Google profile or Instagram bio.</p>
+      <ul class="doc-list">
+        <li><b>Opening hours, breaks and blocked dates</b> — customers only see slots you can actually take; mark holidays or busy days as blocked.</li>
+        <li><b>Services, slot length, notice time and how far ahead</b> customers can book are all yours to set.</li>
+        <li>The page shows <b>your logo, name and colours</b>, with a small "Powered by Garage Pro" line.</li>
+        <li>Customers enter their vehicle with the same make / model / year list the app uses, plus colour, fuel and VIN; the <b>email address is required</b> so a confirmation can be sent.</li>
+        <li>Requests land in an <b>inbox</b> in the app. Accept or decline each one — accepting creates the appointment and emails the customer in their language.</li>
+        <li>Switch the page off at any time; the link then shows a polite "not taking online bookings" message. There is no limit on bookings.</li>
+      </ul>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Because the page is public, anyone with the link can submit a request. Nothing is booked until you accept it.</div>
+      </div>
+    </section>
+
+    <section id="portal" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Customer portal</h2>
+      <p class="desc">"Track my car" — one personal page per customer.</p>
+      <p>Go to <b>Customers</b> and press <b>Portal link</b> on the customer's row. The customer gets a private link showing their cars currently in the workshop (with the stage and photos you've marked as shareable), estimates waiting for approval, invoices, and their service history. The page is branded with your workshop, shows amounts in your currency, and needs no login — the link itself is the key, so share it only with that customer.</p>
+
+    </section>
+
+    <section id="scan-packages" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Barcode scanning &amp; job packages</h2>
+      <p class="desc">Faster stock handling and one-tap service bundles.</p>
+      <h3>Scan station</h3>
+      <p>On the <b>Inventory</b> tab use <b>Scan in</b> (receive stock) or <b>Stock count</b>; on a job card use <b>Scan</b> next to the estimate's parts list. Point your phone camera — or a USB barcode scanner — at a part and each scan is added in one go. Barcodes the app doesn't know offer to create the item.</p>
+      <h3>Job packages</h3>
+      <p>A package is a saved bundle of parts and services — "Full service", "Brake overhaul" — with a fixed price. Create them in <b>Settings → Job packages</b>, or open a finished job card and use <b>Save as package</b>. When quoting, pick the package and every line is added in one tap.</p>
+
+    </section>
+
+    <section id="fleet" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Fleet accounts</h2>
+      <p class="desc">Corporate customers with several vehicles, credit terms and monthly statements.</p>
+      <p>Mark a customer as a <b>fleet / corporate</b> account to attach their vehicles, an approver who must OK estimates, a credit limit and payment terms. The <b>fleet dashboard</b> shows every vehicle's status and spend; <b>monthly statements</b> list the period's invoices, brought-forward balance and amount due (with your tax ID and the customer's), and can be sent by email or WhatsApp. Set a customer's <b>message language</b> and everything automated goes out in it.</p>
+
+    </section>
+
+    <section id="parts-exchange" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Parts Exchange</h2>
+      <p class="desc">Borrow or sell parts between nearby Garage Pro workshops.</p>
+      <p>A parts shortage costs days. Parts Exchange lets participating workshops list surplus stock, post urgent needs, and request items from each other.</p>
+      <h3>It is off by default — and fully optional</h3>
+      <p>Switch it on or off at <b>Settings → Parts Exchange</b> (Owners and Managers). While it is off, the <b>Parts Exchange</b> tab is hidden and nothing about your workshop is visible to anyone. Switching it off again pauses all your listings, closes your open needs and removes the tab. You need your <b>city</b> filled in under Workshop info so nearby workshops can be matched.</p>
+      <h3>What other workshops can see</h3>
+      <ul class="doc-list">
+        <li>Your workshop name, city, state/emirate, phone and email, and the parts you choose to list.</li>
+        <li>They <b>cannot</b> see your customers, jobs, invoices, prices you paid, or the rest of your inventory.</li>
+      </ul>
+      <h3>Using it</h3>
+      <ol class="doc-steps">
+        <li><b>List a part</b> — pick it from your inventory (or type it), set quantity, price (0 = "ask"), condition and what it fits.</li>
+        <li><b>Browse</b> other workshops' parts — the same city comes first, then the same state/emirate. Search by name, part number or workshop.</li>
+        <li><b>Request</b> a part (or tap <b>I have this</b> on someone's urgent need). The other workshop gets an alert, an email, and you can message them on WhatsApp straight away.</li>
+        <li>They <b>accept or decline</b>. When the part changes hands they tap <b>Mark handed over</b> — their listing and inventory reduce automatically — and you tap <b>Add to my stock</b>.</li>
+      </ol>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Parts Exchange connects workshops — you agree price, payment and collection between yourselves. Garage Pro does not take payment or hold stock. Only Owners, Managers and the parts department can use it.</div>
+      </div>
+    </section>
+
+    <section id="productivity" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Technician productivity</h2>
+      <p class="desc">See who is fast, and how accurate your quotes are.</p>
+      <p>Every job records how long technicians actually worked, and you can enter the hours you <b>quoted</b>. The <b>Technician workload</b> tab then shows each person's jobs done, hours worked and efficiency (quoted ÷ actual) so you can quote more accurately and spot who needs help.</p>
+
+    </section>
+
+    <section id="languages" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Languages &amp; translation</h2>
+      <p class="desc">Use the app and message customers in their own language.</p>
+      <p>The 🌐 picker on every page switches the whole site, app, booking page, portal and tracker into <b>Hindi, Marathi, Tamil, Kannada, Telugu, Bengali, Gujarati, Malayalam, Punjabi, Odia, Urdu and Arabic</b>. Whole-page translation is done by Google Translate; in the workshop app it asks for your consent first, because the text on screen (names, plates) is sent to Google to translate.</p>
+      <p>Separately, the <b>emails and WhatsApp messages your customers receive</b> use hand-written translations (they never go through Google). Set each customer's language on their profile. Have a native speaker proof-read these for your own wording if you can.</p>
+
+    </section>
+
+    <section id="billing" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Plans &amp; billing</h2>
+      <p class="desc">Subscribe, renew or change plan.</p>
+      <p>Subscriptions are paid securely through Lemon Squeezy — monthly or yearly. Use <b>Renew subscription</b> (anywhere you see it) to jump straight to checkout; manage cards and invoices from the customer portal link in your receipt email. A chain's branches share the parent's plan.</p>
+
     </section>
 
     <section id="troubleshooting" class="section-card">
