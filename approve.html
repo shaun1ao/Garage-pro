@@ -85,10 +85,10 @@ const qs = new URLSearchParams(location.search);
 const WUID  = qs.get('w') || '';
 const TOKEN = qs.get('t') || '';
 
-let db = null, docRef = null, DATA = null, CUR = '₹';
+let db = null, docRef = null, DATA = null, CUR = '₹', TAX = 'GST', AE = false;
 const decisions = {};   // key -> 'approved' | 'rejected'
 
-function fmt(n){ return CUR + Number(n||0).toLocaleString('en-IN'); }
+function fmt(n){ return CUR + (/^[A-Za-z]+$/.test(CUR) ? ' ' : '') + Number(n||0).toLocaleString(AE ? 'en-US' : 'en-IN', AE ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : undefined); }
 function stateMsg(html){ root.innerHTML = `<div class="state">${html}</div>`; }
 
 function boot(){
@@ -101,7 +101,7 @@ function boot(){
   docRef.get().then(snap => {
     if (!snap.exists) { stateMsg('This estimate link is no longer valid. Please ask the workshop for an updated link.'); return; }
     DATA = snap.data() || {};
-    CUR = DATA.currency || '₹';
+    CUR = DATA.currency || '₹'; AE = DATA.country === 'AE'; TAX = AE ? 'VAT' : 'GST';
     // A previous response doesn't permanently lock the page — only once
     // there's nothing left open (every item is either approved or dropped) is
     // there truly nothing left to decide. Otherwise a rejected item is still
@@ -140,7 +140,7 @@ function itemHTML(kind, i, name, meta, exclGst, gstAmt, amount, state){
   if (state === 'dropped') return '';
   const key = kind + ':' + i;
   const gstLine = gstAmt > 0
-    ? `<div class="item-meta">${meta ? esc(meta) + ' · ' : ''}${fmt(exclGst)} + GST ${fmt(gstAmt)}</div>`
+    ? `<div class="item-meta">${meta ? esc(meta) + ' · ' : ''}${fmt(exclGst)} + ${TAX} ${fmt(gstAmt)}</div>`
     : (meta ? `<div class="item-meta">${esc(meta)}</div>` : '');
   // Already approved in an earlier round → shown read-only for context, no buttons.
   if (state === 'approved'){
@@ -277,7 +277,7 @@ function render(){
     </div>
 
     <div class="totrow"><span style="color:var(--dim)">Estimate total</span><span class="amt">${fmt(DATA.total)}</span></div>
-    <div style="font-size:12px;color:var(--dim);text-align:right;margin-top:-6px;margin-bottom:14px">${(DATA.total_gst || 0) > 0 ? `Prices include GST${DATA.tax_pct ? ' (' + DATA.tax_pct + '%)' : ''} — ${fmt(DATA.total_gst)} of the total above is GST.` : 'No GST applies to this estimate.'}</div>
+    <div style="font-size:12px;color:var(--dim);text-align:right;margin-top:-6px;margin-bottom:14px">${(DATA.total_gst || 0) > 0 ? `Prices include ${TAX}${DATA.tax_pct ? ' (' + DATA.tax_pct + '%)' : ''} — ${fmt(DATA.total_gst)} of the total above is ${TAX}.` : `No ${TAX} applies to this estimate.`}</div>
 
     <textarea class="note" id="note" placeholder="Anything you'd like to tell the workshop? (optional)"></textarea>
 
@@ -327,13 +327,13 @@ window.viewQuote = function(){
       </div>
     </div>
     <table>
-      <thead><tr><th>Item</th><th>Type</th><th>Price (excl. GST)</th><th>GST</th><th>Price (incl. GST)</th></tr></thead>
+      <thead><tr><th>Item</th><th>Type</th><th>Price (excl. ${TAX})</th><th>${TAX}</th><th>Price (incl. ${TAX})</th></tr></thead>
       <tbody>
         ${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.kind)}</td><td>${esc(fmt(r.exclGst))}</td><td>${r.gst > 0 ? esc(fmt(r.gst)) : '—'}</td><td>${esc(fmt(r.amount))}</td></tr>`).join('')}
         <tr class="tot"><td colspan="4">Estimate total</td><td>${esc(fmt(DATA.total))}</td></tr>
       </tbody>
     </table>
-    <div class="note">This is an estimate, not a final bill. Only the items you approve will be carried out and billed. ${(DATA.total_gst || 0) > 0 ? `Prices include GST${DATA.tax_pct ? ' (' + DATA.tax_pct + '%)' : ''} — ${esc(fmt(DATA.total_gst))} of the total is GST, shown per item above.` : 'No GST applies to this estimate.'}</div>
+    <div class="note">This is an estimate, not a final bill. Only the items you approve will be carried out and billed. ${(DATA.total_gst || 0) > 0 ? `Prices include ${TAX}${DATA.tax_pct ? ' (' + DATA.tax_pct + '%)' : ''} — ${esc(fmt(DATA.total_gst))} of the total is ${TAX}, shown per item above.` : `No ${TAX} applies to this estimate.`}</div>
   </body></html>`;
   try {
     const url = URL.createObjectURL(new Blob([html], { type:'text/html' }));
