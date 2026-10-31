@@ -3217,7 +3217,7 @@ function _maybeFireClosingSummary() {
       .map(j => j.booking_id).filter(Boolean));
     const onFloor = (D.bookings || []).filter(b => b.status !== 'Delivered' && b.status !== 'Cancelled'
       && (b.status === 'Arrived' || activeJobBk.has(b.id))).length;
-    const pendingEst = (D.jobs || []).filter(j => j.status === 'Estimate Sent').length;
+    const pendingEst = (D.jobs || []).filter(j => j.status === 'Estimate Sent' || j.awaiting_new_approval).length;
     const cur = _cur(s.currency);
     notify({
       kind: 'closing-summary',
@@ -3326,7 +3326,7 @@ function _composeEodSummary(dateKey) {
     .map(j => j.booking_id).filter(Boolean));
   const onFloor = (D.bookings || []).filter(b => b.status !== 'Delivered' && b.status !== 'Cancelled'
     && (b.status === 'Arrived' || activeJobBk.has(b.id))).length;
-  const pendingEst = (D.jobs || []).filter(j => j.status === 'Estimate Sent').length;
+  const pendingEst = (D.jobs || []).filter(j => j.status === 'Estimate Sent' || j.awaiting_new_approval).length;
   return {
     subject: `End-of-day summary · ${cur}${revenue.toLocaleString('en-IN')} billed`,
     headline: 'End of day',
@@ -7648,7 +7648,7 @@ async function renderJobs(force = false) {
       <td><span style="display:inline-block;padding:3px 9px;border-radius:100px;font-size:10.5px;font-weight:700;background:${deptTint}">${escapeHtml(dept.toUpperCase())}</span></td>
       <td>${escapeHtml(j.type || '—')}</td>
       <td>${mechCell}</td>
-      <td>${statusPill(status)}</td>
+      <td>${statusPill(status)}${_awaitChip(j, status)}</td>
       <td><div class="row-act">
         ${stageBtns}
         <button class="mini-btn" onclick="openJobForm('${escapeHtml(j.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
@@ -9479,7 +9479,9 @@ async function _publishApprovalDoc(j, inv) {
   inv.approval_token = token;
 
   if ((j.status || '') === 'Inspected' || !j.estimate_sent_at) {
-    j.status = 'Estimate Sent';
+    // never knock a job that's already on the floor back to "Estimate Sent" — a new estimate on a
+    // started job leaves its status alone (it is flagged "awaiting new approval" instead)
+    if (!JOB_STATUS_NO_ESTIMATE_DOWNGRADE.includes(j.status || '')) j.status = 'Estimate Sent';
     j.estimate_sent_at = nowStr();
   }
   j.approval_token = token;
@@ -12060,7 +12062,7 @@ window._showVehicleQR = async function(idx) {
 async function _showQRFromVehicle(v) {
   // Portable QR: encode the plate (GPV-<plateNorm>) so any workshop can resolve
   // it via the shared vehicle registry. Falls back to the local id if no plate.
-  const qrText = v.plate ? 'GPV-' + _plateNorm(v.plate) : 'GPV-' + v.id;
+  const qrText = v.__qrText || (v.plate ? 'GPV-' + _plateNorm(v.plate) : 'GPV-' + v.id);   // normally the owner link garagepro.me/v/<code>
   // Make sure this car is in the shared registry so other shops can look it up.
   try { const owner = D.customers.find(c => (c.vehicles || []).some(x => x.id === v.id)); if (v.plate) _registryUpsert(v, owner); } catch (_) {}
   _openSubModal({
@@ -12075,7 +12077,8 @@ async function _showQRFromVehicle(v) {
         <div id="qrStatus" style="margin-top:12px;font-size:12.5px;color:var(--faint)">Loading QR library…</div>
         <div style="margin-top:8px;font-size:13px;color:var(--dim);line-height:1.5">
           Stick this on the customer's windshield or keychain. Scanning it instantly
-          starts a walk-in or checks the vehicle into an existing booking.
+          starts a walk-in or checks the vehicle into an existing booking. The owner can scan
+          the same sticker with their phone camera to see their car's service history and set a service reminder.
         </div>
       </div>`,
     footHtml: `<div style="flex:1"></div>
@@ -13814,9 +13817,9 @@ function _prStatusTint(s) {
 function _prCustomerApprovalPill(ca) {
   if (!ca) return '';
   const tint = {
-    Pending:  { bg:'rgba(var(--tint-rgb),.16)',  fg:'var(--acc2)', label:'Awaiting customer' },
-    Approved: { bg:'rgba(var(--tint-rgb),.16)',  fg:'var(--teal)', label:'Customer approved' },
-    Declined: { bg:'rgba(255,107,107,.16)', fg:'var(--red)',  label:'Customer declined' }
+    Pending:  { bg:'rgba(255,184,76,.16)',  fg:'var(--acc2)', label:'⏳ Pending approval' },
+    Approved: { bg:'rgba(32,200,160,.18)',  fg:'var(--teal)', label:'✓ Approved' },
+    Declined: { bg:'rgba(255,107,107,.18)', fg:'var(--red)',  label:'✕ Declined' }
   }[ca];
   if (!tint) return '';
   return `<span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:100px;background:${tint.bg};color:${tint.fg}">${tint.label}</span>`;
@@ -13859,11 +13862,12 @@ function _openPartReqDetail(reqId) {
     // Quick estimate-price box — separate from the Ordered/Received pipeline
     // above. Lets the parts dept price an item and push it straight onto the
     // linked job's estimate in one click, without committing to ordering yet.
-    const estimateBox = (isApprover && it.status !== 'Received' && it.status !== 'Cancelled')
-      ? `<div style="display:flex;gap:6px;align-items:center;margin-top:8px">
-           <span style="font-size:11px;color:var(--faint)">Estimate price ₹</span>
-           <input type="number" min="0" step="1" value="${escapeHtml(priceVal)}" id="pr-est-${escapeHtml(it.id)}" placeholder="0" style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:12.5px" />
-           <button type="button" class="mini-btn good" onclick="_prAddToEstimate('${escapeHtml(reqId)}','${escapeHtml(it.id)}')">Add to estimate</button>
+    const estimateBox = (isApprover && it.status !== 'Cancelled')
+      ? `<div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap">
+           <span style="font-size:11px;color:var(--faint)">Estimate price ${escapeHtml(_cur().trim())}</span>
+           <input type="number" min="0" step="any" value="${escapeHtml(priceVal)}" id="pr-est-${escapeHtml(it.id)}" placeholder="0" style="width:96px;padding:5px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:12.5px" />
+           <button type="button" class="mini-btn good" onclick="_prSetPrice('${escapeHtml(reqId)}','${escapeHtml(it.id)}')">${it.price == null ? 'Add to estimate' : 'Update price'}</button>
+           ${(it.customer_approval === 'Declined' || it.customer_approval === 'Approved') ? `<span style="font-size:10.5px;color:var(--faint)">changing the price sends it back to Pending</span>` : ''}
          </div>`
       : '';
     return `
@@ -13897,6 +13901,7 @@ function _openPartReqDetail(reqId) {
         ${r.notes ? `<div style="grid-column:span 2;color:var(--dim);font-style:italic">"${escapeHtml(r.notes)}"</div>` : ''}
       </div>
       ${bulk}
+      ${_estRequestBar(r, linkedJob)}
       ${items.map(itemRow).join('')}
       ${isApprover ? `<div style="display:flex;gap:8px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--brd2)">
         <input type="text" id="pr-newitem-name" placeholder="Part name…" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" />
@@ -18366,6 +18371,8 @@ function _buildEmailData(opts) {
     // Set by the caller (doCheckout / invoice generation), which publishes
     // the tokenized feedback doc itself — that's an async Firestore write,
     // and this function is synchronous, so it can't mint the link here.
+    book_link:       (function(){ try { return window._wsBookLink ? _wsBookLink() : ''; } catch(_) { return ''; } })(),
+    vehicle_link:    (function(){ try { return window._vehLinkFor ? _vehLinkFor(b?.plate || j?.plate || inv?.vehicle?.plate || '') : ''; } catch(_) { return ''; } })(),
     feedback_link:   opts.feedback_link || '',
     // Same story — sendCustomerNotification awaits _publishInvoiceView and
     // passes the resulting link in, instead of attaching the invoice as a
@@ -18399,14 +18406,18 @@ function _emailFooterBlock(d, align) {
 // Outlook/Gmail. Returns '' when no links.
 function _emailCtaBlock(d) {
   const btns = [];
-  if (d.event === 'estimate_ready' && d.approval_link)
-    btns.push(`<a href="${_esc(d.approval_link)}" style="display:inline-block;background:#1e7be0;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">${_esc(_L(d.lang,'cta.estimate'))}</a>`);
-  if (d.invoice_view_link)
-    btns.push(`<a href="${_esc(d.invoice_view_link)}" style="display:inline-block;background:#6b4fbb;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">${_esc(_L(d.lang,'cta.invoice'))}</a>`);
-  if (d.track_link)
-    btns.push(`<a href="${_esc(d.track_link)}" style="display:inline-block;background:#0a0f1a;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">${_esc(_L(d.lang,'cta.track'))}</a>`);
-  if ((d.event === 'thank_you' || d.event === 'invoice_ready') && d.feedback_link)
-    btns.push(`<a href="${_esc(d.feedback_link)}" style="display:inline-block;background:#20a876;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">${_esc(_L(d.lang,'cta.feedback'))}</a>`);
+  const btn = (url, label, bg) => btns.push(`<a href="${_esc(url)}" style="display:inline-block;background:${bg};color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:13px 26px;border-radius:9px;margin:6px 8px">${_esc(label)}</a>`);
+  // Each email links to what it is ABOUT:
+  //   booking declined      → book another time          booking requested/confirmed → track the booking
+  //   estimate ready        → review & approve (+ track)  work started/complete/ready → track the repair
+  //   invoice / thank-you   → the invoice, feedback, service history, book the next service
+  if (d.event === 'estimate_ready' && d.approval_link) btn(d.approval_link, _L(d.lang, 'cta.estimate'), '#1e7be0');
+  if (d.invoice_view_link) btn(d.invoice_view_link, _L(d.lang, 'cta.invoice'), '#6b4fbb');
+  if (d.event === 'booking_declined') { if (d.book_link) btn(d.book_link, _L(d.lang, 'cta.rebook'), '#1e7be0'); }
+  else if (d.track_link && d.event !== 'thank_you') btn(d.track_link, _L(d.lang, 'cta.track'), '#0a0f1a');
+  if ((d.event === 'thank_you' || d.event === 'invoice_ready') && d.feedback_link) btn(d.feedback_link, _L(d.lang, 'cta.feedback'), '#20a876');
+  if (['thank_you', 'invoice_ready', 'work_complete'].includes(d.event) && d.vehicle_link) btn(d.vehicle_link, _L(d.lang, 'cta.history'), '#0a0f1a');
+  if (['thank_you', 'invoice_ready'].includes(d.event) && d.book_link) btn(d.book_link, _L(d.lang, 'cta.book'), '#1e7be0');
   if (!btns.length) return '';
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:8px 0 4px">${btns.join('')}</td></tr></table>`;
 }
@@ -19003,14 +19014,14 @@ function _renderNotifAction(n) {
   // pricing-complete → advisor sends the estimate straight from the notification
   if (kind === 'pricing-complete' && jid) {
     return `<div style="display:flex;gap:6px">
-      <button class="mini-btn good" onclick="sendJobEstimate('${escapeHtml(jid)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Send estimate</button>
+      <button class="mini-btn good" onclick="openEstimateSheet('${escapeHtml(jid)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Send estimate</button>
       <button class="mini-btn" onclick="openJobForm('${escapeHtml(jid)}')">Open job</button>
     </div>`;
   }
   // estimate-response → the nominee (advisor) reviews the customer's decision
   // and forwards it on to the floor manager + assigned worker(s).
   if (kind === 'estimate-response' && jid) {
-    return `<div style="display:flex;gap:6px">
+    return `<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="mini-btn" onclick="openEstimateSheet('${escapeHtml(jid)}')">View estimate</button>
       <button class="mini-btn good" onclick="forwardEstimateDecision('${escapeHtml(jid)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Forward</button>
       <button class="mini-btn" onclick="openJobForm('${escapeHtml(jid)}')">Open job</button>
     </div>`;
@@ -19452,7 +19463,7 @@ function _branchLiveSummary() {
     revenue_today:      Math.round(revenueToday),
     cars_on_floor:      (D.bookings || []).filter(b => b.status !== 'Delivered' && b.status !== 'Cancelled' && (b.status === 'Arrived' || activeBk.has(b.id))).length,
     active_jobs:        (D.jobs || []).filter(j => !['Delivered', 'Cancelled'].includes(j.status || '')).length,
-    pending_approvals:  (D.jobs || []).filter(j => j.status === 'Estimate Sent').length,
+    pending_approvals:  (D.jobs || []).filter(j => j.status === 'Estimate Sent' || j.awaiting_new_approval).length,
     revenue_30d:        Math.round(revenue30),
     outstanding:        Math.round(outstanding30),
     jobs_completed_30d: completed30,
@@ -22158,6 +22169,466 @@ async function renderWorkload(force = false) {
   const _ea = window.enterApp;
   if (typeof _ea === 'function') window.enterApp = function () { const r = _ea.apply(this, arguments); setTimeout(() => { pinCountry(); GP_relabel(); }, 2200); return r; };
   setTimeout(() => { try { if (typeof currentWorker !== 'undefined' && currentWorker) { pinCountry(); GP_relabel(); } } catch (_) {} }, 3000);
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  ESTIMATE WORKFLOW — one sheet instead of five tabs
+//  • Labour is MANDATORY before any estimate goes to the customer (₹0 / AED 0 is fine — but a labour line must exist).
+//  • Re-sending keeps what the customer already approved (locked/green on their page); only new or re-priced lines are asked again.
+//  • A job already on the floor keeps its status ("In Progress · awaiting new approval") instead of dropping back to Estimate Sent.
+//  • Parts-request box: per-item Approved / Declined / Pending, editable price (a changed price goes back to Pending), and a
+//    Send-estimate button with Copy link / Email / WhatsApp.
+//  Same permissions as before: only Service Advisor / Owner / Manager send; only the parts department prices.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const K = s => String(s || '').trim().toLowerCase();
+  const num = v => Number(v) || 0;
+  const STARTED = ['In Progress', 'Estimate Approved', 'Awaiting QC', 'QC Passed', 'Client Informed', 'Washing', 'Ready for Pickup', 'Delivered'];
+  const jobById = id => (D.jobs || []).find(x => x.id === id);
+  const invOf = j => (D.invoices || []).find(x => x.job_id === j.id);
+  const estParts  = j => (j.est_parts    || []).filter(p => (p.name || '').trim());
+  const estLabour = j => (j.est_services || []).filter(s => (s.name || '').trim());
+  const cur = () => _cur();
+  const money = n => cur() + num(n).toLocaleString('en-IN');
+
+  window._awaitChip = (j, status) => (j && j.awaiting_new_approval && (status || j.status) !== 'Estimate Sent')
+    ? `<span title="A revised estimate is with the customer" style="display:inline-block;margin-left:6px;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:100px;background:rgba(255,184,76,.18);color:var(--acc2);white-space:nowrap">⏳ awaiting new approval</span>` : '';
+
+  // ───────── approval state of one estimate line ─────────
+  function lineState(j, kind, name, qty, price) {
+    const inv = invOf(j);
+    if (!inv || !j.approval_token) return 'new';
+    const arr = kind === 'part' ? (inv.lines || []) : (inv.charges || []);
+    const m = arr.find(x => K(x.name) === K(name));
+    if (!m) return 'new';
+    const same = kind === 'part' ? (num(m.unit_price) === num(price) && num(m.qty || 1) === num(qty || 1)) : num(m.amount) === num(price);
+    if (!same) return 'pending';
+    const a = m.approval || 'pending';
+    return a === 'approved' ? 'approved' : (a === 'rejected' || a === 'dropped') ? 'declined' : 'pending';
+  }
+  const BADGE = {
+    approved: ['✓ Approved', 'rgba(32,200,160,.18)', 'var(--teal)'],
+    declined: ['✕ Declined', 'rgba(255,107,107,.18)', 'var(--red)'],
+    pending:  ['⏳ Pending', 'rgba(255,184,76,.18)', 'var(--acc2)'],
+    new:      ['Not sent yet', 'rgba(255,255,255,.07)', 'var(--faint)']
+  };
+  const badge = st => `<span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:100px;background:${BADGE[st][1]};color:${BADGE[st][2]};white-space:nowrap">${BADGE[st][0]}</span>`;
+
+  // ───────── labour gate ─────────
+  function openJobCardAtEstimate(jobId) {
+    closeSubModal();
+    openJobForm(jobId);
+    setTimeout(() => { try { _jobAccSetState('jf-sec-est', true); document.getElementById('jf-sec-est')?.scrollIntoView({ block: 'center' }); const d = document.querySelectorAll('#jf-sec-est details'); d.forEach(x => { x.open = true; }); } catch (_) {} }, 450);
+  }
+  window._estOpenJobCard = openJobCardAtEstimate;
+  function labourGate(j, what) {
+    _openSubModal({
+      title: 'Add labour before sending',
+      bodyHtml: `<div style="font-size:14px;line-height:1.6;color:var(--dim)">
+        Every estimate must include <b style="color:var(--txt)">labour</b> for the parts and work${what ? ' — ' + esc(what) : ''}. <b>${cur().trim()} 0 is fine</b> (e.g. warranty or goodwill work), but a labour line has to be there so nothing goes out by mistake.
+        <div style="margin-top:12px;padding:11px 13px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;font-size:12.5px">Add it in the job card → <b>Estimate → Estimated services</b>. Labour changes are always made there.</div></div>`,
+      footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>
+        <button class="fbtn fbtn-save" onclick="_estOpenJobCard('${esc(j.id)}')">Open job card &amp; add labour</button>`
+    });
+  }
+
+  // ───────── build the estimate invoice WITHOUT losing earlier approvals ─────────
+  function mergeInvoice(j) {
+    let inv = invOf(j), created = false;
+    if (!inv) { inv = _seedInvoiceFromJob(j.id); inv.created_at = nowStr(); inv.created_by = currentWorker?.name || ''; D.invoices.push(inv); created = true; }
+    const prevL = (inv.lines || []).slice(), prevC = (inv.charges || []).slice(), used = new Set();
+    const take = (prev, name) => { const m = prev.find(x => !used.has(x) && K(x.name) === K(name)); if (m) used.add(m); return m; };
+    inv.lines = estParts(j).map(p => {
+      const qty = Math.max(1, num(p.qty || 1)), price = num(p.price), m = take(prevL, p.name);
+      let approval = 'pending';
+      if (m && num(m.unit_price) === price && num(m.qty || 1) === qty && m.approval && m.approval !== 'dropped') approval = m.approval;   // untouched → keep the customer's earlier answer
+      return Object.assign({ name: p.name.trim(), hsn: '', qty, unit_price: price, disc_pct: 0, taxable: p.taxable !== false, approval }, p.concern_id ? { concern_id: p.concern_id, concern_title: p.concern_title || '' } : {});
+    });
+    inv.charges = estLabour(j).map(s => {
+      const price = num(s.price), m = take(prevC, s.name);
+      let approval = 'pending';
+      if (m && num(m.amount) === price && m.approval && m.approval !== 'dropped') approval = m.approval;
+      return { name: s.name.trim(), type: s.type || '', amount: price, taxable: _svcTaxable(s.taxable), approval };
+    });
+    inv.is_estimate = true;
+    if (!STARTED.includes(j.status || '')) inv.status = 'Draft';
+    inv.payment_status = inv.payment_status || 'Outstanding';
+    if (inv.client_decision_at) inv.revision = Number(inv.revision || 1) + 1;
+    inv.updated_at = nowStr();
+    return { inv, created };
+  }
+
+  // ───────── send: build → publish → (status rule) → chooser ─────────
+  window.estSend = async function (jobId) {
+    if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can send estimates', 'bad');
+    const j = jobById(jobId); if (!j) return showToast('Job not found', 'bad');
+    if (!estParts(j).length && !estLabour(j).length) return customAlert('Add parts and labour to the estimate first.', { title: 'Nothing to send' });
+    if (!estLabour(j).length) return labourGate(j);
+    const { inv, created } = mergeInvoice(j);
+    const started = STARTED.includes(j.status || '');
+    const doc = await _publishApprovalDoc(j, inv);
+    if (!doc) return;
+    if (started) j.awaiting_new_approval = true;              // keep the floor status; flag that a new approval is outstanding
+    else { j.status = 'Estimate Sent'; j.awaiting_new_approval = false; }
+    j.estimate_sent_at = nowStr(); j.updated_at = nowStr();
+    const partsChanged = _syncPartsRequestApprovals(j, inv);
+    const writes = [wsSave('invoices', D.invoices), wsSave('jobs', D.jobs)];
+    if (partsChanged) writes.push(wsSave('parts_requests', D.parts_requests));
+    if (created) writes.push(wsSave('settings', [D.settings]));
+    await Promise.all(writes);
+    publishTracking(j.booking_id);
+    audit('estimate-sent', `${inv.number || ''} · ${j.plate} · ${j.cust_name || '—'}${started ? ' (job in progress — awaiting new approval)' : ''}`, { invoice_id: inv.id, job_id: j.id });
+    try { renderJobs(); } catch (_) {}
+    _apprShareModal(doc);
+    return doc;
+  };
+  window.shareEstimateLink = (id) => estSend(id);
+  window.sendJobEstimate   = (id) => estSend(id);
+
+  // publishing must never knock a job that's already on the floor back to "Estimate Sent"
+  // (handled where the status is first set — see _publishApprovalDoc)
+
+  // ───────── 3-way share chooser (replaces the old WhatsApp-only sheet) ─────────
+  window._apprShareModal = function (doc) {
+    const url = `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(doc.token)}`;
+    const j = jobById(doc.job_id) || {};
+    const b = (D.bookings || []).find(x => x.id === j.booking_id) || {};
+    const c = (D.customers || []).find(x => K(x.name) === K(doc.cust_name)) || {};
+    const phone = _waDigits(b.cust_phone || c.phone || '');
+    const lang = _custLang(doc.cust_name);
+    const msg = GP.t('wa.estimate', lang, { name: (doc.cust_name || '').split(' ')[0], plate: doc.plate || '', ws: doc.workshop_name || '', amount: `${_cur(doc.currency)}${num(doc.total).toLocaleString('en-IN')}`, link: url });
+    const locked = (doc.lines || []).concat(doc.charges || []).filter(x => x.state === 'approved').length;
+    const open   = (doc.lines || []).concat(doc.charges || []).filter(x => x.state === 'pending' || x.state === 'rejected').length;
+    window.__estLink = { url, msg, phone, jobId: j.id };
+    _openSubModal({
+      title: `Send estimate · ${doc.plate || '—'}`,
+      bodyHtml: `
+        <div style="font-size:13px;line-height:1.55;color:var(--dim);margin-bottom:12px">Send the customer this link — they approve or decline each line on their phone, no login.
+          ${locked ? `<br><b style="color:var(--teal)">${locked} item${locked === 1 ? '' : 's'} already approved</b> show locked (green) on their page; <b style="color:var(--txt)">${open}</b> need a decision.` : ''}</div>
+        <input id="estLinkBox" readonly value="${esc(url)}" onclick="this.select()" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--brd2);background:var(--surf);color:var(--acc2);font-family:'Courier New',monospace;font-size:12px;margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <button type="button" class="mini-btn" style="padding:12px 6px;justify-content:center" onclick="_estCopy()">📋<br>Copy link</button>
+          <button type="button" class="mini-btn" style="padding:12px 6px;justify-content:center" onclick="_estEmail(this)">✉️<br>Send via email</button>
+          <button type="button" class="mini-btn good" style="padding:12px 6px;justify-content:center" onclick="_estWhatsApp()">💬<br>Send via WhatsApp</button>
+        </div>
+        <div style="margin-top:12px;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;font-size:12px;color:var(--faint)">Estimate total <b style="color:var(--txt)">${money(doc.total)}</b> · ${(doc.lines || []).length} part(s) · ${(doc.charges || []).length} labour line(s)${j.awaiting_new_approval ? ' · job stays <b>In progress — awaiting new approval</b>' : ''}</div>`,
+      footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="window.open(document.getElementById('estLinkBox').value,'_blank')">Preview as customer</button><button class="fbtn fbtn-save" onclick="closeSubModal()">Done</button>`
+    });
+  };
+  window._estCopy = () => { const v = (window.__estLink || {}).url; if (!v) return; (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(() => showToast('Link copied', 'good')).catch(() => { const i = document.getElementById('estLinkBox'); i.select(); document.execCommand('copy'); showToast('Link copied', 'good'); }); };
+  window._estWhatsApp = () => { const l = window.__estLink || {}; _waOpen(l.phone, l.msg); };
+  window._estEmail = async (btn) => {
+    const l = window.__estLink || {}, j = jobById(l.jobId); if (!j) return;
+    btn.disabled = true; const t = btn.innerHTML; btn.innerHTML = '…<br>Sending';
+    const res = await sendCustomerNotification('estimate_ready', { job: j, approval_link: l.url });
+    btn.disabled = false; btn.innerHTML = t;
+    if (res.ok) showToast('Estimate emailed to the customer', 'good');
+    else if (res.skipped === 'no-recipient') showToast('No email on file for this customer — copy the link or use WhatsApp', 'bad');
+    else if (res.skipped === 'disabled') showToast('Customer emails are off in Settings → Customer Email Notifications', 'bad');
+    else showToast('The email failed — it is queued for retry, or use another option', 'bad');
+  };
+
+  // ───────── the estimate sheet ─────────
+  window.openEstimateSheet = function (jobId) {
+    const j = jobById(jobId); if (!j) return showToast('Job not found', 'bad');
+    const inv = invOf(j), parts = estParts(j), lab = estLabour(j), sa = isServiceAdvisorRole();
+    const canPrice = sa || canApproveParts();
+    const syn = { tax_pct: wsTaxPct(), lines: parts.map(p => ({ unit_price: num(p.price), qty: Math.max(1, num(p.qty || 1)), disc_pct: 0, taxable: p.taxable !== false })), charges: lab.map(s => ({ amount: num(s.price), taxable: _svcTaxable(s.taxable) })) };
+    const t = _invoiceTotals(syn);
+    const row = (kind, name, qty, price, idx) => {
+      const st = lineState(j, kind, name, qty, price), green = st === 'approved';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid ${green ? 'rgba(32,200,160,.45)' : 'var(--brd)'};background:${green ? 'rgba(32,200,160,.07)' : 'var(--bg2)'};border-radius:9px;margin-bottom:6px;${green ? 'opacity:.92' : ''}">
+        <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px">${esc(name)}${qty > 1 ? ` <span style="color:var(--faint);font-weight:500">× ${qty}</span>` : ''}</div><div style="margin-top:3px">${badge(st)}</div></div>
+        ${kind === 'part' && canPrice
+          ? `<input type="number" min="0" step="any" value="${esc(price)}" onchange="_estSetPartPrice('${esc(j.id)}',${idx},this.value)" style="width:100px;padding:6px 8px;border-radius:7px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt);text-align:right" title="Change the price — it goes back to Pending">`
+          : `<b style="font-family:'Courier New',monospace">${money(price)}</b>`}
+      </div>`;
+    };
+    _openSubModal({
+      title: `Estimate · ${j.plate || '—'}`,
+      bodyHtml: `
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12.5px;margin-bottom:12px"><div><b style="color:var(--txt)">${esc(j.cust_name || '—')}</b> · ${esc(j.type || '')}</div><div>${statusPill(j.status || '—')}${_awaitChip(j)}</div></div>
+        <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);margin:0 0 6px">PARTS</div>
+        ${parts.length ? parts.map((p, i) => row('part', p.name, Math.max(1, num(p.qty || 1)), num(p.price), i)).join('') : '<div style="color:var(--faint);font-size:12.5px;margin-bottom:8px">No parts priced yet — the parts department adds prices in the parts request.</div>'}
+        <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--dim);margin:12px 0 6px;display:flex;justify-content:space-between;align-items:center">LABOUR <button type="button" class="mini-btn" onclick="_estOpenJobCard('${esc(j.id)}')">${lab.length ? 'Edit labour in job card' : '+ Add labour in job card'}</button></div>
+        ${lab.length ? lab.map(s => row('labour', s.name, 1, num(s.price), 0)).join('') : `<div style="padding:11px 13px;border:1px dashed var(--red);border-radius:9px;color:var(--red);font-size:12.5px">⚠ Labour required before this can be sent (${cur().trim()} 0 is fine). Add it in the job card.</div>`}
+        <div style="margin-top:12px;padding:11px 13px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><span>Parts <b>${money(t.partsTaxable)}</b> · Labour <b>${money(t.labour)}</b> · ${esc(ctry().taxName)} <b>${money(t.gst)}</b></span><span>Total <b style="color:var(--teal)">${money(t.roundOff)}</b></span></div>`,
+      footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>
+        ${sa ? `<button class="fbtn fbtn-save" onclick="estSend('${esc(j.id)}')">${j.approval_token ? 'Send updated estimate' : 'Send estimate'} ▸</button>` : ''}`
+    });
+  };
+  window._estSetPartPrice = async function (jobId, idx, val) {
+    const j = jobById(jobId); if (!j) return;
+    const p = estParts(j)[idx]; if (!p) return;
+    const n = Number(val); if (!Number.isFinite(n) || n < 0) return showToast('Enter a price of 0 or more', 'bad');
+    if (num(p.price) === n) return;
+    p.price = n;
+    let reqTouched = false;
+    for (const r of (D.parts_requests || []).filter(x => x.job_id === j.id)) {
+      r.items = _prRequestItems(r);
+      for (const it of r.items) if (K(it.name) === K(p.name)) { it.price = n; if (it.customer_approval === 'Approved' || it.customer_approval === 'Declined') it.customer_approval = 'Pending'; reqTouched = true; }
+    }
+    j.updated_at = nowStr();
+    await Promise.all([wsSave('jobs', D.jobs)].concat(reqTouched ? [wsSave('parts_requests', D.parts_requests)] : []));
+    showToast('Price updated — pending the customer\'s approval', 'good');
+    openEstimateSheet(jobId);
+  };
+
+  // ───────── parts-request box ─────────
+  window._estRequestBar = function (r, j) {
+    if (!j) return '';
+    const sa = isServiceAdvisorRole(), parts = canApproveParts(), lab = estLabour(j).length;
+    const b = [];
+    if (parts && !j.priced_at) b.push(`<button type="button" class="mini-btn warn" onclick="_markPricingComplete('${esc(j.id)}');_openPartReqDetail('${esc(r.id)}')">✓ Pricing done — tell the advisor</button>`);
+    if (sa) b.push(`<button type="button" class="mini-btn good" onclick="estSend('${esc(j.id)}')">📨 ${j.approval_token ? 'Send updated estimate' : 'Send estimate'} to customer</button>`);
+    b.push(`<button type="button" class="mini-btn" onclick="openEstimateSheet('${esc(j.id)}')">📋 Review estimate</button>`);
+    return `<div style="padding:11px 13px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:12px">
+      <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">${b.join('')}</div>
+      <div style="margin-top:8px;font-size:11.5px;color:${lab ? 'var(--teal)' : 'var(--red)'}">${lab ? `✓ Labour added (${lab} line${lab === 1 ? '' : 's'})` : `⚠ No labour yet — it's required before the estimate can be sent (${cur().trim()} 0 is fine). Add it in the job card.`}${j.awaiting_new_approval ? ' · ⏳ revised estimate awaiting approval' : ''}${!sa ? ' · only the service advisor can send' : ''}</div></div>`;
+  };
+
+  window._prSetPrice = async function (reqId, itemId) {
+    if (!canApproveParts()) return showToast('Only the Parts department can set prices', 'bad');
+    const r = D.parts_requests.find(x => x.id === reqId); if (!r) return showToast('Request not found', 'bad');
+    const inp = document.getElementById('pr-est-' + itemId), n = Number(inp && inp.value);
+    if (!inp || inp.value === '' || !Number.isFinite(n) || n < 0) return showToast('Enter a price (0 or more)', 'bad');
+    r.items = _prRequestItems(r);
+    const it = r.items.find(x => x.id === itemId); if (!it) return showToast('Item not found', 'bad');
+    const changed = it.price == null || num(it.price) !== n;
+    it.price = n;
+    if (changed && (it.customer_approval === 'Approved' || it.customer_approval === 'Declined')) it.customer_approval = 'Pending';   // re-priced → needs a fresh yes
+    r.updated_at = nowStr();
+    const job = r.job_id ? jobById(r.job_id) : null;
+    let jobTouched = false, invTouched = false;
+    if (job) {
+      jobTouched = _prAutoAddToJobEstimate(r, it);
+      const inv = invOf(job);
+      if (inv && changed) { const ln = (inv.lines || []).find(l => K(l.name) === K(it.name)); if (ln && num(ln.unit_price) !== n) { ln.approval = 'pending'; inv.updated_at = nowStr(); invTouched = true; } }
+    }
+    const writes = [wsSave('parts_requests', D.parts_requests)];
+    if (jobTouched) writes.push(wsSave('jobs', D.jobs));
+    if (invTouched) writes.push(wsSave('invoices', D.invoices));
+    await Promise.all(writes);
+    if (job && changed && job.approval_token) notify({ kind: 'estimate-ready', message: `${it.name} re-priced for ${job.plate} — send the updated estimate for approval`, target: { role: 'service_advisor' }, job_id: job.id });
+    audit('part-estimate-set', `${it.name} · ${money(n)}${r.plate ? ' · ' + r.plate : ''}`, { request_id: reqId, item_id: itemId });
+    showToast(job ? (changed && it.customer_approval === 'Pending' && job.approval_token ? 'Price updated — now Pending customer approval' : `Added to ${job.plate || 'the'} job's estimate`) : 'Price saved', 'good');
+    await _refreshActivePartsView();
+    _openPartReqDetail(reqId);
+  };
+
+  // ───────── labour gate on every other send path ─────────
+  const concernHasLabour = c => (c.items || []).some(i => i.kind === 'service' && (i.name || '').trim());
+  function concernGate(list) {
+    _openSubModal({ title: 'Add labour before sending', bodyHtml: `<div style="font-size:14px;line-height:1.6;color:var(--dim)">Add a <b style="color:var(--txt)">labour (service)</b> item to ${list.map(c => `<b>${esc(c.title || 'this concern')}</b>`).join(', ')} first — ${cur().trim()} 0 is fine, but a labour line must be there before the estimate goes to the customer.</div>`, footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-save" onclick="closeSubModal()">OK</button>` });
+  }
+  const _sce = window.shareConcernEstimate;
+  if (typeof _sce === 'function') window.shareConcernEstimate = function (jobId, ci) {
+    const ec = (typeof _editingJob !== 'undefined' && _editingJob && _editingJob.concerns) ? _editingJob.concerns[ci] : null;
+    if (ec && (ec.items || []).some(i => (i.name || '').trim()) && !concernHasLabour(ec)) return concernGate([ec]);
+    return _sce.apply(this, arguments);
+  };
+  const _ssce = window._sendSelectedConcernEstimates;
+  if (typeof _ssce === 'function') window._sendSelectedConcernEstimates = function () {
+    const picks = Array.from(document.querySelectorAll('.concern-send-pick:checked')).map(el => Number(el.dataset.ci));
+    const miss = picks.map(ci => _editingJob.concerns[ci]).filter(c => c && (c.items || []).some(i => (i.name || '').trim()) && !concernHasLabour(c));
+    if (miss.length) return concernGate(miss);
+    return _ssce.apply(this, arguments);
+  };
+  const _rs = window._reviseSubmit;
+  if (typeof _rs === 'function') window._reviseSubmit = function (jobId) {
+    const j = jobById(jobId), inv = j && invOf(j);
+    const reask = [...document.querySelectorAll('.rev-row')].some(r => (r.dataset.action || 'reask') === 'reask');
+    const hasLab = j && (estLabour(j).length || (inv && (inv.charges || []).some(c => (c.name || '').trim() && c.approval !== 'dropped')));
+    if (reask && j && !hasLab) return labourGate(j);
+    return _rs.apply(this, arguments);
+  };
+
+  // ───────── a customer answer clears "awaiting new approval" ─────────
+  const _acd = window._applyCustomerDecision;
+  if (typeof _acd === 'function') window._applyCustomerDecision = function (appr) {
+    const r = _acd.apply(this, arguments);
+    try {
+      const j = jobById(appr.job_id), inv = j && invOf(j);
+      if (j && j.awaiting_new_approval && !appr.concern_id && !(appr.concern_ids && appr.concern_ids.length)) {
+        const stillOpen = inv && (inv.lines || []).concat(inv.charges || []).some(x => (x.approval || 'pending') === 'pending');
+        if (!stillOpen) { j.awaiting_new_approval = false; j.updated_at = nowStr(); wsSave('jobs', D.jobs).then(() => { try { renderJobs(); } catch (_) {} }).catch(() => {}); }
+      }
+    } catch (e) { console.warn('[estimate flag]', e); }
+    return r;
+  };
+
+  GP.addLang('en', { 'wa.estimate': 'Hi {name}, your estimate for {plate} from {ws} ({amount}) is ready. Please review and approve here: {link}', 'cta.estimate2': 'Review & approve your estimate' });
+  GP.addLang('hi', { 'wa.estimate': 'नमस्ते {name}, {ws} की ओर से {plate} का अनुमान ({amount}) तैयार है। कृपया यहाँ देखकर स्वीकृत करें: {link}' });
+  GP.addLang('ar', { 'wa.estimate': 'مرحبًا {name}، عرض السعر الخاص بالمركبة {plate} من {ws} ({amount}) جاهز. يرجى المراجعة والموافقة من هنا: {link}' });
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  CAR OWNER PAGE — the QR sticker is now a link (garagepro.me/v/<code>)
+//  • Workshop scan: the app reads the code out of the link and opens the same car / owner / job as before.
+//    Old "GPV-<plate>" stickers keep working.
+//  • Owner scan (any phone camera): a page with that car's service history from THIS workshop, a Book button,
+//    and "remind me" — an e-mail when the next service is due.
+//  • Print: label-size dialog (50×25 mm · 62 mm continuous · 4×6 in · 57 mm receipt · A4 sheet).
+//  The page shows dates, services, work done and mileage only — never prices, owner name or phone.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const SITE = 'https://garagepro.me';
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const rand = n => { const a = new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a, b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join(''); };
+  const nrm = p => _plateNorm(p);
+
+  window._wsBookLink = () => { const ob = (D.settings || {}).online_booking || {}; return ob.enabled && ob.slug ? `${SITE}/book/${ob.slug}` : ''; };
+
+  function findVeh(plate) {
+    const n = nrm(plate); if (!n) return null;
+    for (const c of (D.customers || [])) for (const v of (c.vehicles || [])) if (nrm(v.plate) === n) return { c, v };
+    return null;
+  }
+  async function brandBits() { try { return window.obBrand ? await obBrand() : {}; } catch (_) { return {}; } }
+
+  function historyFor(plate) {
+    const n = nrm(plate), out = [];
+    for (const j of (D.jobs || [])) {
+      if (nrm(j.plate) !== n || j.status !== 'Delivered' || j.hidden_at) continue;
+      const b = (D.bookings || []).find(x => x.id === j.booking_id) || {};
+      const inv = (D.invoices || []).find(i => i.job_id === j.id && !i.is_estimate) || (D.invoices || []).find(i => i.job_id === j.id);
+      const names = inv ? [].concat((inv.lines || []).filter(l => l.approval !== 'rejected' && l.approval !== 'dropped').map(l => l.name), (inv.charges || []).filter(c => c.approval !== 'rejected' && c.approval !== 'dropped').map(c => c.name)).filter(Boolean) : [];
+      out.push({ date: String(j.delivered_at || j.completed_at || j.updated_at || j.created_at || '').slice(0, 10), service: String(j.type || b.service || 'Service').slice(0, 60),
+        km: Number(b.odometer_in || j.km || 0) || 0, work: names.slice(0, 8).map(x => String(x).slice(0, 40)).join(' · ') });
+    }
+    return out.filter(x => x.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25);
+  }
+
+  async function publish(v, owner) {
+    if (!v || !v.qr_token || !fbDb || !currentUser) return false;
+    const s = D.settings || {}, brand = await brandBits(), h = historyFor(v.plate), last = h[0];
+    const bk = (D.bookings || []).filter(b => nrm(b.plate) === nrm(v.plate) && b.avg_kms).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+    const doc = {
+      uid: wsUid(), plate: v.plate || '', vehicle: { make: v.make || '', model: v.model || '', year: String(v.year || ''), colour: v.colour || v.color || '' },
+      workshop: { name: s.workshop_name || userProfile?.workshop_name || '', phone: s.phone || '', city: s.city || '', color: brand.color || '', logo: brand.logo || '', book_url: _wsBookLink(), country: ctry().code },
+      history: h, last_km: (last && last.km) || Number(v.last_km || 0) || 0, last_service_km: (last && last.km) || 0, last_service_date: last ? last.date : '',
+      avg_km_day: bk ? Number(bk.avg_kms) || 30 : 30, interval_km: Number(s.service_interval_km) || 10000, interval_months: Number(s.service_interval_months) || 6,
+      updated_at: new Date().toISOString()
+    };
+    try { await fbDb.collection('vehicle_pages').doc(v.qr_token).set(doc); return true; }
+    catch (e) { console.warn('[vehicle page]', e); return false; }
+  }
+  window.publishVehiclePage = publish;
+
+  // a stable random code per car; created the first time its QR is shown, printed or emailed
+  function ensureToken(v, owner) {
+    if (v.qr_token) return false;
+    v.qr_token = rand(20);
+    if (owner) { try { wsSave('customers', D.customers); } catch (_) {} }
+    return true;
+  }
+  window._vehLinkFor = function (plate) {
+    const f = findVeh(plate); if (!f) return '';
+    if (ensureToken(f.v, f.c)) publish(f.v, f.c);
+    return `${SITE}/v/${f.v.qr_token}`;
+  };
+  async function qrTextFor(v) {
+    if (!v.plate) return 'GPV-' + v.id;
+    const owner = (D.customers || []).find(c => (c.vehicles || []).some(x => x.id === v.id));
+    if (ensureToken(v, owner)) { if (owner) { const real = owner.vehicles.find(x => x.id === v.id); if (real && real !== v) real.qr_token = v.qr_token; wsSave('customers', D.customers).catch(() => {}); } }
+    await publish(v, owner);
+    return `${SITE}/v/${v.qr_token}`;
+  }
+
+  // keep the owner's page fresh when a car's job moves (debounced), only for cars that already have a page
+  const _pt = window.publishTracking, timers = {};
+  if (typeof _pt === 'function') window.publishTracking = function (bid) {
+    const r = _pt.apply(this, arguments);
+    try {
+      const b = (D.bookings || []).find(x => x.id === bid), f = b && b.plate && findVeh(b.plate);
+      if (f && f.v.qr_token) { clearTimeout(timers[f.v.qr_token]); timers[f.v.qr_token] = setTimeout(() => publish(f.v, f.c), 4000); }
+    } catch (_) {}
+    return r;
+  };
+
+  // ───────── scanning: a /v/<code> link → the same car as the old GPV-<plate> code ─────────
+  async function normaliseScan(code) {
+    const m = String(code || '').trim().match(/\/v\/([A-Za-z0-9]{12,40})\/?(?:[?#].*)?$/);
+    if (!m) return code;
+    const tok = m[1];
+    for (const c of (D.customers || [])) for (const v of (c.vehicles || [])) if (v.qr_token === tok && v.plate) return 'GPV-' + nrm(v.plate);
+    try { const d = await fbDb.collection('vehicle_pages').doc(tok).get(); if (d.exists && d.data().plate) return 'GPV-' + nrm(d.data().plate); } catch (_) {}
+    return code;
+  }
+  const _osd = window._onScanDecoded;
+  if (typeof _osd === 'function') window._onScanDecoded = async function (code) { return _osd.call(this, await normaliseScan(code)); };
+
+  // ───────── QR sticker: link inside, label-size dialog ─────────
+  const _sq = window._showQRFromVehicle;
+  // _showQRFromVehicle is a plain function declaration: wrap it by pre-computing the link, then letting it draw.
+  const SIZES = {
+    '50x25': { name: '50 × 25 mm label', w: 50, h: 25, qr: 20, row: true },
+    '62':    { name: '62 mm continuous (Brother)', w: 62, h: 44, qr: 32 },
+    '4x6':   { name: '4 × 6 inch (Zebra)', w: 101.6, h: 152.4, qr: 74, big: true },
+    '57':    { name: '2.25 inch receipt (57 mm)', w: 57, h: 46, qr: 34 },
+    'a4':    { name: 'A4 sheet of labels (3 × 8)', sheet: true, w: 63.5, h: 33.9, qr: 24, row: true }
+  };
+  function labelHtml(sz, plate, ws, img, qrText) {
+    const q = `<img src="${img}" style="width:${sz.qr}mm;height:${sz.qr}mm;display:block">`;
+    const t = `<div class="pl" style="font-size:${sz.big ? 11 : sz.row ? 4.4 : 5}mm">${esc(plate)}</div>${ws ? `<div class="ws" style="font-size:${sz.big ? 5 : 2.6}mm">${esc(ws)}</div>` : ''}<div class="sc" style="font-size:${sz.big ? 4.2 : 2.3}mm">Scan for service history</div>`;
+    return sz.row ? `<div class="lb row">${q}<div class="tx">${t}</div></div>` : `<div class="lb col">${q}<div class="tx" style="text-align:center">${t}</div></div>`;
+  }
+  function buildSheet(key, plate, ws, img, qrText, copies, skip) {
+    const sz = SIZES[key];
+    const css = `*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif;color:#000}.lb{overflow:hidden;display:flex;align-items:center;justify-content:center;gap:1.6mm;padding:1.2mm}.lb.row .tx{flex:1;min-width:0}.lb.col{flex-direction:column;padding:2mm}.pl{font-weight:800;letter-spacing:.3mm;font-family:'Courier New',monospace;line-height:1.1}.ws{font-weight:700;margin-top:.6mm}.sc{color:#333;margin-top:.6mm}`;
+    if (sz.sheet) {
+      const per = 24, cells = [].concat(Array(skip).fill(''), Array(copies).fill('x'));
+      const pages = []; for (let i = 0; i < cells.length; i += per) pages.push(cells.slice(i, i + per));
+      return `<!doctype html><html><head><meta charset="utf-8"><title>QR labels ${esc(plate)}</title><style>@page{size:A4;margin:0}${css}
+        .pg{width:210mm;height:297mm;padding:13.2mm 7.2mm 0;display:grid;grid-template-columns:repeat(3,63.5mm);grid-auto-rows:33.9mm;column-gap:2.5mm;page-break-after:always}.cell{width:63.5mm;height:33.9mm}</style></head><body>
+        ${pages.map(p => `<div class="pg">${p.map(c => `<div class="cell">${c ? labelHtml(sz, plate, ws, img, qrText) : ''}</div>`).join('')}</div>`).join('')}<script>setTimeout(()=>window.print(),350)<\/script></body></html>`;
+    }
+    return `<!doctype html><html><head><meta charset="utf-8"><title>QR label ${esc(plate)}</title><style>@page{size:${sz.w}mm ${sz.h}mm;margin:0}${css}.lb{width:${sz.w}mm;height:${sz.h}mm;page-break-after:always}</style></head><body>
+      ${Array(Math.max(1, copies)).fill(labelHtml(sz, plate, ws, img, qrText)).join('')}<script>setTimeout(()=>window.print(),350)<\/script></body></html>`;
+  }
+  window._printVehicleQR = function (plate, qrText) {
+    const img = (typeof _grabQRDataUrl === 'function') ? _grabQRDataUrl() : '';
+    if (!img) return showToast('QR not ready yet', 'bad');
+    let last = '50x25'; try { last = localStorage.getItem('gp_label_size') || last; } catch (_) {}
+    const ws = (D.settings || {}).workshop_name || '';
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:16px';
+    ov.innerHTML = `<div style="background:var(--surf);color:var(--txt);border:1px solid var(--brd2);border-radius:14px;max-width:440px;width:100%;padding:20px;max-height:92vh;overflow:auto">
+      <div style="font:800 17px var(--fd);margin-bottom:4px">Print QR label · ${esc(plate)}</div>
+      <div style="font-size:12.5px;color:var(--faint);margin-bottom:14px">Pick the label size your printer uses. The page is sized to the label, so a label printer's normal driver prints it exactly — an ordinary printer prints the A4 sheet.</div>
+      <label style="font-size:12px;color:var(--dim)">Label size</label>
+      <select id="lbSize" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);margin:4px 0 12px">${Object.entries(SIZES).map(([k, z]) => `<option value="${k}" ${k === last ? 'selected' : ''}>${esc(z.name)}</option>`).join('')}</select>
+      <div style="display:flex;gap:10px"><div style="flex:1"><label style="font-size:12px;color:var(--dim)">Copies</label><input id="lbCopies" type="number" min="1" max="200" value="1" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);margin-top:4px"></div>
+        <div style="flex:1" id="lbSkipWrap"><label style="font-size:12px;color:var(--dim)">Skip used labels (sheet)</label><input id="lbSkip" type="number" min="0" max="23" value="0" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);margin-top:4px"></div></div>
+      <div id="lbPrev" style="margin:14px 0;padding:12px;background:#fff;border-radius:9px;display:flex;justify-content:center;overflow:auto"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="fbtn fbtn-cancel" id="lbX">Cancel</button><button class="fbtn fbtn-save" id="lbGo">🖨 Print</button></div></div>`;
+    document.body.appendChild(ov);
+    const $ = id => ov.querySelector('#' + id);
+    const prev = () => { const k = $('lbSize').value, z = SIZES[k]; $('lbSkipWrap').style.opacity = z.sheet ? 1 : .35; $('lbPrev').innerHTML = `<style>.lb{display:flex;align-items:center;justify-content:center;gap:6px;padding:4px;border:1px dashed #bbb;color:#000;font-family:Arial}.lb.col{flex-direction:column}.pl{font:800 15px 'Courier New'}.ws{font:700 10px Arial}.sc{font:9px Arial;color:#333}</style><div style="transform-origin:top left;zoom:${z.big ? .9 : 2.6}">${labelHtml(Object.assign({}, z, { qr: z.qr * (z.big ? .12 : 1) }), plate, ws, img, qrText).replace(/font-size:[\d.]+mm/g, 'font-size:0').replace(/width:([\d.]+)mm;height:([\d.]+)mm/, (m, a, b) => `width:${a}px;height:${b}px`)}</div>`; };
+    $('lbSize').onchange = prev; prev();
+    $('lbX').onclick = () => ov.remove();
+    $('lbGo').onclick = () => {
+      const k = $('lbSize').value; try { localStorage.setItem('gp_label_size', k); } catch (_) {}
+      const w = window.open('', '_blank'); if (!w) return showToast('Allow pop-ups to print', 'bad');
+      const html = buildSheet(k, plate, ws, img, qrText, Math.max(1, Math.min(200, Number($('lbCopies').value) || 1)), SIZES[k].sheet ? Math.max(0, Math.min(23, Number($('lbSkip').value) || 0)) : 0);
+      _openDocInWindow(w, html); ov.remove();
+    };
+  };
+
+  // the sticker's QR now encodes the owner link — hook the text used when the QR is drawn
+  if (typeof _sq === 'function') window._showQRFromVehicle = async function (v) {
+    try { const t = await qrTextFor(v); v = Object.assign({}, v, { __qrText: t }); } catch (e) { console.warn('[qr text]', e); }
+    return _sq.call(this, v);
+  };
+
+  GP.addLang('en', { 'cta.rebook': 'Book another time', 'cta.history': 'View your car\'s service history', 'cta.book': 'Book your next service' });
+  GP.addLang('hi', { 'cta.rebook': 'दूसरा समय बुक करें', 'cta.history': 'अपनी गाड़ी का सर्विस इतिहास देखें', 'cta.book': 'अगली सर्विस बुक करें' });
+  GP.addLang('ar', { 'cta.rebook': 'احجز موعدًا آخر', 'cta.history': 'عرض سجل صيانة سيارتك', 'cta.book': 'احجز صيانتك القادمة' });
 })();
 </script>
 
