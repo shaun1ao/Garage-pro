@@ -8115,6 +8115,8 @@ window.markJobStatus = async function(jobId, newStatus) {
   // that specific trigger in Settings → Customer email notifications.
   const emailEvent =
       newStatus === 'In Progress'          ? 'work_started'
+    : newStatus === 'Awaiting QC'          ? 'qc_started'
+    : newStatus === 'Client Informed'      ? 'pickup_scheduled'
     : newStatus === 'QC Passed'            ? 'work_complete'
     : newStatus === 'Ready for Pickup'     ? 'ready_for_pickup'
     : newStatus === 'Ready for Delivery'   ? 'ready_for_pickup'   // legacy alias
@@ -8152,6 +8154,7 @@ window.markRepairDone = async function(jobId) {
   j.updated_at = nowStr();
   showToast(`${j.plate} ready for QC`, 'good');
   audit('repair-done', `${j.plate} — ${j.mechanic || 'tech'} finished, awaiting QC`, { job_id: jobId });
+  sendCustomerNotification('qc_started', { job: j });   // customer: repair done, final checks under way
   // Trigger 8 — Job done → notify floor manager
   notify({
     kind: 'job-done',
@@ -8267,6 +8270,7 @@ async function _saveInformClient(jobId) {
   // Customer-facing — "pickup time allotted" is one of the 4 moments that
   // gets an automatic WhatsApp prompt (see notifyWhatsAppForEvent()).
   notifyWhatsAppForEvent('pickup_time_set', { job: j });
+  sendCustomerNotification('pickup_scheduled', { job: j, date, time });   // e-mail the confirmed pickup time
   // Trigger 10 — Pickup time confirmed → notify washing/detailing team (specific worker)
   notify({
     kind: 'wash-assigned',
@@ -18289,9 +18293,12 @@ const EMAIL_EVENTS = [
   { id: 'booking_declined',   label: 'Online booking request declined', headline: 'About your booking request',          subject: (d) => `About your booking request · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'booking_confirmed',  label: 'Booking confirmed',     headline: 'Your booking is confirmed',         subject: (d) => `Booking confirmed · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'estimate_ready',     label: 'Estimate ready',        headline: 'Your repair estimate is ready',     subject: (d) => `Repair estimate ready · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'estimate_updated',    label: 'Estimate updated',      headline: 'Your repair estimate has been updated', subject: (d) => `Updated estimate · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'customer_approved',  label: 'Customer approved',     headline: 'Thanks — we\'re proceeding',         subject: (d) => `Approval received · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'work_started',       label: 'Work started',          headline: 'We\'ve started work on your car',    subject: (d) => `Work started on ${d.plate || 'your vehicle'}${d.booking_no ? ' (' + d.booking_no + ')' : ''}` },
+  { id: 'qc_started',         label: 'Repair done — final checks', headline: 'The repair is done — final checks under way', subject: (d) => `Repair done, final checks · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'work_complete',      label: 'Work complete',         headline: 'Work is complete',                  subject: (d) => `Work complete · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'pickup_scheduled',   label: 'Pickup time confirmed', headline: 'Your pickup time is confirmed',      subject: (d) => `Pickup confirmed${d.date ? ' · ' + d.date + (d.time ? ' ' + d.time : '') : ''} · ${d.workshop_name}` },
   { id: 'ready_for_pickup',   label: 'Ready for pickup',      headline: 'Your car is ready for pickup',      subject: (d) => `Ready for pickup · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'thank_you',          label: 'Thank-you (after pickup)', headline: 'Thank you for choosing us',     subject: (d) => `Thank you · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'invoice_ready',      label: 'Invoice ready',         headline: 'Your invoice is ready',             subject: (d) => `Invoice ${d.invoice_no || ''} · ${d.workshop_name}${_emailSubjectRef(d)}` }
@@ -18342,8 +18349,8 @@ function _buildEmailData(opts) {
     workshop_address: ws.address || '',
     workshop_url:    ws.url || '',
     service_name:    b?.service || j?.type || inv?.service || '—',
-    date:            (b?.date) || (j?.created_at || '').slice(0,10) || '',
-    time:            b?.time   || '',
+    date:            opts.date || (b?.date) || (j?.created_at || '').slice(0,10) || '',
+    time:            opts.time || b?.time   || '',
     location:        ws.address || '',
     notes:           opts.notes || b?.notes || '',
     plate:           b?.plate || j?.plate || inv?.vehicle?.plate || '',
@@ -18411,7 +18418,7 @@ function _emailCtaBlock(d) {
   //   booking declined      → book another time          booking requested/confirmed → track the booking
   //   estimate ready        → review & approve (+ track)  work started/complete/ready → track the repair
   //   invoice / thank-you   → the invoice, feedback, service history, book the next service
-  if (d.event === 'estimate_ready' && d.approval_link) btn(d.approval_link, _L(d.lang, 'cta.estimate'), '#1e7be0');
+  if ((d.event === 'estimate_ready' || d.event === 'estimate_updated') && d.approval_link) btn(d.approval_link, _L(d.lang, 'cta.estimate'), '#1e7be0');
   if (d.invoice_view_link) btn(d.invoice_view_link, _L(d.lang, 'cta.invoice'), '#6b4fbb');
   if (d.event === 'booking_declined') { if (d.book_link) btn(d.book_link, _L(d.lang, 'cta.rebook'), '#1e7be0'); }
   else if (d.track_link && d.event !== 'thank_you') btn(d.track_link, _L(d.lang, 'cta.track'), '#0a0f1a');
@@ -18659,6 +18666,13 @@ async function sendCustomerNotification(eventId, opts = {}) {
   if (!opts.force && !_custPrefersEmail(opts) && triggers[eventId] === false) return { ok: false, skipped: 'event-off' };
   const evt = EMAIL_EVENTS.find(e => e.id === eventId);
   if (!evt) return { ok: false, skipped: 'unknown-event' };
+  // Stage emails go out ONCE per job (a status clicked back and forth must not re-mail the customer).
+  // Estimates, invoices and anything sent on purpose (opts.force) are not limited.
+  const STAGE_ONCE = ['work_started', 'qc_started', 'work_complete', 'pickup_scheduled', 'ready_for_pickup'];
+  if (opts.job && !opts.force && STAGE_ONCE.includes(eventId)) {
+    opts.job.emailed_stages = opts.job.emailed_stages || {};
+    if (opts.job.emailed_stages[eventId]) return { ok: false, skipped: 'already-sent' };
+  }
   // Link to view/download the invoice instead of attaching it — a raw HTML
   // file used to be attached here, which most mail clients just show as a
   // downloadable webpage, not a proper document. Reuses the same tokenized
@@ -18674,6 +18688,11 @@ async function sendCustomerNotification(eventId, opts = {}) {
   const { subject, html } = _renderEmailTemplate(s.email_template || 'classic', data);
   const mailArgs = { to: data.customer_email, subject, html, fromName: data.workshop_name, logo: data.workshop_logo };
   // Queue FIRST (durable) — see _enqueueMail's comment for why.
+  if (opts.job && ['work_started', 'qc_started', 'work_complete', 'pickup_scheduled', 'ready_for_pickup'].includes(eventId)) {
+    opts.job.emailed_stages = opts.job.emailed_stages || {};
+    opts.job.emailed_stages[eventId] = nowStr();
+    wsSave('jobs', D.jobs).catch(() => {});
+  }
   const queueRef = await _enqueueMail({ ...mailArgs, kind: 'customer', event: eventId });
   try {
     const res = await _smtpSend(mailArgs);
@@ -21349,6 +21368,23 @@ async function renderWorkload(force = false) {
 <script src="../i18n/messages-core.js"></script>
 <script src="../i18n/messages-ar.js"></script>
 <script>
+// SAFETY NET — the customer emails and WhatsApp texts are built from translation keys (lab.hi, cta.track, …).
+// If i18n/gp-lang.js or messages-core.js did not load (not uploaded, blocked, cached old copy), the keys used to
+// show up raw in the email. This guarantees the English text is always there, and that GP.addLang exists.
+(function () {
+  var EN = {"ev.booking_requested.h": "We've received your booking request", "ev.booking_requested.s": "Booking request received", "ev.booking_declined.h": "About your booking request", "ev.booking_declined.s": "About your booking request", "ev.booking_confirmed.h": "Your booking is confirmed", "ev.booking_confirmed.s": "Booking confirmed", "ev.estimate_ready.h": "Your repair estimate is ready", "ev.estimate_ready.s": "Repair estimate ready", "ev.customer_approved.h": "Thanks — we're proceeding", "ev.customer_approved.s": "Approval received", "ev.work_started.h": "We've started work on your car", "ev.work_started.s": "Work started on {plate}", "ev.work_complete.h": "Work is complete", "ev.work_complete.s": "Work complete", "ev.ready_for_pickup.h": "Your car is ready for pickup", "ev.ready_for_pickup.s": "Ready for pickup", "ev.thank_you.h": "Thank you for choosing us", "ev.thank_you.s": "Thank you", "ev.invoice_ready.h": "Your invoice is ready", "ev.invoice_ready.s": "Invoice {no}", "lab.hi": "Hi {name},", "lab.details": "Here are your details for {ws}.", "lab.summary": "Order Summary", "lab.bookingNo": "Booking no.", "lab.service": "Service", "lab.vehicle": "Vehicle", "lab.date": "Date", "lab.time": "Time", "lab.location": "Location", "lab.invoice": "Invoice", "lab.total": "Total", "lab.notes": "Notes", "lab.na": "N/A", "lab.look": "We look forward to seeing you soon,", "lab.subject": "Subject", "lab.to": "To", "lab.dear": "Dear {name},", "lab.thanksFull": "Thank you for choosing {ws}. See the full details below.", "lab.bookingDetails": "Booking Details", "lab.invoiceNo": "Invoice no.", "lab.workshopInfo": "Workshop Information", "lab.thanksLine": "Hi {name} — thanks for choosing {ws}.", "lab.where": "Where", "lab.when": "When", "lab.booking": "Booking", "lab.ordered": "What you ordered:", "lab.orderNo": "Order number", "lab.itemDesc": "Item description", "cta.estimate": "Review & approve your estimate", "cta.invoice": "View / download invoice", "cta.track": "Track your repair", "cta.feedback": "Leave feedback", "foot.call": "Call {phone}", "wa.confirmed": "Hi {name}, your appointment at {ws} for {plate} is confirmed for {date}{at}. See you then!", "wa.at": " at {time}", "wa.track": "Track:", "wa.thanks": "Thank you for choosing {ws}, {name}! We hope to see you again.", "wa.feedback": "How did we do? We'd love your feedback:", "wa.ready": "Hi {name}, good news — your {plate} is ready for pickup at {ws}! 🚗", "wa.pickup": "Pickup:", "wa.otp": "We've emailed you a pickup code — bring it (or show it) to collect your vehicle.", "wa.invoice": "Hi {name}, your invoice {no} from {ws}{veh} is ready — total {amount}.", "wa.viewInvoice": "View / download your invoice:", "wa.trackVeh": "Track your vehicle:", "wa.thanksShort": "Thank you for choosing us!", "wa.pickupSet": "Hi {name}, your {plate} is scheduled for pickup on {date} at {time} from {ws}.", "wa.yourVehicle": "your vehicle", "st.title": "Monthly statement", "st.period": "Statement period", "st.amount": "Amount", "st.status": "Status", "st.paid": "Paid", "st.due": "Balance due", "st.payBy": "Pay by", "st.bf": "Brought forward", "st.thanks": "Thank you for your business.", "wa.statement": "Hi {name}, your statement from {ws} for {period} is ready — {count} invoices, balance due {amount}, pay by {due}.", "wa.approver": "Hi {name}, {ws} has an estimate for {plate} ({company}) that needs your approval:", "wa.estimate": "Hi {name}, your estimate for {plate} from {ws} ({amount}) is ready. Please review and approve here: {link}", "cta.rebook": "Book another time", "cta.history": "View your car's service history", "cta.book": "Book your next service"};
+  if (!window.GP) {
+    var MSG = {};
+    window.GP = { __ready: true, __shim: true, MSG: MSG, LANGS: [['en', 'English', 'English']], code: function () { return 'en'; }, valid: function (c) { return c === 'en'; }, info: function () { return ['en', 'English', 'English']; }, add: function () {},
+      t: function (key, lang, vars) { var row = MSG[key], s = row ? (row[lang] || row.en) : key; if (vars) s = String(s).replace(/\{(\w+)\}/g, function (m, n) { return vars[n] == null ? '' : vars[n]; }); return s; } };
+    window.gpT = GP.t;
+  }
+  if (!GP.addLang) GP.addLang = function (code, table) { Object.keys(table).forEach(function (k) { (GP.MSG[k] = GP.MSG[k] || {})[code] = table[k]; }); };
+  Object.keys(EN).forEach(function (k) { var r = GP.MSG[k] = GP.MSG[k] || {}; if (!r.en) r.en = EN[k]; });
+})();
+</script>
+
+<script>
 // ══════════════════════════════════════════════════════════════════════════
 //  FLEET ACCOUNTS + CUSTOMER MESSAGE LANGUAGE
 //  A fleet = taxi operator / delivery firm / company with many vehicles. One account gives it:
@@ -22265,6 +22301,7 @@ async function renderWorkload(force = false) {
   window.estSend = async function (jobId) {
     if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can send estimates', 'bad');
     const j = jobById(jobId); if (!j) return showToast('Job not found', 'bad');
+    const wasSent = !!j.approval_token;
     if (!estParts(j).length && !estLabour(j).length) return customAlert('Add parts and labour to the estimate first.', { title: 'Nothing to send' });
     if (!estLabour(j).length) return labourGate(j);
     const { inv, created } = mergeInvoice(j);
@@ -22283,6 +22320,14 @@ async function renderWorkload(force = false) {
     audit('estimate-sent', `${inv.number || ''} · ${j.plate} · ${j.cust_name || '—'}${started ? ' (job in progress — awaiting new approval)' : ''}`, { invoice_id: inv.id, job_id: j.id });
     try { renderJobs(); } catch (_) {}
     _apprShareModal(doc);
+    // the customer is e-mailed automatically — new estimate or updated estimate — as long as customer emails are on
+    const link = `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(doc.token)}`;
+    sendCustomerNotification(wasSent ? 'estimate_updated' : 'estimate_ready', { job: j, approval_link: link }).then(res => {
+      if (res.ok) showToast(wasSent ? 'Updated estimate emailed to the customer' : 'Estimate emailed to the customer', 'good');
+      else if (res.skipped === 'no-recipient') showToast('No email on file for this customer — use Copy link or WhatsApp', 'bad');
+      else if (res.skipped === 'disabled') showToast('Customer emails are off (Settings → Customer Email Notifications) — use Copy link or WhatsApp', 'bad');
+      else if (res.skipped === 'event-off') showToast('Estimate emails are switched off in Settings → "When to send"', 'bad');
+    }).catch(() => {});
     return doc;
   };
   window.shareEstimateLink = (id) => estSend(id);
@@ -22443,7 +22488,15 @@ async function renderWorkload(force = false) {
     const reask = [...document.querySelectorAll('.rev-row')].some(r => (r.dataset.action || 'reask') === 'reask');
     const hasLab = j && (estLabour(j).length || (inv && (inv.charges || []).some(c => (c.name || '').trim() && c.approval !== 'dropped')));
     if (reask && j && !hasLab) return labourGate(j);
-    return _rs.apply(this, arguments);
+    const before = j && j.approval_token, self = this, args = arguments;
+    return Promise.resolve(_rs.apply(self, args)).then(r => {
+      // a revised estimate was just published → e-mail the customer the updated link
+      if (j && reask && j.approval_token && j.approval_token !== before) {
+        const link = `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(j.approval_token)}`;
+        sendCustomerNotification('estimate_updated', { job: j, approval_link: link }).catch(() => {});
+      }
+      return r;
+    });
   };
 
   // ───────── a customer answer clears "awaiting new approval" ─────────
@@ -22460,6 +22513,9 @@ async function renderWorkload(force = false) {
     return r;
   };
 
+  GP.addLang('en', { 'ev.estimate_updated.h': 'Your repair estimate has been updated', 'ev.estimate_updated.s': 'Updated estimate', 'ev.qc_started.h': 'The repair is done — final checks under way', 'ev.qc_started.s': 'Repair done, final checks', 'ev.pickup_scheduled.h': 'Your pickup time is confirmed', 'ev.pickup_scheduled.s': 'Pickup confirmed' });
+  GP.addLang('hi', { 'ev.estimate_updated.h': 'आपकी मरम्मत का अनुमान अपडेट हुआ है', 'ev.estimate_updated.s': 'अपडेट किया गया अनुमान', 'ev.qc_started.h': 'मरम्मत पूरी हुई — अंतिम जाँच जारी है', 'ev.qc_started.s': 'मरम्मत पूरी, अंतिम जाँच', 'ev.pickup_scheduled.h': 'आपके पिकअप का समय तय हो गया है', 'ev.pickup_scheduled.s': 'पिकअप की पुष्टि' });
+  GP.addLang('ar', { 'ev.estimate_updated.h': 'تم تحديث عرض السعر الخاص بك', 'ev.estimate_updated.s': 'عرض سعر محدّث', 'ev.qc_started.h': 'اكتمل الإصلاح — الفحص النهائي جارٍ', 'ev.qc_started.s': 'اكتمل الإصلاح، الفحص النهائي', 'ev.pickup_scheduled.h': 'تم تأكيد موعد الاستلام', 'ev.pickup_scheduled.s': 'تأكيد موعد الاستلام' });
   GP.addLang('en', { 'wa.estimate': 'Hi {name}, your estimate for {plate} from {ws} ({amount}) is ready. Please review and approve here: {link}', 'cta.estimate2': 'Review & approve your estimate' });
   GP.addLang('hi', { 'wa.estimate': 'नमस्ते {name}, {ws} की ओर से {plate} का अनुमान ({amount}) तैयार है। कृपया यहाँ देखकर स्वीकृत करें: {link}' });
   GP.addLang('ar', { 'wa.estimate': 'مرحبًا {name}، عرض السعر الخاص بالمركبة {plate} من {ws} ({amount}) جاهز. يرجى المراجعة والموافقة من هنا: {link}' });
