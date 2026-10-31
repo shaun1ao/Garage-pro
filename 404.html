@@ -48,6 +48,12 @@
     window.location.replace('/book.html?w=' + encodeURIComponent(b[1]));
     return;
   }
+  // /v/<token>  ->  /v.html?t=<token>          (car owner scans the QR sticker → service history)
+  var v = path.match(/\/v\/([A-Za-z0-9]+)/i);
+  if (v) {
+    window.location.replace('/v.html?t=' + encodeURIComponent(v[1]));
+    return;
+  }
   // /portal/<workshop-id>/<token>  ->  /portal.html?w=<id>&t=<token>   (customer portal)
   var c = path.match(/\/portal\/([^\/?#]+)\/([^\/?#]+)/i);
   if (c) {
