@@ -14,7 +14,7 @@
   var LANGS = [
     ['en', 'English', 'English'], ['hi', 'Hindi', 'हिन्दी'], ['mr', 'Marathi', 'मराठी'], ['ta', 'Tamil', 'தமிழ்'],
     ['kn', 'Kannada', 'ಕನ್ನಡ'], ['te', 'Telugu', 'తెలుగు'], ['bn', 'Bengali', 'বাংলা'], ['gu', 'Gujarati', 'ગુજરાતી'],
-    ['ml', 'Malayalam', 'മലയാളം'], ['pa', 'Punjabi', 'ਪੰਜਾਬੀ'], ['or', 'Odia', 'ଓଡ଼ିଆ'], ['ur', 'Urdu', 'اردو']
+    ['ml', 'Malayalam', 'മലയാളം'], ['pa', 'Punjabi', 'ਪੰਜਾਬੀ'], ['or', 'Odia', 'ଓଡ଼ିଆ'], ['ur', 'Urdu', 'اردو'], ['ar', 'Arabic', 'العربية']
   ];
   var ORDER = LANGS.map(function (l) { return l[0]; });
   var MSG = {};
@@ -34,6 +34,8 @@
       MSG[k] = o;
     });
   };
+  // GP.addLang('ar', { key: text, … }) — add one language's strings from a separate file (used for Arabic)
+  GP.addLang = function (code, table) { Object.keys(table).forEach(function (k) { (MSG[k] = MSG[k] || {})[code] = table[k]; }); };
   // GP.t('greet', 'ta', { name: 'Arun' }) → translated text; falls back to English, then to the key.
   GP.t = function (key, lang, vars) {
     var row = MSG[key], s = row ? (row[lang] || row.en) : key;
