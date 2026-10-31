@@ -2449,26 +2449,12 @@ const ORIGINAL_ADMIN = { username: 'garagepro123', password: '12345' };
 // Currency table (INR is base = 1.0). Rates are rough; admin can tweak.
 const CURRENCIES = {
   INR: { code:'INR', sym:'₹',     rate: 1,        name:'Indian Rupee' },
-  USD: { code:'USD', sym:'$',     rate: 0.012,    name:'US Dollar' },
-  EUR: { code:'EUR', sym:'€',     rate: 0.011,    name:'Euro' },
-  GBP: { code:'GBP', sym:'£',     rate: 0.0095,   name:'British Pound' },
-  AED: { code:'AED', sym:'AED ', rate: 0.044,    name:'UAE Dirham' },
-  SGD: { code:'SGD', sym:'S$',    rate: 0.016,    name:'Singapore Dollar' },
-  AUD: { code:'AUD', sym:'A$',    rate: 0.018,    name:'Australian Dollar' },
-  CAD: { code:'CAD', sym:'C$',    rate: 0.016,    name:'Canadian Dollar' },
-  ZAR: { code:'ZAR', sym:'R',     rate: 0.22,     name:'South African Rand' },
-  NPR: { code:'NPR', sym:'NRs ',  rate: 1.6,      name:'Nepalese Rupee' },
-  LKR: { code:'LKR', sym:'Rs ',   rate: 3.5,      name:'Sri Lankan Rupee' },
-  BDT: { code:'BDT', sym:'৳',     rate: 1.4,      name:'Bangladeshi Taka' }
+  AED: { code:'AED', sym:'AED ', rate: 0.039,    name:'UAE Dirham' }       // 1 INR = 0.039 AED
 };
 
 // Country code → currency code mapping
 const COUNTRY_CURRENCY = {
-  IN:'INR', US:'USD', CA:'CAD', GB:'GBP', AU:'AUD', SG:'SGD',
-  AE:'AED', SA:'AED', QA:'AED', KW:'AED', BH:'AED', OM:'AED',
-  ZA:'ZAR', NP:'NPR', LK:'LKR', BD:'BDT',
-  DE:'EUR', FR:'EUR', IT:'EUR', ES:'EUR', NL:'EUR', BE:'EUR',
-  AT:'EUR', PT:'EUR', IE:'EUR', GR:'EUR', FI:'EUR', LU:'EUR'
+  AE:'AED', SA:'AED', QA:'AED', KW:'AED', BH:'AED', OM:'AED'     // everywhere else defaults to INR
 };
 
 // Default plans — admin can edit / add more. Prices are in INR (base);
@@ -2679,7 +2665,7 @@ function load() {
     const pls = localStorage.getItem(KEYS.plans);
     if (pls && plsVer >= PLANS_VERSION) S.plans = JSON.parse(pls);
     else S.plans = DEFAULT_PLANS.map(p => ({ ...p }));
-    const cur = localStorage.getItem(KEYS.currency); if(cur) S.currency = cur;
+    const cur = localStorage.getItem(KEYS.currency); if(cur && CURRENCIES[cur]) S.currency = cur;   // an old saved USD/EUR etc. falls back to INR
     const cyc = localStorage.getItem(KEYS.cycle); if(cyc) S.billingCycle = cyc;
     sanitizePlans();
     const cch = localStorage.getItem(KEYS.credsChanged); if(cch === 'true') S.credsChanged = true;
@@ -4315,7 +4301,7 @@ async function detectCountry() {
     const g = await getGeo();
     if (g && g.country) {
       S.detectedCountry = g.country;
-      const ccy = (g.currency && CURRENCIES[g.currency]) ? g.currency : (COUNTRY_CURRENCY[g.country] || 'USD');
+      const ccy = (g.currency && CURRENCIES[g.currency]) ? g.currency : (COUNTRY_CURRENCY[g.country] || 'INR');
       // Only override the saved currency the very first time
       if (!localStorage.getItem(KEYS.currency)) {
         S.currency = ccy;
@@ -4342,7 +4328,7 @@ async function detectCountry() {
     if (cc === 'EU') cc = 'DE';
     if (cc && !localStorage.getItem(KEYS.currency)) {
       S.detectedCountry = cc;
-      S.currency = COUNTRY_CURRENCY[cc] || 'USD';
+      S.currency = COUNTRY_CURRENCY[cc] || 'INR';
       save();
     }
     const tag = document.getElementById('detectedCountry');
