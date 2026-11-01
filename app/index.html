@@ -2880,7 +2880,7 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
       gstin:    details.gstin    || '',
       currency: details.currency || (details.country === 'AE' ? 'AED' : '₹'),
       country:  details.country === 'AE' ? 'AE' : 'IN',
-      ...(details.country === 'AE' ? { vat_registered: details.vat_registered !== false } : {}),
+      ...(details.country === 'AE' ? { vat_registered: details.vat_registered !== false } : { labour_gst: true }),
       summary_emails_enabled: !!details.summary_emails_enabled,
       tax_pct: details.country === 'AE' ? 5 : 18,
       bay_types: [], services: []
@@ -8414,7 +8414,7 @@ window.sendJobEstimate = async function(jobId) {
     job_id: jobId
   });
   const photos = await loadJobPhotos(jobId);
-  const html = _invoiceHTMLFromRecord(inv, { photos });
+  const html = _invoiceHTMLFromRecord(inv, { photos, banner: true });
   const w = window.open('', '_blank');
   _openDocInWindow(w, html);
   renderJobs();
@@ -9343,7 +9343,7 @@ async function _apprBuildDoc(j, inv, token) {
     const taxable = Math.max(0, (Number(l.unit_price || 0) * Number(l.qty || 1)) * (1 - (Number(l.disc_pct || 0)) / 100));
     const exclGst = _gpRound(taxable);
     // Parts taxed by default; a line opts out with taxable:false.
-    const gstAmt  = (l.taxable === false) ? 0 : _gpRound(taxable * taxPct / 100);
+    const gstAmt  = (l.taxable === false) ? 0 : _gpRound(taxable * _lineRate(l, taxPct) / 100);
     return {
       name: l.name || '', qty: Number(l.qty || 1),
       amount_excl_gst: exclGst,
@@ -13648,6 +13648,7 @@ window.openInventoryForm = function(id) {
         <div class="f-grp"><label>Cost price (₹)</label><input id="if-cost" type="number" min="0" step="0.01" value="${escapeHtml(String(i.cost_price || ''))}" /></div>
         <div class="f-grp"><label>HSN / SAC</label><input id="if-hsn" type="text" value="${escapeHtml(i.hsn || '')}" placeholder="e.g. 87082900" /></div>
       </div>
+      <div class="f-row r3"><div class="f-grp"><label>${escapeHtml(ctry().taxName)} % for this part <span style="color:var(--faint);font-weight:500">(blank = workshop default)</span></label><input id="if-gst" type="number" min="0" step="0.01" value="${i.gst_pct == null ? '' : escapeHtml(String(i.gst_pct))}" placeholder="${escapeHtml(String(wsTaxPct()))}" /></div><div class="f-grp"></div><div class="f-grp"></div></div>
       <div class="f-row">
         <div class="f-grp"><label>Storage location</label><input id="if-loc" type="text" value="${escapeHtml(i.location || '')}" placeholder="Rack 3, Bin B" /></div>
         <div class="f-grp"><label>Supplier</label><input id="if-sup" type="text" value="${escapeHtml(i.supplier || '')}" placeholder="Bosch India Pvt Ltd" /></div>
@@ -13684,6 +13685,7 @@ async function saveInventory(id) {
     sell_price: Number(document.getElementById('if-sell').value) || 0,
     cost_price: Number(document.getElementById('if-cost').value) || 0,
     hsn:        document.getElementById('if-hsn').value.trim(),
+    gst_pct:    document.getElementById('if-gst').value === '' ? null : Number(document.getElementById('if-gst').value),
     location:   document.getElementById('if-loc').value.trim(),
     supplier:   document.getElementById('if-sup').value.trim(),
     barcode:    document.getElementById('if-bar').value.trim(),
@@ -14855,8 +14857,13 @@ async function renderSettings(force = false) {
         <div class="f-row r3">
           <div class="f-grp"><label>Currency symbol</label><input id="sf-cur" type="text" value="${escapeHtml(s.currency || '₹')}" /></div>
           <div class="f-grp"><label id="sf-tax-lbl">Default tax % (${ctry().taxName})</label><input id="sf-tax" type="number" step="0.01" value="${escapeHtml(String(s.tax_pct ?? ctry().taxDefault))}" /></div>
-          <div class="f-grp"></div>
+          <div class="f-grp" style="display:${ctry().code === 'IN' ? '' : 'none'}"><label>Charge GST on labour?</label>
+            <select id="sf-labgst"><option value="1" ${s.labour_gst === true ? 'selected' : ''}>Yes (recommended)</option><option value="0" ${s.labour_gst === true ? '' : 'selected'}>No — only lines I tick</option></select></div>
         </div>
+        <div class="f-row"><div class="f-grp"><label>Bilingual invoices</label>
+          <select id="sf-lang2"><option value="" ${!s.invoice_lang2 ? 'selected' : ''}>Off — English only</option><option value="ar" ${s.invoice_lang2 === 'ar' ? 'selected' : ''}>English + Arabic (العربية)</option><option value="hi" ${s.invoice_lang2 === 'hi' ? 'selected' : ''}>English + Hindi (हिन्दी)</option></select>
+          <div style="font-size:11.5px;color:var(--faint);margin-top:4px">Prints every label on the invoice in both languages, side by side. Applies to new invoices.</div></div>
+          <div class="f-grp" style="display:${ctry().code === 'IN' ? '' : 'none'}"><label>Annual turnover above ₹5 crore?</label><select id="sf-turn"><option value="0" ${s.turnover_over_5cr === true ? '' : 'selected'}>No (HSN: 4 digits on B2B invoices)</option><option value="1" ${s.turnover_over_5cr === true ? 'selected' : ''}>Yes (HSN: 6 digits; e-invoicing applies)</option></select></div></div>
 
         <!-- Bank transfer details — one workshop account, printed at the bottom of every invoice -->
         <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
@@ -15333,6 +15340,9 @@ window.saveWorkshopInfo = async function() {
   D.settings.gstin         = document.getElementById('sf-gst').value.trim();
   D.settings.currency      = document.getElementById('sf-cur').value.trim() || (document.getElementById('sf-country')?.value === 'AE' ? 'AED' : '₹');
   D.settings.tax_pct       = Number(document.getElementById('sf-tax').value) || 0;
+  if (document.getElementById('sf-labgst')) D.settings.labour_gst = document.getElementById('sf-labgst').value === '1';
+  D.settings.invoice_lang2 = (document.getElementById('sf-lang2') || {}).value || '';
+  if (document.getElementById('sf-turn')) D.settings.turnover_over_5cr = document.getElementById('sf-turn').value === '1';
   const _oldCountry = ctry().code;
   D.settings.country       = document.getElementById('sf-country')?.value === 'AE' ? 'AE' : 'IN';
   if (D.settings.country === 'AE') D.settings.vat_registered = document.getElementById('sf-vatreg')?.value !== '0';
@@ -16777,6 +16787,8 @@ async function renderInvoices(force = false) {
           ${(!inv.is_estimate && inv.status !== 'Cancelled' && inv.payment_status !== 'Paid') ? `<button class="mini-btn" style="border-color:rgba(var(--tint-rgb),.5);color:var(--teal)" onclick="_quickMarkPaid('${escapeHtml(inv.id)}')" title="Mark this invoice fully paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M20 6 9 17l-5-5"/></svg>Paid</button>
           <button class="mini-btn warn" onclick="chasePayment('${escapeHtml(inv.id)}')" title="Send the customer a payment reminder (WhatsApp or email)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Chase</button>` : ''}
           <button class="mini-btn good" onclick="viewInvoice('${escapeHtml(inv.id)}')" title="View / print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>
+          ${(ctry().code === 'AE' && !inv.is_estimate) ? `<button class="mini-btn" onclick="einvExport('${escapeHtml(inv.id)}')" title="Download the UAE e-invoice file (XML) for your Accredited Service Provider">XML</button>` : ''}
+          ${(!inv.is_estimate && inv.status !== 'Cancelled') ? `<button class="mini-btn" onclick="creditNoteOpen('${escapeHtml(inv.id)}')" title="Issue a credit note against this invoice">CN</button>` : ''}
           <button class="mini-btn" onclick="openInvoiceForm('${escapeHtml(inv.id)}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Edit</button>
           <button class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="waInvoice('${escapeHtml(inv.id)}')" title="Send this invoice to the customer on WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M12.04 2a9.9 9.9 0 0 0-8.4 15.19L2 22l4.94-1.3A9.9 9.9 0 1 0 12.04 2zm0 1.8a8.1 8.1 0 0 1 5.73 13.83A8.1 8.1 0 0 1 6.9 18.7l-.35-.2-2.93.77.78-2.85-.23-.37A8.1 8.1 0 0 1 12.04 3.8zm4.66 11.44c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.13-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.48-.4-.42-.56-.42l-.48-.01c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.23.9 2.43 1.02 2.6.13.17 1.77 2.7 4.3 3.79.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.16-.48-.29z"/></svg></button>
           <button class="mini-btn danger" onclick="deleteInvoice('${escapeHtml(inv.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
@@ -16994,7 +17006,7 @@ function _invoiceTotals(inv) {
     const da      = +(gross * dp / 100).toFixed(2);
     const taxable = +(gross - da).toFixed(2);
     // Parts are taxed by default; a line opts out with taxable:false.
-    const tx      = (l.taxable === false) ? 0 : +(taxable * taxPct / 100).toFixed(2);
+    const tx      = (l.taxable === false) ? 0 : +(taxable * _lineRate(l, taxPct) / 100).toFixed(2);
     partsTaxable += taxable;
     gst          += tx;
     disc         += da;
@@ -17091,6 +17103,7 @@ function _workshopSnapshot() {
     workshop_name: s.workshop_name || '', address: s.address || '', email: s.email || '',
     phone: s.phone || '', gstin: s.gstin || '', currency: s.currency || ctry().currency,
     country: ctry().code, vat_registered: ctry().code === 'AE' ? s.vat_registered !== false : undefined,
+    state: s.state || '', state_code: ((typeof INDIAN_STATES !== 'undefined' && INDIAN_STATES.find(x => x.name === s.state)) || {}).gst || '', lang2: s.invoice_lang2 || '', turnover_over_5cr: s.turnover_over_5cr === true,
     tax_pct: wsTaxPct(), logo: s.logo || '',
     bank_name:    s.bank_name    || '',
     bank_branch:  s.bank_branch  || '',
@@ -17124,7 +17137,8 @@ function _seedInvoiceFromJob(jobId) {
     email:   c.email || '',
     phone:   c.phone || b.cust_phone || '',
     address: c.address || _customerFullAddress(c) || '',
-    gstin:   c.gstin || ''
+    gstin:   c.gstin || '',
+    state:   c.state || b.cust_state || ''
   };
   // Bank fields live on the workshop settings now — no per-invoice override.
   // Pull every vehicle detail the printed invoice surfaces (VIN, KM in, colour, fuel)
@@ -17168,7 +17182,8 @@ function _seedInvoiceFromJob(jobId) {
       hsn: p.hsn || (itm && itm.hsn) || '',
       qty: Math.max(1, Number(p.qty || 1)),
       unit_price: Number(p.unit_price ?? (itm && itm.sell_price) ?? 0),
-      disc_pct: Number(p.disc_pct ?? D.settings.default_disc_pct ?? 0)
+      disc_pct: Number(p.disc_pct ?? D.settings.default_disc_pct ?? 0),
+      ...((itm && itm.gst_pct != null && itm.gst_pct !== '') ? { tax_pct: Number(itm.gst_pct) } : {})
     };
   });
   inv.charges = (j.service_charges || []).map(ch => ({ name: ch.name || '', amount: Number(ch.amount || 0) }));
@@ -17286,7 +17301,7 @@ function _drawInvoiceLineRows() {
       ? `<div style="overflow:auto"><table class="list-tbl" style="min-width:640px">
           <thead><tr>
             <th>Part name</th><th style="width:100px">HSN/SAC</th><th style="width:90px">Qty</th>
-            <th style="width:130px">Unit price</th><th style="width:90px">Disc %</th><th></th>
+            <th style="width:130px">Unit price</th><th style="width:90px">Disc %</th><th style="width:90px">${escapeHtml(ctry().taxName)} %</th><th></th>
           </tr></thead>
           <tbody>${_editingInvoice.lines.map((l, i) => `<tr>
             <td><input type="text" data-line="${i}" data-field="name" value="${escapeHtml(l.name)}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
@@ -17294,6 +17309,7 @@ function _drawInvoiceLineRows() {
             <td><input type="number" min="1" step="1" data-line="${i}" data-field="qty" value="${escapeHtml(String(l.qty))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
             <td><input type="number" min="0" step="0.01" data-line="${i}" data-field="unit_price" value="${escapeHtml(String(l.unit_price))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
             <td><input type="number" min="0" step="0.01" data-line="${i}" data-field="disc_pct" value="${escapeHtml(String(l.disc_pct || 0))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:13px" /></td>
+            <td><input type="number" min="0" step="0.01" data-line="${i}" data-field="tax_pct" value="${l.tax_pct == null || l.tax_pct === '' ? '' : escapeHtml(String(l.tax_pct))}" placeholder="${escapeHtml(String(_invTaxPct(_editingInvoice)))}" style="width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)" /></td>
             <td><button class="mini-btn danger" type="button" onclick="_removeInvoiceLine(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>
           </tr>`).join('')}</tbody></table></div>`
       : '<div style="padding:14px;background:var(--bg2);border:1px dashed var(--brd2);border-radius:9px;color:var(--faint);text-align:center;font-size:13px">No line items. Click "Add line" above.</div>';
@@ -17302,7 +17318,7 @@ function _drawInvoiceLineRows() {
         const i = Number(ev.target.dataset.line);
         const f = ev.target.dataset.field;
         const v = ev.target.value;
-        _editingInvoice.lines[i][f] = (f === 'name' || f === 'hsn') ? v : Number(v) || 0;
+        _editingInvoice.lines[i][f] = (f === 'name' || f === 'hsn') ? v : (f === 'tax_pct' ? (v === '' ? null : Number(v)) : Number(v) || 0);
         _updateInvoiceTotalsBox();
       });
     });
@@ -17481,7 +17497,7 @@ window.viewInvoice = async function(id) {
     }
     if (!inv) { w.close(); return showToast('Invoice not found', 'bad'); }
     const photos = inv.job_id ? await loadJobPhotos(inv.job_id) : [];
-    const html = _invoiceHTMLFromRecord(inv, { photos });
+    const html = _invoiceHTMLFromRecord(inv, { photos, banner: true });
     _openDocInWindow(w, html);
   } catch (e) {
     try { w.close(); } catch(_){}
@@ -17836,11 +17852,17 @@ function _invoiceHTMLFromRecord(inv, opts) {
   const taxPct = _invTaxPct(inv);
   const PF = GP_PROFILE(ws.country), AE = PF.code === 'AE';
   const vatReg = AE ? ws.vat_registered !== false : true;        // UAE: only VAT-registered businesses issue a "Tax Invoice"
-  const docTitle = AE && !vatReg ? 'Invoice' : 'Tax Invoice';
+  const docTitle = AE ? (vatReg ? 'Tax Invoice' : 'Invoice') : (ws.gstin ? 'Tax Invoice' : 'Invoice');   // a TAX invoice needs the supplier's tax number
   const taxIdLbl = PF.taxIdLabel, showTaxId = !AE || vatReg;
+  // India: CGST + SGST on an intra-state supply, IGST on an inter-state one (place of supply decides)
+  const POS = AE ? null : _gstPlace(inv, ws), intra = !AE && POS.intra;
   // Money formatters: with currency symbol, and the "₹ N,NNN.NN" style used everywhere
   const inr  = (n) => `${cur} ${Number(n).toLocaleString(PF.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const inrR = (n) => `${cur} ${Number(n).toLocaleString(PF.locale, { maximumFractionDigits: 0 })}`;
+  const grp = _gstByRate(inv, taxPct);
+  const gstRows = grp.map(g => intra
+    ? `<div class="row"><span>CGST @${+(g.rate / 2).toFixed(2)}%</span><span>${inr(+(g.tax / 2).toFixed(2))}</span></div><div class="row"><span>SGST/UTGST @${+(g.rate / 2).toFixed(2)}%</span><span>${inr(+(g.tax - +(g.tax / 2).toFixed(2)).toFixed(2))}</span></div>`
+    : `<div class="row"><span>IGST @${g.rate}%</span><span>${inr(g.tax)}</span></div>`).join('') || `<div class="row"><span>${intra ? 'CGST / SGST' : 'IGST'}</span><span>${inr(0)}</span></div>`;
   // Bank account (workshop snapshot first, fall back to current settings)
   const bank = {
     name:    ws.bank_name    || D.settings.bank_name    || '',
@@ -17950,7 +17972,7 @@ function _invoiceHTMLFromRecord(inv, opts) {
     ${ws.gstin && showTaxId ? `<div class="gstin">${taxIdLbl}: ${escapeHtml(ws.gstin)}</div>` : ''}
   </div>
 
-  <div class="ti-title">${docTitle}${AE ? ' <span dir="rtl" style="font-style:normal;margin-inline-start:10px">' + (vatReg ? 'فاتورة ضريبية' : 'فاتورة') + '</span>' : ''}</div>
+  <div class="ti-title">${docTitle}${AE && !ws.lang2 ? ' <span dir="rtl" style="font-style:normal;margin-inline-start:10px">' + (vatReg ? 'فاتورة ضريبية' : 'فاتورة') + '</span>' : ''}</div>
 
   <!-- ───── BILL TO + Invoice meta grid ───── -->
   <div class="blocks">
@@ -17965,6 +17987,7 @@ function _invoiceHTMLFromRecord(inv, opts) {
       ${inv.customer?.phone ? `<div><b>Mobile No:</b> ${escapeHtml(inv.customer.phone)}</div>` : ''}
       ${inv.customer?.address ? `<div><b>Address:</b> ${escapeHtml(inv.customer.address)}</div>` : ''}
       ${inv.customer?.gstin ? `<div><b>Customer ${taxIdLbl}:</b> ${escapeHtml(inv.customer.gstin)}</div>` : ''}
+      ${!AE ? `<div><b>Place of Supply:</b> ${escapeHtml(POS.name || '—')}${POS.code ? ' (' + POS.code + ')' : ''}</div>` : ''}
     </div>
     <div class="meta-grid">
       <div class="lbl">Invoice No:</div><div class="v">${escapeHtml(inv.number)}</div>
@@ -17995,8 +18018,8 @@ function _invoiceHTMLFromRecord(inv, opts) {
     const num = (x) => Number(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const pr = billedLines.map(l => {
       const unit = Number(l.unit_price || 0), q = Math.max(1, Number(l.qty || 1)), da = +(unit * q * Number(l.disc_pct || 0) / 100).toFixed(2), tv = +(unit * q - da).toFixed(2);
-      const tx = (l.taxable === false) ? 0 : +(tv * taxPct / 100).toFixed(2);
-      return row(l.name + (l.disc_pct ? ' (' + l.disc_pct + '% disc.)' : ''), 'Goods', q, num(unit), num(tv), num(tx), l.taxable === false ? 0 : taxPct);
+      const lr = _lineRate(l, taxPct), tx = (l.taxable === false) ? 0 : +(tv * lr / 100).toFixed(2);
+      return row(l.name + (l.disc_pct ? ' (' + l.disc_pct + '% disc.)' : ''), 'Goods', q, num(unit), num(tv), num(tx), l.taxable === false ? 0 : lr);
     }).join('');
     const cr = billedCharges.map(ch => {
       const tv = +Number(ch.amount || 0).toFixed(2), tx = _svcTaxable(ch.taxable) ? +(tv * taxPct / 100).toFixed(2) : 0;
@@ -18007,7 +18030,7 @@ function _invoiceHTMLFromRecord(inv, opts) {
   })() : `  <table class="items">
     <thead><tr>
       <th>#</th><th>Part Name</th><th>Description</th><th>HSN/SAC</th>
-      <th class="ctr">IGST Rate (%)</th><th class="right">Quantity</th><th class="right">Unit Price (${escapeHtml(cur)})</th>
+      <th class="ctr">${intra ? 'GST' : 'IGST'} Rate (%)</th><th class="right">Quantity</th><th class="right">Unit Price (${escapeHtml(cur)})</th>
       <th class="right">Taxable (${escapeHtml(cur)})</th><th class="right">Parts Total (${escapeHtml(cur)})</th>
     </tr></thead>
     <tbody>
@@ -18023,13 +18046,13 @@ function _invoiceHTMLFromRecord(inv, opts) {
           const gross = unit * qty;
           const da = +(gross * dp / 100).toFixed(2);
           const taxable = +(gross - da).toFixed(2);
-          const tx = +(taxable * taxPct / 100).toFixed(2);
+          const lr = _lineRate(l, taxPct), tx = l.taxable === false ? 0 : +(taxable * lr / 100).toFixed(2);
           return `<tr>
             <td>${i}</td>
             <td><b>${escapeHtml(l.name)}</b></td>
             <td>Part</td>
             <td>${escapeHtml(l.hsn || '')}</td>
-            <td class="ctr">${taxPct}</td>
+            <td class="ctr">${l.taxable === false ? 0 : lr}</td>
             <td class="right">${qty.toFixed(2)}</td>
             <td class="right">${inr(unit)}</td>
             <td class="right">${inr(taxable)}</td>
@@ -18042,8 +18065,8 @@ function _invoiceHTMLFromRecord(inv, opts) {
             <td>${i}</td>
             <td><b>${escapeHtml(ch.name)}</b></td>
             <td>Service charge</td>
-            <td>—</td>
-            <td class="ctr">—</td>
+            <td>9987</td>
+            <td class="ctr">${_svcTaxable(ch.taxable) ? taxPct : '—'}</td>
             <td class="right">—</td>
             <td class="right">—</td>
             <td class="right">—</td>
@@ -18066,23 +18089,25 @@ function _invoiceHTMLFromRecord(inv, opts) {
     </div></div>` : `  <div class="totals-row">
     <div class="totals-mini">
       <div class="row"><span>Taxable Value</span><span>${inr(t.partsTaxable)}</span></div>
-      <div class="row"><span>IGST Total</span><span>${inr(t.gst)}</span></div>
+      ${gstRows}
       <div class="row"><span>Discount Total</span><span>${inr(t.disc)}</span></div>
-      <div class="row"><span>Round off</span><span>${inr(t.roundOff)}</span></div>
+      <div class="row"><span>Round off</span><span>${inr(+(t.roundOff - t.grand).toFixed(2))}</span></div>
     </div>
   </div>
   <div class="totals-row">
     <div class="totals-main">
       <div class="row"><span>Parts Total</span><span>${inr(t.partsTaxable)}</span></div>
       <div class="row"><span>Labour Total</span><span>${inr(t.labour)}</span></div>
-      <div class="row"><span>IGST Total</span><span>${inr(t.gst)}</span></div>
+      ${gstRows}
       <div class="row grand"><span>Grand Total</span><span>${inr(t.grand)}</span></div>
-      <div class="row"><span>Round off</span><span>${inr(t.roundOff)}</span></div>
+      <div class="row"><span>Round off</span><span>${inr(+(t.roundOff - t.grand).toFixed(2))}</span></div>
+      <div class="row"><span>Total Payable</span><span>${inr(t.roundOff)}</span></div>
       ${amtPaid > 0 ? `<div class="row" style="color:#16a34a"><span>Amount Paid</span><span>${inr(amtPaid)}</span></div>` : ''}
       <div class="row balance"><span>Balance</span><span>${inr(balance)}</span></div>
     </div>
   </div>`}
 
+  ${!AE ? `<div style="font-size:10.5px;color:#555;margin:2px 0 6px">Tax payable on reverse charge: No</div>` : ''}
   <div class="words">Amount ( in Words ): ${AE ? escapeHtml(GP_WORDS_AED(t.roundOff)) : `${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only`}</div>
   ${AE ? `<div style="font-size:10.5px;color:#666;margin:4px 0 10px">All amounts are in UAE Dirhams (AED).${vatReg ? '' : ' The supplier is not registered for VAT.'}</div>` : ''}
 
@@ -18247,7 +18272,7 @@ window.generateInvoice = async function(jobId) {
   if (b && !b.invoice_no) { b.invoice_no = inv.number; writes.push(wsSave('bookings', D.bookings)); }
   // Lazy-load this job's photos so the printed invoice can include them
   const photos = await loadJobPhotos(jobId);
-  const html = _invoiceHTMLFromRecord(inv, { photos });
+  const html = _invoiceHTMLFromRecord(inv, { photos, banner: true });
   const w = window.open('', '_blank');
   if (!w) { await Promise.all(writes); return customAlert('Browser blocked the new tab. Allow pop-ups for this site to print invoices.', { title: 'Pop-up blocked' }); }
   _openDocInWindow(w, html);
@@ -22048,7 +22073,7 @@ async function renderWorkload(force = false) {
   };
   window._gpRound = n => ctry().decimals ? +(+n || 0).toFixed(2) : Math.round(n);
   // UAE: labour / services are standard-rated for VAT; India: only when the charge is ticked
-  window._svcTaxable = t => ctry().labourTaxed ? t !== false : t === true;
+  window._svcTaxable = t => ((ctry().labourTaxed || (ctry().code === 'IN' && (D.settings || {}).labour_gst === true)) ? t !== false : t === true);
 
   // ── amount in words (dirhams + fils) ──
   const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'], TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
@@ -22283,7 +22308,8 @@ async function renderWorkload(force = false) {
       const qty = Math.max(1, num(p.qty || 1)), price = num(p.price), m = take(prevL, p.name);
       let approval = 'pending';
       if (m && num(m.unit_price) === price && num(m.qty || 1) === qty && m.approval && m.approval !== 'dropped') approval = m.approval;   // untouched → keep the customer's earlier answer
-      return Object.assign({ name: p.name.trim(), hsn: '', qty, unit_price: price, disc_pct: 0, taxable: p.taxable !== false, approval }, p.concern_id ? { concern_id: p.concern_id, concern_title: p.concern_title || '' } : {});
+      const itm = (D.inventory || []).find(x => K(x.name) === K(p.name)) || {};
+      return Object.assign({ name: p.name.trim(), hsn: itm.hsn || '', qty, unit_price: price, disc_pct: 0, taxable: p.taxable !== false, approval }, (itm.gst_pct != null && itm.gst_pct !== '') ? { tax_pct: Number(itm.gst_pct) } : {}, p.concern_id ? { concern_id: p.concern_id, concern_title: p.concern_title || '' } : {});
     });
     inv.charges = estLabour(j).map(s => {
       const price = num(s.price), m = take(prevC, s.name);
@@ -22687,6 +22713,263 @@ async function renderWorkload(force = false) {
   GP.addLang('en', { 'cta.rebook': 'Book another time', 'cta.history': 'View your car\'s service history', 'cta.book': 'Book your next service' });
   GP.addLang('hi', { 'cta.rebook': 'दूसरा समय बुक करें', 'cta.history': 'अपनी गाड़ी का सर्विस इतिहास देखें', 'cta.book': 'अगली सर्विस बुक करें' });
   GP.addLang('ar', { 'cta.rebook': 'احجز موعدًا آخر', 'cta.history': 'عرض سجل صيانة سيارتك', 'cta.book': 'احجز صيانتك القادمة' });
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  INVOICE COMPLIANCE · BILINGUAL INVOICES · UAE E-INVOICE EXPORT
+//  • India: place of supply decides CGST+SGST (same state) vs IGST (other state); SAC 9987 on labour; reverse-charge line.
+//  • A yellow "check before you print" banner (screen only, never printed) lists anything a valid tax invoice still needs.
+//  • Bilingual: every label printed in English + Arabic or English + Hindi (Settings → Bilingual invoices).
+//  • UAE: "XML" button on the invoice list downloads a PINT-AE style (UBL 2.1) e-invoice file for an Accredited Service Provider.
+//  NOT legal advice — have your accountant approve the layouts.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+
+  // ───────── India: place of supply ─────────
+  window._gstPlace = function (inv, ws) {
+    const c = (inv && inv.customer) || {}, list = (typeof INDIAN_STATES !== 'undefined') ? INDIAN_STATES : [];
+    let name = c.state || '', code = '';
+    const st = name && list.find(s => s.name === name);
+    if (st) code = st.gst;
+    else if (/^\d{2}/.test(c.gstin || '')) { const s2 = list.find(s => s.gst === String(c.gstin).slice(0, 2)); if (s2) { name = s2.name; code = s2.gst; } }
+    const supName = (ws && ws.state) || '', supCode = (ws && ws.state_code) || '';
+    if (!name) { name = supName; code = supCode; }          // recipient state unknown (e.g. walk-in) → supplier's own state
+    return { name, code, intra: supName ? name === supName : true, supName, supCode };
+  };
+
+  // ───────── "check before you print" ─────────
+  function issues(inv, ws, t, AE, vatReg) {
+    const out = [], c = inv.customer || {}, taxId = AE ? 'TRN' : 'GSTIN';
+    if (!ws.workshop_name) out.push('Your workshop name is missing (Settings → Workshop info).');
+    if (!ws.address) out.push('Your workshop address is missing — a tax invoice must show the supplier\'s address.');
+    if (AE) {
+      if (vatReg && !/^\d{15}$/.test(String(ws.gstin || '').replace(/\s|-/g, ''))) out.push('Your 15-digit TRN is missing or wrong — a UAE tax invoice must carry the supplier\'s TRN.');
+      if (!c.name) out.push('Customer name is missing.');
+      if (vatReg && !c.address && (t.grand > 10000 || c.gstin)) out.push('Customer address is missing — a full tax invoice needs the customer\'s name and address (always above AED 10,000, or when the customer is VAT-registered).');
+      if (!vatReg) out.push('You are marked as NOT VAT-registered, so this prints as "Invoice" with no VAT. If your turnover is above AED 375,000 you must register.');
+      if ((inv.lines || []).some(l => l.taxable === false)) out.push('Some lines have no VAT: Garage Pro prints them as 0%, but cannot tell zero-rated from exempt supplies — check these with your accountant.');
+    } else {
+      if (!ws.gstin) out.push('Your GSTIN is missing, so this prints as "Invoice", not "Tax Invoice". A tax invoice must show the supplier\'s GSTIN.');
+      if (ws.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(String(ws.gstin).toUpperCase())) out.push('Your GSTIN does not look like a valid 15-character GSTIN.');
+      if (!ws.state) out.push('Your state is not set — it decides CGST+SGST versus IGST (Settings → Workshop info).');
+      if (!c.name) out.push('Customer name is missing.');
+      if (!c.gstin && t.grand > 50000 && (!c.address || !c.state)) out.push('For an invoice above ₹50,000 to an unregistered customer, the customer\'s name, address and state (with state code) must be on the invoice.');
+      const need = ws.turnover_over_5cr ? 6 : 4, short = (inv.lines || []).filter(l => String(l.hsn || '').replace(/\D/g, '').length < need).length;
+      if (short && c.gstin) out.push(`${short} part line${short === 1 ? ' has' : 's have'} a missing or too-short HSN code. On a B2B invoice HSN must be at least ${need} digits at your turnover. Add it on the inventory item.`);
+      else if (short) out.push(`${short} part line${short === 1 ? ' has' : 's have'} no HSN code (needed at ${need} digits on B2B invoices).`);
+      if ((inv.charges || []).length && !(inv.charges || []).every(ch => _svcTaxable(ch.taxable))) out.push('Some labour / service lines carry no GST. Vehicle repair services are normally taxable (SAC 9987) — switch on Settings → "Charge GST on labour" unless your accountant says otherwise.');
+      if (String(inv.number || '').length > 16) out.push('Invoice number is longer than 16 characters — GST allows at most 16.');
+    }
+    if (!inv.issue_date) out.push('Invoice date is missing.');
+    return out;
+  }
+  const _orig = window._invoiceHTMLFromRecord;
+  window._invoiceHTMLFromRecord = function (inv, opts) {
+    let html = _orig.apply(this, arguments);
+    try {
+      const ws = inv.workshop_snapshot || _workshopSnapshot(), PF = GP_PROFILE(ws.country), AE = PF.code === 'AE', vatReg = AE ? ws.vat_registered !== false : true, t = _invoiceTotals(inv);
+      const list = (opts && opts.banner) ? issues(inv, ws, t, AE, vatReg) : [];      // only on the workshop's own print preview — never in what a customer is sent
+      if (list.length) html = html.replace('<body>', `<body><div class="no-print" style="background:#fff4e5;border:1px solid #ffcc80;color:#6b4300;padding:11px 16px;font:13px/1.5 Arial,sans-serif;margin:0 0 14px;border-radius:6px"><b>⚠ Check before you print or send</b> (this box does not print)<ul style="margin:6px 0 0 18px;padding:0">${list.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`);
+      if (ws.lang2) html = biInvoice(html, ws.lang2);
+    } catch (e) { console.warn('[invoice post-process]', e); }
+    return html;
+  };
+
+  // ───────── bilingual labels ─────────
+  const AR = {
+    'tax invoice': 'فاتورة ضريبية', 'invoice': 'فاتورة', 'invoice no': 'رقم الفاتورة', 'date': 'التاريخ', 'date of supply': 'تاريخ التوريد', 'job card no': 'رقم بطاقة العمل',
+    'vehicle no': 'رقم المركبة', 'vin': 'رقم الهيكل', 'advisor name': 'مستشار الخدمة', 'service type': 'نوع الخدمة', 'vehicle': 'المركبة', 'kilometer': 'الكيلومترات', 'color': 'اللون', 'fuel': 'الوقود',
+    'customer name': 'اسم العميل', 'mobile no': 'رقم الجوال', 'address': 'العنوان', 'contact': 'الاتصال', 'email': 'البريد الإلكتروني', 'ph': 'الهاتف', 'trn': 'الرقم الضريبي', 'customer trn': 'الرقم الضريبي للعميل',
+    'description': 'الوصف', 'qty': 'الكمية', 'quantity': 'الكمية', 'unit price': 'سعر الوحدة', 'taxable value': 'القيمة الخاضعة للضريبة', 'vat rate': 'نسبة الضريبة', 'vat': 'ضريبة القيمة المضافة', 'total': 'الإجمالي',
+    'total excl. vat': 'الإجمالي بدون الضريبة', 'total incl. vat': 'الإجمالي شامل الضريبة', 'total payable': 'المبلغ المستحق', 'balance due': 'الرصيد المستحق', 'balance': 'الرصيد', 'amount paid': 'المبلغ المدفوع',
+    'discount included above': 'الخصم المشمول أعلاه', 'discount total': 'إجمالي الخصم', 'bank details': 'التفاصيل المصرفية', 'bank name': 'اسم البنك', 'account no': 'رقم الحساب', 'iban': 'رقم الآيبان', 'branch': 'الفرع', 'terms': 'الشروط',
+    'payment status': 'حالة الدفع', 'part name': 'اسم القطعة', 'parts total': 'إجمالي القطع', 'labour total': 'إجمالي العمالة', 'grand total': 'الإجمالي الكلي', 'taxable': 'الخاضع للضريبة', 'round off': 'التقريب',
+    'service suggestions': 'توصيات الصيانة', 'goods': 'سلع', 'services': 'خدمات', 'service charge': 'رسوم خدمة', 'part': 'قطعة', 'customer / authorized signatory': 'العميل / المفوّض بالتوقيع', 'service advisor signature': 'توقيع مستشار الخدمة', 'cashier / authorized signature': 'توقيع أمين الصندوق',
+    'place of supply': 'مكان التوريد', 'cgst total': 'ضريبة CGST', 'igst total': 'ضريبة IGST', 'insurer': 'شركة التأمين', 'claim no': 'رقم المطالبة', 'print invoice': 'طباعة الفاتورة'
+  };
+  const HI = {
+    'tax invoice': 'कर चालान', 'invoice': 'चालान', 'invoice no': 'चालान संख्या', 'date': 'दिनांक', 'date of supply': 'आपूर्ति की तारीख', 'job card no': 'जॉब कार्ड संख्या',
+    'vehicle no': 'वाहन संख्या', 'vin': 'चेसिस संख्या', 'advisor name': 'सर्विस सलाहकार', 'service type': 'सेवा का प्रकार', 'vehicle': 'वाहन', 'kilometer': 'किलोमीटर', 'color': 'रंग', 'fuel': 'ईंधन',
+    'customer name': 'ग्राहक का नाम', 'mobile no': 'मोबाइल नंबर', 'address': 'पता', 'contact': 'संपर्क', 'email': 'ईमेल', 'ph': 'फ़ोन', 'gstin': 'जीएसटीआईएन', 'customer gstin': 'ग्राहक जीएसटीआईएन',
+    'description': 'विवरण', 'qty': 'मात्रा', 'quantity': 'मात्रा', 'unit price': 'इकाई मूल्य', 'taxable value': 'कर योग्य मूल्य', 'gst rate': 'जीएसटी दर', 'igst rate': 'आईजीएसटी दर', 'total': 'कुल',
+    'cgst total': 'सीजीएसटी कुल', 'sgst/utgst total': 'एसजीएसटी कुल', 'igst total': 'आईजीएसटी कुल', 'balance': 'शेष राशि', 'amount paid': 'भुगतान की गई राशि', 'discount total': 'कुल छूट',
+    'bank details': 'बैंक विवरण', 'bank name': 'बैंक का नाम', 'account no': 'खाता संख्या', 'ifsc code': 'आईएफएससी कोड', 'branch': 'शाखा', 'terms': 'शर्तें', 'payment status': 'भुगतान की स्थिति',
+    'part name': 'पुर्ज़े का नाम', 'hsn/sac': 'एचएसएन/एसएसी', 'parts total': 'पुर्ज़ों का कुल', 'labour total': 'मज़दूरी का कुल', 'grand total': 'कुल योग', 'taxable': 'कर योग्य', 'round off': 'पूर्णांक',
+    'service suggestions': 'सेवा सुझाव', 'part': 'पुर्ज़ा', 'service charge': 'सेवा शुल्क', 'place of supply': 'आपूर्ति का स्थान', 'customer / authorized signatory': 'ग्राहक / अधिकृत हस्ताक्षरकर्ता',
+    'service advisor signature': 'सर्विस सलाहकार के हस्ताक्षर', 'cashier / authorized signature': 'कैशियर / अधिकृत हस्ताक्षर', 'insurer': 'बीमा कंपनी', 'claim no': 'दावा संख्या', 'print invoice': 'चालान प्रिंट करें'
+  };
+  function biInvoice(html, lang) {
+    const T = lang === 'hi' ? HI : AR, rtl = lang === 'ar';
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const w = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null), nodes = []; for (let n = w.nextNode(); n; n = w.nextNode()) nodes.push(n);
+    for (const n of nodes) {
+      if (n.parentNode && /^(SCRIPT|STYLE)$/.test(n.parentNode.nodeName)) continue;
+      const raw = n.nodeValue.replace(/\s+/g, ' ').trim(); if (!raw || raw.length > 60) continue;
+      const key = raw.replace(/\([^)]*\)/g, '').replace(/[%:]+$/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const tr = T[key]; if (!tr) continue;
+      const sep = doc.createElement('span'); sep.textContent = ' / '; sep.setAttribute('style', 'color:#888');
+      const span = doc.createElement('span'); span.className = 'l2'; if (rtl) span.setAttribute('dir', 'rtl');
+      span.setAttribute('style', 'color:#444;font-weight:600;unicode-bidi:isolate'); span.textContent = tr;
+      n.parentNode.insertBefore(sep, n.nextSibling); n.parentNode.insertBefore(span, sep.nextSibling);
+    }
+    return '<!doctype html>' + doc.documentElement.outerHTML;
+  }
+  window._biInvoice = biInvoice;
+
+  // ───────── UAE e-invoice (PINT AE style, UBL 2.1) ─────────
+  const X = s => String(s == null ? '' : s).replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
+  const m2 = n => Number(n || 0).toFixed(2);
+  const EMIRATE_CODE = { 'Abu Dhabi': 'AUH', 'Dubai': 'DXB', 'Sharjah': 'SHJ', 'Ajman': 'AJM', 'Umm Al Quwain': 'UAQ', 'Ras Al Khaimah': 'RAK', 'Fujairah': 'FUJ' };
+  window.einvXml = function (inv) {
+    const ws = inv.workshop_snapshot || _workshopSnapshot(), c = inv.customer || {}, taxPct = _invTaxPct(inv), cur = 'AED';
+    const keep = it => !inv.client_decision_at || (it.approval || 'pending') !== 'rejected';
+    const lines = [];
+    (inv.lines || []).filter(keep).forEach(l => {
+      const q = Math.max(1, Number(l.qty || 1)), unit = Number(l.unit_price || 0), gross = +(unit * q).toFixed(2), da = +(gross * Number(l.disc_pct || 0) / 100).toFixed(2), net = +(gross - da).toFixed(2), z = l.taxable === false;
+      lines.push({ name: l.name, q, unit, da, net, rate: z ? 0 : taxPct, cat: z ? 'Z' : 'S' });
+    });
+    (inv.charges || []).filter(keep).forEach(ch => {
+      const amt = +Number(ch.amount || 0).toFixed(2), tx = _svcTaxable(ch.taxable);
+      lines.push({ name: ch.name, q: 1, unit: amt, da: 0, net: amt, rate: tx ? taxPct : 0, cat: tx ? 'S' : 'Z' });
+    });
+    const groups = {}; lines.forEach(l => { const k = l.cat + '|' + l.rate; (groups[k] = groups[k] || { cat: l.cat, rate: l.rate, base: 0 }).base += l.net; });
+    const gl = Object.values(groups).map(g => Object.assign(g, { tax: +(g.base * g.rate / 100).toFixed(2), base: +g.base.toFixed(2) }));
+    const lineExt = +lines.reduce((a, l) => a + l.net, 0).toFixed(2), taxTotal = +gl.reduce((a, g) => a + g.tax, 0).toFixed(2), incl = +(lineExt + taxTotal).toFixed(2);
+    const paid = Number(inv.amount_paid || 0), payable = +(Math.max(0, incl - paid)).toFixed(2);
+    const party = (tag, name, trn, addr, emirate) => `<cac:${tag}><cac:Party>
+      ${trn ? `<cbc:EndpointID schemeID="0235">${X(String(trn).replace(/\D/g, ''))}</cbc:EndpointID>` : ''}
+      <cac:PartyName><cbc:Name>${X(name)}</cbc:Name></cac:PartyName>
+      <cac:PostalAddress><cbc:StreetName>${X(String(addr || '').split('\n')[0].slice(0, 100))}</cbc:StreetName><cbc:CountrySubentity>${X(EMIRATE_CODE[emirate] || '')}</cbc:CountrySubentity><cac:Country><cbc:IdentificationCode>AE</cbc:IdentificationCode></cac:Country></cac:PostalAddress>
+      ${trn ? `<cac:PartyTaxScheme><cbc:CompanyID>${X(String(trn).replace(/\D/g, ''))}</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme>` : ''}
+      <cac:PartyLegalEntity><cbc:RegistrationName>${X(name)}</cbc:RegistrationName></cac:PartyLegalEntity></cac:Party></cac:${tag}>`;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- Draft e-invoice generated by Garage Pro in the PINT AE (Peppol, UBL 2.1) structure.
+     It is NOT yet a valid UAE e-invoice: it must be validated and transmitted by an Accredited Service Provider (ASP). -->
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:CustomizationID>urn:peppol:pint:billing-1@ae-1</cbc:CustomizationID>
+  <cbc:ProfileID>urn:peppol:bis:billing</cbc:ProfileID>
+  <cbc:ID>${X(inv.number)}</cbc:ID>
+  <cbc:IssueDate>${X(inv.issue_date || new Date().toISOString().slice(0, 10))}</cbc:IssueDate>
+  <cbc:InvoiceTypeCode name="0000000">380</cbc:InvoiceTypeCode>
+  <cbc:DocumentCurrencyCode>${cur}</cbc:DocumentCurrencyCode>
+  ${party('AccountingSupplierParty', ws.workshop_name, ws.gstin, ws.address, ws.state)}
+  ${party('AccountingCustomerParty', c.name || 'Customer', c.gstin, c.address, c.state)}
+  ${ws.bank_account ? `<cac:PaymentMeans><cbc:PaymentMeansCode>30</cbc:PaymentMeansCode><cac:PayeeFinancialAccount><cbc:ID>${X(ws.bank_ifsc || ws.bank_account)}</cbc:ID>${ws.bank_name ? `<cbc:Name>${X(ws.bank_name)}</cbc:Name>` : ''}</cac:PayeeFinancialAccount></cac:PaymentMeans>` : ''}
+  <cac:TaxTotal><cbc:TaxAmount currencyID="${cur}">${m2(taxTotal)}</cbc:TaxAmount>
+    ${gl.map(g => `<cac:TaxSubtotal><cbc:TaxableAmount currencyID="${cur}">${m2(g.base)}</cbc:TaxableAmount><cbc:TaxAmount currencyID="${cur}">${m2(g.tax)}</cbc:TaxAmount><cac:TaxCategory><cbc:ID>${g.cat}</cbc:ID><cbc:Percent>${m2(g.rate)}</cbc:Percent><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:TaxCategory></cac:TaxSubtotal>`).join('\n    ')}
+  </cac:TaxTotal>
+  <cac:LegalMonetaryTotal><cbc:LineExtensionAmount currencyID="${cur}">${m2(lineExt)}</cbc:LineExtensionAmount><cbc:TaxExclusiveAmount currencyID="${cur}">${m2(lineExt)}</cbc:TaxExclusiveAmount><cbc:TaxInclusiveAmount currencyID="${cur}">${m2(incl)}</cbc:TaxInclusiveAmount>${paid ? `<cbc:PrepaidAmount currencyID="${cur}">${m2(paid)}</cbc:PrepaidAmount>` : ''}<cbc:PayableAmount currencyID="${cur}">${m2(payable)}</cbc:PayableAmount></cac:LegalMonetaryTotal>
+  ${lines.map((l, i) => `<cac:InvoiceLine><cbc:ID>${i + 1}</cbc:ID><cbc:InvoicedQuantity unitCode="C62">${l.q}</cbc:InvoicedQuantity><cbc:LineExtensionAmount currencyID="${cur}">${m2(l.net)}</cbc:LineExtensionAmount>${l.da ? `<cac:AllowanceCharge><cbc:ChargeIndicator>false</cbc:ChargeIndicator><cbc:Amount currencyID="${cur}">${m2(l.da)}</cbc:Amount></cac:AllowanceCharge>` : ''}<cac:Item><cbc:Name>${X(l.name)}</cbc:Name><cac:ClassifiedTaxCategory><cbc:ID>${l.cat}</cbc:ID><cbc:Percent>${m2(l.rate)}</cbc:Percent><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:ClassifiedTaxCategory></cac:Item><cac:Price><cbc:PriceAmount currencyID="${cur}">${m2(l.unit)}</cbc:PriceAmount></cac:Price></cac:InvoiceLine>`).join('\n  ')}
+</Invoice>`;
+    return xml;
+  };
+  window.einvExport = function (id) {
+    const inv = (D.invoices || []).find(x => x.id === id); if (!inv) return showToast('Invoice not found', 'bad');
+    const ws = inv.workshop_snapshot || _workshopSnapshot();
+    const bad = [];
+    if (!/^\d{15}$/.test(String(ws.gstin || '').replace(/\D/g, ''))) bad.push('your 15-digit TRN');
+    if (!(inv.customer || {}).name) bad.push('the customer name');
+    if (bad.length) return customAlert('The e-invoice file needs ' + bad.join(' and ') + '. Add it, then export again.', { title: 'Missing details' });
+    const blob = new Blob([einvXml(inv)], { type: 'application/xml' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = (inv.number || 'invoice') + '.xml'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 20000);
+    showToast('E-invoice file downloaded — give it to your Accredited Service Provider', 'good');
+  };
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  PER-PART TAX RATES + CREDIT NOTES
+//  • A part can carry its own GST/VAT % (Inventory → "GST % for this part", or the Tax % column on an invoice line);
+//    blank = the workshop's default. Totals, CGST/SGST/IGST lines and the customer's approval page follow each line's rate.
+//  • Credit note (India) / Tax credit note (UAE): the lawful way to reduce or reverse an invoice that has been issued.
+//    It quotes the original invoice number and date and the reason, has its own CN-000001 series, and prints in the
+//    same layout. The original invoice is never edited.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  window._lineRate = (l, def) => (l && l.tax_pct != null && l.tax_pct !== '' && !isNaN(l.tax_pct)) ? Number(l.tax_pct) : def;
+
+  // tax split by rate, mirroring _invoiceTotals (approved lines only once the customer has decided)
+  window._gstByRate = function (inv, def) {
+    const keep = it => !inv.client_decision_at || (it.approval || 'pending') !== 'rejected', g = {};
+    const add = (rate, tax) => { const k = String(rate); (g[k] = g[k] || { rate: Number(rate), tax: 0 }).tax += tax; };
+    (inv.lines || []).filter(keep).forEach(l => {
+      if (l.taxable === false) return;
+      const gross = Number(l.unit_price || 0) * Math.max(1, Number(l.qty || 1)), taxable = +(gross - +(gross * Number(l.disc_pct || 0) / 100).toFixed(2)).toFixed(2), r = _lineRate(l, def);
+      add(r, +(taxable * r / 100).toFixed(2));
+    });
+    (inv.charges || []).filter(keep).forEach(c => { if (_svcTaxable(c.taxable)) add(def, +(Number(c.amount || 0) * def / 100).toFixed(2)); });
+    return Object.values(g).filter(x => x.tax || x.rate).map(x => ({ rate: x.rate, tax: +x.tax.toFixed(2) })).sort((a, b) => a.rate - b.rate);
+  };
+
+  const ONE_YEAR = ['Goods returned by the customer', 'Price / discount correction after the invoice', 'Work not done or deficient — refund or allowance', 'Tax or quantity error on the original invoice', 'Other (explain below)'];
+  function nextNo() { const n = Number((D.settings || {}).next_cn || 1); return 'CN-' + String(n).padStart(6, '0'); }
+  async function load() { if (!Array.isArray(D.credit_notes)) D.credit_notes = (await wsLoad('credit_notes')) || []; return D.credit_notes; }
+
+  window.creditNoteOpen = async function (invId) {
+    if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can issue credit notes', 'bad');
+    const inv = (D.invoices || []).find(x => x.id === invId); if (!inv) return showToast('Invoice not found', 'bad');
+    const prev = (await load()).filter(c => c.ref_invoice_id === inv.id);
+    const cur = _cur(inv.workshop_snapshot && inv.workshop_snapshot.currency), lines = inv.lines || [], ch = inv.charges || [];
+    const rowIn = 'width:80px;padding:5px 7px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)';
+    openModal({
+      title: `Credit note · against ${inv.number}`, saveLabel: 'Issue credit note', wide: true,
+      body: `<div style="font-size:13px;color:var(--dim);line-height:1.55;margin-bottom:12px">A credit note reduces what the customer owes (or is refunded) for an invoice already issued. Tick what is being credited. The original invoice stays unchanged.</div>
+        ${lines.map((l, i) => `<label style="display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--brd);border-radius:8px;margin-bottom:6px"><input type="checkbox" class="cn-l" data-i="${i}"><span style="flex:1">${esc(l.name)} <span style="color:var(--faint)">· ${cur}${Number(l.unit_price || 0).toLocaleString('en-IN')} each</span></span> qty <input type="number" min="1" max="${Math.max(1, Number(l.qty || 1))}" value="${Math.max(1, Number(l.qty || 1))}" class="cn-q" data-i="${i}" style="${rowIn}"> <span style="color:var(--faint)">of ${Math.max(1, Number(l.qty || 1))}</span></label>`).join('')}
+        ${ch.map((c, i) => `<label style="display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--brd);border-radius:8px;margin-bottom:6px"><input type="checkbox" class="cn-c" data-i="${i}"><span style="flex:1">${esc(c.name)} <span style="color:var(--faint)">(labour / service)</span></span> amount <input type="number" min="0" max="${Number(c.amount || 0)}" step="0.01" value="${Number(c.amount || 0)}" class="cn-a" data-i="${i}" style="${rowIn}"></label>`).join('')}
+        <div class="f-row r1" style="margin-top:10px"><div class="f-grp"><label>Reason <span class="req">*</span></label><select id="cn-why">${ONE_YEAR.map(x => `<option>${esc(x)}</option>`).join('')}</select></div></div>
+        <div class="f-row r1"><div class="f-grp"><label>Details</label><input id="cn-note" type="text" maxlength="200" placeholder="e.g. brake pads returned unused"></div></div>
+        ${prev.length ? `<div style="margin-top:10px;font-size:12.5px;color:var(--dim)">Already issued against this invoice: ${prev.map(c => `<a href="#" onclick="creditNoteView('${esc(c.id)}');return false" style="color:var(--acc2)">${esc(c.number)}</a>`).join(', ')}</div>` : ''}
+        <div class="f-err" id="cn-err"></div>`,
+      onSave: () => makeCN(inv)
+    });
+  };
+  async function makeCN(inv) {
+    const err = document.getElementById('cn-err'), q = (cls, i) => Number(document.querySelector(`.${cls}[data-i="${i}"]`).value);
+    const lines = [], charges = [];
+    document.querySelectorAll('.cn-l:checked').forEach(c => { const i = Number(c.dataset.i), l = inv.lines[i], qty = Math.max(1, Math.min(Number(l.qty || 1), q('cn-q', i))); lines.push(Object.assign({}, l, { qty, approval: 'approved' })); });
+    document.querySelectorAll('.cn-c:checked').forEach(c => { const i = Number(c.dataset.i), ch = inv.charges[i], amount = Math.max(0, Math.min(Number(ch.amount || 0), q('cn-a', i))); charges.push(Object.assign({}, ch, { amount, approval: 'approved' })); });
+    if (!lines.length && !charges.length) { err.textContent = 'Tick at least one item to credit.'; throw new Error('nothing selected'); }
+    const note = (document.getElementById('cn-note').value || '').trim(), why = document.getElementById('cn-why').value;
+    await load();
+    const cn = { id: uid('cn'), doc_type: 'credit_note', number: nextNo(), issue_date: todayStr(), ref_invoice_id: inv.id, ref_invoice_no: inv.number, ref_invoice_date: inv.issue_date || String(inv.created_at || '').slice(0, 10),
+      reason: why + (note ? ' — ' + note : ''), customer: JSON.parse(JSON.stringify(inv.customer || {})), vehicle: inv.vehicle || {}, lines, charges, tax_pct: _invTaxPct(inv), payment_status: 'Credit', status: 'Issued', is_estimate: false,
+      workshop_snapshot: inv.workshop_snapshot || _workshopSnapshot(), created_at: nowStr(), created_by: currentWorker?.name || '' };
+    D.credit_notes.push(cn); D.settings.next_cn = Number((D.settings || {}).next_cn || 1) + 1;
+    await Promise.all([wsSave('credit_notes', D.credit_notes), wsSaveSettings()]);
+    audit('credit-note', `${cn.number} against ${inv.number} · ${inv.customer?.name || '—'}`, { invoice_id: inv.id });
+    closeModal(); showToast(`${cn.number} issued`, 'good'); creditNoteView(cn.id);
+  }
+  window.creditNoteView = async function (id) {
+    const cn = (await load()).find(x => x.id === id); if (!cn) return showToast('Credit note not found', 'bad');
+    const w = window.open('', '_blank'); if (!w) return showToast('Allow pop-ups to view the credit note', 'bad');
+    _openDocInWindow(w, _invoiceHTMLFromRecord(cn, { banner: true }));
+  };
+
+  // credit-note layout = the invoice layout with the document words changed (done on the rendered page)
+  const _prev = window._invoiceHTMLFromRecord;
+  window._invoiceHTMLFromRecord = function (inv, opts) {
+    const html = _prev.apply(this, arguments);
+    if (!inv || inv.doc_type !== 'credit_note') return html;
+    try {
+      const AE = ctry().code === 'AE' && (inv.workshop_snapshot || {}).country === 'AE' || (inv.workshop_snapshot || {}).country === 'AE';
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const title = doc.querySelector('.ti-title'); if (title) title.textContent = AE ? 'Tax Credit Note' : (/^Invoice/.test(title.textContent) ? 'Credit Note' : 'Credit Note');
+      doc.querySelectorAll('.lbl').forEach(e => { if (/^Invoice No/.test(e.textContent)) e.textContent = 'Credit Note No:'; });
+      doc.querySelectorAll('.bank-section, .pay-status, .certify, .photos, .no-print').forEach(e => { if (!e.classList.contains('no-print') || !/Check before/.test(e.textContent)) e.remove(); });
+      doc.querySelectorAll('.row').forEach(e => { if (/^(Balance|Amount Paid|Balance due|Total Payable)/.test(e.textContent.trim()) && /Balance|Amount Paid/.test(e.textContent)) e.remove(); });
+      const blk = doc.createElement('div');
+      blk.setAttribute('style', 'margin:12px 0;padding:10px 12px;border:1px solid #bbb;border-radius:4px;font:13px/1.55 Arial,sans-serif');
+      blk.innerHTML = `<b>Against ${AE ? 'tax ' : ''}invoice no.</b> ${esc(inv.ref_invoice_no)} dated ${esc(inv.ref_invoice_date)}<br><b>Reason:</b> ${esc(inv.reason)}<br><span style="color:#555">The amounts below are credited to the customer.</span>`;
+      const blocks = doc.querySelector('.blocks'); if (blocks && blocks.parentNode) blocks.parentNode.insertBefore(blk, blocks.nextSibling);
+      return '<!doctype html>' + doc.documentElement.outerHTML;
+    } catch (e) { console.warn('[credit note layout]', e); return html; }
+  };
 })();
 </script>
 
