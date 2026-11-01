@@ -2406,8 +2406,10 @@ async function _provisionStaffLogin(username, password) {
   }
   const staffUid = cred.user.uid;
   try {
-    // Pointer on the staff account's own doc — a client-side hint only.
-    await fbDb.collection('users').doc(staffUid).set({
+    // Pointer on the staff account's own doc — a client-side hint only. Written AS the staff account (the
+    // secondary session that was just created): the rules only let an account write its own users/{uid} doc,
+    // so doing this from the owner's session is what produced "Missing or insufficient permissions".
+    await _secondaryApp.firestore().collection('users').doc(staffUid).set({
       is_staff_login: true,
       staff_of:       wsId,
       staff_username: username,
@@ -22688,5 +22690,6 @@ async function renderWorkload(force = false) {
 })();
 </script>
 
+<script src="../gp-busy.js"></script>
 </body>
 </html>
