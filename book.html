@@ -113,6 +113,8 @@ if (/^#?[0-9a-fA-F]{6}$/.test(QS.get('accent') || '')) { const a = '#' + QS.get(
 if (EMBED && QS.get('theme')) document.body.style.background = 'transparent';
 function postHeight() { try { if (window.parent !== window) parent.postMessage({ type: 'gp-book-height', height: document.documentElement.scrollHeight }, '*'); } catch (e) {} }
 new ResizeObserver(postHeight).observe(document.documentElement);
+const RELAY = 'https://email-relay-gilt.vercel.app/api/otp';
+let VK = { key: '', email: '', known: null };      // email-verification state (only used when the workshop requires it)
 let W = null, SLUG = '', holds = {}, sel = { service: '', date: '', time: '' }, loadedAt = Date.now();
 
 // ───── time helpers (all calculated in the WORKSHOP's timezone) ─────
@@ -281,7 +283,41 @@ async function lookupPlate() {
 function applyF() { document.querySelectorAll('#app input[id],#app select[id],#app textarea[id]').forEach(el => { if (el.id !== 'fHp' && F[el.id] !== undefined) el.value = F[el.id]; }); }
 
 // ───── render ─────
+// ───── email verification (workshop setting) ─────
+async function otp(body) {
+  const r = await fetch(RELAY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ slug: SLUG }, body)) });
+  const d = await r.json().catch(() => null); if (!d || !d.ok) throw new Error((d && d.error) || 'Could not reach the verification service. Please try again.'); return d;
+}
+function renderGate(stage, email, msg) {
+  $('app').innerHTML = `
+    <h1>${esc(W.name || 'Book a service')}</h1>
+    <p class="sub">First, confirm your email address. We'll send you a 6-digit code — it stops fake bookings and lets us fill in your details if you've visited before.</p>
+    <div class="step">
+      <label>Email</label><input id="gEmail" type="email" autocomplete="email" placeholder="you@example.com" value="${esc(email || '')}" ${stage === 'code' ? 'readonly' : ''}>
+      ${stage === 'code' ? `<label>6-digit code from your email</label><input id="gCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456" style="letter-spacing:6px;font-size:20px">` : ''}
+      <div class="err" id="gErr">${esc(msg || '')}</div>
+      <button class="btn" id="gGo" type="button">${stage === 'code' ? 'Confirm' : 'Send me a code'}</button>
+      ${stage === 'code' ? `<p class="sub" style="font-size:12.5px;margin-top:10px;text-align:center">Nothing there? Check spam, or <a href="#" id="gAgain">send a new code</a> · <a href="#" id="gChange">use a different email</a></p>` : ''}
+    </div>`;
+  const go = $('gGo'), err = $('gErr');
+  go.onclick = async () => {
+    err.textContent = ''; go.disabled = true;
+    try {
+      const em = ($('gEmail').value || '').trim().toLowerCase();
+      if (!/^\S+@\S+\.\S+$/.test(em)) throw new Error('Please enter a valid email address.');
+      if (stage !== 'code') { await otp({ action: 'send', email: em }); return renderGate('code', em); }
+      const d = await otp({ action: 'verify', email: em, code: ($('gCode').value || '').trim() });
+      VK = { key: d.vkey, email: em, known: d.known || null };
+      F.fEmail = em;
+      if (VK.known) { if (VK.known.name && !F.fName) F.fName = VK.known.name; if (VK.known.phone && !F.fPhone) F.fPhone = VK.known.phone; }
+      render();
+    } catch (e) { err.textContent = e.message || String(e); go.disabled = false; }
+  };
+  const again = $('gAgain'); if (again) again.onclick = async ev => { ev.preventDefault(); try { await otp({ action: 'send', email: email }); renderGate('code', email, 'A new code is on its way.'); } catch (e) { $('gErr').textContent = e.message; } };
+  const chg = $('gChange'); if (chg) chg.onclick = ev => { ev.preventDefault(); renderGate('email', ''); };
+}
 function render() {
+  if (W.verify && !VK.key) return renderGate('email', F.fEmail || '');
   const services = (W.services || []).map(s => typeof s === 'string' ? s : s.name).filter(Boolean);
   const days = openDays();
   if (!sel.date) { const f = days.find(d => d.ok); if (f) sel.date = f.date; }
@@ -337,6 +373,21 @@ function render() {
   ['vMake', 'vModel', 'vYear'].forEach(id => $(id) && ($(id).onchange = onVeh));
   $('vColour').onchange = e => { F.vColour = e.target.value; syncVehicleUI(); };
   applyF(); syncVehicleUI(); if (F.fPlate) lookupPlate();
+  if (VK.key) {
+    const em = $('fEmail'); if (em) { em.value = VK.email; em.readOnly = true; }
+    const cars = (VK.known && VK.known.vehicles) || [];
+    if (cars.length && !F.fPlate && $('fPlate')) {
+      const box = $('vFound'); box.style.display = 'block';
+      box.innerHTML = `✓ Welcome back${VK.known.name ? ', ' + esc(VK.known.name.split(' ')[0]) : ''}. Is it one of these?<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${cars.map((c, i) => `<button type="button" class="chip" data-car="${i}">${esc(c.plate)}${c.model ? ' · ' + esc(c.model) : ''}</button>`).join('')}</div>`;
+      box.querySelectorAll('[data-car]').forEach(b => b.onclick = () => {
+        const c = cars[+b.dataset.car]; F.fPlate = c.plate; $('fPlate').value = c.plate;
+        const setPick = (id, val, list) => { if (!val) return; if (list && list.includes(val)) F[id] = val; else { F[id] = OTHER; F[id + 'O'] = val; } };
+        setPick('vMake', c.make, makeOpts()); syncVehicleUI(); setPick('vModel', c.model, modelOpts()); syncVehicleUI();
+        setPick('vYear', c.year, yearOpts()); setPick('vColour', c.colour, COLOURS); if (c.fuel && FUELS.includes(c.fuel)) F.vFuel = c.fuel;
+        syncVehicleUI(); applyF(); box.innerHTML = '✓ Filled in from your last visit — please check it.';
+      });
+    }
+  }
 }
 function keepForm() { render(); }      // all typed values live in F, so a re-render keeps them
 
@@ -363,6 +414,7 @@ async function submit() {
   if (name.length < 2) return err.textContent = 'Please enter your name.';
   if (phone.replace(/\D/g, '').length < (W.country === 'AE' ? 9 : 10)) return err.textContent = 'Please enter a valid mobile number.';
   if (!/^\S+@\S+\.\S+$/.test(email)) return err.textContent = 'Please enter a valid email address.';
+  if (W.verify && (!VK.key || VK.email !== email.toLowerCase())) { VK = { key: '', email: '', known: null }; return render(); }
   const btn = $('go'); btn.disabled = true; btn.textContent = 'Sending…';
   try {
     // make sure the slot hasn't just filled up
@@ -373,7 +425,7 @@ async function submit() {
     const batch = db.batch();
     batch.set(ref, { slug: SLUG, name, phone, email, lang, plate, make: make.slice(0, 40), model: model.slice(0, 50), year, colour: colour.slice(0, 30), fuel, vin,
       vehicle: [year, make, model].filter(Boolean).join(' ').slice(0, 100), service: sel.service.slice(0, 100),
-      date: sel.date, time: sel.time, notes: v('fNotes').slice(0, 500), status: 'pending', created_at: new Date().toISOString() });
+      date: sel.date, time: sel.time, notes: v('fNotes').slice(0, 500), status: 'pending', created_at: new Date().toISOString(), ...(W.verify ? { vkey: VK.key } : {}) });
     batch.set(db.collection('users').doc(W.uid).collection('slot_holds').doc(ref.id), { slug: SLUG, date: sel.date, time: sel.time, created_at: new Date().toISOString() });
     await batch.commit();
     try { const keep = {}; ['fName', 'fPhone', 'fEmail', 'fLang', 'fPlate', 'vMake', 'vMakeO', 'vModel', 'vModelO', 'vYear', 'vYearO', 'vColour', 'vColourO', 'vFuel', 'vVin'].forEach(k => { if (F[k]) keep[k] = F[k]; }); localStorage.setItem('gp_book_me', JSON.stringify(keep)); } catch (e) {}
