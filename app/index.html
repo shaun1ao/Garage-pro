@@ -18746,6 +18746,9 @@ window.sendCustomerNotification = sendCustomerNotification;
 // Vercel relay that actually calls Resend (the API key lives server-side —
 // see email-relay/README.md). Fill in EMAIL_RELAY_URL once that's deployed.
 const EMAIL_RELAY_URL = 'https://email-relay-gilt.vercel.app/api/send';
+// Optional second address for the SAME relay (e.g. https://mail.garagepro.me/api/send once that domain points at it). Used only if the first can't be reached
+// from this device — some networks block or intercept *.vercel.app. Leave '' until you have set one up.
+const EMAIL_RELAY_FALLBACK_URL = '';
 const EMAIL_RELAY_KEY  = '2b8151bd6fd5180c23109bc2dd115fe44f1ca29d104e741f';
 
 async function _smtpSend({ to, subject, html, fromName, logo }) {
@@ -18782,7 +18785,7 @@ async function _smtpSend({ to, subject, html, fromName, logo }) {
   // not the platform's do-not-reply inbox.
   let resp;
   try {
-    resp = await _postOnce(EMAIL_RELAY_URL, {
+    const init = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-relay-key': EMAIL_RELAY_KEY },
       body: JSON.stringify({
@@ -18791,7 +18794,9 @@ async function _smtpSend({ to, subject, html, fromName, logo }) {
         replyTo,
         logo: logoData                   // data URL → inline image (cid:gp_logo)
       })
-    });
+    };
+    try { resp = await _postOnce(EMAIL_RELAY_URL, init); }
+    catch (e1) { if (!EMAIL_RELAY_FALLBACK_URL) throw e1; resp = await _postOnce(EMAIL_RELAY_FALLBACK_URL, init); }
   } catch (e) {
     throw new Error('Couldn\'t reach the email relay: ' + (e?.message || e));
   }
@@ -20308,7 +20313,7 @@ async function renderWorkload(force = false) {
   const esc = s => escapeHtml(String(s == null ? '' : s));
   const tzNow = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
   const defaults = () => ({
-    enabled: false, slug: '', welcome: '', brandColor: '', services: [], slotMins: 30, capacity: 2, minNoticeH: 2, maxDays: 30, autoAccept: false,
+    enabled: false, slug: '', welcome: '', brandColor: '', services: [], slotMins: 30, capacity: 2, minNoticeH: 2, maxDays: 30, autoAccept: false, verify: false,
     hours: { mon:{open:true,from:'09:00',to:'18:00'}, tue:{open:true,from:'09:00',to:'18:00'}, wed:{open:true,from:'09:00',to:'18:00'},
              thu:{open:true,from:'09:00',to:'18:00'}, fri:{open:true,from:'09:00',to:'18:00'}, sat:{open:true,from:'09:00',to:'18:00'}, sun:{open:false,from:'09:00',to:'13:00'} },
     breaks: [{ from: '13:00', to: '14:00' }], blocks: [], tz: tzNow()
@@ -20371,7 +20376,7 @@ async function renderWorkload(force = false) {
         uid: wsUid(), enabled: !!c.enabled, slug: c.slug, name: s.workshop_name || userProfile?.workshop_name || '',
         city: s.city || '', country: ctry().code, address: (s.address || '').split('\n')[0].slice(0, 120), phone: s.phone || '', welcome: (c.welcome || '').slice(0, 300),
         services: (c.services || []).slice(0, 40), hours: c.hours, breaks: c.breaks || [], blocks: (c.blocks || []).filter(b => b.date >= today).slice(0, 120),
-        slotMins: +c.slotMins || 30, capacity: +c.capacity || 1, minNoticeH: +c.minNoticeH >= 0 ? +c.minNoticeH : 2, maxDays: +c.maxDays || 30,
+        verify: !!c.verify, slotMins: +c.slotMins || 30, capacity: +c.capacity || 1, minNoticeH: +c.minNoticeH >= 0 ? +c.minNoticeH : 2, maxDays: +c.maxDays || 30,
         tz: c.tz || tzNow(), busy: busyMap(c), brand: await window.obBrand(), vehicles: compactVehicleDB(), updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       await fbDb.collection('public_booking').doc(c.slug).set(doc);
@@ -20446,6 +20451,7 @@ async function renderWorkload(force = false) {
       <div class="f-row r3">
         <div class="f-grp"><label>How far ahead (days)</label><input type="number" id="ob-days" min="1" max="90" value="${+c.maxDays || 30}"></div>
         <div class="f-grp" style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;margin-top:22px"><input type="checkbox" id="ob-auto" ${c.autoAccept ? 'checked' : ''} style="width:16px;height:16px"> Auto-accept requests that fit a free slot <span style="color:var(--faint);font-weight:500">(while the app is open)</span></label></div>
+        <div class="f-grp" style="grid-column:span 2"><label style="display:flex;align-items:flex-start;gap:8px"><input type="checkbox" id="ob-verify" ${c.verify ? 'checked' : ''} style="width:16px;height:16px;margin-top:2px"> <span>Verify the customer's email with a one-time code before a booking is accepted <span style="color:var(--faint);font-weight:500;display:block;font-size:12px;margin-top:2px">Stops fake and spam bookings, and fills in details for returning customers. The code is emailed (SMS costs money per message, so it is not used). Requires the latest email relay to be deployed.</span></span></label></div>
       </div>
 
       <div style="font-weight:700;margin:14px 0 6px">Blocked dates &amp; times <span style="color:var(--faint);font-weight:500;font-size:12px">— holidays, stock-take, a day off, staff training</span></div>
@@ -20505,7 +20511,7 @@ async function renderWorkload(force = false) {
       enabled, slug, welcome: v('ob-welcome').trim(), tz: prev.tz || tzNow(), brandColor: document.getElementById('ob-brand-default').checked ? '' : v('ob-brand'),
       services: v('ob-services').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 40), hours, breaks: bf ? [{ from: bf, to: bt }] : [],
       slotMins: +v('ob-slot') || 30, capacity: Math.max(1, +v('ob-cap') || 1), minNoticeH: Math.max(0, +v('ob-notice') || 0),
-      maxDays: Math.min(90, Math.max(1, +v('ob-days') || 30)), autoAccept: document.getElementById('ob-auto').checked, blocks: blocksDraft || []
+      maxDays: Math.min(90, Math.max(1, +v('ob-days') || 30)), autoAccept: document.getElementById('ob-auto').checked, verify: document.getElementById('ob-verify').checked, blocks: blocksDraft || []
     });
     msg.style.color = 'var(--faint)'; msg.textContent = 'Saving…';
     try {
@@ -21787,7 +21793,13 @@ async function renderWorkload(force = false) {
   const ago = iso => { const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000); return isNaN(m) ? '' : m < 2 ? 'just now' : m < 90 ? m + ' min ago' : m < 2880 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
   const iso = () => new Date().toISOString();
   const lc = s => String(s || '').toLowerCase().trim();
-  const canUse = () => { try { return on() && !isChainHQMode() && (canApproveParts() || isAdminRole()); } catch (_) { return false; } };
+  // Who sees the tab: the feature must be ON, and the role must be allowed it. A role the owner has explicitly configured in
+  // Settings → Role permissions follows its ticks; a role never configured keeps the original rule (parts dept + owner/manager).
+  const canUse = () => { try {
+    if (!on() || isChainHQMode()) return false;
+    const explicit = !!(((D.settings || {}).role_perms || {})[currentRole()]);
+    return explicit || isOwnerRole() ? _cs('exchange') : (canApproveParts() || isAdminRole());
+  } catch (_) { return false; } };
   const me = () => { const s = D.settings || {}; return { uid: wsUid(), name: s.workshop_name || userProfile?.workshop_name || 'Workshop', city: (s.city || '').trim(), state: (s.state || '').trim(), phone: s.phone || '', email: s.email || '' }; };
   let S = { tab: 'browse', listings: [], wanted: [], mine: [], myWanted: [], recv: [], sent: [], q: '', cat: '', unsub: null, members: null, loaded: false };
 
@@ -21872,11 +21884,18 @@ async function renderWorkload(force = false) {
     let html = `<div style="display:flex;gap:4px;border-bottom:1px solid var(--brd);margin-bottom:14px;flex-wrap:wrap">${tabs.map(([k, l]) => `<button type="button" onclick="exTab('${k}')" style="border:0;background:none;color:${S.tab === k ? 'var(--txt)' : 'var(--dim)'};font-weight:700;padding:9px 14px;cursor:pointer;border-bottom:2px solid ${S.tab === k ? 'var(--acc)' : 'transparent'}">${l}</button>`).join('')}</div>`;
     if (S.err) html += `<div class="placeholder"><p>Couldn't reach the exchange (${esc(S.err.code === 'permission-denied' ? 'deploy the latest firestore.rules' : S.err.message || S.err)}).</p></div>`;
     else if (S.tab === 'browse' || S.tab === 'wanted') {
-      html += `<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><input type="text" placeholder="Search part, make, workshop, city…" value="${esc(S.q)}" oninput="exSearch(this.value)" style="flex:1;min-width:220px;padding:10px 12px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)"></div>`;
+      const cats = [...new Set(S.listings.map(l => l.category).filter(Boolean))].sort(), sel = 'padding:10px 12px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)';
+      html += `<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><input type="text" placeholder="Search part, make, workshop, city…" value="${esc(S.q)}" oninput="exSearch(this.value)" style="flex:1;min-width:220px;${sel}">
+        ${S.tab === 'browse' ? `<select onchange="exFilter('cat',this.value)" style="${sel}"><option value="">All categories</option>${cats.map(c => `<option ${S.cat === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+        <select onchange="exFilter('cond',this.value)" style="${sel}"><option value="">Any condition</option>${['New', 'Used', 'Refurbished'].map(c => `<option ${S.cond === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+        <select onchange="exFilter('sort',this.value)" style="${sel}"><option value="near" ${S.sort !== 'price' && S.sort !== 'new' ? 'selected' : ''}>Nearest first</option><option value="price" ${S.sort === 'price' ? 'selected' : ''}>Lowest price</option><option value="new" ${S.sort === 'new' ? 'selected' : ''}>Newest</option></select>` : ''}</div>`;
       if (S.tab === 'browse') {
-        const list = S.listings.filter(l => l.owner_uid !== uid && (!q || [l.name, l.part_no, l.category, l.fits, l.workshop_name, l.city].some(x => lc(x).includes(q)))).sort((a, b) => near(a) - near(b) || (b.created_at || '').localeCompare(a.created_at || ''));
+        const needs = S.myWanted.filter(w => w.status === 'open'), words = t => lc(t).split(/[^a-z0-9]+/).filter(x => x.length > 3);
+        const isMatch = l => needs.some(w => (w.part_no && lc(w.part_no) === lc(l.part_no)) || (words(w.name).length && words(w.name).filter(x => words(l.name + ' ' + (l.fits || '')).includes(x)).length >= Math.min(2, words(w.name).length)));
+        const list = S.listings.filter(l => l.owner_uid !== uid && (!S.cat || l.category === S.cat) && (!S.cond || l.condition === S.cond) && (!q || [l.name, l.part_no, l.category, l.fits, l.workshop_name, l.city].some(x => lc(x).includes(q)))).map(l => Object.assign({}, l, { __m: isMatch(l) }))
+          .sort((a, b) => (b.__m - a.__m) || (S.sort === 'price' ? (Number(a.price) || 1e12) - (Number(b.price) || 1e12) : S.sort === 'new' ? (b.created_at || '').localeCompare(a.created_at || '') : (near(a) - near(b) || (b.created_at || '').localeCompare(a.created_at || ''))));
         html += list.length ? list.map(l => card(`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div style="min-width:240px;flex:1">
-          <div style="font-weight:800;font-size:15px">${esc(l.name)} ${pill(esc(l.condition || 'New'), l.condition === 'Used' ? 'var(--acc2)' : 'var(--teal)')}${l.status === 'reserved' ? ' ' + pill('Reserved', 'var(--acc2)') : ''}</div>
+          <div style="font-weight:800;font-size:15px">${esc(l.name)} ${l.__m ? pill('★ Matches your need', 'var(--teal)') : ''} ${pill(esc(l.condition || 'New'), l.condition === 'Used' ? 'var(--acc2)' : 'var(--teal)')}${l.status === 'reserved' ? ' ' + pill('Reserved', 'var(--acc2)') : ''}</div>
           <div style="font-size:12.5px;color:var(--faint);margin-top:3px">${esc([l.part_no, l.category].filter(Boolean).join(' · '))}${l.fits ? ' · fits ' + esc(l.fits) : ''}</div>
           ${l.note ? `<div style="font-size:13px;color:var(--dim);margin-top:5px">“${esc(l.note)}”</div>` : ''}
           <div style="font-size:12.5px;margin-top:6px"><b>${esc(l.workshop_name)}</b> · ${esc([l.city, l.state].filter(Boolean).join(', ') || '—')} ${nearLbl(l) ? ' · ' + nearLbl(l) : ''} <span style="color:var(--faint)">· ${ago(l.created_at)}</span></div></div>
@@ -21910,6 +21929,8 @@ async function renderWorkload(force = false) {
     body.innerHTML = html;
   }
   window.exTab = t => { S.tab = t; S.q = ''; draw(); };
+  window.exFilter = (k, v) => { S[k] = v; draw(); };
+  window.ensureExchangeUi = ensureUi;
   window.exSearch = v => { S.q = v; const i = document.activeElement, pos = i && i.selectionStart; draw(); const n = document.querySelector('#exBody input[type=text]'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (_) {} } };
 
   // ───────── list a part / post a need ─────────
@@ -21981,7 +22002,10 @@ async function renderWorkload(force = false) {
     const e = S.recv.find(x => x.id === id); if (!e) return;
     _openSubModal({ title: status === 'accepted' ? 'Accept this request' : 'Decline this request', bodyHtml: `<div style="font-size:13.5px;margin-bottom:10px">${esc(e.from_name)} — ${esc(e.qty)} × ${esc(e.ref_name)}</div><input id="xr-reply" maxlength="200" placeholder="${status === 'accepted' ? 'e.g. Ready at the counter after 3 pm' : 'Optional reason'}" style="${inp}">`,
       footHtml: `<button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button><div style="flex:1"></div><button class="fbtn ${status === 'accepted' ? 'fbtn-save' : 'fbtn-danger'}" id="xr-ok">${status === 'accepted' ? 'Accept' : 'Decline'}</button>` });
-    document.getElementById('xr-ok').onclick = async () => { const reply = (document.getElementById('xr-reply') || {}).value || ''; closeSubModal(); await exSetEnq(id, status, reply.trim()); showToast(status === 'accepted' ? 'Accepted — message them to arrange pickup' : 'Declined', 'good'); };
+    document.getElementById('xr-ok').onclick = async () => { const reply = (document.getElementById('xr-reply') || {}).value || ''; closeSubModal(); await exSetEnq(id, status, reply.trim());
+      if (e.kind === 'listing') { try { await fbDb.collection('exchange_listings').doc(e.ref_id).update({ status: status === 'accepted' ? 'reserved' : 'active', updated_at: iso() }); } catch (_) {} }
+      if (e.from_email) { try { _smtpSend({ to: e.from_email, fromName: me().name, subject: `Parts Exchange: your request was ${status} — ${e.ref_name}`, html: `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6"><p><b>${esc(me().name)}</b> ${status === 'accepted' ? 'accepted' : 'declined'} your request for <b>${esc(e.qty)} × ${esc(e.ref_name)}</b>.</p>${reply.trim() ? `<p>“${esc(reply.trim())}”</p>` : ''}<p>${status === 'accepted' ? 'Phone ' + esc(me().phone) + ' to arrange collection.' : ''} Open Garage Pro → Parts Exchange → Requests for details.</p></div>` }).catch(() => {}); } catch (_) {} }
+      showToast(status === 'accepted' ? 'Accepted — the part is now reserved. Message them to arrange pickup' : 'Declined', 'good'); await render(true); };
   };
   window.exHandOver = async function (id) {
     const e = S.recv.find(x => x.id === id); if (!e) return;
@@ -22970,6 +22994,191 @@ async function renderWorkload(force = false) {
       return '<!doctype html>' + doc.documentElement.outerHTML;
     } catch (e) { console.warn('[credit note layout]', e); return html; }
   };
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  TAB PERMISSIONS for the two optional tabs + BREAKDOWN / TOW REQUESTS
+//  • "Parts Exchange" and "Breakdown / Tow" are real tabs in Settings → Role permissions: tick them per role (or per custom
+//    role such as "Tow driver"). Defaults: Exchange → owner, manager, parts department. Breakdown → owner, manager, service
+//    advisor, floor manager, receptionist. The parts department does NOT get Breakdown.
+//  • A tab only appears when its feature is switched ON in Settings AND the signed-in role is allowed it.
+//  • Breakdown: customers open garagepro.me/help/<name>, send what's wrong + their GPS location; the workshop's allowed staff
+//    see it live, accept it (assigning a driver and ETA), mark on-the-way / arrived / done, and the customer follows along.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  try {
+    ['manager', 'parts_dept'].forEach(r => { if (DEFAULT_ROLE_PERMS[r] && !DEFAULT_ROLE_PERMS[r].includes('exchange')) DEFAULT_ROLE_PERMS[r].push('exchange'); });
+    ['manager', 'service_advisor', 'floor_manager', 'receptionist'].forEach(r => { if (DEFAULT_ROLE_PERMS[r] && !DEFAULT_ROLE_PERMS[r].includes('breakdown')) DEFAULT_ROLE_PERMS[r].push('breakdown'); });
+    if (!ALL_TABS.some(t => t.id === 'exchange')) ALL_TABS.push({ id: 'exchange', label: 'Parts Exchange' });
+    if (!ALL_TABS.some(t => t.id === 'breakdown')) ALL_TABS.push({ id: 'breakdown', label: 'Breakdown / Tow' });
+    TAB_TITLES.exchange = 'Parts Exchange'; TAB_TITLES.breakdown = 'Breakdown / Tow';
+  } catch (e) { console.warn('[tab perms]', e); }
+
+  const cfg = () => Object.assign({ enabled: false, callback_mins: 15, area: '' }, (D.settings && D.settings.breakdown) || {});
+  const on = () => !!cfg().enabled;
+  const slugOf = () => { const ob = (D.settings || {}).online_booking || {}; return ob.slug || (D.settings || {}).breakdown_slug || _wsSlug((D.settings || {}).workshop_name || ''); };
+  const link = () => `https://garagepro.me/help/${slugOf()}`;
+  const baseCanSee = window.canSee;
+  const canUse = () => { try { return on() && !isChainHQMode() && baseCanSee('breakdown'); } catch (_) { return false; } };
+  window.canSee = function (t) { return t === 'breakdown' ? canUse() : baseCanSee.apply(this, arguments); };
+
+  let S = { reqs: [], unsub: null, loaded: false, filter: 'active', beepOk: true };
+  const NEXT = { new: 'accepted', accepted: 'on_the_way', on_the_way: 'arrived', arrived: 'done' };
+  const LBL = { new: 'New', accepted: 'Accepted', on_the_way: 'On the way', arrived: 'Arrived', done: 'Done', cancelled: 'Cancelled', declined: 'Declined' };
+  const TINT = { new: 'var(--red)', accepted: 'var(--acc2)', on_the_way: 'var(--blue,#639fff)', arrived: 'var(--teal)', done: 'var(--faint)', cancelled: 'var(--faint)', declined: 'var(--faint)' };
+
+  function beep() { try { const c = new (window.AudioContext || window.webkitAudioContext)(), o = c.createOscillator(), g = c.createGain(); o.connect(g); g.connect(c.destination); o.frequency.value = 880; g.gain.value = .15; o.start(); setTimeout(() => { o.stop(); c.close(); }, 350); } catch (_) {} }
+
+  // ───────── nav + panel ─────────
+  function ensureUi() {
+    const nav = document.querySelector('.snav[data-tab="breakdown"]'), panel = document.getElementById('tab-breakdown');
+    if (!canUse()) { if (nav) nav.remove(); if (panel) panel.remove(); stop(); return; }
+    if (!nav) {
+      const after = document.querySelector('.snav[data-tab="queue"]') || document.querySelector('.snav[data-tab="jobs"]');
+      if (after) {
+        const b = document.createElement('button'); b.className = 'snav'; b.dataset.tab = 'breakdown'; b.onclick = () => switchTab('breakdown');
+        b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Breakdown / Tow<span id="bdBadge" style="margin-left:auto;display:none;min-width:18px;height:18px;padding:0 6px;border-radius:100px;background:var(--red);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center"></span>`;
+        after.after(b);
+      }
+    }
+    if (!panel) { const host = document.getElementById('tab-workload') && document.getElementById('tab-workload').parentNode; if (host) { const d = document.createElement('div'); d.className = 'tab-panel'; d.id = 'tab-breakdown'; host.appendChild(d); } }
+    start();
+  }
+  const _rsv = window.renderSidebarVisibility;
+  if (typeof _rsv === 'function') window.renderSidebarVisibility = function () { try { ensureUi(); } catch (_) {} const r = _rsv.apply(this, arguments); try { if (typeof ensureExchangeUi === 'function') ensureExchangeUi(); } catch (_) {} return r; };
+  const _st = window.switchTab;
+  if (typeof _st === 'function') window.switchTab = function (tab) { const r = _st.apply(this, arguments); if (tab === 'breakdown') draw(); return r; };
+
+  // ───────── live data ─────────
+  function start() {
+    if (S.unsub || !currentWorker) return;
+    try {
+      S.unsub = wsCol('breakdown_requests').onSnapshot(snap => {
+        const before = new Set(S.reqs.map(r => r.id));
+        S.reqs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const fresh = S.reqs.filter(r => r.status === 'new' && !before.has(r.id));
+        if (S.loaded && fresh.length) { fresh.forEach(r => showToast(`🚨 Breakdown request — ${r.name}: ${r.issue}`, 'bad')); if (S.beepOk) beep(); }
+        S.loaded = true; badge(); if (currentTab === 'breakdown') draw();
+      }, e => console.warn('[breakdown listener]', e.code || e));
+    } catch (e) { console.warn('[breakdown listener]', e); }
+  }
+  function stop() { if (S.unsub) { try { S.unsub(); } catch (_) {} S.unsub = null; S.loaded = false; } }
+  function badge() { const n = S.reqs.filter(r => r.status === 'new').length, b = document.getElementById('bdBadge'); if (b) { b.textContent = n; b.style.display = n ? 'inline-flex' : 'none'; } }
+  const ago = iso => { const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000); return isNaN(m) ? '' : m < 1 ? 'just now' : m < 90 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
+  setInterval(() => { if (currentTab === 'breakdown' && !document.hidden) draw(); }, 30000);
+
+  // ───────── the tab ─────────
+  function draw() {
+    const p = document.getElementById('tab-breakdown'); if (!p) return;
+    const cb = Number(cfg().callback_mins) || 15, act = ['new', 'accepted', 'on_the_way', 'arrived'], list = S.reqs.filter(r => S.filter === 'active' ? act.includes(r.status) : !act.includes(r.status)).sort((a, b) => S.filter === 'active' ? String(a.created_at).localeCompare(String(b.created_at)) : String(b.created_at).localeCompare(String(a.created_at))).slice(0, 60);
+    const nNew = S.reqs.filter(r => r.status === 'new').length, nAct = S.reqs.filter(r => act.includes(r.status)).length;
+    p.innerHTML = `<div class="page-head"><div><h2>Breakdown / Tow</h2><div class="dash-meta"><span class="live-dot"></span><span>${nNew} new · ${nAct} active · customers are promised a call within ${cb} min</span></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="refresh-btn" type="button" onclick="bdCopyLink()">Copy request link</button></div></div>
+      <div style="display:flex;gap:4px;border-bottom:1px solid var(--brd);margin-bottom:14px">${[['active', 'Active (' + nAct + ')'], ['closed', 'Closed']].map(([k, l]) => `<button type="button" onclick="bdFilter('${k}')" style="border:0;background:none;color:${S.filter === k ? 'var(--txt)' : 'var(--dim)'};font-weight:700;padding:9px 14px;cursor:pointer;border-bottom:2px solid ${S.filter === k ? 'var(--acc)' : 'transparent'}">${l}</button>`).join('')}</div>
+      ${list.length ? list.map(card).join('') : `<div class="placeholder"><h3>${S.filter === 'active' ? 'No active requests' : 'Nothing closed yet'}</h3><p>${S.filter === 'active' ? 'When a customer sends a breakdown request it appears here instantly, with a sound. Share your request link: <b>' + esc(link()) + '</b>' : 'Completed and cancelled requests are listed here.'}</p></div>`}`;
+  }
+  function card(r) {
+    const age = Math.round((Date.now() - new Date(r.created_at).getTime()) / 60000), cb = Number(cfg().callback_mins) || 15;
+    const due = r.status === 'new' && !r.called_at, late = due && age > cb;
+    const map = (r.lat != null && r.lon != null) ? `https://www.google.com/maps?q=${r.lat},${r.lon}` : (r.place ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.place)}` : '');
+    const nav = (r.lat != null && r.lon != null) ? `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}` : '';
+    const wa = `https://wa.me/${_waDigits(r.phone)}?text=${encodeURIComponent(`Hi ${r.name.split(' ')[0]}, this is ${(D.settings || {}).workshop_name || 'the workshop'} about your breakdown request.`)}`;
+    const open = ['new', 'accepted', 'on_the_way', 'arrived'].includes(r.status), nx = NEXT[r.status];
+    return `<div class="card" style="padding:14px 16px;margin-bottom:10px;border-left:4px solid ${TINT[r.status] || 'var(--brd)'}">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div style="min-width:240px;flex:1"><div style="font-weight:800;font-size:15.5px">${esc(r.issue)} <span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:100px;background:var(--bg2);color:${TINT[r.status]}">${LBL[r.status] || r.status}</span></div>
+          <div style="font-size:13.5px;margin-top:4px"><b>${esc(r.name)}</b> · <a href="tel:${esc(r.phone)}" style="color:var(--acc2)">${esc(r.phone)}</a>${r.plate ? ` · <span class="plate">${esc(r.plate)}</span>` : ''}${r.vehicle ? ' · ' + esc(r.vehicle) : ''}</div>
+          ${r.place ? `<div style="font-size:12.5px;color:var(--dim);margin-top:3px">📍 ${esc(r.place)}</div>` : ''}
+          ${r.lat != null ? `<div style="font-size:12px;color:var(--faint);margin-top:2px">GPS ${esc(r.lat)}, ${esc(r.lon)}${r.acc ? ' (± ' + esc(r.acc) + ' m)' : ''}</div>` : '<div style="font-size:12px;color:var(--red);margin-top:2px">No GPS — use the address and call them</div>'}
+          ${r.notes ? `<div style="font-size:12.5px;color:var(--dim);margin-top:3px">“${esc(r.notes)}”</div>` : ''}
+          ${r.driver ? `<div style="font-size:12.5px;margin-top:4px">🚚 <b>${esc(r.driver)}</b>${r.eta_min ? ' · ETA ' + esc(r.eta_min) + ' min' : ''}${r.accepted_at ? ' · accepted ' + ago(r.accepted_at) : ''}</div>` : ''}
+          ${r.reply ? `<div style="font-size:12px;color:var(--faint);margin-top:2px">Message sent to customer: “${esc(r.reply)}”</div>` : ''}
+          <div style="font-size:12px;margin-top:5px;color:${late ? 'var(--red)' : 'var(--faint)'};font-weight:${late ? 700 : 500}">${ago(r.created_at)}${due ? (late ? ` · ⚠ call-back promise (${cb} min) missed` : ` · call back within ${Math.max(0, cb - age)} min`) : ''}${r.called_at ? ' · ✓ called ' + ago(r.called_at) : ''}</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch;min-width:150px">
+          ${map ? `<a class="mini-btn" style="text-decoration:none;justify-content:center" target="_blank" rel="noopener" href="${esc(map)}">🗺 Open map</a>` : ''}
+          ${nav ? `<a class="mini-btn" style="text-decoration:none;justify-content:center" target="_blank" rel="noopener" href="${esc(nav)}">🧭 Navigate</a>` : ''}
+          <a class="mini-btn" style="text-decoration:none;justify-content:center" target="_blank" rel="noopener" href="${esc(wa)}">💬 WhatsApp</a>
+          ${open && !r.called_at ? `<button type="button" class="mini-btn" onclick="bdCalled('${esc(r.id)}')">✓ I called them</button>` : ''}
+          ${r.status === 'new' ? `<button type="button" class="add-btn" onclick="bdAccept('${esc(r.id)}')">Accept</button>` : nx ? `<button type="button" class="add-btn" onclick="bdStage('${esc(r.id)}','${nx}')">${nx === 'on_the_way' ? '🚚 On the way' : nx === 'arrived' ? '📍 Arrived' : '✓ Completed'}</button>` : ''}
+          ${open ? `<button type="button" class="mini-btn danger" onclick="bdDecline('${esc(r.id)}')">${r.status === 'new' ? 'Decline' : 'Cancel job'}</button>` : ''}
+        </div></div></div>`;
+  }
+  window.bdFilter = k => { S.filter = k; draw(); };
+  window.bdCopyLink = () => { navigator.clipboard.writeText(link()).then(() => showToast('Breakdown request link copied', 'good')).catch(() => showToast(link(), 'good')); };
+  async function patch(id, data) { try { await wsCol('breakdown_requests').doc(id).update(Object.assign({ updated_at: nowStr() }, data)); } catch (e) { showToast('Could not update: ' + (e.message || e), 'bad'); throw e; } }
+  window.bdCalled = id => patch(id, { called_at: nowStr(), called_by: currentWorker?.name || '' });
+  window.bdStage = async (id, st) => { await patch(id, Object.assign({ status: st }, st === 'on_the_way' ? { started_at: nowStr() } : st === 'arrived' ? { arrived_at: nowStr() } : { done_at: nowStr() })); audit('breakdown-' + st, id.slice(0, 6), {}); };
+  window.bdAccept = function (id) {
+    const r = S.reqs.find(x => x.id === id); if (!r) return;
+    const crew = (D.mechanics || []).filter(m => m.active !== false && (m.role === 'owner' || (function () { try { return getRolePerms(m.role).includes('breakdown'); } catch (_) { return false; } })()));
+    const me = currentWorker?.id;
+    _openSubModal({ title: `Accept · ${r.name}`, bodyHtml: `
+      <div style="font-size:13px;color:var(--dim);margin-bottom:10px">${esc(r.issue)}${r.place ? ' · ' + esc(r.place) : ''}</div>
+      <label style="font-size:12px;color:var(--dim)">Who is going?</label>
+      <select id="bdDrv" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);margin:4px 0 10px">${(crew.length ? crew : (D.mechanics || [])).map(m => `<option value="${esc(m.id)}" ${m.id === me ? 'selected' : ''}>${esc(m.name)}${m.role ? ' · ' + esc(m.role) : ''}</option>`).join('')}</select>
+      <div style="display:flex;gap:10px"><div style="flex:1"><label style="font-size:12px;color:var(--dim)">Driver's phone <span style="color:var(--faint)">(shown to the customer)</span></label><input id="bdDph" type="tel" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);margin-top:4px"></div>
+      <div style="width:120px"><label style="font-size:12px;color:var(--dim)">ETA (min)</label><input id="bdEta" type="number" min="1" value="25" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);margin-top:4px"></div></div>
+      <label style="font-size:12px;color:var(--dim);display:block;margin-top:10px">Message to the customer <span style="color:var(--faint)">(optional)</span></label><input id="bdMsg" maxlength="160" placeholder="Please stay in the car with hazard lights on" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);margin-top:4px">`,
+      footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button><button class="fbtn fbtn-save" id="bdOk">Accept request</button>` });
+    document.getElementById('bdOk').onclick = async () => {
+      const m = (D.mechanics || []).find(x => x.id === document.getElementById('bdDrv').value) || currentWorker;
+      await patch(id, { status: 'accepted', driver: m ? m.name : '', driver_id: m ? m.id : '', driver_phone: document.getElementById('bdDph').value.trim(), eta_min: Number(document.getElementById('bdEta').value) || '', reply: document.getElementById('bdMsg').value.trim(), accepted_at: nowStr(), accepted_by: currentWorker?.name || '' });
+      closeSubModal(); showToast('Accepted — the customer can see it now', 'good'); audit('breakdown-accept', `${r.name} · ${r.issue}`, {});
+    };
+  };
+  window.bdDecline = async function (id) {
+    const r = S.reqs.find(x => x.id === id); if (!r) return;
+    const why = await customPrompt(r.status === 'new' ? 'Decline this request? Add a short reason for the customer (optional).' : 'Cancel this job? Add a short reason for the customer (optional).', { title: r.status === 'new' ? 'Decline request' : 'Cancel job', placeholder: 'e.g. Outside our service area — please call a local recovery service' });
+    if (why === null || why === undefined) return;
+    await patch(id, { status: r.status === 'new' ? 'declined' : 'cancelled', reply: String(why || '').slice(0, 160), closed_at: nowStr() });
+    showToast('Closed', 'good');
+  };
+
+  // ───────── Settings card ─────────
+  async function publish() {
+    const c = cfg(), s = D.settings || {}, slug = slugOf(); if (!slug) throw new Error('Set your workshop name first');
+    const brand = (window.obBrand ? await obBrand() : {});
+    await fbDb.collection('public_help').doc(slug).set({ uid: wsUid(), slug, enabled: !!c.enabled, name: s.workshop_name || userProfile?.workshop_name || '', phone: s.phone || '', callback_mins: Number(c.callback_mins) || 15, area: String(c.area || '').slice(0, 160), country: ctry().code, brand, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    return slug;
+  }
+  window.bdSave = async function () {
+    const g = id => document.getElementById(id);
+    const next = { enabled: g('bdOn').checked, callback_mins: Math.max(5, Math.min(120, Number(g('bdMins').value) || 15)), area: (g('bdArea').value || '').trim().slice(0, 160) };
+    const was = on();
+    D.settings = D.settings || {}; D.settings.breakdown = next; if (!(D.settings.online_booking || {}).slug) D.settings.breakdown_slug = slugOf();
+    try { await publish(); await wsSaveSettings(); }
+    catch (e) { D.settings.breakdown = Object.assign(cfg(), { enabled: was }); return showToast(e && e.code === 'permission-denied' ? 'Publish the latest firestore.rules first, then try again' : 'Could not save: ' + (e.message || e), 'bad'); }
+    ensureUi(); try { renderSidebarVisibility(); } catch (_) {}
+    if (!next.enabled && currentTab === 'breakdown') switchTab('dashboard');
+    showToast(next.enabled ? 'Breakdown requests are ON — look for the tab in the sidebar' : 'Breakdown requests are OFF', 'good'); renderSettings(true);
+  };
+  const _rs = window.renderSettings;
+  if (typeof _rs === 'function') window.renderSettings = async function () {
+    const r = await _rs.apply(this, arguments);
+    try {
+      const body = document.getElementById('settingsBody'); if (!body || !isAdminRole() || isChainHQMode()) return r;
+      let host = document.getElementById('bdCardHost');
+      if (!host) { host = document.createElement('div'); host.id = 'bdCardHost'; const grid = body.firstElementChild; if (!grid) return r; const after = document.getElementById('exCardHost') || document.getElementById('langCardHost') || document.getElementById('obCardHost'); grid.insertBefore(host, after ? after.nextSibling : (grid.children[2] || null)); }
+      const c = cfg();
+      host.innerHTML = `<div class="card" style="padding:18px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div style="max-width:640px"><h3 style="margin:0 0 6px">Breakdown / tow requests</h3><div style="color:var(--faint);font-size:13px;line-height:1.55">For workshops that send out a tow or recovery truck. A customer opens your link, says what's wrong and shares their GPS location; your allowed staff see it instantly, accept it and assign a driver, and the customer follows the status. <b>Off by default.</b> When off, the tab is hidden and the link shows "not taking requests".</div></div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:700;cursor:pointer"><input type="checkbox" id="bdOn" ${c.enabled ? 'checked' : ''} style="width:18px;height:18px"> ${c.enabled ? '<span style="color:var(--teal)">ON</span>' : '<span style="color:var(--faint)">OFF</span>'}</label></div>
+        <div class="f-row" style="margin-top:12px"><div class="f-grp"><label>Call-back promise (minutes)</label><input id="bdMins" type="number" min="5" max="120" value="${esc(c.callback_mins)}"></div>
+          <div class="f-grp"><label>Service area note <span style="color:var(--faint);font-weight:500">(shown to customers)</span></label><input id="bdArea" maxlength="160" value="${esc(c.area || '')}" placeholder="We cover Pune and 30 km around"></div></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:4px"><button class="add-btn" type="button" onclick="bdSave()">Save</button>
+          ${c.enabled ? `<span style="font-size:12.5px;color:var(--dim)">Your link: <b>${esc(link())}</b> <button type="button" class="mini-btn" onclick="bdCopyLink()">Copy</button></span>` : ''}</div>
+        <div style="margin-top:10px;font-size:12.5px;color:var(--faint)">Who can see the tab? Tick <b>Breakdown / Tow</b> for a role under <b>Role permissions</b> below — for example a custom role called "Tow driver". The parts department doesn't get it by default.</div></div>`;
+    } catch (e) { console.warn('[breakdown card]', e); }
+    return r;
+  };
+
+  const _ea = window.enterApp;
+  if (typeof _ea === 'function') window.enterApp = function () { const r = _ea.apply(this, arguments); setTimeout(() => { try { ensureUi(); } catch (_) {} }, 2200); return r; };
+  setTimeout(() => { try { if (currentWorker) ensureUi(); } catch (_) {} }, 3000);
+  window.__bdDraw = draw;
 })();
 </script>
 
