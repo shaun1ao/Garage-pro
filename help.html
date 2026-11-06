@@ -6,7 +6,7 @@
 <title>Breakdown help · Garage Pro</title>
 <meta name="robots" content="noindex, nofollow" />
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{--bg:#0a0e14;--bg2:#121722;--surf:#0e1420;--border:#26303f;--text:#e7ecf3;--dim:#9fb0c6;--faint:#69788f;--acc:#ff7a18;--acc2:#ffb347;--teal:#20e3b2;--red:#ff6b6b;--fd:'Sora',sans-serif;--fb:'Inter',sans-serif}
   @media (prefers-color-scheme: light){:root{--bg:#f6f4ef;--bg2:#efece4;--surf:#fff;--border:#e2ddd2;--text:#16130e;--dim:#5b564b;--faint:#8b8576;--teal:#0c8f6c;--red:#d63b3b}}
@@ -39,6 +39,7 @@
   .skeleton{height:120px;border-radius:14px;background:linear-gradient(90deg,var(--bg2),var(--surf),var(--bg2));background-size:200% 100%;animation:sh 1.2s infinite}
   @keyframes sh{to{background-position:-200% 0}}
 </style>
+<link rel="stylesheet" href="ui.css">
 </head>
 <body>
 <div class="top"><a class="brand" href="/"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.1-.6-.6-2.1z"/></svg></span><span class="bname">Garage Pro</span></a></div>
@@ -81,7 +82,7 @@ async function load() {
     form();
   } catch (e) { $('app').innerHTML = `<div class="card">Couldn't load this page. ${esc(e.message || e)}</div>`; }
 }
-function off() { $('app').innerHTML = `<h1>${esc(H.name || 'Breakdown help')}</h1><div class="card"><p class="sub" style="margin:0">This workshop isn't taking online breakdown requests right now.${H.phone ? ' Please call them:' : ''}</p>${H.phone ? `<div class="pills"><a class="pill" href="tel:${esc(H.phone)}">📞 ${esc(H.phone)}</a></div>` : ''}</div>`; }
+function off() { $('app').innerHTML = `<h1>${esc(H.name || 'Breakdown help')}</h1><div class="card"><p class="sub" style="margin:0">This workshop isn't taking online breakdown requests right now.${H.phone ? ' Please call them:' : ''}</p>${H.phone ? `<div class="pills"><a class="pill" href="tel:${esc(H.phone)}">${esc(H.phone)}</a></div>` : ''}</div>`; }
 function form() {
   if (!H.enabled) return off();
   const mins = Number(H.callback_mins) || 15;
@@ -92,7 +93,7 @@ function form() {
       <label>What's happened? *</label>
       <select id="fIssue"><option value="">Choose…</option>${['Won’t start', 'Flat tyre / puncture', 'Battery / electrical', 'Overheating', 'Accident / collision', 'Out of fuel', 'Warning light / strange noise', 'Stuck / need recovery', 'Something else'].map(x => `<option>${x}</option>`).join('')}</select>
       <label>Your name *</label><input id="fName" autocomplete="name">
-      <label>Mobile number we can call *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${H.country === 'AE' ? '50 123 4567' : '98765 43210'}">
+      <label>Mobile number we can call *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${({ AE: '50 123 4567', US: '555 123 4567', PK: '300 1234567' })[H.country] || '98765 43210'}">
       <label>Vehicle number</label><input id="fPlate" style="text-transform:uppercase" autocomplete="off">
       <label>Car (make &amp; model)</label><input id="fCar" placeholder="e.g. Toyota Camry" autocomplete="off">
       <label>Where are you? *</label>
@@ -145,7 +146,7 @@ function track(id) {
       <div class="card"><span class="stat ${st[1]}">${esc(st[0])}</span>
         <div class="big">${r.status === 'new' ? `We'll call you within ${mins} minutes` : r.status === 'accepted' ? `${esc(r.driver || 'A driver')} is assigned${r.eta_min ? ' — about ' + esc(r.eta_min) + ' min away' : ''}` : r.status === 'on_the_way' ? `${esc(r.driver || 'Your driver')} is on the way${r.eta_min ? ' (about ' + esc(r.eta_min) + ' min)' : ''}` : r.status === 'arrived' ? 'Your driver is with you' : r.status === 'done' ? 'All done — we hope you\'re back on the road' : r.status === 'declined' ? 'Sorry — please call the workshop' : 'Request cancelled'}</div>
         <p class="sub" style="margin:0">Keep your phone nearby and stay somewhere safe. ${r.reply ? '<br><b>Message from the workshop:</b> ' + esc(r.reply) : ''}</p>
-        <div class="pills">${H.phone ? `<a class="pill" href="tel:${esc(H.phone)}">📞 Call the workshop</a>` : ''}${r.driver_phone && ['accepted', 'on_the_way', 'arrived'].includes(r.status) ? `<a class="pill" href="tel:${esc(r.driver_phone)}">📞 Call ${esc(r.driver || 'driver')}</a>` : ''}</div>
+        <div class="pills">${H.phone ? `<a class="pill" href="tel:${esc(H.phone)}">Call the workshop</a>` : ''}${r.driver_phone && ['accepted', 'on_the_way', 'arrived'].includes(r.status) ? `<a class="pill" href="tel:${esc(r.driver_phone)}">Call ${esc(r.driver || 'driver')}</a>` : ''}</div>
         ${['new', 'accepted'].includes(r.status) ? `<button class="btn ghost" id="cx" type="button">Cancel this request</button>` : `<button class="btn ghost" id="again" type="button">Make a new request</button>`}
       </div>`;
     const cx = $('cx'); if (cx) cx.onclick = async () => { cx.disabled = true; try { await db.collection('users').doc(H.uid).collection('breakdown_requests').doc(id).update({ status: 'cancelled', cancel_note: 'Cancelled by customer' }); tick(); } catch (e) { cx.disabled = false; } };
