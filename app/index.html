@@ -798,7 +798,7 @@ input[list]{background:var(--bg2)}
         <div><label>Workshop name</label><input id="fs-garage" name="fs-garage-x" type="text" placeholder="Speed Auto Care" required autocomplete="off" /></div>
         <div><label>Your name</label><input id="fs-name" name="fs-name-x" type="text" placeholder="Rajesh Kumar" required autocomplete="off" /></div>
         <div><label>Phone number</label><input id="fs-phone" type="tel" placeholder="+91 98765 43210" required autocomplete="off" /></div>
-        <div><label>Country</label><select id="fs-country" onchange="fsCountryChange()" style="width:100%"><option value="IN" selected>🇮🇳 India</option><option value="AE">🇦🇪 United Arab Emirates</option></select></div>
+        <div><label>Country</label><select id="fs-country" onchange="fsCountryChange()" style="width:100%"><option value="IN" selected>🇮🇳 India</option><option value="AE">🇦🇪 United Arab Emirates</option><option value="US">🇺🇸 United States</option><option value="PK">🇵🇰 Pakistan</option></select></div>
         <div id="fs-heard-wrap"><label>How did you find out about Garage Pro?</label><select id="fs-heard" required onchange="document.getElementById('fs-heard-other').style.display=this.value==='other'?'block':'none'"><option value="">Select one…</option><option value="google">Google search</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp (shared with me)</option><option value="word_of_mouth">Word of mouth (friend / colleague)</option><option value="workshop_owner">Another workshop owner</option><option value="ai">AI assistant (ChatGPT, Claude, Gemini…)</option><option value="ad">An advertisement</option><option value="event">Trade show / event</option><option value="article">Blog or news article</option><option value="email">Email / newsletter</option><option value="other">Other</option></select><input id="fs-heard-other" type="text" maxlength="80" placeholder="Please tell us where (e.g. Facebook group, a podcast…)" style="display:none;margin-top:8px" /></div>
         <div>
           <label>Owner PIN (4 digits)</label>
@@ -2609,7 +2609,7 @@ window.doFirstSetup = async function(e) {
   const err    = document.getElementById('fs-err'); err.textContent = '';
   if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
   const _fsC = (document.getElementById('fs-country') || {}).value || 'IN';
-  const _fsMin = _fsC === 'AE' ? 9 : 10;
+  const _fsMin = _fsC === 'AE' ? 9 : 10;   // India, USA, Pakistan: 10 digits
   if ((document.getElementById('fs-phone').value || '').replace(/\D/g, '').length < _fsMin) { err.textContent = 'Enter a valid phone number (at least ' + _fsMin + ' digits).'; return; }
   const gv = (id) => (document.getElementById(id)?.value || '').trim();
   const _hf = document.getElementById('fs-heard');
@@ -2626,8 +2626,8 @@ window.doFirstSetup = async function(e) {
     state:    gv('fs-state'),
     gstin:    gv('fs-gstin'),
     country:  _fsC,
-    vat_registered: _fsC === 'AE' ? !!document.getElementById('fs-vatreg')?.checked : undefined,
-    currency: gv('fs-currency') || (_fsC === 'AE' ? 'AED' : '₹'),
+    vat_registered: ['AE', 'PK'].includes(_fsC) ? !!document.getElementById('fs-vatreg')?.checked : undefined,
+    currency: gv('fs-currency') || GP_PROFILE(_fsC).currency,
     address:  gv('fs-addr'),
     summary_emails_enabled: !!document.getElementById('fs-summaryemail')?.checked
   };
@@ -2848,7 +2848,7 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
   // Track Repair reading the full (now-restricted) users collection.
   fbDb.collection('public_workshops').doc(uid).set({
     workshop_name: garage,
-    country: details.country === 'AE' ? 'AE' : 'IN',
+    country: GP_PROFILE(details.country).code,
     ...(details.state ? { state: details.state } : {}),
     ...(details.city  ? { city:  details.city }  : {})
   }, { merge: true }).catch(e => console.warn('[public_workshops mirror]', e));
@@ -2878,11 +2878,12 @@ async function provisionNewWorkshop(uid, garage, ownerName, pin, email, details 
       city:     details.city     || '',
       state:    details.state    || '',
       gstin:    details.gstin    || '',
-      currency: details.currency || (details.country === 'AE' ? 'AED' : '₹'),
-      country:  details.country === 'AE' ? 'AE' : 'IN',
-      ...(details.country === 'AE' ? { vat_registered: details.vat_registered !== false } : { labour_gst: true }),
+      currency: details.currency || GP_PROFILE(details.country).currency,
+      country:  GP_PROFILE(details.country).code,
+      ...(['AE', 'PK'].includes(details.country) ? { vat_registered: details.vat_registered !== false } : (details.country === 'US' ? { labour_gst: false } : { labour_gst: true })),
+      ...(details.country === 'PK' ? { services_tax_pct: (window.pkServicesHint ? pkServicesHint(details.state) : 16) } : {}),
       summary_emails_enabled: !!details.summary_emails_enabled,
-      tax_pct: details.country === 'AE' ? 5 : 18,
+      tax_pct: GP_PROFILE(details.country).taxDefault,
       bay_types: [], services: []
     }],
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -4824,7 +4825,7 @@ window.INDIAN_STATES = INDIAN_STATES;
 // explicit plate_format field) so re-opening a booking always shows the
 // right builder without needing a one-time data migration.
 function _plateFormatFromString(plate) {
-  if (typeof ctry === 'function' && ctry().code === 'AE') return 'uae';
+  if (typeof ctry === 'function' && ctry().code !== 'IN') return 'uae';        // 'uae' = region select + plain number (USA, UAE, Pakistan)
   return /^\d{2}BH/i.test((plate || '').replace(/\s+/g, '')) ? 'bh' : 'state';
 }
 window._plateFormatFromString = _plateFormatFromString;
@@ -5566,13 +5567,13 @@ function _bookingFormHTML(b) {
     <div class="f-row r3">
       <div class="f-grp"><label>Registration No <span class="req">*</span></label>
         <select id="bf-plate-format" onchange="_bookingPlateFormatChange()" style="width:100%;margin-bottom:6px;padding:9px 8px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:12.5px">
-          ${ctry().code === 'AE'
-            ? `<option value="uae" selected>UAE plate — Emirate + code + number</option>`
+          ${ctry().code !== 'IN'
+            ? `<option value="uae" selected>${ctry().code === 'US' ? 'License plate — state + number' : ctry().code === 'PK' ? 'Registration — province + number' : 'UAE plate — Emirate + code + number'}</option>`
             : `<option value="state" ${plateFormat === 'state' ? 'selected' : ''}>Standard — SS RR C NNNN (state)</option>
           <option value="bh"    ${plateFormat === 'bh'    ? 'selected' : ''}>BH Series — YY BH #### XX (pan-India)</option>`}
         </select>
         <div style="display:flex;gap:6px">
-          <select id="bf-plate-state" style="display:${plateFormat === 'bh' ? 'none' : ''};width:${ctry().code === 'AE' ? '96' : '80'}px;padding:11px 8px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
+          <select id="bf-plate-state" style="display:${plateFormat === 'bh' ? 'none' : ''};width:${ctry().code !== 'IN' ? '96' : '80'}px;padding:11px 8px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
             ${GP_REGIONS().map(s => `<option value="${s.plate}" ${s.plate === platePrefix ? 'selected' : ''}>${s.plate}</option>`).join('')}
           </select>
           <select id="bf-plate-bhyear" style="display:${plateFormat === 'bh' ? '' : 'none'};width:80px;padding:11px 8px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);font-size:14px">
@@ -6420,7 +6421,7 @@ window._bookingFillFromPlate = function() {
   const stateCode = (document.getElementById('bf-plate-state')?.value || '').toUpperCase();
   const suffix    = (document.getElementById('bf-plate-suffix')?.value || '').trim().toUpperCase();
   if (!suffix || suffix.length < 3) return;
-  const fullPlate = ((ctry().code === 'AE' ? '' : stateCode) + suffix).replace(/\s+/g, '');
+  const fullPlate = ((ctry().code !== 'IN' ? '' : stateCode) + suffix).replace(/\s+/g, '');
   // Find a customer whose vehicle plate (with spaces stripped) matches
   let foundCust = null, foundVeh = null;
   for (const c of D.customers) {
@@ -8712,6 +8713,16 @@ function _waDigits(raw) {
     else if (d.startsWith('00971')) d = d.slice(2);
     return d;
   }
+  if (cc === '1') {                           // USA / Canada: 10 digits, or 11 starting with 1
+    if (d.length === 10) d = '1' + d;
+    return d;
+  }
+  if (cc === '92') {                          // Pakistan: 3XX XXXXXXX (10 digits) or 03XX XXXXXXX (11)
+    if (d.length === 10) d = '92' + d;
+    else if (d.length === 11 && d[0] === '0') d = '92' + d.slice(1);
+    else if (d.startsWith('0092')) d = d.slice(2);
+    return d;
+  }
   if (d.length === 10) d = '91' + d;          // bare Indian mobile
   else if (d.length === 11 && d[0] === '0') d = '91' + d.slice(1);
   return d;
@@ -9322,6 +9333,7 @@ window._waSendFromNotif = function(notifId) {
 // Photos are embedded as data URLs (the customer can't read the sub-gated
 // job_photos collection), capped so we stay well under Firestore's 1 MiB doc.
 async function _apprBuildDoc(j, inv, token) {
+  inv = _exemptView(inv);
   const taxPct = _invTaxPct(inv);
   // Parts carry GST; services/labour (charges) don't — same convention as
   // _invoiceTotals(), so the estimate matches the final invoice's math.
@@ -9356,7 +9368,7 @@ async function _apprBuildDoc(j, inv, token) {
   const charges = (inv.charges || []).map(c => {
     const amt = _gpRound(Number(c.amount || 0));
     // Services untaxed by default; a charge opts in with taxable:true.
-    const gstAmt = _svcTaxable(c.taxable) ? _gpRound(amt * taxPct / 100) : 0;
+    const gstAmt = _gpRound(amt * _chRate(c, inv, taxPct) / 100);
     return {
       name: c.name || '', amount_excl_gst: amt, gst_amount: gstAmt, amount: amt + gstAmt, state: c.approval || 'pending',
       ...(c.concern_id != null ? { concern_id: c.concern_id, concern_item_idx: c.concern_item_idx ?? null, concern_title: c.concern_title || '' } : {})
@@ -9397,7 +9409,7 @@ async function _apprBuildDoc(j, inv, token) {
     workshop_name: s.workshop_name || userProfile?.workshop_name || 'Workshop',
     workshop_phone: s.phone || '',
     currency: s.currency || ctry().currency,
-    country: ctry().code,
+    country: ctry().code, tax_name: ctry().taxName,
     cust_name: j.cust_name || b.cust_name || '',
     plate: j.plate || b.plate || '',
     veh_desc: [b.veh_make, b.veh_model, b.veh_year].filter(Boolean).join(' '),
@@ -11878,6 +11890,12 @@ window.openCustomerForm = function(id) {
       </div>
       <input type="hidden" id="cf-type" value="${escapeHtml(custType)}" />
 
+      <!-- Tax-exempt buyer (US resale / exempt certificate, or any buyer who must not be charged tax) -->
+      <div style="margin-bottom:12px;padding:10px 12px;border:1px solid var(--brd);border-radius:9px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;font-size:13px"><input type="checkbox" id="cf-exempt" ${c.tax_exempt ? 'checked' : ''} style="width:16px;height:16px"> Tax-exempt customer <span style="font-weight:500;color:var(--faint)">(no tax is charged to them)</span></label>
+        <input id="cf-excert" type="text" value="${escapeHtml(c.exempt_cert || '')}" placeholder="Exemption / resale certificate no." style="flex:1;min-width:200px" />
+      </div>
+
       <!-- Corporate-only block (shown when type=corporate) -->
       <div id="cf-corp-block" style="display:${custType === 'corporate' ? '' : 'none'};margin-bottom:12px;padding:12px;background:rgba(99,159,255,.05);border:1px solid rgba(99,159,255,.25);border-radius:9px">
         <div class="f-row r3">
@@ -12164,6 +12182,7 @@ async function saveCustomer(id) {
   const companyName= document.getElementById('cf-company')?.value.trim() || '';
   const gstin      = document.getElementById('cf-gstin')?.value.trim() || '';
   const refNo      = document.getElementById('cf-refno')?.value.trim() || '';
+  const taxExempt  = !!document.getElementById('cf-exempt')?.checked, exemptCert = document.getElementById('cf-excert')?.value.trim() || '';
   if (!name) throw new Error('Name is required');
   await loadAllData(true);
   // Check for duplicate name when creating new
@@ -12178,7 +12197,7 @@ async function saveCustomer(id) {
     name, phone, phone2, email, notes, address,
     driver_name: driverName, dob, contact_pref: contactPref,
     addr1, addr2, city, state, pincode,
-    customer_type: custType, company_name: companyName, gstin, ref_no: refNo,
+    customer_type: custType, company_name: companyName, gstin, ref_no: refNo, tax_exempt: taxExempt, exempt_cert: exemptCert,
     vehicles: _editingVehicles.slice(), updated_at: nowStr()
   };
   const idx = id ? D.customers.findIndex(c => c.id === id) : -1;
@@ -14836,12 +14855,9 @@ async function renderSettings(force = false) {
         </div>
         <div class="f-row r3">
           <div class="f-grp"><label>Country</label>
-            <select id="sf-country" onchange="settingsCountryChange(this)">
-              <option value="IN" ${ctry().code === 'IN' ? 'selected' : ''}>🇮🇳 India</option>
-              <option value="AE" ${ctry().code === 'AE' ? 'selected' : ''}>🇦🇪 United Arab Emirates</option>
-            </select></div>
-          <div class="f-grp" id="sf-vat-grp" style="display:${ctry().code === 'AE' ? '' : 'none'}"><label>VAT registered?</label>
-            <select id="sf-vatreg"><option value="1" ${s.vat_registered !== false ? 'selected' : ''}>Yes — I charge VAT (TRN)</option><option value="0" ${s.vat_registered === false ? 'selected' : ''}>No — below the threshold</option></select></div>
+            <select id="sf-country" onchange="settingsCountryChange(this)">${GP_COUNTRY_LIST.map(([c, n]) => `<option value="${c}" ${ctry().code === c ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+          <div class="f-grp" id="sf-vat-grp" style="display:${ctry().regTax ? '' : 'none'}"><label>${ctry().code === 'PK' ? 'Registered for sales tax?' : 'VAT registered?'}</label>
+            <select id="sf-vatreg"><option value="1" ${s.vat_registered !== false ? 'selected' : ''}>Yes — I charge ${escapeHtml(ctry().taxName)} (${escapeHtml(ctry().taxIdLabel)})</option><option value="0" ${s.vat_registered === false ? 'selected' : ''}>No — not registered</option></select></div>
           <div class="f-grp"></div>
         </div>
         <div class="f-row r3">
@@ -14852,18 +14868,22 @@ async function renderSettings(force = false) {
             </select>
           </div>
           <div class="f-grp"><label>City</label><input id="sf-city" type="text" value="${escapeHtml(s.city || '')}" placeholder="Pune" /></div>
-          <div class="f-grp"><label id="sf-gst-lbl">${ctry().taxIdLabel}</label><input id="sf-gst" type="text" value="${escapeHtml(s.gstin || '')}" placeholder="${ctry().code === 'AE' ? '15-digit TRN, e.g. 100123456700003' : '27ABCDE1234F1Z5'}" /></div>
+          <div class="f-grp"><label id="sf-gst-lbl">${ctry().taxIdLabel}</label><input id="sf-gst" type="text" value="${escapeHtml(s.gstin || '')}" placeholder="${escapeHtml(ctry().taxPh)}" /></div>
         </div>
         <div class="f-row r3">
           <div class="f-grp"><label>Currency symbol</label><input id="sf-cur" type="text" value="${escapeHtml(s.currency || '₹')}" /></div>
-          <div class="f-grp"><label id="sf-tax-lbl">Default tax % (${ctry().taxName})</label><input id="sf-tax" type="number" step="0.01" value="${escapeHtml(String(s.tax_pct ?? ctry().taxDefault))}" /></div>
-          <div class="f-grp" style="display:${ctry().code === 'IN' ? '' : 'none'}"><label>Charge GST on labour?</label>
-            <select id="sf-labgst"><option value="1" ${s.labour_gst === true ? 'selected' : ''}>Yes (recommended)</option><option value="0" ${s.labour_gst === true ? '' : 'selected'}>No — only lines I tick</option></select></div>
+          <div class="f-grp"><label id="sf-tax-lbl">Default tax % (${ctry().taxName}${ctry().code === 'PK' ? ' on parts / goods' : ''})</label><input id="sf-tax" type="number" step="0.01" value="${escapeHtml(String(s.tax_pct ?? ctry().taxDefault))}" /></div>
+          <div class="f-grp" id="sf-labgst-grp" style="display:${['IN', 'US'].includes(ctry().code) ? '' : 'none'}"><label>Charge ${escapeHtml(ctry().taxName)} on labour?</label>
+            <select id="sf-labgst"><option value="1" ${s.labour_gst === true ? 'selected' : ''}>${ctry().code === 'US' ? 'Yes (my state taxes labour)' : 'Yes (recommended)'}</option><option value="0" ${s.labour_gst === true ? '' : 'selected'}>No — only lines I tick</option></select></div>
         </div>
+        <div class="f-row r3" id="sf-pk-grp" style="display:${ctry().code === 'PK' ? '' : 'none'}">
+          <div class="f-grp"><label>NTN <span style="color:var(--faint);font-weight:500">(National Tax Number)</span></label><input id="sf-ntn" type="text" value="${escapeHtml(s.ntn || '')}" placeholder="7-digit NTN or CNIC" /></div>
+          <div class="f-grp"><label>Sales tax on services % <span style="color:var(--faint);font-weight:500">(your province's rate)</span></label><input id="sf-svcpct" type="number" step="0.01" min="0" value="${escapeHtml(String(s.services_tax_pct ?? pkServicesHint(s.state)))}" /></div>
+          <div class="f-grp"><div style="font-size:11.5px;color:var(--faint);margin-top:22px;line-height:1.5">Goods (parts) are taxed at the federal rate above; workshop services at the provincial rate. Rates change every Finance Act — confirm with FBR / your provincial authority.</div></div></div>
         <div class="f-row"><div class="f-grp"><label>Bilingual invoices</label>
-          <select id="sf-lang2"><option value="" ${!s.invoice_lang2 ? 'selected' : ''}>Off — English only</option><option value="ar" ${s.invoice_lang2 === 'ar' ? 'selected' : ''}>English + Arabic (العربية)</option><option value="hi" ${s.invoice_lang2 === 'hi' ? 'selected' : ''}>English + Hindi (हिन्दी)</option></select>
+          <select id="sf-lang2"><option value="" ${!s.invoice_lang2 ? 'selected' : ''}>Off — English only</option><option value="ar" ${s.invoice_lang2 === 'ar' ? 'selected' : ''}>English + Arabic (العربية)</option><option value="hi" ${s.invoice_lang2 === 'hi' ? 'selected' : ''}>English + Hindi (हिन्दी)</option><option value="ur" ${s.invoice_lang2 === 'ur' ? 'selected' : ''}>English + Urdu (اردو)</option></select>
           <div style="font-size:11.5px;color:var(--faint);margin-top:4px">Prints every label on the invoice in both languages, side by side. Applies to new invoices.</div></div>
-          <div class="f-grp" style="display:${ctry().code === 'IN' ? '' : 'none'}"><label>Annual turnover above ₹5 crore?</label><select id="sf-turn"><option value="0" ${s.turnover_over_5cr === true ? '' : 'selected'}>No (HSN: 4 digits on B2B invoices)</option><option value="1" ${s.turnover_over_5cr === true ? 'selected' : ''}>Yes (HSN: 6 digits; e-invoicing applies)</option></select></div></div>
+          <div class="f-grp" id="sf-turn-grp" style="display:${ctry().code === 'IN' ? '' : 'none'}"><label>Annual turnover above ₹5 crore?</label><select id="sf-turn"><option value="0" ${s.turnover_over_5cr === true ? '' : 'selected'}>No (HSN: 4 digits on B2B invoices)</option><option value="1" ${s.turnover_over_5cr === true ? 'selected' : ''}>Yes (HSN: 6 digits; e-invoicing applies)</option></select></div></div>
 
         <!-- Bank transfer details — one workshop account, printed at the bottom of every invoice -->
         <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--brd)">
@@ -15338,15 +15358,16 @@ window.saveWorkshopInfo = async function() {
   D.settings.state         = document.getElementById('sf-state').value.trim();
   D.settings.city          = document.getElementById('sf-city').value.trim();
   D.settings.gstin         = document.getElementById('sf-gst').value.trim();
-  D.settings.currency      = document.getElementById('sf-cur').value.trim() || (document.getElementById('sf-country')?.value === 'AE' ? 'AED' : '₹');
+  D.settings.currency      = document.getElementById('sf-cur').value.trim() || GP_PROFILE(document.getElementById('sf-country')?.value).currency;
   D.settings.tax_pct       = Number(document.getElementById('sf-tax').value) || 0;
   if (document.getElementById('sf-labgst')) D.settings.labour_gst = document.getElementById('sf-labgst').value === '1';
   D.settings.invoice_lang2 = (document.getElementById('sf-lang2') || {}).value || '';
   if (document.getElementById('sf-turn')) D.settings.turnover_over_5cr = document.getElementById('sf-turn').value === '1';
   const _oldCountry = ctry().code;
-  D.settings.country       = document.getElementById('sf-country')?.value === 'AE' ? 'AE' : 'IN';
-  if (D.settings.country === 'AE') D.settings.vat_registered = document.getElementById('sf-vatreg')?.value !== '0';
+  D.settings.country       = GP_PROFILE(document.getElementById('sf-country')?.value).code;
+  if (['AE', 'PK'].includes(D.settings.country)) D.settings.vat_registered = document.getElementById('sf-vatreg')?.value !== '0';
   else delete D.settings.vat_registered;
+  if (D.settings.country === 'PK') { D.settings.ntn = (document.getElementById('sf-ntn')?.value || '').trim(); const sv = document.getElementById('sf-svcpct')?.value; D.settings.services_tax_pct = sv === '' || sv == null ? pkServicesHint(D.settings.state) : Number(sv) || 0; }
   if (D.settings.country === 'AE' && D.settings.vat_registered && D.settings.gstin && !/^\d{15}$/.test(D.settings.gstin.replace(/\s|-/g, ''))) { showToast('A UAE TRN is 15 digits — please check it', 'bad'); return; }
   // One workshop bank account — printed on every invoice
   D.settings.bank_name     = document.getElementById('sf-bank-name').value.trim();
@@ -16974,7 +16995,7 @@ window._quickMarkPaid = async function(invId) {
 // invoices and estimates come out with no tax at all). An explicitly saved 0 stays 0.
 function wsTaxPct() {
   const P = ctry();
-  if (P.code === 'AE' && (D.settings || {}).vat_registered === false) return 0;   // not VAT-registered → no VAT
+  if (P.regTax && (D.settings || {}).vat_registered === false) return 0;   // UAE / Pakistan: not registered → no tax charged
   const v = (D.settings || {}).tax_pct;
   return (v === undefined || v === null || v === '') ? P.taxDefault : (Number(v) || 0);
 }
@@ -16988,11 +17009,12 @@ function _invTaxPct(inv) {
   if (inv.tax_overridden || own > 0) return own || 0;
   if (inv.payment_status === 'Paid') return own || 0;
   const snap = Number(inv.workshop_snapshot && inv.workshop_snapshot.tax_pct);
-  if (ctry().code === 'AE' && (D.settings || {}).vat_registered === false) return 0;
+  if (ctry().regTax && (D.settings || {}).vat_registered === false) return 0;
   return snap > 0 ? snap : wsTaxPct();
 }
 window._invTaxPct = _invTaxPct;
 function _invoiceTotals(inv) {
+  inv = _exemptView(inv);
   const taxPct = _invTaxPct(inv);
   const filterByApproval = !!inv.client_decision_at;
   const keep = (item) => !filterByApproval || (item.approval || 'pending') !== 'rejected';
@@ -17017,10 +17039,18 @@ function _invoiceTotals(inv) {
     if (!keep(c)) continue;
     const amt = Number(c.amount || 0);
     labour += amt;
-    if (_svcTaxable(c.taxable)) gst += +(amt * taxPct / 100).toFixed(2);
+    gst += +(amt * _chRate(c, inv, taxPct) / 100).toFixed(2);
+  }
+  // Pakistan: sales of GOODS to a buyer with no NTN/STRN attract "further tax" on top (rate set in Settings; default 4%)
+  let further = 0;
+  const _cc = (inv.workshop_snapshot && inv.workshop_snapshot.country) || ctry().code;
+  if (_cc === 'PK' && inv.customer && !inv.customer.tax_exempt && !String(inv.customer.gstin || '').trim() && taxPct > 0) {
+    const fp = (inv.workshop_snapshot && inv.workshop_snapshot.further_tax_pct != null) ? Number(inv.workshop_snapshot.further_tax_pct) : ((D.settings || {}).pk_further_tax_pct != null ? Number((D.settings || {}).pk_further_tax_pct) : 4);
+    if (fp > 0) { for (const l of inv.lines || []) { if (!keep(l) || l.taxable === false) continue; const g = Number(l.unit_price || 0) * Math.max(1, Number(l.qty || 1)); further += +((g - +(g * Number(l.disc_pct || 0) / 100).toFixed(2)) * fp / 100).toFixed(2); } further = +further.toFixed(2); gst += further; }
   }
   const grand  = +(partsTaxable + gst + labour).toFixed(2);
   return {
+    further,
     partsTaxable: +partsTaxable.toFixed(2),
     gst: +gst.toFixed(2),
     disc: +disc.toFixed(2),
@@ -17102,8 +17132,8 @@ function _workshopSnapshot() {
   return {
     workshop_name: s.workshop_name || '', address: s.address || '', email: s.email || '',
     phone: s.phone || '', gstin: s.gstin || '', currency: s.currency || ctry().currency,
-    country: ctry().code, vat_registered: ctry().code === 'AE' ? s.vat_registered !== false : undefined,
-    state: s.state || '', state_code: ((typeof INDIAN_STATES !== 'undefined' && INDIAN_STATES.find(x => x.name === s.state)) || {}).gst || '', lang2: s.invoice_lang2 || '', turnover_over_5cr: s.turnover_over_5cr === true,
+    country: ctry().code, vat_registered: ctry().regTax ? s.vat_registered !== false : undefined, ntn: s.ntn || '', services_tax_pct: ctry().code === 'PK' ? _svcRate({}, wsTaxPct()) : undefined,
+    state: s.state || '', state_code: ((typeof INDIAN_STATES !== 'undefined' && INDIAN_STATES.find(x => x.name === s.state)) || {}).gst || '', lang2: s.invoice_lang2 || '', turnover_over_5cr: s.turnover_over_5cr === true, us_tax_parts: s.us_tax_parts || null, further_tax_pct: s.pk_further_tax_pct != null ? Number(s.pk_further_tax_pct) : (s.country === 'PK' ? 4 : undefined),
     tax_pct: wsTaxPct(), logo: s.logo || '',
     bank_name:    s.bank_name    || '',
     bank_branch:  s.bank_branch  || '',
@@ -17138,7 +17168,8 @@ function _seedInvoiceFromJob(jobId) {
     phone:   c.phone || b.cust_phone || '',
     address: c.address || _customerFullAddress(c) || '',
     gstin:   c.gstin || '',
-    state:   c.state || b.cust_state || ''
+    state:   c.state || b.cust_state || '',
+    ...(c.tax_exempt ? { tax_exempt: true, exempt_cert: c.exempt_cert || '' } : {})
   };
   // Bank fields live on the workshop settings now — no per-invoice override.
   // Pull every vehicle detail the printed invoice surfaces (VIN, KM in, colour, fuel)
@@ -17845,19 +17876,22 @@ window.deleteInvoice = async function(id) {
 //   • Amount-in-words, Service Suggestions list, Bank Details TABLE, certification
 //     text, and three signature lines at the bottom.
 function _invoiceHTMLFromRecord(inv, opts) {
+  inv = _exemptView(inv);
   const photos = (opts && opts.photos) || [];
   const ws  = inv.workshop_snapshot || _workshopSnapshot();
   const t   = _invoiceTotals(inv);
   const cur = _cur(ws.currency);
   const taxPct = _invTaxPct(inv);
-  const PF = GP_PROFILE(ws.country), AE = PF.code === 'AE';
-  const vatReg = AE ? ws.vat_registered !== false : true;        // UAE: only VAT-registered businesses issue a "Tax Invoice"
-  const docTitle = AE ? (vatReg ? 'Tax Invoice' : 'Invoice') : (ws.gstin ? 'Tax Invoice' : 'Invoice');   // a TAX invoice needs the supplier's tax number
-  const taxIdLbl = PF.taxIdLabel, showTaxId = !AE || vatReg;
+  const PF = GP_PROFILE(ws.country), AE = PF.code === 'AE', US = PF.code === 'US', PK = PF.code === 'PK', GEN = PF.code !== 'IN';   // GEN = the per-line tax layout used outside India's GST
+  const vatReg = PF.regTax ? ws.vat_registered !== false : true;        // UAE / Pakistan: only registered businesses issue a "Tax Invoice"
+  const docTitle = AE ? (vatReg ? 'Tax Invoice' : 'Invoice') : PK ? (vatReg ? 'Sales Tax Invoice' : 'Invoice') : US ? 'Invoice' : (ws.gstin ? 'Tax Invoice' : 'Invoice');   // a TAX invoice needs the supplier's tax number
+  const taxIdLbl = PF.taxIdLabel, showTaxId = !PF.regTax || vatReg;
+  const exempt = !!(inv.customer && inv.customer.tax_exempt);
+  const TN = PF.taxName;
   // India: CGST + SGST on an intra-state supply, IGST on an inter-state one (place of supply decides)
-  const POS = AE ? null : _gstPlace(inv, ws), intra = !AE && POS.intra;
+  const POS = GEN ? null : _gstPlace(inv, ws), intra = !GEN && POS.intra;
   // Money formatters: with currency symbol, and the "₹ N,NNN.NN" style used everywhere
-  const inr  = (n) => `${cur} ${Number(n).toLocaleString(PF.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const inr  = (n) => `${cur}${US ? '' : ' '}${Number(n).toLocaleString(PF.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const inrR = (n) => `${cur} ${Number(n).toLocaleString(PF.locale, { maximumFractionDigits: 0 })}`;
   const grp = _gstByRate(inv, taxPct);
   const gstRows = grp.map(g => intra
@@ -17969,7 +18003,7 @@ function _invoiceHTMLFromRecord(inv, opts) {
     ${ws.logo ? `<img class="logo" src="${escapeHtml(ws.logo)}" alt="Logo" />` : ''}
     <h1>${escapeHtml(ws.workshop_name || 'Workshop')}</h1>
     ${ws.address ? `<div class="addr">${escapeHtml(ws.address)}</div>` : ''}
-    ${ws.gstin && showTaxId ? `<div class="gstin">${taxIdLbl}: ${escapeHtml(ws.gstin)}</div>` : ''}
+    ${ws.gstin && showTaxId ? `<div class="gstin">${taxIdLbl}: ${escapeHtml(ws.gstin)}${PK && ws.ntn ? ' &nbsp;·&nbsp; NTN: ' + escapeHtml(ws.ntn) : ''}</div>` : (PK && ws.ntn ? `<div class="gstin">NTN: ${escapeHtml(ws.ntn)}</div>` : '')}
   </div>
 
   <div class="ti-title">${docTitle}${AE && !ws.lang2 ? ' <span dir="rtl" style="font-style:normal;margin-inline-start:10px">' + (vatReg ? 'فاتورة ضريبية' : 'فاتورة') + '</span>' : ''}</div>
@@ -17987,11 +18021,12 @@ function _invoiceHTMLFromRecord(inv, opts) {
       ${inv.customer?.phone ? `<div><b>Mobile No:</b> ${escapeHtml(inv.customer.phone)}</div>` : ''}
       ${inv.customer?.address ? `<div><b>Address:</b> ${escapeHtml(inv.customer.address)}</div>` : ''}
       ${inv.customer?.gstin ? `<div><b>Customer ${taxIdLbl}:</b> ${escapeHtml(inv.customer.gstin)}</div>` : ''}
-      ${!AE ? `<div><b>Place of Supply:</b> ${escapeHtml(POS.name || '—')}${POS.code ? ' (' + POS.code + ')' : ''}</div>` : ''}
+      ${exempt ? `<div><b>Tax-exempt customer</b>${inv.customer.exempt_cert ? ' — certificate ' + escapeHtml(inv.customer.exempt_cert) : ''}</div>` : ''}
+      ${!GEN ? `<div><b>Place of Supply:</b> ${escapeHtml(POS.name || '—')}${POS.code ? ' (' + POS.code + ')' : ''}</div>` : ''}
     </div>
     <div class="meta-grid">
       <div class="lbl">Invoice No:</div><div class="v">${escapeHtml(inv.number)}</div>
-      <div class="lbl">Date${AE ? ' of supply' : ''}:</div><div class="v">${escapeHtml(inv.issue_date)}</div>
+      <div class="lbl">Date${AE || PK ? ' of supply' : ''}:</div><div class="v">${escapeHtml(inv.issue_date)}</div>
       ${inv.job_card_no ? `<div class="lbl">Job Card No:</div><div class="v">${escapeHtml(inv.job_card_no)}</div>` : ''}
       <div class="lbl">Vehicle No:</div><div class="v">${escapeHtml(inv.vehicle?.plate || '—')}</div>
       ${inv.vehicle?.vin ? `<div class="lbl">VIN:</div><div class="v" style="grid-column:span 3">${escapeHtml(inv.vehicle.vin)}</div>` : ''}
@@ -18010,8 +18045,8 @@ function _invoiceHTMLFromRecord(inv, opts) {
   </div>
 
   <!-- ───── LINE ITEMS — Kodiaq columns ───── -->
-  ${AE ? (() => {
-    // UAE (FTA) tax invoice: description, qty, unit price, taxable value, VAT rate and VAT amount per line, all in AED
+  ${GEN ? (() => {
+    // Per-line tax layout (UAE FTA / Pakistan sales tax / US sales tax): description, qty, unit price, taxable value, VAT rate and VAT amount per line, all in AED
     let n = 0;
     const row = (name, kind, qty, unit, taxable, tx, ratePct) => `<tr><td>${++n}</td><td><b>${escapeHtml(name)}</b><div style="font-size:10px;color:#777">${kind}</div></td>
       <td class="right">${qty}</td><td class="right">${unit}</td><td class="right">${taxable}</td><td class="ctr">${vatReg ? ratePct + '%' : '—'}</td><td class="right">${vatReg ? tx : '—'}</td><td class="right"><b>${inr(Number(taxable.replace(/[^0-9.\-]/g, '')) + (vatReg ? Number(String(tx).replace(/[^0-9.\-]/g, '')) : 0))}</b></td></tr>`;
@@ -18022,10 +18057,10 @@ function _invoiceHTMLFromRecord(inv, opts) {
       return row(l.name + (l.disc_pct ? ' (' + l.disc_pct + '% disc.)' : ''), 'Goods', q, num(unit), num(tv), num(tx), l.taxable === false ? 0 : lr);
     }).join('');
     const cr = billedCharges.map(ch => {
-      const tv = +Number(ch.amount || 0).toFixed(2), tx = _svcTaxable(ch.taxable) ? +(tv * taxPct / 100).toFixed(2) : 0;
-      return row(ch.name, 'Services', 1, num(tv), num(tv), num(tx), _svcTaxable(ch.taxable) ? taxPct : 0);
+      const sr = _chRate(ch, inv, taxPct), tv = +Number(ch.amount || 0).toFixed(2), tx = +(tv * sr / 100).toFixed(2);
+      return row(ch.name, ch.fee ? 'Fee' : 'Labour / services', 1, num(tv), num(tv), num(tx), sr);
     }).join('');
-    return `<table class="items"><thead><tr><th>#</th><th>Description</th><th class="right">Qty</th><th class="right">Unit price (${escapeHtml(cur.trim())})</th><th class="right">Taxable value (${escapeHtml(cur.trim())})</th><th class="ctr">VAT rate</th><th class="right">VAT (${escapeHtml(cur.trim())})</th><th class="right">Total (${escapeHtml(cur.trim())})</th></tr></thead>
+    return `<table class="items"><thead><tr><th>#</th><th>Description</th><th class="right">Qty</th><th class="right">Unit price (${escapeHtml(cur.trim())})</th><th class="right">Taxable value (${escapeHtml(cur.trim())})</th><th class="ctr">${TN} rate</th><th class="right">${TN} (${escapeHtml(cur.trim())})</th><th class="right">Total (${escapeHtml(cur.trim())})</th></tr></thead>
       <tbody>${pr + cr || '<tr><td colspan="8" style="text-align:center;color:#888;padding:24px">No line items.</td></tr>'}</tbody></table>`;
   })() : `  <table class="items">
     <thead><tr>
@@ -18066,7 +18101,7 @@ function _invoiceHTMLFromRecord(inv, opts) {
             <td><b>${escapeHtml(ch.name)}</b></td>
             <td>Service charge</td>
             <td>9987</td>
-            <td class="ctr">${_svcTaxable(ch.taxable) ? taxPct : '—'}</td>
+            <td class="ctr">${_chRate(ch, inv, taxPct) || '—'}</td>
             <td class="right">—</td>
             <td class="right">—</td>
             <td class="right">—</td>
@@ -18079,11 +18114,21 @@ function _invoiceHTMLFromRecord(inv, opts) {
   </table>`}
 
   <!-- ───── TWIN TOTALS BLOCKS (right-aligned) ───── -->
-  ${AE ? `<div class="totals-row"><div class="totals-main">
-      <div class="row"><span>Total excl. VAT</span><span>${inr(t.partsTaxable + t.labour)}</span></div>
+  ${GEN ? `<div class="totals-row"><div class="totals-main">
+      <div class="row"><span>${US ? 'Subtotal' : 'Total excl. ' + TN}</span><span>${inr(t.partsTaxable + t.labour)}</span></div>
       ${t.disc ? `<div class="row"><span>Discount included above</span><span>${inr(t.disc)}</span></div>` : ''}
-      <div class="row"><span>VAT ${vatReg ? '(' + taxPct + '%)' : ''}</span><span>${inr(t.gst)}</span></div>
-      <div class="row grand"><span>Total ${vatReg ? 'incl. VAT' : 'payable'}</span><span>${inr(t.grand)}</span></div>
+      ${(() => {
+        // USA: show the state / county / city / district pieces that make up one combined rate (when the workshop entered them)
+        const tp = US && ws.us_tax_parts, g0 = grp.length === 1 ? grp[0] : null;
+        if (tp && g0 && g0.rate > 0) {
+          const parts = [['State', tp.state], ['County', tp.county], ['City', tp.city], ['Special district', tp.district]].filter(x => Number(x[1]) > 0), sum = parts.reduce((a, x) => a + Number(x[1]), 0);
+          if (parts.length && Math.abs(sum - g0.rate) < 0.011) { let left = g0.tax; return parts.map((x, i) => { const amt = i === parts.length - 1 ? +left.toFixed(2) : +(g0.tax * Number(x[1]) / g0.rate).toFixed(2); left -= amt; return `<div class="row"><span>${x[0]} sales tax @${Number(x[1])}%</span><span>${inr(amt)}</span></div>`; }).join(''); }
+        }
+        const base = (grp.length ? grp : [{ rate: 0, tax: 0 }]).map(g => `<div class="row"><span>${TN}${vatReg || US ? ' @' + g.rate + '%' : ''}</span><span>${inr(+(g.tax - (PK && t.further && g === grp[grp.length - 1] ? 0 : 0)).toFixed(2))}</span></div>`);
+        return base.join('');
+      })()}
+      ${PK && t.further ? `<div class="row"><span>Further tax (sale to unregistered buyer)</span><span>${inr(t.further)}</span></div>` : ''}
+      <div class="row grand"><span>${US ? 'Total' : 'Total ' + (vatReg ? 'incl. ' + TN : 'payable')}</span><span>${inr(t.grand)}</span></div>
       ${amtPaid > 0 ? `<div class="row" style="color:#16a34a"><span>Amount Paid</span><span>${inr(amtPaid)}</span></div>` : ''}
       <div class="row balance"><span>Balance due</span><span>${inr(balance)}</span></div>
     </div></div>` : `  <div class="totals-row">
@@ -18107,9 +18152,9 @@ function _invoiceHTMLFromRecord(inv, opts) {
     </div>
   </div>`}
 
-  ${!AE ? `<div style="font-size:10.5px;color:#555;margin:2px 0 6px">Tax payable on reverse charge: No</div>` : ''}
-  <div class="words">Amount ( in Words ): ${AE ? escapeHtml(GP_WORDS_AED(t.roundOff)) : `${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only`}</div>
-  ${AE ? `<div style="font-size:10.5px;color:#666;margin:4px 0 10px">All amounts are in UAE Dirhams (AED).${vatReg ? '' : ' The supplier is not registered for VAT.'}</div>` : ''}
+  ${!GEN ? `<div style="font-size:10.5px;color:#555;margin:2px 0 6px">Tax payable on reverse charge: No</div>` : ''}
+  ${US ? '' : `<div class="words">Amount ( in Words ): ${AE ? escapeHtml(GP_WORDS_AED(t.roundOff)) : PK ? `PKR ${escapeHtml(numberToWordsIndian(Math.round(t.roundOff)))} Only` : `${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only`}</div>`}
+  ${AE ? `<div style="font-size:10.5px;color:#666;margin:4px 0 10px">All amounts are in UAE Dirhams (AED).${vatReg ? '' : ' The supplier is not registered for VAT.'}</div>` : PK && !vatReg ? `<div style="font-size:10.5px;color:#666;margin:4px 0 10px">The supplier is not registered for sales tax.</div>` : ''}
 
   ${(inv.service_suggestions && inv.service_suggestions.length) ? `
     <div class="suggest">
@@ -18135,7 +18180,7 @@ function _invoiceHTMLFromRecord(inv, opts) {
     <div class="bank-section">
       <h3>Bank Details</h3>
       <table class="bank">
-        <thead><tr><th>#</th><th>Bank Name</th><th>Account No</th><th>${AE ? 'IBAN' : 'IFSC Code'}</th><th>Branch</th>${bank.swift ? '<th>SWIFT/Sort</th>' : ''}<th>Terms</th></tr></thead>
+        <thead><tr><th>#</th><th>Bank Name</th><th>Account No</th><th>${PF.bankCode}</th><th>Branch</th>${bank.swift ? '<th>SWIFT/Sort</th>' : ''}<th>Terms</th></tr></thead>
         <tbody><tr>
           <td>1</td>
           <td>${escapeHtml(bank.name)}</td>
@@ -18318,6 +18363,7 @@ function _emailSubjectRef(d) {
 const EMAIL_EVENTS = [
   { id: 'booking_requested',  label: 'Online booking request received', headline: 'We\'ve received your booking request', subject: (d) => `Booking request received · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'booking_declined',   label: 'Online booking request declined', headline: 'About your booking request',          subject: (d) => `About your booking request · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'booking_reminder',   label: '24-hour appointment reminder', headline: 'Reminder: your appointment is tomorrow', subject: (d) => `Reminder · your appointment tomorrow · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'booking_confirmed',  label: 'Booking confirmed',     headline: 'Your booking is confirmed',         subject: (d) => `Booking confirmed · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'estimate_ready',     label: 'Estimate ready',        headline: 'Your repair estimate is ready',     subject: (d) => `Repair estimate ready · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'estimate_updated',    label: 'Estimate updated',      headline: 'Your repair estimate has been updated', subject: (d) => `Updated estimate · ${d.workshop_name}${_emailSubjectRef(d)}` },
@@ -18405,6 +18451,7 @@ function _buildEmailData(opts) {
     // Set by the caller (doCheckout / invoice generation), which publishes
     // the tokenized feedback doc itself — that's an async Firestore write,
     // and this function is synchronous, so it can't mint the link here.
+    manage_link:     (function(){ try { const ob = (D.settings || {}).online_booking || {}, rid = b?.online_request_id || ''; return (ob.enabled && ob.selfService && ob.slug && rid) ? `https://garagepro.me/manage/${ob.slug}/${rid}` : ''; } catch(_) { return ''; } })(),
     book_link:       (function(){ try { return window._wsBookLink ? _wsBookLink() : ''; } catch(_) { return ''; } })(),
     vehicle_link:    (function(){ try { return window._vehLinkFor ? _vehLinkFor(b?.plate || j?.plate || inv?.vehicle?.plate || '') : ''; } catch(_) { return ''; } })(),
     feedback_link:   opts.feedback_link || '',
@@ -18447,6 +18494,7 @@ function _emailCtaBlock(d) {
   //   invoice / thank-you   → the invoice, feedback, service history, book the next service
   if ((d.event === 'estimate_ready' || d.event === 'estimate_updated') && d.approval_link) btn(d.approval_link, _L(d.lang, 'cta.estimate'), '#1e7be0');
   if (d.invoice_view_link) btn(d.invoice_view_link, _L(d.lang, 'cta.invoice'), '#6b4fbb');
+  if (['booking_requested', 'booking_confirmed', 'booking_reminder'].includes(d.event) && d.manage_link) btn(d.manage_link, _L(d.lang, 'cta.manage'), '#6b4fbb');
   if (d.event === 'booking_declined') { if (d.book_link) btn(d.book_link, _L(d.lang, 'cta.rebook'), '#1e7be0'); }
   else if (d.track_link && d.event !== 'thank_you') btn(d.track_link, _L(d.lang, 'cta.track'), '#0a0f1a');
   if ((d.event === 'thank_you' || d.event === 'invoice_ready') && d.feedback_link) btn(d.feedback_link, _L(d.lang, 'cta.feedback'), '#20a876');
@@ -20313,7 +20361,7 @@ async function renderWorkload(force = false) {
   const esc = s => escapeHtml(String(s == null ? '' : s));
   const tzNow = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
   const defaults = () => ({
-    enabled: false, slug: '', welcome: '', brandColor: '', services: [], slotMins: 30, capacity: 2, minNoticeH: 2, maxDays: 30, autoAccept: false, verify: false,
+    enabled: false, slug: '', welcome: '', brandColor: '', services: [], slotMins: 30, capacity: 2, minNoticeH: 2, maxDays: 30, autoAccept: false, verify: false, selfService: false, cutoffH: 24,
     hours: { mon:{open:true,from:'09:00',to:'18:00'}, tue:{open:true,from:'09:00',to:'18:00'}, wed:{open:true,from:'09:00',to:'18:00'},
              thu:{open:true,from:'09:00',to:'18:00'}, fri:{open:true,from:'09:00',to:'18:00'}, sat:{open:true,from:'09:00',to:'18:00'}, sun:{open:false,from:'09:00',to:'13:00'} },
     breaks: [{ from: '13:00', to: '14:00' }], blocks: [], tz: tzNow()
@@ -20376,7 +20424,7 @@ async function renderWorkload(force = false) {
         uid: wsUid(), enabled: !!c.enabled, slug: c.slug, name: s.workshop_name || userProfile?.workshop_name || '',
         city: s.city || '', country: ctry().code, address: (s.address || '').split('\n')[0].slice(0, 120), phone: s.phone || '', welcome: (c.welcome || '').slice(0, 300),
         services: (c.services || []).slice(0, 40), hours: c.hours, breaks: c.breaks || [], blocks: (c.blocks || []).filter(b => b.date >= today).slice(0, 120),
-        verify: !!c.verify, slotMins: +c.slotMins || 30, capacity: +c.capacity || 1, minNoticeH: +c.minNoticeH >= 0 ? +c.minNoticeH : 2, maxDays: +c.maxDays || 30,
+        verify: !!c.verify, self_service: !!(c.enabled && c.selfService), cutoff_h: +c.cutoffH >= 0 ? +c.cutoffH : 24, slotMins: +c.slotMins || 30, capacity: +c.capacity || 1, minNoticeH: +c.minNoticeH >= 0 ? +c.minNoticeH : 2, maxDays: +c.maxDays || 30,
         tz: c.tz || tzNow(), busy: busyMap(c), brand: await window.obBrand(), vehicles: compactVehicleDB(), updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       await fbDb.collection('public_booking').doc(c.slug).set(doc);
@@ -20408,7 +20456,7 @@ async function renderWorkload(force = false) {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div><h3 style="margin:0 0 6px">Online booking</h3>
         <div style="color:var(--faint);font-size:13px;max-width:560px">A public page where customers pick a service and a time. Requests land in <b>Appointments</b> for you to accept. Turn it off any time — the link stops working immediately.</div></div>
-        <label style="display:flex;align-items:center;gap:8px;font-weight:700;cursor:pointer"><input type="checkbox" id="ob-enabled" ${c.enabled ? 'checked' : ''} style="width:18px;height:18px"> Online booking ${c.enabled ? '<span style="color:var(--teal)">ON</span>' : '<span style="color:var(--faint)">OFF</span>'}</label>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:700;cursor:pointer"><input type="checkbox" id="ob-enabled" ${c.enabled ? 'checked' : ''} onchange="obSelfSync()" style="width:18px;height:18px"> Online booking ${c.enabled ? '<span style="color:var(--teal)">ON</span>' : '<span style="color:var(--faint)">OFF</span>'}</label>
       </div>
       <div class="f-row r1" style="margin-top:12px"><div class="f-grp"><label>Your booking link</label>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -20452,6 +20500,7 @@ async function renderWorkload(force = false) {
         <div class="f-grp"><label>How far ahead (days)</label><input type="number" id="ob-days" min="1" max="90" value="${+c.maxDays || 30}"></div>
         <div class="f-grp" style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;margin-top:22px"><input type="checkbox" id="ob-auto" ${c.autoAccept ? 'checked' : ''} style="width:16px;height:16px"> Auto-accept requests that fit a free slot <span style="color:var(--faint);font-weight:500">(while the app is open)</span></label></div>
         <div class="f-grp" style="grid-column:span 2"><label style="display:flex;align-items:flex-start;gap:8px"><input type="checkbox" id="ob-verify" ${c.verify ? 'checked' : ''} style="width:16px;height:16px;margin-top:2px"> <span>Verify the customer's email with a one-time code before a booking is accepted <span style="color:var(--faint);font-weight:500;display:block;font-size:12px;margin-top:2px">Stops fake and spam bookings, and fills in details for returning customers. The code is emailed (SMS costs money per message, so it is not used). Requires the latest email relay to be deployed.</span></span></label></div>
+        <div class="f-grp" style="grid-column:span 2"><label style="display:flex;align-items:flex-start;gap:8px"><input type="checkbox" id="ob-self" ${c.selfService && c.enabled ? 'checked' : ''} ${c.enabled ? '' : 'disabled'} style="width:16px;height:16px;margin-top:2px"> <span>Let customers reschedule or cancel their own booking <span style="color:var(--faint);font-weight:500;display:block;font-size:12px;margin-top:2px">Adds a "change or cancel" link to the booking emails. They can only do it up to <input id="ob-cutoff" type="number" min="0" max="168" value="${+c.cutoffH >= 0 ? +c.cutoffH : 24}" style="width:64px;padding:3px 6px;display:inline-block"> hours before the slot, and move it once. Needs online booking switched on.</span></span></label></div>
       </div>
 
       <div style="font-weight:700;margin:14px 0 6px">Blocked dates &amp; times <span style="color:var(--faint);font-weight:500;font-size:12px">— holidays, stock-take, a day off, staff training</span></div>
@@ -20511,7 +20560,7 @@ async function renderWorkload(force = false) {
       enabled, slug, welcome: v('ob-welcome').trim(), tz: prev.tz || tzNow(), brandColor: document.getElementById('ob-brand-default').checked ? '' : v('ob-brand'),
       services: v('ob-services').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 40), hours, breaks: bf ? [{ from: bf, to: bt }] : [],
       slotMins: +v('ob-slot') || 30, capacity: Math.max(1, +v('ob-cap') || 1), minNoticeH: Math.max(0, +v('ob-notice') || 0),
-      maxDays: Math.min(90, Math.max(1, +v('ob-days') || 30)), autoAccept: document.getElementById('ob-auto').checked, verify: document.getElementById('ob-verify').checked, blocks: blocksDraft || []
+      maxDays: Math.min(90, Math.max(1, +v('ob-days') || 30)), autoAccept: document.getElementById('ob-auto').checked, verify: document.getElementById('ob-verify').checked, selfService: document.getElementById('ob-enabled').checked && document.getElementById('ob-self').checked, cutoffH: Math.min(168, Math.max(0, +(document.getElementById('ob-cutoff').value) >= 0 ? +document.getElementById('ob-cutoff').value : 24)), blocks: blocksDraft || []
     });
     msg.style.color = 'var(--faint)'; msg.textContent = 'Saving…';
     try {
@@ -20552,7 +20601,7 @@ async function renderWorkload(force = false) {
   }
   // Customer + workshop emails the moment a request is seen. Delivery is queued (mail_queue) before sending, so
   // it still goes out if the tab closes; the relay cron covers requests that arrive while no device is open.
-  const asBooking = r => ({ id: r.id, lang: r.lang || '', cust_name: r.name, cust_phone: r.phone, cust_email: r.email || '', plate: r.plate, service: r.service, date: r.date, time: r.time, time_start: r.time, notes: r.notes || '', booking_no: '' });
+  const asBooking = r => ({ id: r.id, lang: r.lang || '', cust_name: r.name, cust_phone: r.phone, cust_email: r.email || '', plate: r.plate, service: r.service, date: r.date, time: r.time, time_start: r.time, notes: r.notes || '', booking_no: '', online_request_id: r.id });
   const ackBusy = new Set();
   async function acknowledge(r) {
     if (ackBusy.has(r.id)) return; ackBusy.add(r.id);
@@ -22072,50 +22121,69 @@ async function renderWorkload(force = false) {
 
 <script>
 // ══════════════════════════════════════════════════════════════════════════
-//  COUNTRY PROFILES — India (default) and the UAE
-//  settings.country = 'IN' | 'AE'. Every account that has none counts as India, so existing workshops
-//  are untouched. Everything UAE-specific (VAT, TRN, emirates, AED, Arabic, FTA-format invoice) is gated on
-//  ctry().code === 'AE' — an Indian workshop never sees any of it.
+//  COUNTRY PROFILES — India (default), UAE, USA, Pakistan
+//  settings.country = 'IN' | 'AE' | 'US' | 'PK'. An account with none counts as India, so existing workshops are untouched.
+//  Everything specific to another country (VAT/sales tax, tax-ID labels, regions, currency, Arabic, layouts) is gated on
+//  ctry().code — a workshop in one country never sees another country's wording.
+//  These are SETTINGS and LAYOUTS, not tax advice: rates change and differ by state/province — each workshop confirms its own.
 // ══════════════════════════════════════════════════════════════════════════
 (function () {
-  const EMIRATES = [
-    { name: 'Abu Dhabi', plate: 'AUH' }, { name: 'Dubai', plate: 'DXB' }, { name: 'Sharjah', plate: 'SHJ' },
-    { name: 'Ajman', plate: 'AJM' }, { name: 'Umm Al Quwain', plate: 'UAQ' }, { name: 'Ras Al Khaimah', plate: 'RAK' }, { name: 'Fujairah', plate: 'FUJ' }
-  ].map(e => ({ ...e, gst: '' }));
+  const mk = (arr, plateKey) => arr.map(x => ({ name: x[0], plate: x[1], gst: '' }));
+  const EMIRATES = mk([['Abu Dhabi', 'AUH'], ['Dubai', 'DXB'], ['Sharjah', 'SHJ'], ['Ajman', 'AJM'], ['Umm Al Quwain', 'UAQ'], ['Ras Al Khaimah', 'RAK'], ['Fujairah', 'FUJ']]);
+  const US_STATES = mk([['Alabama', 'AL'], ['Alaska', 'AK'], ['Arizona', 'AZ'], ['Arkansas', 'AR'], ['California', 'CA'], ['Colorado', 'CO'], ['Connecticut', 'CT'], ['Delaware', 'DE'], ['District of Columbia', 'DC'], ['Florida', 'FL'], ['Georgia', 'GA'], ['Hawaii', 'HI'], ['Idaho', 'ID'], ['Illinois', 'IL'], ['Indiana', 'IN'], ['Iowa', 'IA'], ['Kansas', 'KS'], ['Kentucky', 'KY'], ['Louisiana', 'LA'], ['Maine', 'ME'], ['Maryland', 'MD'], ['Massachusetts', 'MA'], ['Michigan', 'MI'], ['Minnesota', 'MN'], ['Mississippi', 'MS'], ['Missouri', 'MO'], ['Montana', 'MT'], ['Nebraska', 'NE'], ['Nevada', 'NV'], ['New Hampshire', 'NH'], ['New Jersey', 'NJ'], ['New Mexico', 'NM'], ['New York', 'NY'], ['North Carolina', 'NC'], ['North Dakota', 'ND'], ['Ohio', 'OH'], ['Oklahoma', 'OK'], ['Oregon', 'OR'], ['Pennsylvania', 'PA'], ['Rhode Island', 'RI'], ['South Carolina', 'SC'], ['South Dakota', 'SD'], ['Tennessee', 'TN'], ['Texas', 'TX'], ['Utah', 'UT'], ['Vermont', 'VT'], ['Virginia', 'VA'], ['Washington', 'WA'], ['West Virginia', 'WV'], ['Wisconsin', 'WI'], ['Wyoming', 'WY']]);
+  const PK_PROVINCES = mk([['Punjab', 'PB'], ['Sindh', 'SD'], ['Khyber Pakhtunkhwa', 'KP'], ['Balochistan', 'BA'], ['Islamabad Capital Territory', 'ICT'], ['Gilgit-Baltistan', 'GB'], ['Azad Jammu & Kashmir', 'AJK']]);
+  // Services (labour) sales-tax rate is set by each province in Pakistan; these are STARTING suggestions only — confirm with PRA / SRB / KPRA / BRA / ICT.
+  const PK_SERVICES_HINT = { 'Punjab': 16, 'Sindh': 15, 'Khyber Pakhtunkhwa': 15, 'Balochistan': 15, 'Islamabad Capital Territory': 16, 'Gilgit-Baltistan': 15, 'Azad Jammu & Kashmir': 15 };
   const PROFILES = {
-    IN: { code: 'IN', name: 'India', currency: '₹', currencyCode: 'INR', locale: 'en-IN', taxName: 'GST', taxDefault: 18, taxIdLabel: 'GSTIN', regionLabel: 'State', decimals: 0, phonePrefix: '91', labourTaxed: false, itemCode: 'HSN/SAC', bankCode: 'IFSC code', waLocal: 10 },
-    AE: { code: 'AE', name: 'United Arab Emirates', currency: 'AED', currencyCode: 'AED', locale: 'en-US', taxName: 'VAT', taxDefault: 5, taxIdLabel: 'TRN', regionLabel: 'Emirate', decimals: 2, phonePrefix: '971', labourTaxed: true, itemCode: 'Item code', bankCode: 'IBAN', waLocal: 9 }
+    IN: { code: 'IN', name: 'India', flag: '🇮🇳', currency: '₹', currencyCode: 'INR', locale: 'en-IN', taxName: 'GST', taxDefault: 18, taxIdLabel: 'GSTIN', regionLabel: 'State', decimals: 0, phonePrefix: '91', labourTaxed: false, itemCode: 'HSN/SAC', bankCode: 'IFSC code', regTax: false, taxPh: '27ABCDE1234F1Z5', phonePh: '+91 98765 43210', emailTld: 'in', cityEx: 'Pune', regionEx: 'Maharashtra', addrEx: 'Street, area, PIN' },
+    AE: { code: 'AE', name: 'United Arab Emirates', flag: '🇦🇪', currency: 'AED', currencyCode: 'AED', locale: 'en-US', taxName: 'VAT', taxDefault: 5, taxIdLabel: 'TRN', regionLabel: 'Emirate', decimals: 2, phonePrefix: '971', labourTaxed: true, itemCode: 'Item code', bankCode: 'IBAN', regTax: true, taxPh: '15-digit TRN, e.g. 100123456700003', phonePh: '+971 50 123 4567', emailTld: 'ae', cityEx: 'Dubai', regionEx: 'Dubai', addrEx: 'Building, street, area' },
+    US: { code: 'US', name: 'United States', flag: '🇺🇸', currency: '$', currencyCode: 'USD', locale: 'en-US', taxName: 'Sales tax', taxDefault: 0, taxIdLabel: 'EIN', regionLabel: 'State', decimals: 2, phonePrefix: '1', labourTaxed: false, itemCode: 'Part no.', bankCode: 'Routing no.', regTax: false, taxPh: 'EIN, e.g. 12-3456789 (optional)', phonePh: '+1 555 123 4567', emailTld: 'com', cityEx: 'Austin', regionEx: 'Texas', addrEx: 'Street, city, state ZIP' },
+    PK: { code: 'PK', name: 'Pakistan', flag: '🇵🇰', currency: 'Rs', currencyCode: 'PKR', locale: 'en-IN', taxName: 'Sales tax', taxDefault: 18, taxIdLabel: 'STRN', regionLabel: 'Province', decimals: 2, phonePrefix: '92', labourTaxed: true, itemCode: 'HS code', bankCode: 'IBAN', regTax: true, dualRate: true, taxPh: 'STRN (13 digits)', phonePh: '+92 300 1234567', emailTld: 'pk', cityEx: 'Lahore', regionEx: 'Punjab', addrEx: 'Street, area, city' }
   };
-  window.GP_EMIRATES = EMIRATES;
+  const REGIONS = { IN: null, AE: EMIRATES, US: US_STATES, PK: PK_PROVINCES };
+  window.GP_EMIRATES = EMIRATES; window.GP_COUNTRIES = PROFILES; window.GP_PK_SERVICES_HINT = PK_SERVICES_HINT;
+  window.GP_COUNTRY_LIST = Object.values(PROFILES).map(p => [p.code, p.flag + ' ' + p.name]);
   window.GP_PROFILE = c => PROFILES[c] || PROFILES.IN;
   window.ctry = () => GP_PROFILE(((typeof D !== 'undefined' && D && D.settings) || {}).country);
-  window.GP_REGIONS = () => ctry().code === 'AE' ? EMIRATES : INDIAN_STATES;
-  // currency symbol for use directly in front of a number: letters get a trailing space ("AED 1,200"), ₹ does not
+  window.GP_REGIONS = () => REGIONS[ctry().code] || INDIAN_STATES;
   window._cur = c => {
     c = (c === undefined || c === null || c === '') ? (((typeof D !== 'undefined' && D && D.settings) || {}).currency || ctry().currency) : c;
     c = String(c); return /^[A-Za-z]{2,}$/.test(c) ? c + ' ' : c;
   };
   window._gpRound = n => ctry().decimals ? +(+n || 0).toFixed(2) : Math.round(n);
-  // UAE: labour / services are standard-rated for VAT; India: only when the charge is ticked
-  window._svcTaxable = t => ((ctry().labourTaxed || (ctry().code === 'IN' && (D.settings || {}).labour_gst === true)) ? t !== false : t === true);
+  // Is labour taxable by default? UAE / Pakistan: yes. India / USA: only when the workshop ticks "Charge tax on labour" (or the line is ticked).
+  window._svcTaxable = t => ((ctry().labourTaxed || (['IN', 'US'].includes(ctry().code) && (D.settings || {}).labour_gst === true)) ? t !== false : t === true);
+  // Services rate: Pakistan taxes goods (federal) and services (provincial) at different rates; everywhere else one rate covers both
+  window._chRate = (c, inv, def) => (c && c.tax_pct != null && c.tax_pct !== '' && !isNaN(c.tax_pct)) ? Number(c.tax_pct) : (_svcTaxable(c && c.taxable) ? _svcRate(inv, def) : 0);   // a charge's own rate wins (e.g. a province's special rate)
+  window._svcRate = (inv, def) => {
+    const cc = (inv && inv.workshop_snapshot && inv.workshop_snapshot.country) || ctry().code;
+    if (cc !== 'PK') return def;
+    const v = (inv && inv.services_tax_pct != null && inv.services_tax_pct !== '') ? inv.services_tax_pct : (inv && inv.workshop_snapshot && inv.workshop_snapshot.services_tax_pct != null ? inv.workshop_snapshot.services_tax_pct : (D.settings || {}).services_tax_pct);
+    return (v == null || v === '' || isNaN(v)) ? (PK_SERVICES_HINT[(D.settings || {}).state] || 16) : Number(v);
+  };
+  // A customer marked tax-exempt (US resale / exempt certificate, or any tax-exempt buyer) is invoiced with no tax at all.
+  window._exemptView = inv => {
+    if (!inv || !inv.customer || !inv.customer.tax_exempt) return inv;
+    return Object.assign({}, inv, { tax_pct: 0, tax_overridden: true, services_tax_pct: 0, lines: (inv.lines || []).map(l => Object.assign({}, l, { tax_pct: 0 })), charges: (inv.charges || []).map(c => Object.assign({}, c, { taxable: false, tax_pct: 0 })) });
+  };
 
-  // ── amount in words (dirhams + fils) ──
+  // ── amount in words ──
   const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'], TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
   const below1000 = n => { let o = ''; if (n >= 100) { o += ONES[Math.floor(n / 100)] + ' Hundred'; n %= 100; if (n) o += ' and '; } if (n >= 20) { o += TENS[Math.floor(n / 10)] + (n % 10 ? '-' + ONES[n % 10] : ''); } else if (n) o += ONES[n]; return o; };
   const words = n => { if (!n) return 'Zero'; const parts = []; [[1e9, 'Billion'], [1e6, 'Million'], [1e3, 'Thousand']].forEach(([v, l]) => { if (n >= v) { parts.push(below1000(Math.floor(n / v)) + ' ' + l); n %= v; } }); if (n) parts.push(below1000(n)); return parts.join(' '); };
   window.GP_WORDS_AED = amt => { amt = Math.max(0, Number(amt) || 0); const d = Math.floor(amt + 1e-9), f = Math.round((amt - d) * 100); return 'UAE Dirhams ' + words(d) + (f ? ' and ' + words(f) + ' Fils' : '') + ' Only'; };
 
-  // ── TRN instead of GSTIN ──
+  // ── tax-ID validation (the app's validateGSTIN is used for the corporate customer check too) ──
   const _vg = window.validateGSTIN;
   window.validateGSTIN = function (v, st) {
-    if (ctry().code !== 'AE') return _vg.apply(this, arguments);
-    v = String(v || '').replace(/[\s-]/g, '');
-    if (!v) return { ok: false, reason: 'TRN is required' };
-    if (!/^\d{15}$/.test(v)) return { ok: false, reason: 'a UAE TRN is 15 digits' };
-    return { ok: true };
+    const c = ctry().code; if (c === 'IN') return _vg.apply(this, arguments);
+    const x = String(v || '').replace(/[\s-]/g, '');
+    if (c === 'AE') return !x ? { ok: false, reason: 'TRN is required' } : /^\d{15}$/.test(x) ? { ok: true } : { ok: false, reason: 'a UAE TRN is 15 digits' };
+    if (c === 'PK') return !x ? { ok: false, reason: 'NTN / STRN is required' } : /^\d{7,15}$/.test(x) ? { ok: true } : { ok: false, reason: 'an NTN is 7 digits (CNIC 13), an STRN 13–15 digits' };
+    return !x ? { ok: false, reason: 'Tax ID is required' } : (/^\d{2}-?\d{7}$/.test(x) || x.length >= 5) ? { ok: true } : { ok: false, reason: 'that does not look like an EIN (12-3456789)' };
   };
 
-  // ── numbers: the app writes toLocaleString('en-IN') everywhere; in UAE mode that becomes western grouping with fils ──
+  // ── numbers: the app writes toLocaleString('en-IN') everywhere ──
   const _tls = Number.prototype.toLocaleString;
   Number.prototype.toLocaleString = function (loc, opt) {
     if (loc === 'en-IN') {
@@ -22125,139 +22193,181 @@ async function renderWorkload(force = false) {
     return _tls.call(this, loc, opt);
   };
 
-  // ── Gulf-market vehicles added to the make/model list (UAE only; the workshop's own edits still win) ──
-  const GULF = {
-    'Toyota': { 'Land Cruiser': [2008, ['GX', 'GXR', 'VXR', 'GR Sport']], 'Prado': [2003, ['TXL', 'VXR']], 'Hilux': [2005, ['GL', 'GLX', 'SR5', 'Adventure']], 'Fortuner': [2005, ['EXR', 'VXR']], 'Camry': [2002, ['LE', 'SE', 'GLE', 'Grande']], 'Corolla': [2002, ['XLi', 'SE', 'GLi']], 'Yaris': [2006, ['E', 'SE']], 'Rush': [2018, ['E', 'G']], 'Innova': [2008, ['E', 'G']], 'Avalon': [2005, ['XLE', 'Limited']], 'Raize': [2022, ['G']] },
-    'Nissan': { 'Patrol': [2000, ['XE', 'SE', 'LE', 'Nismo']], 'Altima': [2003, ['S', 'SV', 'SL']], 'Sunny': [2005, ['S', 'SV']], 'Kicks': [2018, ['S', 'SV']], 'X-Trail': [2008, ['S', 'SL']], 'Pathfinder': [2005, ['S', 'SV', 'Platinum']], 'Maxima': [2005, ['SV', 'SR']], 'Navara': [2008, ['XE', 'LE']] },
-    'Lexus': { 'LX 570': [2008, ['Base', 'Platinum']], 'LX 600': [2022, ['Prestige', 'F Sport']], 'GX 460': [2010, ['Premier']], 'ES 350': [2007, ['Prestige', 'Luxury']], 'RX 350': [2007, ['Prestige', 'F Sport']], 'LS 500': [2018, ['Luxury']], 'IS 300': [2014, ['Prestige']] },
-    'Mitsubishi': { 'Pajero': [2000, ['GLX', 'GLS']], 'L200': [2008, ['GLX', 'GLS']], 'Outlander': [2008, ['GLX', 'GLS']], 'ASX': [2011, ['GLX']], 'Attrage': [2014, ['GLX']], 'Xpander': [2019, ['GLS']] },
-    'Kia': { 'Sportage': [2008, ['LX', 'EX', 'GT-Line']], 'Sorento': [2008, ['LX', 'EX']], 'Seltos': [2020, ['LX', 'EX']], 'Cerato': [2008, ['LX', 'EX']], 'Telluride': [2020, ['LX', 'EX', 'SX']], 'Carnival': [2008, ['LX', 'EX']], 'Picanto': [2005, ['LX']] },
-    'Hyundai': { 'Tucson': [2005, ['GL', 'GLS']], 'Santa Fe': [2005, ['GL', 'GLS']], 'Sonata': [2005, ['GL', 'GLS']], 'Accent': [2005, ['GL']], 'Elantra': [2005, ['GL', 'GLS']], 'Palisade': [2020, ['GLS', 'Calligraphy']], 'Creta': [2016, ['GL', 'GLS']] },
-    'Ford': { 'F-150': [2004, ['XLT', 'Lariat', 'Raptor']], 'Explorer': [2005, ['XLT', 'Limited']], 'Expedition': [2005, ['XLT', 'Limited']], 'Mustang': [2005, ['EcoBoost', 'GT']], 'Edge': [2007, ['SE', 'Titanium']], 'Territory': [2020, ['Trend', 'Titanium']] },
-    'Chevrolet': { 'Tahoe': [2005, ['LS', 'LT', 'LTZ']], 'Suburban': [2005, ['LS', 'LT', 'LTZ']], 'Silverado': [2007, ['LT', 'High Country']], 'Camaro': [2010, ['LT', 'SS']], 'Captiva': [2008, ['LS', 'LT']], 'Malibu': [2008, ['LS', 'LT']] },
-    'GMC': { 'Yukon': [2005, ['SLE', 'Denali']], 'Sierra': [2007, ['SLE', 'Denali']], 'Acadia': [2008, ['SLE', 'Denali']] },
-    'Honda': { 'Accord': [2003, ['LX', 'EX']], 'Civic': [2003, ['LX', 'EX']], 'CR-V': [2003, ['LX', 'EX']], 'City': [2010, ['LX']] },
-    'Infiniti': { 'QX80': [2011, ['Luxe']], 'QX60': [2013, ['Pure', 'Luxe']], 'Q50': [2014, ['Luxe']] },
-    'Land Rover': { 'Range Rover': [2005, ['Vogue', 'Autobiography']], 'Range Rover Sport': [2006, ['HSE', 'Autobiography']], 'Defender': [2020, ['110', '90']], 'Discovery': [2005, ['SE', 'HSE']] },
-    'Jetour': { 'X70': [2020, ['Comfort', 'Luxury']], 'X90': [2021, ['Comfort', 'Luxury']], 'Dashing': [2023, ['Comfort']] },
-    'MG': { 'MG5': [2019, ['Std', 'Luxury']], 'ZS': [2018, ['Std', 'Luxury']], 'RX8': [2020, ['Std', 'Luxury']], 'HS': [2019, ['Std', 'Luxury']] },
-    'Tesla': { 'Model 3': [2018, ['Standard', 'Long Range', 'Performance']], 'Model Y': [2021, ['Long Range', 'Performance']], 'Model S': [2014, ['Plaid']], 'Model X': [2016, ['Plaid']] }
+  // ── vehicles by market (added to the make/model list; the workshop's own edits still win) ──
+  const T = (o) => o;   // { Make: { Model: [fromYear, [variants]] } }
+  const MARKET = {
+    AE: {
+      'Toyota': { 'Land Cruiser': [2008, ['GX', 'GXR', 'VXR', 'GR Sport']], 'Prado': [2003, ['TXL', 'VXR']], 'Hilux': [2005, ['GL', 'GLX', 'SR5', 'Adventure']], 'Fortuner': [2005, ['EXR', 'VXR']], 'Camry': [2002, ['LE', 'SE', 'GLE', 'Grande']], 'Corolla': [2002, ['XLi', 'SE', 'GLi']], 'Yaris': [2006, ['E', 'SE']], 'Rush': [2018, ['E', 'G']], 'Innova': [2008, ['E', 'G']], 'Avalon': [2005, ['XLE', 'Limited']], 'Raize': [2022, ['G']] },
+      'Nissan': { 'Patrol': [2000, ['XE', 'SE', 'LE', 'Nismo']], 'Altima': [2003, ['S', 'SV', 'SL']], 'Sunny': [2005, ['S', 'SV']], 'Kicks': [2018, ['S', 'SV']], 'X-Trail': [2008, ['S', 'SL']], 'Pathfinder': [2005, ['S', 'SV', 'Platinum']], 'Maxima': [2005, ['SV', 'SR']], 'Navara': [2008, ['XE', 'LE']] },
+      'Lexus': { 'LX 570': [2008, ['Base', 'Platinum']], 'LX 600': [2022, ['Prestige', 'F Sport']], 'GX 460': [2010, ['Premier']], 'ES 350': [2007, ['Prestige', 'Luxury']], 'RX 350': [2007, ['Prestige', 'F Sport']], 'LS 500': [2018, ['Luxury']], 'IS 300': [2014, ['Prestige']] },
+      'Mitsubishi': { 'Pajero': [2000, ['GLX', 'GLS']], 'L200': [2008, ['GLX', 'GLS']], 'Outlander': [2008, ['GLX', 'GLS']], 'ASX': [2011, ['GLX']], 'Attrage': [2014, ['GLX']], 'Xpander': [2019, ['GLS']] },
+      'Kia': { 'Sportage': [2008, ['LX', 'EX', 'GT-Line']], 'Sorento': [2008, ['LX', 'EX']], 'Seltos': [2020, ['LX', 'EX']], 'Cerato': [2008, ['LX', 'EX']], 'Telluride': [2020, ['LX', 'EX', 'SX']], 'Carnival': [2008, ['LX', 'EX']], 'Picanto': [2005, ['LX']] },
+      'Hyundai': { 'Tucson': [2005, ['GL', 'GLS']], 'Santa Fe': [2005, ['GL', 'GLS']], 'Sonata': [2005, ['GL', 'GLS']], 'Accent': [2005, ['GL']], 'Elantra': [2005, ['GL', 'GLS']], 'Palisade': [2020, ['GLS', 'Calligraphy']], 'Creta': [2016, ['GL', 'GLS']] },
+      'Ford': { 'F-150': [2004, ['XLT', 'Lariat', 'Raptor']], 'Explorer': [2005, ['XLT', 'Limited']], 'Expedition': [2005, ['XLT', 'Limited']], 'Mustang': [2005, ['EcoBoost', 'GT']], 'Edge': [2007, ['SE', 'Titanium']], 'Territory': [2020, ['Trend', 'Titanium']] },
+      'Chevrolet': { 'Tahoe': [2005, ['LS', 'LT', 'LTZ']], 'Suburban': [2005, ['LS', 'LT', 'LTZ']], 'Silverado': [2007, ['LT', 'High Country']], 'Camaro': [2010, ['LT', 'SS']], 'Captiva': [2008, ['LS', 'LT']], 'Malibu': [2008, ['LS', 'LT']] },
+      'GMC': { 'Yukon': [2005, ['SLE', 'Denali']], 'Sierra': [2007, ['SLE', 'Denali']], 'Acadia': [2008, ['SLE', 'Denali']] },
+      'Honda': { 'Accord': [2003, ['LX', 'EX']], 'Civic': [2003, ['LX', 'EX']], 'CR-V': [2003, ['LX', 'EX']], 'City': [2010, ['LX']] },
+      'Infiniti': { 'QX80': [2011, ['Luxe']], 'QX60': [2013, ['Pure', 'Luxe']], 'Q50': [2014, ['Luxe']] },
+      'Land Rover': { 'Range Rover': [2005, ['Vogue', 'Autobiography']], 'Range Rover Sport': [2006, ['HSE', 'Autobiography']], 'Defender': [2020, ['110', '90']], 'Discovery': [2005, ['SE', 'HSE']] },
+      'Jetour': { 'X70': [2020, ['Comfort', 'Luxury']], 'X90': [2021, ['Comfort', 'Luxury']], 'Dashing': [2023, ['Comfort']] },
+      'MG': { 'MG5': [2019, ['Std', 'Luxury']], 'ZS': [2018, ['Std', 'Luxury']], 'RX8': [2020, ['Std', 'Luxury']], 'HS': [2019, ['Std', 'Luxury']] },
+      'Tesla': { 'Model 3': [2018, ['Standard', 'Long Range', 'Performance']], 'Model Y': [2021, ['Long Range', 'Performance']], 'Model S': [2014, ['Plaid']], 'Model X': [2016, ['Plaid']] }
+    },
+    US: {
+      'Ford': { 'F-150': [2004, ['XL', 'XLT', 'Lariat', 'King Ranch', 'Platinum', 'Raptor']], 'F-250 Super Duty': [2005, ['XL', 'XLT', 'Lariat']], 'Escape': [2008, ['S', 'SE', 'Titanium']], 'Explorer': [2005, ['XLT', 'Limited', 'ST']], 'Mustang': [2005, ['EcoBoost', 'GT']], 'Ranger': [2019, ['XL', 'XLT', 'Lariat']], 'Bronco': [2021, ['Base', 'Big Bend', 'Wildtrak']], 'Fusion': [2006, ['S', 'SE', 'Titanium']], 'Edge': [2007, ['SE', 'SEL', 'Titanium']], 'Transit': [2015, ['150', '250', '350']] },
+      'Chevrolet': { 'Silverado 1500': [2007, ['WT', 'LT', 'RST', 'LTZ', 'High Country']], 'Silverado 2500HD': [2007, ['WT', 'LT', 'LTZ']], 'Equinox': [2010, ['LS', 'LT', 'Premier']], 'Tahoe': [2007, ['LS', 'LT', 'Premier']], 'Suburban': [2007, ['LS', 'LT', 'Premier']], 'Malibu': [2008, ['LS', 'LT', 'Premier']], 'Traverse': [2009, ['LS', 'LT', 'High Country']], 'Colorado': [2015, ['WT', 'LT', 'Z71']], 'Camaro': [2010, ['LT', 'SS']] },
+      'RAM': { '1500': [2009, ['Tradesman', 'Big Horn', 'Laramie', 'Limited', 'Rebel']], '2500': [2010, ['Tradesman', 'Big Horn', 'Laramie']], 'ProMaster': [2014, ['1500', '2500']] },
+      'GMC': { 'Sierra 1500': [2007, ['Pro', 'SLE', 'Elevation', 'Denali']], 'Yukon': [2007, ['SLE', 'SLT', 'Denali']], 'Acadia': [2007, ['SLE', 'SLT', 'Denali']], 'Terrain': [2010, ['SLE', 'SLT', 'Denali']] },
+      'Jeep': { 'Wrangler': [2007, ['Sport', 'Sahara', 'Rubicon']], 'Grand Cherokee': [2005, ['Laredo', 'Limited', 'Overland', 'Summit']], 'Cherokee': [2014, ['Latitude', 'Limited', 'Trailhawk']], 'Compass': [2007, ['Sport', 'Latitude', 'Limited']], 'Gladiator': [2020, ['Sport', 'Overland', 'Rubicon']] },
+      'Dodge': { 'Charger': [2006, ['SXT', 'R/T', 'Scat Pack']], 'Challenger': [2008, ['SXT', 'R/T', 'Scat Pack']], 'Durango': [2011, ['SXT', 'GT', 'R/T']] },
+      'Toyota': { 'Camry': [2007, ['LE', 'SE', 'XLE', 'XSE']], 'Corolla': [2009, ['L', 'LE', 'SE', 'XSE']], 'RAV4': [2006, ['LE', 'XLE', 'Adventure', 'Limited']], 'Highlander': [2008, ['L', 'LE', 'XLE', 'Limited']], 'Tacoma': [2005, ['SR', 'SR5', 'TRD Sport', 'TRD Off-Road']], 'Tundra': [2007, ['SR', 'SR5', 'Limited', 'Platinum']], 'Prius': [2004, ['L Eco', 'LE', 'XLE']], 'Sienna': [2011, ['LE', 'XLE', 'Limited']], '4Runner': [2010, ['SR5', 'TRD Off-Road', 'Limited']] },
+      'Honda': { 'Civic': [2006, ['LX', 'Sport', 'EX', 'Touring']], 'Accord': [2008, ['LX', 'Sport', 'EX-L', 'Touring']], 'CR-V': [2007, ['LX', 'EX', 'EX-L', 'Touring']], 'Pilot': [2009, ['LX', 'EX-L', 'Touring']], 'Odyssey': [2011, ['LX', 'EX', 'Touring']], 'HR-V': [2016, ['LX', 'Sport', 'EX-L']] },
+      'Nissan': { 'Altima': [2007, ['S', 'SV', 'SL']], 'Rogue': [2008, ['S', 'SV', 'SL']], 'Sentra': [2007, ['S', 'SV', 'SR']], 'Frontier': [2005, ['S', 'SV', 'PRO-4X']], 'Pathfinder': [2005, ['S', 'SV', 'Platinum']], 'Titan': [2004, ['S', 'SV', 'Pro-4X']] },
+      'Hyundai': { 'Elantra': [2007, ['SE', 'SEL', 'Limited']], 'Sonata': [2006, ['SE', 'SEL', 'Limited']], 'Tucson': [2010, ['SE', 'SEL', 'Limited']], 'Santa Fe': [2007, ['SE', 'SEL', 'Limited']], 'Kona': [2018, ['SE', 'SEL', 'Limited']] },
+      'Kia': { 'Soul': [2010, ['Base', 'S', 'EX']], 'Sorento': [2007, ['LX', 'EX', 'SX']], 'Sportage': [2011, ['LX', 'EX', 'SX']], 'Optima': [2007, ['LX', 'EX']], 'Telluride': [2020, ['LX', 'EX', 'SX']], 'Forte': [2010, ['FE', 'LXS', 'GT']] },
+      'Subaru': { 'Outback': [2005, ['Base', 'Premium', 'Limited']], 'Forester': [2005, ['Base', 'Premium', 'Sport']], 'Crosstrek': [2013, ['Base', 'Premium', 'Sport']], 'Impreza': [2005, ['Base', 'Premium', 'Sport']], 'WRX': [2005, ['Base', 'Premium', 'Limited']] },
+      'Mazda': { 'Mazda3': [2004, ['Base', 'Select', 'Preferred']], 'CX-5': [2013, ['Sport', 'Touring', 'Grand Touring']], 'CX-9': [2007, ['Sport', 'Touring']], 'Mazda6': [2003, ['Sport', 'Touring']] },
+      'Volkswagen': { 'Jetta': [2005, ['S', 'SE', 'SEL']], 'Tiguan': [2009, ['S', 'SE', 'SEL']], 'Atlas': [2018, ['S', 'SE', 'SEL']], 'Passat': [2006, ['S', 'SE', 'SEL']] },
+      'Tesla': { 'Model 3': [2017, ['Standard', 'Long Range', 'Performance']], 'Model Y': [2020, ['Long Range', 'Performance']], 'Model S': [2012, ['Long Range', 'Plaid']], 'Model X': [2015, ['Long Range', 'Plaid']] },
+      'Buick': { 'Enclave': [2008, ['Essence', 'Premium', 'Avenir']], 'Encore': [2013, ['Preferred', 'Essence']] },
+      'Cadillac': { 'Escalade': [2007, ['Luxury', 'Premium Luxury', 'Sport']], 'XT5': [2017, ['Luxury', 'Premium Luxury', 'Sport']], 'CTS': [2008, ['Luxury', 'Performance']] },
+      'Lincoln': { 'Navigator': [2007, ['Premiere', 'Reserve', 'Black Label']], 'Aviator': [2020, ['Standard', 'Reserve']] }
+    },
+    PK: {
+      'Suzuki': { 'Alto': [2000, ['VX', 'VXR', 'VXL', 'AGS']], 'Cultus': [2000, ['VXR', 'VXL', 'AGS']], 'Wagon R': [2014, ['VXR', 'VXL', 'AGS']], 'Swift': [2010, ['DLX', 'GL', 'GLX']], 'Bolan': [1990, ['Cargo', 'Passenger']], 'Ravi': [2000, ['Pickup']], 'Every': [2005, ['Join', 'Wagon']], 'Jimny': [2018, ['GL', 'GLX']], 'Vitara': [2015, ['GL', 'GLX']] },
+      'Toyota': { 'Corolla': [2000, ['XLi', 'GLi', 'Altis', 'Altis X', 'Grande']], 'Yaris': [2020, ['GLI', 'ATIV', 'ATIV X']], 'Hilux': [2005, ['Revo', 'Rocco', 'GR-S', 'Vigo']], 'Fortuner': [2016, ['2.7 G', '2.8 Sigma 4', 'Legender']], 'Land Cruiser': [2000, ['VX', 'ZX', 'GX']], 'Prado': [2005, ['TX', 'TZ', 'TX-L']], 'Vitz': [2005, ['F', 'Jewela']], 'Aqua': [2012, ['S', 'G']], 'Prius': [2009, ['S', 'G']], 'Passo': [2010, ['X', 'G']], 'Corolla Cross': [2022, ['1.8 HEV']] },
+      'Honda': { 'City': [2000, ['1.2L', '1.3L', '1.5L', 'Aspire', 'Aspire Prosmatec']], 'Civic': [2000, ['Oriel', 'RS Turbo', 'VTi']], 'BR-V': [2017, ['i-VTEC', 'S']], 'HR-V': [2022, ['VTi', 'VTi-S']], 'Accord': [2005, ['Standard', 'Executive']], 'Vezel': [2014, ['Hybrid X', 'Hybrid Z']], 'N-WGN': [2014, ['G', 'Custom']] },
+      'Kia': { 'Sportage': [2019, ['Alpha', 'FWD', 'AWD']], 'Picanto': [2019, ['MT', 'AT']], 'Stonic': [2021, ['EX', 'EX+']], 'Sorento': [2021, ['FWD', 'AWD']], 'Carnival': [2021, ['Standard']] },
+      'Hyundai': { 'Tucson': [2020, ['FWD', 'AWD', 'Ultimate']], 'Elantra': [2021, ['GLS', 'Hybrid']], 'Sonata': [2021, ['2.0', '2.5']], 'Santa Fe': [2020, ['Standard']], 'Porter': [2012, ['H-100']] },
+      'Changan': { 'Alsvin': [2021, ['Comfort', 'Lumiere']], 'Oshan X7': [2022, ['Comfort', 'FutureSense']], 'Karvaan': [2020, ['Plus']], 'Pak Sazgaar': [2021, ['Standard']] },
+      'MG': { 'HS': [2020, ['Essence', 'Exclusive']], 'ZS': [2020, ['Excite', 'Exclusive']], 'MG5': [2023, ['Standard']] },
+      'Haval': { 'Jolion': [2021, ['1.5T', 'HEV']], 'H6': [2021, ['HEV']] },
+      'DFSK': { 'Glory 580': [2019, ['Pro']], 'Glory 560': [2019, ['Standard']], 'Prince': [2020, ['Standard']] },
+      'Proton': { 'Saga': [2021, ['Standard', 'Premium']], 'X70': [2022, ['Standard', 'Premium']], 'X50': [2023, ['Standard']] },
+      'United': { 'Bravo': [2017, ['Standard']], 'Alpha': [2020, ['Standard']] },
+      'Daihatsu': { 'Mira': [2008, ['Standard']], 'Cuore': [2000, ['Standard']] },
+      'Nissan': { 'Dayz': [2014, ['Standard']], 'Sunny': [2005, ['Standard']] },
+      'Mitsubishi': { 'Pajero': [2000, ['Standard']], 'Lancer': [2000, ['Standard']] }
+    }
   };
-  function withGulf(base) {
-    const out = {};
-    for (const mk of Object.keys(base)) out[mk] = base[mk];
-    for (const mk of Object.keys(GULF)) {
+  function withMarket(base, code) {
+    const add = MARKET[code]; if (!add) return base;
+    const out = {}; for (const mk of Object.keys(base)) out[mk] = base[mk];
+    for (const mk of Object.keys(add)) {
       out[mk] = Object.assign({}, out[mk] || {});
-      for (const md of Object.keys(GULF[mk])) if (!out[mk][md]) out[mk][md] = { from: GULF[mk][md][0], variants: GULF[mk][md][1] };
+      for (const md of Object.keys(add[mk])) if (!out[mk][md]) out[mk][md] = { from: add[mk][md][0], variants: add[mk][md][1] };
     }
     return out;
   }
-  const _vdb = window.vehicleDB; let _gulfCache = null, _gulfSrc = null;
+  const _vdb = window.vehicleDB; let _mCache = null, _mSrc = null, _mCode = null;
   if (typeof _vdb === 'function') window.vehicleDB = function () {
-    const base = _vdb.apply(this, arguments);
-    if (ctry().code !== 'AE') return base;
-    if (_gulfSrc !== base) { _gulfCache = withGulf(base); _gulfSrc = base; }
-    return _gulfCache;
+    const base = _vdb.apply(this, arguments), code = ctry().code;
+    if (!MARKET[code]) return base;
+    if (_mSrc !== base || _mCode !== code) { _mCache = withMarket(base, code); _mSrc = base; _mCode = code; }
+    return _mCache;
   };
 
-  // ── relabel pass: in UAE mode the app's India-specific words become the UAE equivalents ──
-  const SWAPS = [
-    [/\bGSTIN\b/g, 'TRN'], [/\b(?:IGST|CGST|SGST|GST)\b/g, 'VAT'], [/HSN\/SAC/g, 'Item code'], [/\bHSN\b/g, 'Code'],
-    [/IFSC code/gi, 'IBAN'], [/\bIFSC\b/g, 'IBAN'], [/₹\s?/g, 'AED '], [/\bPvt\.? Ltd\b/g, 'LLC'],
-    [/\+91 98765 43210/g, '+971 50 123 4567'], [/\+91 /g, '+971 '], [/yourshop\.in/g, 'yourshop.ae'],
-    [/27ABCDE1234F1Z5/g, '100123456700003'], [/Maharashtra/g, 'Dubai'], [/\bPune\b/g, 'Dubai'], [/Street, area, PIN/g, 'Building, street, area'],
-    [/— Select state —/g, '— Select emirate —'], [/\bPick a state\b/g, 'Pick an emirate'], [/\bstates?\b(?= (?:and|or) (?:UTs|union))/g, 'emirates']
-  ];
+  // ── relabel pass: outside India the app's India-specific words become the local equivalents ──
+  function swapsFor(c) {
+    const P = GP_PROFILE(c), cur = /^[A-Za-z]{2,}$/.test(P.currency) ? P.currency + ' ' : P.currency;
+    const taxW = P.taxName === 'VAT' ? 'VAT' : 'Sales tax';
+    const L = [
+      [/\bGSTIN\b/g, P.taxIdLabel], [/\b(?:IGST|CGST|SGST|GST)\b/g, taxW], [/HSN\/SAC/g, P.itemCode], [/\bHSN\b/g, c === 'US' ? 'Part no.' : 'Code'],
+      [/IFSC code/gi, P.bankCode], [/\bIFSC\b/g, P.bankCode], [/₹\s?/g, cur], [/\bPvt\.? Ltd\b/g, c === 'US' ? 'LLC' : c === 'PK' ? '(Pvt.) Ltd' : 'LLC'],
+      [/\+91 98765 43210/g, P.phonePh], [/\+91 /g, '+' + P.phonePrefix + ' '], [/yourshop\.in/g, 'yourshop.' + P.emailTld],
+      [/27ABCDE1234F1Z5/g, P.taxPh.split(',')[0].replace(/[^0-9A-Za-z-]/g, '') || '123456789'], [/Maharashtra/g, P.regionEx], [/\bPune\b/g, P.cityEx], [/Street, area, PIN/g, P.addrEx],
+      [/— Select state —/g, '— Select ' + P.regionLabel.toLowerCase() + ' —'], [/\bPick a state\b/g, 'Pick ' + (c === 'AE' ? 'an ' : c === 'PK' ? 'a ' : 'a ') + P.regionLabel.toLowerCase()]
+    ];
+    return L;
+  }
   const LABEL_STATE = /^(\s*)State(\b)/;
-  const eff = () => window.GP_PREVIEW || ctry().code;      // GP_PREVIEW: the country picked in a form but not saved yet
+  const eff = () => window.GP_PREVIEW || ctry().code;
   function relabel(root) {
-    if (eff() !== 'AE') return;
+    const c = eff(); if (c === 'IN') return;
+    const SW = swapsFor(c), P = GP_PROFILE(c);
     const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => (/^(SCRIPT|STYLE|TEXTAREA)$/.test(n.parentNode && n.parentNode.nodeName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
     const nodes = []; for (let n = w.nextNode(); n; n = w.nextNode()) nodes.push(n);
     for (const n of nodes) {
       let t = n.nodeValue, o = t;
-      for (const [re, to] of SWAPS) t = t.replace(re, to);
-      if (n.parentNode && n.parentNode.nodeName === 'LABEL') t = t.replace(LABEL_STATE, '$1Emirate$2');
+      for (const [re, to] of SW) t = t.replace(re, to);
+      if (c !== 'US' && n.parentNode && n.parentNode.nodeName === 'LABEL') t = t.replace(LABEL_STATE, '$1' + P.regionLabel + '$2');
       if (t !== o) n.nodeValue = t;
     }
     if (root.querySelectorAll) root.querySelectorAll('[placeholder],[title]').forEach(el => {
-      for (const a of ['placeholder', 'title']) {
-        const v = el.getAttribute(a); if (!v) continue; let t = v;
-        for (const [re, to] of SWAPS) t = t.replace(re, to);
-        if (t !== v) el.setAttribute(a, t);
-      }
+      for (const a of ['placeholder', 'title']) { const v = el.getAttribute(a); if (!v) continue; let t = v; for (const [re, to] of SW) t = t.replace(re, to); if (t !== v) el.setAttribute(a, t); }
     });
-    root.querySelectorAll && root.querySelectorAll('option').forEach(o => { if (o.textContent === '₹ INR') o.textContent = 'AED'; });
   }
   let _busy = false;
   const mo = new MutationObserver(muts => {
-    if (_busy || eff() !== 'AE') return; _busy = true;
+    if (_busy || eff() === 'IN') return; _busy = true;
     try { for (const m of muts) for (const n of m.addedNodes) { if (n.nodeType === 1) relabel(n); else if (n.nodeType === 3 && n.parentNode) relabel(n.parentNode); } } catch (_) {}
     _busy = false;
   });
-  const start = () => { try { mo.observe(document.body, { childList: true, subtree: true }); } catch (_) {} };
-  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  const startObs = () => { try { mo.observe(document.body, { childList: true, subtree: true }); } catch (_) {} };
+  if (document.body) startObs(); else document.addEventListener('DOMContentLoaded', startObs);
   window.GP_relabel = () => relabel(document.body);
 
   // ── signup wizard + Settings: country switch ──
-  function swapRegionInput(id, isAE, valueIfAny) {
+  function swapRegionInput(id, code) {
     const cur = document.getElementById(id); if (!cur) return;
-    const wantSelect = isAE, isSelect = cur.tagName === 'SELECT';
-    if (wantSelect === isSelect && !isAE) return;
+    const list = REGIONS[code];
     let el;
-    if (isAE) {
+    if (list) {
       el = document.createElement('select'); el.id = id; el.style.cssText = cur.style.cssText;
-      el.innerHTML = '<option value="">— Select emirate —</option>' + EMIRATES.map(e => `<option value="${e.name}">${e.name}</option>`).join('');
-      if (valueIfAny) el.value = valueIfAny;
+      el.innerHTML = `<option value="">— Select ${GP_PROFILE(code).regionLabel.toLowerCase()} —</option>` + list.map(e => `<option value="${e.name}">${e.name}</option>`).join('');
     } else {
-      el = document.createElement('input'); el.id = id; el.type = 'text'; el.placeholder = 'Maharashtra'; el.autocomplete = 'off';
+      if (cur.tagName === 'INPUT') return;
+      el = document.createElement('input'); el.id = id; el.type = 'text'; el.placeholder = PROFILES.IN.regionEx; el.autocomplete = 'off';
     }
     cur.replaceWith(el);
   }
   window.fsCountryChange = function () {
-    const c = document.getElementById('fs-country').value, P = GP_PROFILE(c), ae = c === 'AE'; window.GP_PREVIEW = c;
+    const c = document.getElementById('fs-country').value, P = GP_PROFILE(c); window.GP_PREVIEW = c;
     const set = (id, fn) => { const e = document.getElementById(id); if (e) fn(e); };
     set('fs-currency', e => { e.value = P.currency; });
     set('fs-state-lbl', e => { e.textContent = P.regionLabel; });
-    set('fs-gstin-lbl', e => { e.textContent = P.taxIdLabel; });
-    set('fs-gstin', e => { e.placeholder = ae ? '15-digit TRN' : '27ABCDE1234F1Z5'; e.maxLength = 15; });
-    set('fs-phone', e => { e.placeholder = ae ? '+971 50 123 4567' : '+91 98765 43210'; });
-    set('fs-email', e => { e.placeholder = ae ? 'service@yourshop.ae' : 'service@yourshop.in'; });
-    set('fs-city', e => { e.placeholder = ae ? 'Dubai' : 'Pune'; });
-    set('fs-vat-wrap', e => { e.style.display = ae ? 'flex' : 'none'; });
-    swapRegionInput('fs-state', ae);
+    set('fs-gstin-lbl', e => { e.textContent = P.taxIdLabel + (c === 'US' ? ' (optional)' : ''); });
+    set('fs-gstin', e => { e.placeholder = P.taxPh; e.maxLength = c === 'IN' ? 15 : 20; });
+    set('fs-phone', e => { e.placeholder = P.phonePh; });
+    set('fs-email', e => { e.placeholder = 'service@yourshop.' + P.emailTld; });
+    set('fs-city', e => { e.placeholder = P.cityEx; });
+    set('fs-vat-wrap', e => { e.style.display = P.regTax ? 'flex' : 'none'; const sp = e.querySelector('span'); if (sp) sp.innerHTML = c === 'PK' ? `My business is <b>registered for sales tax</b> (I have an STRN and charge sales tax). Untick if you are not registered — invoices will then say "Invoice" with no tax.` : `My business is <b>VAT-registered</b> (I charge 5% VAT and have a TRN). Untick if your turnover is below AED 375,000 and you're not registered — invoices will then say "Invoice" with no VAT.`; });
+    swapRegionInput('fs-state', c);
   };
   window.settingsCountryChange = function (sel) {
-    const c = sel.value, P = GP_PROFILE(c), ae = c === 'AE'; window.GP_PREVIEW = c;
+    const c = sel.value, P = GP_PROFILE(c); window.GP_PREVIEW = c;
     const set = (id, fn) => { const e = document.getElementById(id); if (e) fn(e); };
     set('sf-cur', e => { e.value = P.currency; });
     set('sf-tax', e => { e.value = P.taxDefault; });
-    set('sf-tax-lbl', e => { e.textContent = 'Default tax % (' + P.taxName + ')'; });
+    set('sf-tax-lbl', e => { e.textContent = 'Default tax % (' + P.taxName + (c === 'PK' ? ' on parts / goods' : '') + ')'; });
     set('sf-gst-lbl', e => { e.textContent = P.taxIdLabel; });
-    set('sf-gst', e => { e.placeholder = ae ? '15-digit TRN, e.g. 100123456700003' : '27ABCDE1234F1Z5'; });
-    set('sf-vat-grp', e => { e.style.display = ae ? '' : 'none'; });
+    set('sf-gst', e => { e.placeholder = P.taxPh; });
+    set('sf-vat-grp', e => { e.style.display = P.regTax ? '' : 'none'; });
+    set('sf-labgst-grp', e => { e.style.display = ['IN', 'US'].includes(c) ? '' : 'none'; const l = e.querySelector('label'); if (l) l.textContent = 'Charge ' + P.taxName + ' on labour?'; });
+    set('sf-pk-grp', e => { e.style.display = c === 'PK' ? '' : 'none'; });
+    set('sf-turn-grp', e => { e.style.display = c === 'IN' ? '' : 'none'; });
     set('sf-state-lbl', e => { e.firstChild.textContent = P.regionLabel + ' '; });
-    set('sf-state', e => { const list = ae ? EMIRATES : INDIAN_STATES; e.innerHTML = `<option value="">— Select ${P.regionLabel.toLowerCase()} —</option>` + list.map(r => `<option value="${r.name}">${r.name}</option>`).join(''); });
+    set('sf-state', e => { const list = REGIONS[c] || INDIAN_STATES; e.innerHTML = `<option value="">— Select ${P.regionLabel.toLowerCase()} —</option>` + list.map(r => `<option value="${r.name}">${r.name}</option>`).join(''); });
     showToast('Currency, tax and region list switched to ' + P.name + ' — review them, then press Save. The app reloads after saving.', 'good');
   };
-
-  const _st = window.switchTab;
-  if (typeof _st === 'function') window.switchTab = function () { window.GP_PREVIEW = null; return _st.apply(this, arguments); };
+  window.pkServicesHint = function (province) { return PK_SERVICES_HINT[province] || 16; };
 
   // ── existing accounts: pin them to India explicitly (nothing else changes) ──
   async function pinCountry() {
     try {
       if (!D.settings || D.settings.country || !isAdminRole() || isChainHQMode()) return;
-      D.settings.country = 'IN';
-      await wsSaveSettings();
+      D.settings.country = 'IN'; await wsSaveSettings();
       fbDb.collection('public_workshops').doc(wsUid()).set({ country: 'IN' }, { merge: true }).catch(() => {});
     } catch (_) {}
   }
+  const _st = window.switchTab;
+  if (typeof _st === 'function') window.switchTab = function () { window.GP_PREVIEW = null; return _st.apply(this, arguments); };
   const _ea = window.enterApp;
   if (typeof _ea === 'function') window.enterApp = function () { const r = _ea.apply(this, arguments); setTimeout(() => { pinCountry(); GP_relabel(); }, 2200); return r; };
   setTimeout(() => { try { if (typeof currentWorker !== 'undefined' && currentWorker) { pinCountry(); GP_relabel(); } } catch (_) {} }, 3000);
 })();
 </script>
+
 
 <script>
 // ══════════════════════════════════════════════════════════════════════════
@@ -22734,9 +22844,9 @@ async function renderWorkload(force = false) {
     return _sq.call(this, v);
   };
 
-  GP.addLang('en', { 'cta.rebook': 'Book another time', 'cta.history': 'View your car\'s service history', 'cta.book': 'Book your next service' });
-  GP.addLang('hi', { 'cta.rebook': 'दूसरा समय बुक करें', 'cta.history': 'अपनी गाड़ी का सर्विस इतिहास देखें', 'cta.book': 'अगली सर्विस बुक करें' });
-  GP.addLang('ar', { 'cta.rebook': 'احجز موعدًا آخر', 'cta.history': 'عرض سجل صيانة سيارتك', 'cta.book': 'احجز صيانتك القادمة' });
+  GP.addLang('en', { 'cta.manage': 'Change or cancel your booking', 'ev.booking_reminder.h': 'Reminder: your appointment is tomorrow', 'ev.booking_reminder.s': 'Appointment reminder', 'cta.rebook': 'Book another time', 'cta.history': 'View your car\'s service history', 'cta.book': 'Book your next service' });
+  GP.addLang('hi', { 'cta.manage': 'बुकिंग बदलें या रद्द करें', 'ev.booking_reminder.h': 'अनुस्मारक: आपकी अपॉइंटमेंट कल है', 'ev.booking_reminder.s': 'अपॉइंटमेंट अनुस्मारक', 'cta.rebook': 'दूसरा समय बुक करें', 'cta.history': 'अपनी गाड़ी का सर्विस इतिहास देखें', 'cta.book': 'अगली सर्विस बुक करें' });
+  GP.addLang('ar', { 'cta.manage': 'تغيير الحجز أو إلغاؤه', 'ev.booking_reminder.h': 'تذكير: موعدك غدًا', 'ev.booking_reminder.s': 'تذكير بالموعد', 'cta.rebook': 'احجز موعدًا آخر', 'cta.history': 'عرض سجل صيانة سيارتك', 'cta.book': 'احجز صيانتك القادمة' });
 })();
 </script>
 
@@ -22765,21 +22875,31 @@ async function renderWorkload(force = false) {
   };
 
   // ───────── "check before you print" ─────────
-  function issues(inv, ws, t, AE, vatReg) {
-    const out = [], c = inv.customer || {}, taxId = AE ? 'TRN' : 'GSTIN';
+  function issues(inv, ws, t, cc, vatReg) {
+    const out = [], c = inv.customer || {}, AE = cc === 'AE', US = cc === 'US', PK = cc === 'PK', taxId = GP_PROFILE(cc).taxIdLabel;
     if (!ws.workshop_name) out.push('Your workshop name is missing (Settings → Workshop info).');
     if (!ws.address) out.push('Your workshop address is missing — a tax invoice must show the supplier\'s address.');
+    if (!c.name) out.push('Customer name is missing.');
     if (AE) {
       if (vatReg && !/^\d{15}$/.test(String(ws.gstin || '').replace(/\s|-/g, ''))) out.push('Your 15-digit TRN is missing or wrong — a UAE tax invoice must carry the supplier\'s TRN.');
-      if (!c.name) out.push('Customer name is missing.');
       if (vatReg && !c.address && (t.grand > 10000 || c.gstin)) out.push('Customer address is missing — a full tax invoice needs the customer\'s name and address (always above AED 10,000, or when the customer is VAT-registered).');
       if (!vatReg) out.push('You are marked as NOT VAT-registered, so this prints as "Invoice" with no VAT. If your turnover is above AED 375,000 you must register.');
       if ((inv.lines || []).some(l => l.taxable === false)) out.push('Some lines have no VAT: Garage Pro prints them as 0%, but cannot tell zero-rated from exempt supplies — check these with your accountant.');
+    } else if (US) {
+      if (!(Number(inv.tax_pct) > 0) && !c.tax_exempt && (inv.lines || []).length) out.push('Sales tax is 0% on this invoice. If your state taxes parts, set your combined state + local rate in Settings → Workshop info (rates differ by state, county and city).');
+      if (c.tax_exempt && !c.exempt_cert) out.push('This customer is marked tax-exempt but no exemption / resale certificate number is on file — keep the certificate for your records.');
+      if (!ws.state) out.push('Your state is not set — it decides which sales-tax rules apply to you.');
+      if ((inv.charges || []).length && (inv.lines || []).length && !(inv.charges || []).every(ch => _svcTaxable(ch.taxable))) out.push('Parts and labour are listed separately with labour untaxed. That is correct in many states but not all — some tax labour. Confirm for your state.');
+    } else if (PK) {
+      if (vatReg && !ws.gstin) out.push('Your STRN (Sales Tax Registration Number) is missing — a sales tax invoice must carry the supplier\'s registration number.');
+      if (!ws.ntn) out.push('Your NTN is missing — add it in Settings → Workshop info.');
+      if (!ws.state) out.push('Your province is not set — it decides the sales-tax rate on workshop services.');
+      if (!vatReg) out.push('You are marked as NOT registered for sales tax, so this prints as "Invoice" with no tax. If you must be registered, you must charge it.');
+      if (vatReg && !c.gstin) out.push('Buyer\'s NTN / STRN is not on the invoice. A sales tax invoice shows the buyer\'s registration number where the buyer is registered; sales to unregistered buyers can attract further tax — ask your accountant and add it as a separate charge if required.');
     } else {
       if (!ws.gstin) out.push('Your GSTIN is missing, so this prints as "Invoice", not "Tax Invoice". A tax invoice must show the supplier\'s GSTIN.');
       if (ws.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(String(ws.gstin).toUpperCase())) out.push('Your GSTIN does not look like a valid 15-character GSTIN.');
       if (!ws.state) out.push('Your state is not set — it decides CGST+SGST versus IGST (Settings → Workshop info).');
-      if (!c.name) out.push('Customer name is missing.');
       if (!c.gstin && t.grand > 50000 && (!c.address || !c.state)) out.push('For an invoice above ₹50,000 to an unregistered customer, the customer\'s name, address and state (with state code) must be on the invoice.');
       const need = ws.turnover_over_5cr ? 6 : 4, short = (inv.lines || []).filter(l => String(l.hsn || '').replace(/\D/g, '').length < need).length;
       if (short && c.gstin) out.push(`${short} part line${short === 1 ? ' has' : 's have'} a missing or too-short HSN code. On a B2B invoice HSN must be at least ${need} digits at your turnover. Add it on the inventory item.`);
@@ -22794,8 +22914,8 @@ async function renderWorkload(force = false) {
   window._invoiceHTMLFromRecord = function (inv, opts) {
     let html = _orig.apply(this, arguments);
     try {
-      const ws = inv.workshop_snapshot || _workshopSnapshot(), PF = GP_PROFILE(ws.country), AE = PF.code === 'AE', vatReg = AE ? ws.vat_registered !== false : true, t = _invoiceTotals(inv);
-      const list = (opts && opts.banner) ? issues(inv, ws, t, AE, vatReg) : [];      // only on the workshop's own print preview — never in what a customer is sent
+      const ws = inv.workshop_snapshot || _workshopSnapshot(), PF = GP_PROFILE(ws.country), vatReg = PF.regTax ? ws.vat_registered !== false : true, t = _invoiceTotals(inv);
+      const list = (opts && opts.banner) ? issues(inv, ws, t, PF.code, vatReg) : [];      // only on the workshop's own print preview — never in what a customer is sent
       if (list.length) html = html.replace('<body>', `<body><div class="no-print" style="background:#fff4e5;border:1px solid #ffcc80;color:#6b4300;padding:11px 16px;font:13px/1.5 Arial,sans-serif;margin:0 0 14px;border-radius:6px"><b>⚠ Check before you print or send</b> (this box does not print)<ul style="margin:6px 0 0 18px;padding:0">${list.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`);
       if (ws.lang2) html = biInvoice(html, ws.lang2);
     } catch (e) { console.warn('[invoice post-process]', e); }
@@ -22825,8 +22945,18 @@ async function renderWorkload(force = false) {
     'service suggestions': 'सेवा सुझाव', 'part': 'पुर्ज़ा', 'service charge': 'सेवा शुल्क', 'place of supply': 'आपूर्ति का स्थान', 'customer / authorized signatory': 'ग्राहक / अधिकृत हस्ताक्षरकर्ता',
     'service advisor signature': 'सर्विस सलाहकार के हस्ताक्षर', 'cashier / authorized signature': 'कैशियर / अधिकृत हस्ताक्षर', 'insurer': 'बीमा कंपनी', 'claim no': 'दावा संख्या', 'print invoice': 'चालान प्रिंट करें'
   };
+  const UR = {
+    'tax invoice': 'ٹیکس انوائس', 'sales tax invoice': 'سیلز ٹیکس انوائس', 'invoice': 'انوائس', 'invoice no': 'انوائس نمبر', 'date': 'تاریخ', 'date of supply': 'فراہمی کی تاریخ', 'job card no': 'جاب کارڈ نمبر',
+    'vehicle no': 'گاڑی نمبر', 'vin': 'چیسس نمبر', 'advisor name': 'سروس ایڈوائزر', 'service type': 'سروس کی قسم', 'vehicle': 'گاڑی', 'kilometer': 'کلومیٹر', 'color': 'رنگ', 'fuel': 'ایندھن',
+    'customer name': 'گاہک کا نام', 'mobile no': 'موبائل نمبر', 'address': 'پتہ', 'contact': 'رابطہ', 'email': 'ای میل', 'ph': 'فون', 'strn': 'ایس ٹی آر این', 'ntn': 'این ٹی این', 'customer strn': 'گاہک ایس ٹی آر این',
+    'description': 'تفصیل', 'qty': 'مقدار', 'quantity': 'مقدار', 'unit price': 'فی یونٹ قیمت', 'taxable value': 'قابلِ ٹیکس قیمت', 'sales tax rate': 'سیلز ٹیکس کی شرح', 'sales tax': 'سیلز ٹیکس', 'total': 'کل',
+    'total excl. sales tax': 'ٹیکس کے بغیر کل', 'total incl. sales tax': 'ٹیکس سمیت کل', 'total payable': 'قابلِ ادائیگی رقم', 'balance due': 'واجب الادا رقم', 'balance': 'بقایا', 'amount paid': 'ادا شدہ رقم',
+    'discount included above': 'اوپر شامل رعایت', 'bank details': 'بینک کی تفصیلات', 'bank name': 'بینک کا نام', 'account no': 'اکاؤنٹ نمبر', 'iban': 'آئی بین', 'branch': 'برانچ', 'terms': 'شرائط',
+    'payment status': 'ادائیگی کی صورتحال', 'part name': 'پرزے کا نام', 'goods': 'سامان', 'labour / services': 'مزدوری / خدمات', 'service suggestions': 'سروس کی تجاویز',
+    'customer / authorized signatory': 'گاہک / مجاز دستخط کنندہ', 'service advisor signature': 'سروس ایڈوائزر کے دستخط', 'cashier / authorized signature': 'کیشیئر / مجاز دستخط', 'print invoice': 'انوائس پرنٹ کریں'
+  };
   function biInvoice(html, lang) {
-    const T = lang === 'hi' ? HI : AR, rtl = lang === 'ar';
+    const T = lang === 'hi' ? HI : lang === 'ur' ? UR : AR, rtl = lang === 'ar' || lang === 'ur';
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const w = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null), nodes = []; for (let n = w.nextNode(); n; n = w.nextNode()) nodes.push(n);
     for (const n of nodes) {
@@ -22856,8 +22986,8 @@ async function renderWorkload(force = false) {
       lines.push({ name: l.name, q, unit, da, net, rate: z ? 0 : taxPct, cat: z ? 'Z' : 'S' });
     });
     (inv.charges || []).filter(keep).forEach(ch => {
-      const amt = +Number(ch.amount || 0).toFixed(2), tx = _svcTaxable(ch.taxable);
-      lines.push({ name: ch.name, q: 1, unit: amt, da: 0, net: amt, rate: tx ? taxPct : 0, cat: tx ? 'S' : 'Z' });
+      const amt = +Number(ch.amount || 0).toFixed(2), cr = _chRate(ch, inv, taxPct), tx = cr > 0;
+      lines.push({ name: ch.name, q: 1, unit: amt, da: 0, net: amt, rate: cr, cat: tx ? 'S' : 'Z' });
     });
     const groups = {}; lines.forEach(l => { const k = l.cat + '|' + l.rate; (groups[k] = groups[k] || { cat: l.cat, rate: l.rate, base: 0 }).base += l.net; });
     const gl = Object.values(groups).map(g => Object.assign(g, { tax: +(g.base * g.rate / 100).toFixed(2), base: +g.base.toFixed(2) }));
@@ -22920,6 +23050,7 @@ async function renderWorkload(force = false) {
 
   // tax split by rate, mirroring _invoiceTotals (approved lines only once the customer has decided)
   window._gstByRate = function (inv, def) {
+    inv = _exemptView(inv);
     const keep = it => !inv.client_decision_at || (it.approval || 'pending') !== 'rejected', g = {};
     const add = (rate, tax) => { const k = String(rate); (g[k] = g[k] || { rate: Number(rate), tax: 0 }).tax += tax; };
     (inv.lines || []).filter(keep).forEach(l => {
@@ -22927,7 +23058,7 @@ async function renderWorkload(force = false) {
       const gross = Number(l.unit_price || 0) * Math.max(1, Number(l.qty || 1)), taxable = +(gross - +(gross * Number(l.disc_pct || 0) / 100).toFixed(2)).toFixed(2), r = _lineRate(l, def);
       add(r, +(taxable * r / 100).toFixed(2));
     });
-    (inv.charges || []).filter(keep).forEach(c => { if (_svcTaxable(c.taxable)) add(def, +(Number(c.amount || 0) * def / 100).toFixed(2)); });
+    (inv.charges || []).filter(keep).forEach(c => { const sr = _chRate(c, inv, def); if (sr > 0) add(sr, +(Number(c.amount || 0) * sr / 100).toFixed(2)); });
     return Object.values(g).filter(x => x.tax || x.rate).map(x => ({ rate: x.rate, tax: +x.tax.toFixed(2) })).sort((a, b) => a.rate - b.rate);
   };
 
@@ -22981,9 +23112,9 @@ async function renderWorkload(force = false) {
     const html = _prev.apply(this, arguments);
     if (!inv || inv.doc_type !== 'credit_note') return html;
     try {
-      const AE = ctry().code === 'AE' && (inv.workshop_snapshot || {}).country === 'AE' || (inv.workshop_snapshot || {}).country === 'AE';
+      const cc = (inv.workshop_snapshot || {}).country || ctry().code, AE = cc === 'AE', PK = cc === 'PK';
       const doc = new DOMParser().parseFromString(html, 'text/html');
-      const title = doc.querySelector('.ti-title'); if (title) title.textContent = AE ? 'Tax Credit Note' : (/^Invoice/.test(title.textContent) ? 'Credit Note' : 'Credit Note');
+      const title = doc.querySelector('.ti-title'); if (title) title.textContent = AE ? 'Tax Credit Note' : (PK ? 'Sales Tax Credit Note' : 'Credit Note');
       doc.querySelectorAll('.lbl').forEach(e => { if (/^Invoice No/.test(e.textContent)) e.textContent = 'Credit Note No:'; });
       doc.querySelectorAll('.bank-section, .pay-status, .certify, .photos, .no-print').forEach(e => { if (!e.classList.contains('no-print') || !/Check before/.test(e.textContent)) e.remove(); });
       doc.querySelectorAll('.row').forEach(e => { if (/^(Balance|Amount Paid|Balance due|Total Payable)/.test(e.textContent.trim()) && /Balance|Amount Paid/.test(e.textContent)) e.remove(); });
@@ -23179,6 +23310,152 @@ async function renderWorkload(force = false) {
   if (typeof _ea === 'function') window.enterApp = function () { const r = _ea.apply(this, arguments); setTimeout(() => { try { ensureUi(); } catch (_) {} }, 2200); return r; };
   setTimeout(() => { try { if (currentWorker) ensureUi(); } catch (_) {} }, 3000);
   window.__bdDraw = draw;
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  TAX BREAKDOWN, FEES & FURTHER TAX
+//  • USA: enter the state / county / city / special-district pieces; their sum becomes the sales-tax rate and the invoice shows each piece.
+//  • Shop fees (any country): "Shop supplies" (a % of labour, optionally capped, or flat) and an "Environmental / disposal" fee,
+//    each taxable or not; add them with one tap on an invoice, or automatically on new invoices.
+//  • Pakistan: "further tax" on goods sold to a buyer with no NTN/STRN (rate editable; default 4% — confirm the current rate).
+//  • Any charge line can carry its own tax % (e.g. a province's special rate for a service).
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const fees = () => ((D.settings || {}).shop_fees && Array.isArray(D.settings.shop_fees)) ? D.settings.shop_fees : [{ name: 'Shop supplies', kind: 'pct_labour', value: 0, cap: 0, taxable: true }, { name: 'Environmental / disposal fee', kind: 'flat', value: 0, cap: 0, taxable: false }];
+
+  // build the fee charges for an invoice (labour base = non-fee charges)
+  window._shopFeeCharges = function (inv) {
+    const base = (inv.charges || []).filter(c => !c.fee).reduce((a, c) => a + Number(c.amount || 0), 0), out = [];
+    fees().forEach(f => {
+      if (!(Number(f.value) > 0)) return;
+      let amt = f.kind === 'flat' ? Number(f.value) : base * Number(f.value) / 100;
+      if (Number(f.cap) > 0) amt = Math.min(amt, Number(f.cap));
+      amt = +amt.toFixed(2); if (amt > 0) out.push({ name: f.name, amount: amt, taxable: f.taxable === true, fee: true });
+    });
+    return out;
+  };
+  window._invAddFees = function () {
+    const inv = (typeof _editingInvoice !== 'undefined') ? _editingInvoice : null; if (!inv) return;
+    const have = new Set((inv.charges || []).filter(c => c.fee).map(c => c.name)), add = _shopFeeCharges(inv).filter(c => !have.has(c.name));
+    if (!add.length) return showToast((fees().some(f => Number(f.value) > 0) ? 'Fees are already on this invoice' : 'Set your shop fees first (Settings → Invoice fees & tax breakdown)'), 'bad');
+    inv.charges = (inv.charges || []).concat(add); _drawInvoiceLineRows(); showToast(`${add.length} fee${add.length === 1 ? '' : 's'} added`, 'good');
+  };
+  // optional: new invoices created from a job get the fees automatically
+  const _seed = window._seedInvoiceFromJob;
+  if (typeof _seed === 'function') window._seedInvoiceFromJob = function () {
+    const inv = _seed.apply(this, arguments);
+    try { if ((D.settings || {}).shop_fees_auto) inv.charges = (inv.charges || []).concat(_shopFeeCharges(inv)); } catch (_) {}
+    return inv;
+  };
+
+  // ───────── Settings card ─────────
+  window.tfSave = async function () {
+    const g = id => document.getElementById(id), n = id => (g(id) ? Number(g(id).value) || 0 : 0);
+    D.settings = D.settings || {};
+    if (ctry().code === 'US') {
+      const parts = { state: n('tf-state'), county: n('tf-county'), city: n('tf-city'), district: n('tf-dist') }, sum = +(parts.state + parts.county + parts.city + parts.district).toFixed(3);
+      D.settings.us_tax_parts = parts; if (sum > 0) D.settings.tax_pct = sum;
+    }
+    if (ctry().code === 'PK') D.settings.pk_further_tax_pct = g('tf-further').value === '' ? 4 : n('tf-further');
+    D.settings.shop_fees = [0, 1].map(i => ({ name: (g('tf-fn' + i).value || '').trim() || (i ? 'Environmental / disposal fee' : 'Shop supplies'), kind: g('tf-fk' + i).value, value: n('tf-fv' + i), cap: n('tf-fc' + i), taxable: g('tf-ft' + i).checked }));
+    D.settings.shop_fees_auto = !!g('tf-auto').checked;
+    try { await wsSaveSettings(); showToast('Saved', 'good'); renderSettings(true); } catch (e) { showToast('Could not save: ' + (e.message || e), 'bad'); }
+  };
+  const _rs = window.renderSettings;
+  if (typeof _rs === 'function') window.renderSettings = async function () {
+    const r = await _rs.apply(this, arguments);
+    try {
+      const body = document.getElementById('settingsBody'); if (!body || !isAdminRole() || isChainHQMode()) return r;
+      let host = document.getElementById('tfCardHost');
+      if (!host) { host = document.createElement('div'); host.id = 'tfCardHost'; const grid = body.firstElementChild; if (!grid) return r; const after = document.getElementById('bdCardHost') || document.getElementById('exCardHost') || document.getElementById('obCardHost'); grid.insertBefore(host, after ? after.nextSibling : (grid.children[2] || null)); }
+      const c = ctry().code, s = D.settings || {}, tp = s.us_tax_parts || {}, F = fees(), inp = 'width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)';
+      host.innerHTML = `<div class="card" style="padding:18px"><h3 style="margin:0 0 4px">Invoice fees &amp; tax breakdown</h3>
+        <div style="color:var(--faint);font-size:13px;line-height:1.55;margin-bottom:12px">Optional. Rates and what is taxable differ by place and change — confirm yours with your accountant.</div>
+        ${c === 'US' ? `<div style="font-weight:700;font-size:13px;margin:6px 0">Sales tax breakdown <span style="color:var(--faint);font-weight:500">(adds up to your combined rate)</span></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px"><div><label style="font-size:11.5px;color:var(--faint)">State %</label><input id="tf-state" type="number" step="0.001" min="0" value="${esc(tp.state || '')}" style="${inp}"></div><div><label style="font-size:11.5px;color:var(--faint)">County %</label><input id="tf-county" type="number" step="0.001" min="0" value="${esc(tp.county || '')}" style="${inp}"></div><div><label style="font-size:11.5px;color:var(--faint)">City %</label><input id="tf-city" type="number" step="0.001" min="0" value="${esc(tp.city || '')}" style="${inp}"></div><div><label style="font-size:11.5px;color:var(--faint)">Special district %</label><input id="tf-dist" type="number" step="0.001" min="0" value="${esc(tp.district || '')}" style="${inp}"></div></div>
+          <div style="font-size:12px;color:var(--faint);margin:6px 0 10px">Saving sets your default sales-tax rate to the total (now ${esc(s.tax_pct ?? 0)}%) and each piece is printed on the invoice.</div>` : ''}
+        ${c === 'PK' ? `<div style="font-weight:700;font-size:13px;margin:6px 0">Further tax <span style="color:var(--faint);font-weight:500">(goods sold to a buyer with no NTN / STRN)</span></div>
+          <div style="max-width:220px"><label style="font-size:11.5px;color:var(--faint)">Further tax %</label><input id="tf-further" type="number" step="0.01" min="0" value="${esc(s.pk_further_tax_pct ?? 4)}" style="${inp}"></div>
+          <div style="font-size:12px;color:var(--faint);margin:6px 0 10px">Added automatically on parts when the customer has no NTN/STRN on file. 4% is the rate I know of — confirm the current rate; set 0 to switch it off.</div>` : ''}
+        <div style="font-weight:700;font-size:13px;margin:10px 0 6px">Shop fees</div>
+        ${F.map((f, i) => `<div style="display:grid;grid-template-columns:1.6fr 1.2fr .8fr .8fr auto;gap:8px;align-items:end;margin-bottom:8px">
+          <div><label style="font-size:11.5px;color:var(--faint)">Fee name</label><input id="tf-fn${i}" value="${esc(f.name)}" style="${inp}"></div>
+          <div><label style="font-size:11.5px;color:var(--faint)">Charged as</label><select id="tf-fk${i}" style="${inp}"><option value="pct_labour" ${f.kind !== 'flat' ? 'selected' : ''}>% of labour</option><option value="flat" ${f.kind === 'flat' ? 'selected' : ''}>Flat amount</option></select></div>
+          <div><label style="font-size:11.5px;color:var(--faint)">Value</label><input id="tf-fv${i}" type="number" step="0.01" min="0" value="${esc(f.value || '')}" style="${inp}"></div>
+          <div><label style="font-size:11.5px;color:var(--faint)">Cap (optional)</label><input id="tf-fc${i}" type="number" step="0.01" min="0" value="${esc(f.cap || '')}" style="${inp}"></div>
+          <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;padding-bottom:9px"><input id="tf-ft${i}" type="checkbox" ${f.taxable ? 'checked' : ''}> taxable</label></div>`).join('')}
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:8px 0"><input id="tf-auto" type="checkbox" ${s.shop_fees_auto ? 'checked' : ''}> Add these fees automatically to new invoices <span style="color:var(--faint)">(otherwise use the "+ Fees" button on an invoice)</span></label>
+        <button class="add-btn" type="button" onclick="tfSave()">Save</button></div>`;
+    } catch (e) { console.warn('[tax/fee card]', e); }
+    return r;
+  };
+
+  // ───────── invoice form: charge rows get "Tax" + "Tax %", and a "+ Fees" button ─────────
+  const _drawBase = window._drawInvoiceLineRows;
+  if (typeof _drawBase === 'function') window._drawInvoiceLineRows = function () {
+    const r = _drawBase.apply(this, arguments);
+    try {
+      const inv = (typeof _editingInvoice !== 'undefined') ? _editingInvoice : null, box = document.getElementById('if-charges'), tbl = box && box.querySelector('table');
+      if (inv && tbl) {
+        tbl.querySelector('thead tr').insertAdjacentHTML('afterbegin', '');
+        const th = tbl.querySelector('thead tr'), amtTh = th.children[1];
+        amtTh.insertAdjacentHTML('afterend', `<th style="width:70px">Taxed?</th><th style="width:90px">${esc(ctry().taxName)} %</th>`);
+        const fld = 'width:100%;padding:7px 9px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)';
+        [...tbl.querySelectorAll('tbody tr')].forEach((tr, i) => {
+          const c = inv.charges[i] || {}, td = tr.children[1];
+          td.insertAdjacentHTML('afterend', `<td style="text-align:center"><input type="checkbox" data-cx="${i}" ${(c.tax_pct != null && c.tax_pct !== '' ? Number(c.tax_pct) > 0 : _svcTaxable(c.taxable)) ? 'checked' : ''} style="width:16px;height:16px"></td><td><input type="number" min="0" step="0.01" data-cr="${i}" value="${c.tax_pct == null || c.tax_pct === '' ? '' : esc(c.tax_pct)}" placeholder="auto" style="${fld}"></td>`);
+        });
+        tbl.querySelectorAll('input[data-cx]').forEach(el => el.addEventListener('change', e => { const c = inv.charges[+e.target.dataset.cx]; c.taxable = e.target.checked; if (c.tax_pct != null && c.tax_pct !== '') c.tax_pct = e.target.checked ? c.tax_pct : 0; if (typeof _updateInvoiceTotalsBox === 'function') _updateInvoiceTotalsBox(); }));
+        tbl.querySelectorAll('input[data-cr]').forEach(el => el.addEventListener('input', e => { const c = inv.charges[+e.target.dataset.cr]; c.tax_pct = e.target.value === '' ? null : Number(e.target.value); if (typeof _updateInvoiceTotalsBox === 'function') _updateInvoiceTotalsBox(); }));
+      }
+      const hdr = document.querySelector('#if-charges') && document.querySelector('#if-charges').previousElementSibling;
+      if (hdr && !hdr.querySelector('[data-fees]')) { const b = document.createElement('button'); b.type = 'button'; b.className = 'mini-btn'; b.dataset.fees = '1'; b.style.marginLeft = '6px'; b.textContent = '+ Fees'; b.onclick = window._invAddFees; const last = hdr.querySelector('button'); (last && last.parentNode || hdr).appendChild(b); }
+    } catch (e) { console.warn('[charge row extras]', e); }
+    return r;
+  };
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  SELF-SERVICE CHANGES — a customer cancels or moves a booking from the link in their email (garagepro.me/manage/<slug>/<id>)
+//  The customer's page edits their own booking request; this app (whenever it is open) applies the change to the real booking, frees /
+//  takes the slot, and tells the workshop. If no app is open, the server e-mails the workshop and the customer. Workshop switch:
+//  Settings → Online booking → "Let customers reschedule or cancel" (only available while online booking is ON).
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  window.obSelfSync = function () { const on = document.getElementById('ob-enabled'), self = document.getElementById('ob-self'); if (!on || !self) return; self.disabled = !on.checked; if (!on.checked) self.checked = false; };
+  let unsub = null, busy = new Set();
+  async function apply(r) {
+    if (busy.has(r.id)) return; busy.add(r.id);
+    try {
+      const b = (D.bookings || []).find(x => x.online_request_id === r.id || x.id === r.booking_id);
+      const who = r.name || 'A customer';
+      if (b) {
+        const old = `${b.date} ${b.time_start || b.time || ''}`;
+        if (r.status === 'cancelled') { b.status = 'Cancelled'; b.cancel_reason = 'Cancelled by the customer (online)'; }
+        else { b.date = r.date; b.time = r.time; b.time_start = r.time; b.updated_at = nowStr(); b.rescheduled_from = old; }
+        b.updated_at = nowStr();
+        await wsSave('bookings', D.bookings);
+      }
+      await wsCol('booking_requests').doc(r.id).update({ change_pending: false, change_applied_at: nowStr() });
+      const msg = r.status === 'cancelled' ? `${who} cancelled their booking for ${r.plate || 'their car'} (${r.date} ${r.time})` : `${who} moved their booking for ${r.plate || 'their car'} to ${r.date} ${r.time}`;
+      showToast('📅 ' + msg, 'good'); audit('booking-self-service', msg, { request_id: r.id });
+      try { notify({ kind: 'booking-changed', message: msg, target: { roles: ['service_advisor', 'receptionist', 'owner', 'manager'] }, booking_id: b ? b.id : '' }); } catch (_) {}
+      try { if (typeof renderBookings === 'function' && currentTab === 'bookings') renderBookings(true); } catch (_) {}
+    } catch (e) { console.warn('[self-service apply]', e); }
+    finally { busy.delete(r.id); }
+  }
+  function start() {
+    if (unsub || !currentWorker || !fbDb) return;
+    try { unsub = wsCol('booking_requests').where('change_pending', '==', true).onSnapshot(snap => snap.docs.forEach(d => apply(Object.assign({ id: d.id }, d.data()))), e => console.warn('[self-service listener]', e.code || e)); } catch (_) {}
+  }
+  const _ea = window.enterApp;
+  if (typeof _ea === 'function') window.enterApp = function () { const r = _ea.apply(this, arguments); setTimeout(start, 2600); return r; };
+  setTimeout(() => { try { if (currentWorker) start(); } catch (_) {} }, 3500);
 })();
 </script>
 
