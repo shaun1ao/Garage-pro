@@ -7,7 +7,7 @@
 <meta name="description" content="Book your car's service online — pick a service, choose a time, done." />
 <meta name="robots" content="noindex, follow" />
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#0a0e14; --bg2:#121722; --surf:#0e1420; --border:#26303f;
@@ -76,6 +76,7 @@
   .skeleton{height:90px;border-radius:14px;background:linear-gradient(90deg,var(--bg2),var(--surf),var(--bg2));background-size:200% 100%;animation:sh 1.2s infinite}
   @keyframes sh{to{background-position:-200% 0}}
 </style>
+<link rel="stylesheet" href="ui.css">
 </head>
 <body>
 <div class="top">
@@ -326,7 +327,7 @@ function render() {
   $('app').innerHTML = `
     <h1>${esc(W.name || 'Book a service')}</h1>
     ${W.welcome ? `<p class="sub">${esc(W.welcome)}</p>` : `<p class="sub">Pick a service and a time that suits you — it takes a minute.</p>`}
-    <div class="meta">${W.city ? `<span>📍 ${esc([W.address, W.city].filter(Boolean).join(', ').slice(0, 90))}</span>` : ''}${W.phone ? `<a href="tel:${esc(W.phone)}" style="color:var(--dim);text-decoration:none">📞 ${esc(W.phone)}</a>` : ''}</div>
+    <div class="meta">${W.city ? `<span>${esc([W.address, W.city].filter(Boolean).join(', ').slice(0, 90))}</span>` : ''}${W.phone ? `<a href="tel:${esc(W.phone)}" style="color:var(--dim);text-decoration:none">${esc(W.phone)}</a>` : ''}</div>
 
     <div class="step ${sel.service ? 'done' : ''}"><h2><span class="num">1</span>What do you need?</h2>
       ${services.length ? `<div class="chips">${services.map(s => `<button type="button" class="chip ${sel.service === s ? 'on' : ''}" data-svc="${esc(s)}">${esc(s)}</button>`).join('')}</div>`
@@ -341,7 +342,7 @@ function render() {
     </div>
 
     <div class="step"><h2><span class="num">3</span>Your vehicle</h2>
-      <label>Vehicle number *</label><input id="fPlate" placeholder="${W.country === 'AE' ? 'A 12345' : 'MH12 AB 1234'}" autocomplete="off" style="text-transform:uppercase" />
+      <label>Vehicle number *</label><input id="fPlate" placeholder="${({ AE: 'A 12345', US: 'ABC-1234', PK: 'LEA-123' })[W.country] || 'MH12 AB 1234'}" autocomplete="off" style="text-transform:uppercase" />
       <div id="vFound" class="found" style="display:none"></div>
       <div class="grid2"><div><label>Make *</label>${sel2('vMake', makeOpts())}<input id="vMakeO" class="oth" placeholder="Type the make" style="display:none" /></div>
         <div><label>Model *</label>${sel2('vModel', modelOpts())}<input id="vModelO" class="oth" placeholder="Type the model" style="display:none" /></div></div>
@@ -354,7 +355,7 @@ function render() {
 
     <div class="step"><h2><span class="num">4</span>Your details</h2>
       <div class="grid2"><div><label>Your name *</label><input id="fName" autocomplete="name" /></div>
-        <div><label>Mobile number *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${W.country === 'AE' ? '50 123 4567' : '98765 43210'}" /></div></div>
+        <div><label>Mobile number *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${({ AE: '50 123 4567', US: '555 123 4567', PK: '300 1234567' })[W.country] || '98765 43210'}" /></div></div>
       <label>Email *</label><input id="fEmail" type="email" autocomplete="email" placeholder="you@example.com" />
       <label>Language for our messages</label><select id="fLang">${(window.GP ? GP.LANGS : [['en', 'English', 'English']]).map(l => `<option value="${l[0]}">${esc(l[2])}${l[0] === 'en' ? '' : ' · ' + esc(l[1])}</option>`).join('')}</select>
       <label>Anything we should know? <span style="font-weight:400;color:var(--faint)">(optional)</span></label><textarea id="fNotes" rows="3" maxlength="500" placeholder="Noise, warning light, pickup needed…"></textarea>
@@ -444,8 +445,8 @@ function done(id, d) {
     <p class="sub">${esc(W.name || 'The workshop')} will confirm your booking shortly. <b>You will receive a confirmation by phone, WhatsApp or email.</b></p>
     <div class="sum"><span>Service</span> <b>${esc(sel.service)}</b><br><span>When</span> <b>${esc(prettyDate(sel.date))}, ${fmt12(sel.time)}</b><br><span>Vehicle</span> <b>${esc(d.plate)}</b><br><span>Reference</span> <b>${esc(id.slice(0, 6).toUpperCase())}</b></div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px">
-      <a class="chip" download="booking.ics" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}" style="text-decoration:none">📅 Add to calendar</a>
-      ${W.phone ? `<a class="chip" href="tel:${esc(W.phone)}" style="text-decoration:none">📞 Call the workshop</a>` : ''}
+      <a class="chip" download="booking.ics" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}" style="text-decoration:none">Add to calendar</a>
+      ${W.phone ? `<a class="chip" href="tel:${esc(W.phone)}" style="text-decoration:none">Call the workshop</a>` : ''}
     </div></div>`;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
