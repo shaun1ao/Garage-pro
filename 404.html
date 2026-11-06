@@ -48,6 +48,12 @@
     window.location.replace('/book.html?w=' + encodeURIComponent(b[1]));
     return;
   }
+  // /manage/<slug>/<booking-id>  ->  /manage.html?w=<slug>&r=<id>     (customer changes or cancels their booking)
+  var mg = path.match(/\/manage\/([^\/?#]+)\/([^\/?#]+)/i);
+  if (mg) {
+    window.location.replace('/manage.html?w=' + encodeURIComponent(mg[1]) + '&r=' + encodeURIComponent(mg[2]));
+    return;
+  }
   // /help/<slug>  ->  /help.html?w=<slug>     (breakdown / tow request page)
   var h = path.match(/\/help\/([^\/?#]+)/i);
   if (h) {
