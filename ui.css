@@ -1,0 +1,128 @@
+/* ═════════════════════════════════════════════════════════════════════════
+   Customer pages (booking, tracking, estimate, manage, breakdown help, car history)
+   Direction: workshop paperwork — a job card or quote on the counter, not a dashboard.
+   Cool paper-grey ground, ink text, ONE accent (the workshop's own colour when it has one),
+   ruled sections instead of cards, squared 3px corners, no gradients, no glow, no emoji.
+   Loaded AFTER each page's own <style>, so the tokens and rules below win.
+   ═════════════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#eceeed; --bg2:#e1e5e3; --surf:#fbfcfb;
+  --border:#c6cdca; --brd:#c6cdca; --brd2:#a7b1ad;
+  --text:#14191a; --txt:#14191a; --dim:#404a4c; --faint:#667174;
+  --acc:#1b50b8; --acc2:#1b50b8; --onacc:#ffffff;
+  --teal:#0d7556; --red:#b3261e; --blue:#1b50b8;
+  --fd:'Barlow Condensed','Arial Narrow',sans-serif;
+  --fb:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --fm:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#101415; --bg2:#1a2021; --surf:#151a1b;
+    --border:#2c3638; --brd:#2c3638; --brd2:#3d494b;
+    --text:#e9edec; --txt:#e9edec; --dim:#b0bab9; --faint:#7f8b8c;
+    --acc:#8aaeff; --acc2:#8aaeff; --onacc:#0b1530;
+    --teal:#4fcba3; --red:#ff8f86; --blue:#8aaeff;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg)!important;color:var(--text);font-family:var(--fb);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
+a{color:var(--acc2);text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+h1,h2,h3{text-wrap:balance}
+
+/* header: a thick ink rule, flat square mark, name in signage type */
+.top,.topbar{border-bottom:2px solid var(--text)!important;background:transparent}
+.logo,.brand .logo{border-radius:3px!important;background:var(--acc)!important;color:var(--onacc)!important}
+.logo svg{stroke:var(--onacc)!important}
+.logo span{color:var(--onacc)!important}
+.brand,.brand b,.bname{font-family:var(--fd)!important;font-weight:700!important;font-size:19px!important;letter-spacing:.04em;text-transform:uppercase}
+.top small{font-family:var(--fm);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+
+/* headings: condensed signage caps for titles, plain sans for everything else */
+h1{font-family:var(--fd)!important;font-weight:700!important;text-transform:uppercase;letter-spacing:.01em;font-size:clamp(32px,7vw,46px)!important;line-height:1!important;margin:6px 0 10px!important}
+.sub,.lead{color:var(--dim);font-size:15px;line-height:1.55;max-width:60ch}
+.meta{font-family:var(--fm);font-size:12px;color:var(--faint);letter-spacing:.01em}
+
+/* sections are ruled, not boxed */
+.step{background:transparent!important;border:0!important;border-top:1px solid var(--text)!important;border-radius:0!important;padding:14px 0 10px!important;margin-bottom:10px!important}
+.step h2{font-family:var(--fd)!important;font-weight:600!important;font-size:17px!important;letter-spacing:.09em;text-transform:uppercase;margin:0 0 12px!important;gap:12px!important}
+.num{width:auto!important;height:auto!important;border-radius:0!important;background:none!important;color:var(--faint)!important;font:500 12px var(--fm)!important;letter-spacing:0}
+.step.done .num{background:none!important;color:var(--teal)!important}
+.step.ok{border-top-width:2px!important;text-align:left;padding:18px 0!important}
+
+/* choices: square, hairline, selected = inverted ink */
+.chip,.day,.slot{border-radius:3px!important;border:1px solid var(--brd2)!important;background:var(--surf)!important;color:var(--text)!important;box-shadow:none!important}
+.chip:hover,.slot:hover{border-color:var(--text)!important}
+.chip.on,.day.on,.slot.on{background:var(--text)!important;color:var(--bg)!important;border-color:var(--text)!important}
+.day b{font-family:var(--fd)!important;font-weight:700!important;font-size:22px!important}
+.day span,.slot small{font-family:var(--fm);letter-spacing:.03em}
+.day.on span{opacity:.8}
+.slot{font-family:var(--fm)!important;font-weight:500!important;font-size:13px!important}
+.slot.few small{color:var(--red)!important}
+.slot.on small{color:inherit!important}
+
+/* forms */
+label{font-family:var(--fm)!important;font-size:11.5px!important;font-weight:500!important;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)!important}
+input,textarea,select{border-radius:3px!important;background:var(--surf)!important;border:1px solid var(--brd2)!important;color:var(--text)!important;font:400 15px var(--fb)!important}
+input:focus,textarea:focus,select:focus{border-color:var(--acc)!important;outline:none;box-shadow:0 0 0 1px var(--acc)}
+.found{border-radius:3px!important;background:var(--bg2)!important;border:1px solid var(--brd2)!important;color:var(--text)!important}
+.err{color:var(--red)!important;font-weight:500}
+
+/* the one primary action: solid accent, signage caps */
+.btn,.btn-primary,.submit,.cta{border-radius:3px!important;background:var(--acc)!important;color:var(--onacc)!important;font-family:var(--fd)!important;font-weight:700!important;font-size:19px!important;letter-spacing:.06em;text-transform:uppercase;border:0!important;box-shadow:none!important;filter:none!important}
+.btn:hover,.submit:hover,.cta:hover{filter:brightness(1.08)!important}
+.btn:disabled,.submit:disabled{opacity:.45!important;filter:none!important}
+.btn-ghost,.btn.ghost{background:transparent!important;color:var(--text)!important;border:1px solid var(--brd2)!important}
+
+/* confirmation */
+.tick{border-radius:3px!important;background:transparent!important;border:2px solid var(--teal);color:var(--teal)!important;margin:0 0 14px!important}
+.ok .tick{margin-left:0!important}
+.sum{background:var(--surf)!important;border:1px solid var(--brd2);border-radius:3px!important;font-family:var(--fm);font-size:13px!important;line-height:2!important;max-width:none!important;margin:14px 0 0!important}
+.ok{text-align:left!important}
+.pill,.stat,.summary-pill,.branch-tag{border-radius:3px!important;font-family:var(--fm)!important;font-weight:500!important;letter-spacing:.04em;text-transform:uppercase;font-size:11.5px!important}
+
+/* number plate and money in monospace */
+.plate,.amt{font-family:var(--fm)!important}
+.plate{border-radius:3px!important;background:var(--text)!important;color:var(--bg)!important;border:0;letter-spacing:.12em!important;font-weight:600!important}
+.vehcard{border-radius:3px!important;background:var(--surf)!important;border:1px solid var(--brd2)!important}
+
+/* estimate: ruled rows, not tinted boxes */
+.item{border:0!important;border-bottom:1px solid var(--border)!important;border-radius:0!important;background:transparent!important;padding:14px 0!important;margin:0!important}
+.item.approved,.item.locked{background:transparent!important}
+.item.approved .item-name::after,.item.locked .item-name::after{content:' · approved';color:var(--teal);font:500 11px var(--fm);text-transform:uppercase;letter-spacing:.05em}
+.item.rejected .item-name{text-decoration:line-through;text-decoration-thickness:1px;color:var(--faint)}
+.item.rejected .item-name::after{content:' · declined';color:var(--red);font:500 11px var(--fm);text-transform:uppercase;letter-spacing:.05em;text-decoration:none;display:inline-block}
+.locked-tag{font-family:var(--fm);font-weight:500!important;font-size:11px!important;text-transform:uppercase;letter-spacing:.05em;color:var(--teal)!important}
+.item-name{font-weight:600!important}
+.btns .btn{font-family:var(--fb)!important;font-weight:600!important;font-size:13.5px!important;letter-spacing:0;text-transform:none;background:var(--surf)!important;color:var(--text)!important;border:1px solid var(--brd2)!important;border-radius:3px!important}
+.item.approved .btn.approve,.btn.approve.on{background:var(--teal)!important;border-color:var(--teal)!important;color:#fff!important}
+.item.rejected .btn.reject,.btn.reject.on{background:var(--red)!important;border-color:var(--red)!important;color:#fff!important}
+.revnote{border-radius:3px!important;background:var(--surf)!important;border:1px solid var(--brd2)!important}
+.totrow{border-top:2px solid var(--text)!important;margin-top:6px!important}
+.totrow .amt{color:var(--text)!important;font-size:22px!important;font-weight:600!important}
+.note{border-radius:3px!important;background:var(--surf)!important;border:1px solid var(--brd2)!important}
+
+/* tracking */
+.sec-head{text-align:left!important}
+.eyebrow{font-family:var(--fm)!important;font-weight:500!important;font-size:11.5px!important;letter-spacing:.08em!important;color:var(--faint)!important}
+.sec-head h2{font-family:var(--fd)!important;font-weight:700!important;text-transform:uppercase;letter-spacing:.01em}
+.track-status-big{background:var(--surf)!important;border:1px solid var(--text)!important;border-radius:3px!important;text-align:left!important}
+.track-status-big .pill{background:var(--text)!important;color:var(--bg)!important;font-size:14px!important}
+.track-ws-item:hover{background:var(--bg2)!important}
+.track-ws-item .branch-tag{background:var(--bg2)!important;color:var(--dim)!important}
+.track-hist-item .dot{border-radius:0!important;width:8px!important;height:8px!important;background:var(--faint)!important}
+.track-hist-item.is-current .dot{background:var(--acc)!important;box-shadow:none!important;width:11px!important;height:11px!important}
+.track-hist-item .time{font-family:var(--fm)}
+
+footer,#poweredby{font-family:var(--fm);font-size:11.5px;letter-spacing:.03em;color:var(--faint)}
+.skeleton{border-radius:3px!important}
+.dot{border-color:var(--border)!important;border-top-color:var(--acc)!important}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* secondary buttons stay quiet so each page has ONE loud action */
+.bulk .btn,.vehcard .btn,.chip-btn{font-family:var(--fb)!important;font-weight:600!important;font-size:13.5px!important;letter-spacing:0!important;text-transform:none!important;background:var(--surf)!important;color:var(--text)!important;border:1px solid var(--brd2)!important}
+.vehcard .btn{width:auto;padding:8px 12px;margin:0!important}
+.link-btn{background:none;border:0;color:var(--acc2);text-decoration:underline;font:inherit;cursor:pointer;padding:0}
