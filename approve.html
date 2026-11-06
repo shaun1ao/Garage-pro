@@ -60,6 +60,8 @@
   .lb img{max-width:100%;max-height:100%;border-radius:10px}
 </style>
 <meta name="robots" content="noindex,nofollow" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css">
 </head>
 <body>
 <div class="wrap" id="root">
@@ -88,7 +90,7 @@ const TOKEN = qs.get('t') || '';
 let db = null, docRef = null, DATA = null, CUR = '₹', TAX = 'GST', AE = false;
 const decisions = {};   // key -> 'approved' | 'rejected'
 
-function fmt(n){ return CUR + (/^[A-Za-z]+$/.test(CUR) ? ' ' : '') + Number(n||0).toLocaleString(AE ? 'en-US' : 'en-IN', AE ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : undefined); }
+function fmt(n){ return CUR + (/^[A-Za-z]+$/.test(CUR) ? ' ' : '') + Number(n||0).toLocaleString(DATA && DATA.country === 'US' || DATA && DATA.country === 'AE' ? 'en-US' : 'en-IN', AE ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : undefined); }
 function stateMsg(html){ root.innerHTML = `<div class="state">${html}</div>`; }
 
 function boot(){
@@ -101,7 +103,7 @@ function boot(){
   docRef.get().then(snap => {
     if (!snap.exists) { stateMsg('This estimate link is no longer valid. Please ask the workshop for an updated link.'); return; }
     DATA = snap.data() || {};
-    CUR = DATA.currency || '₹'; AE = DATA.country === 'AE'; TAX = AE ? 'VAT' : 'GST';
+    CUR = DATA.currency || '₹'; AE = ['AE', 'US', 'PK'].includes(DATA.country); TAX = DATA.tax_name || (DATA.country === 'AE' ? 'VAT' : DATA.country === 'IN' || !DATA.country ? 'GST' : 'Sales tax');
     // A previous response doesn't permanently lock the page — only once
     // there's nothing left open (every item is either approved or dropped) is
     // there truly nothing left to decide. Otherwise a rejected item is still
