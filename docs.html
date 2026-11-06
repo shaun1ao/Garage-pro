@@ -190,6 +190,7 @@
       <a href="#insurance">Insurance claims</a>
       <a href="#multi-branch">Multi-branch chains</a>
       <a href="#fleet">Fleet accounts</a>
+      <a href="#breakdown">Breakdown / tow requests</a>
       <a href="#parts-exchange">Parts Exchange</a>
       <a href="#scan-packages">Barcode scan &amp; job packages</a>
     </div>
@@ -198,7 +199,7 @@
       <a href="#reports">Reports &amp; analytics</a>
       <a href="#workload">Technician workload</a>
       <a href="#productivity">Technician productivity</a>
-      <a href="#country-tax">Country, VAT &amp; GST</a>
+      <a href="#country-tax">Country, tax &amp; invoices</a>
       <a href="#billing">Plans &amp; billing</a>
       <a href="#troubleshooting">Troubleshooting &amp; FAQ</a>
     </div>
@@ -513,34 +514,46 @@
       <p>Same view is available in the Garage Pro mobile app, under <b>Tech Workload</b> in the sidebar.</p>
     </section>
 
-    <section id="country-tax" class="section-card">
-      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Country, VAT &amp; GST</h2>
-      <p class="desc">Run Garage Pro as an Indian workshop (GST, ₹) or a UAE workshop (VAT, AED).</p>
-      <p>Every workshop has a <b>country</b>. Pick it when you first set up the workshop, or change it any time in <b>Settings → Workshop info → Country</b>. Existing workshops are set to <b>India</b> automatically, so nothing changes unless you switch.</p>
-      <h3>India</h3>
+        <section id="country-tax" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Country, tax &amp; invoices</h2>
+      <p class="desc">Run Garage Pro as a workshop in India, the UAE, the USA or Pakistan.</p>
+      <p>Every workshop has a <b>country</b>, chosen at setup and changeable any time in <b>Settings → Workshop info</b>. The country sets the currency, the tax name and default rate, the tax-ID fields, the region list, phone formats, number plates, vehicle make/model lists and the invoice layout. Existing workshops are <b>India</b> unless you change it, and nothing from another country ever shows on screen.</p>
+      <h3>India — GST</h3>
       <ul class="doc-list">
-        <li>Currency ₹, <b>GST</b> (18% by default), GSTIN, HSN/SAC codes, state list, RTO-style number plates and the BH series.</li>
-        <li>Nothing UAE-related ever appears on screen, on invoices or in customer messages.</li>
+        <li>₹, GST (18% default), GSTIN, HSN/SAC codes, <b>CGST + SGST</b> within your state and <b>IGST</b> between states (place of supply decides), per-part GST rates, SAC 9987 on labour, reverse-charge line.</li>
+        <li>Setting "Charge GST on labour?" — repair labour is normally taxable; new workshops default to Yes.</li>
       </ul>
-      <h3>United Arab Emirates</h3>
+      <h3>United Arab Emirates — VAT</h3>
       <ul class="doc-list">
-        <li>Currency <b>AED</b> with fils (two decimals), <b>5% VAT</b> — the same in every emirate — and a 15-digit <b>TRN</b> (Tax Registration Number) instead of a GSTIN.</li>
-        <li>Pick your <b>emirate</b> (Abu Dhabi, Dubai, Sharjah, Ajman, Umm Al Quwain, Ras Al Khaimah, Fujairah). It drives the public Track Repair page and the Parts Exchange "nearby" matching.</li>
-        <li><b>VAT-registered?</b> Leave it on if you have a TRN. If your turnover is under the AED 375,000 registration threshold and you are not registered, switch it off: invoices then read "Invoice", show no VAT and no TRN.</li>
-        <li><b>Labour is VAT-able.</b> In the UAE, services are standard-rated, so labour and service charges carry VAT automatically (parts too, unless you untick a line).</li>
-        <li><b>Tax invoice layout:</b> the document is headed "Tax Invoice" (with the Arabic title), shows your TRN and the customer's TRN, the date of supply, and for every line the quantity, unit price, taxable value, VAT rate and VAT amount, followed by total excluding VAT, VAT, total including VAT and the amount in words (dirhams and fils). It follows the Federal Tax Authority's required fields — have your accountant confirm it before you rely on it.</li>
-        <li>Phone numbers use +971; WhatsApp links work with 05X or 5X numbers. Number plates use <b>emirate + code + number</b> (for example Dubai · A 12345). The make/model list adds Gulf-market vehicles (Land Cruiser, Patrol, Prado, F-150, Tesla and more).</li>
-        <li><b>Arabic</b> is available in the language picker and for customer emails and WhatsApp texts (right-to-left).</li>
+        <li>AED with fils, 5% VAT, 15-digit TRN, emirates, "Tax Invoice" layout with VAT per line, amount in words, Arabic title, and an XML e-invoice file for an accredited service provider.</li>
+        <li>"VAT registered?" — if off, invoices read "Invoice" with no VAT.</li>
       </ul>
-      <h3>Changing country later</h3>
+      <h3>United States — sales tax</h3>
+      <ul class="doc-list">
+        <li>$ with cents, state list, EIN (optional). There is <b>no single US rate</b>: set your combined state + local rate in Settings (default 0%, and the print-preview warns while it is 0). Parts are taxed at your rate; labour only if you switch on "Charge sales tax on labour?" — many states do not tax separately stated labour, some do.</li>
+        <li>Mark a customer <b>tax-exempt</b> (with their resale / exemption certificate number) and their invoices carry no tax and show the certificate.</li>
+        <li>Invoices are titled "Invoice" with parts, labour, subtotal, sales tax and total clearly separated.</li>
+      </ul>
+      <h3>Pakistan — sales tax</h3>
+      <ul class="doc-list">
+        <li>Rs, provinces, <b>STRN</b> and <b>NTN</b>. Goods (parts) are taxed at the federal rate (default 18%); workshop services at your <b>province's</b> rate (a suggestion is filled in when you pick a province — confirm it with FBR / PRA / SRB / KPRA / BRA, as rates change each Finance Act).</li>
+        <li>Registered businesses print a "Sales Tax Invoice" with STRN, NTN and the buyer's registration number; unregistered ones print "Invoice" with no tax. Urdu bilingual printouts are available.</li>
+      </ul>
+      <h3>All countries</h3>
+      <ul class="doc-list">
+        <li><b>Credit notes</b> — the CN button on an invoice issues a numbered credit note naming the original invoice and reason (the original is never edited).</li>
+        <li><b>Check before you print</b> — a yellow box (screen only, never printed or sent to customers) lists anything still missing for your country.</li>
+        <li><b>Bilingual invoices</b> — English + Arabic, Hindi or Urdu side by side (Settings → Workshop info).</li>
+      </ul>
+      <h3>Changing country</h3>
       <ol class="doc-steps">
-        <li>Open <b>Settings → Workshop info</b> and choose the new country. Currency, tax % and the region list switch for you to review.</li>
-        <li>Re-enter your <b>tax ID</b> (GSTIN ↔ TRN) and pick your state or emirate.</li>
-        <li><b>Save.</b> The app reloads in the new country.</li>
+        <li>Open <b>Settings → Workshop info</b> and choose the new country; currency, tax and region list switch for you to review.</li>
+        <li>Re-enter your tax ID and pick your state / province / emirate, check the tax rates.</li>
+        <li><b>Save.</b> The app reloads. Existing invoices keep the country, currency and tax they were issued with.</li>
       </ol>
       <div class="doc-note">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-        <div>Invoices you already issued keep the country, currency and tax they were created with — switching never rewrites history. The public pages (booking, tracking, customer portal, estimate links) follow your workshop's country automatically.</div>
+        <div>Garage Pro prints the layouts each country normally expects and warns you about gaps, but tax rules differ by state or province and change — you are responsible for your rates and for what you issue. Ask your accountant to approve a sample invoice. Garage Pro is software, not tax advice.</div>
       </div>
     </section>
 
@@ -554,6 +567,9 @@
         <li>The page shows <b>your logo, name and colours</b>, with a small "Powered by Garage Pro" line.</li>
         <li>Customers enter their vehicle with the same make / model / year list the app uses, plus colour, fuel and VIN; the <b>email address is required</b> so a confirmation can be sent.</li>
         <li>Requests land in an <b>inbox</b> in the app. Accept or decline each one — accepting creates the appointment and emails the customer in their language.</li>
+        <li><b>Email-code verification</b> (optional): turn it on and a customer must enter a 6-digit code emailed to them before a booking is accepted. It stops fake bookings and fills in name, phone and cars for returning customers.</li>
+        <li><b>Reschedule / cancel link</b> (optional, and only available while online booking is on): customers get a "Change or cancel your booking" link in their booking emails. They can cancel, or move the slot once, up to the number of hours you set before the appointment; after that the page tells them to phone you. Your app applies the change to the appointment automatically (and emails you if no app is open), and the customer gets a confirmation.</li>
+        <li><b>24-hour reminder</b>: each customer with an email address gets one reminder about a day before the appointment, with an "Add to calendar" file. Switch it off in Settings → Customer email notifications → "24-hour appointment reminder".</li>
         <li>Switch the page off at any time; the link then shows a polite "not taking online bookings" message. There is no limit on bookings.</li>
       </ul>
       <div class="doc-note">
@@ -606,7 +622,23 @@
       </ol>
       <div class="doc-note">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-        <div>Parts Exchange connects workshops — you agree price, payment and collection between yourselves. Garage Pro does not take payment or hold stock. Only Owners, Managers and the parts department can use it.</div>
+        <div>Parts Exchange connects workshops — you agree price, payment and collection between yourselves. Garage Pro does not take payment or hold stock. By default only owners, managers and the parts department can use it; you can change that for any role under Settings → Role permissions (tick <b>Parts Exchange</b>).</div>
+      </div>
+    </section>
+
+    <section id="breakdown" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Breakdown / tow requests</h2>
+      <p class="desc">For workshops that send out a tow or recovery truck.</p>
+      <p>Switch it on at <b>Settings → Breakdown / tow requests</b> (off by default). Customers open your link (<code>garagepro.me/help/your-name</code>), say what has happened and share their GPS location; you set the call-back promise (for example 15 minutes) and a service-area note.</p>
+      <ul class="doc-list">
+        <li>A <b>Breakdown / Tow</b> tab appears in the sidebar — only while the feature is on, and only for roles allowed it. Tick it for a role under <b>Settings → Role permissions</b> (for example a custom role called "Tow driver"). By default the owner, manager, service advisor, floor manager and receptionist see it; the parts department does not.</li>
+        <li>New requests appear instantly with a sound. Each card has Open map, Navigate, WhatsApp, "I called them", and a timer for the call-back promise.</li>
+        <li><b>Accept</b> lets you pick the driver, set an ETA and add a message; then mark <b>On the way → Arrived → Completed</b>, or decline / cancel with a reason. The customer's page shows each step and the driver's phone.</li>
+        <li>If nobody has the app open, the workshop's contact email gets an alert with a map link.</li>
+      </ul>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>This is a request-and-dispatch tool, not an emergency service. The customer page tells people to call the emergency services first if anyone is in danger. Garage Pro does not guarantee any response time — the call-back promise is the workshop's own.</div>
       </div>
     </section>
 
