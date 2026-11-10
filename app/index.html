@@ -798,7 +798,7 @@ input[list]{background:var(--bg2)}
         <div><label>Workshop name</label><input id="fs-garage" name="fs-garage-x" type="text" placeholder="Speed Auto Care" required autocomplete="off" /></div>
         <div><label>Your name</label><input id="fs-name" name="fs-name-x" type="text" placeholder="Rajesh Kumar" required autocomplete="off" /></div>
         <div><label>Phone number</label><input id="fs-phone" type="tel" placeholder="+91 98765 43210" required autocomplete="off" /></div>
-        <div><label>Country</label><select id="fs-country" onchange="fsCountryChange()" style="width:100%"><option value="IN" selected>🇮🇳 India</option><option value="AE">🇦🇪 United Arab Emirates</option><option value="US">🇺🇸 United States</option><option value="PK">🇵🇰 Pakistan</option></select></div>
+        <div><label>Country</label><select id="fs-country" onchange="fsCountryChange()" style="width:100%"><option value="IN" selected>🇮🇳 India</option><option value="AE">🇦🇪 United Arab Emirates</option><option value="QA">🇶🇦 Qatar</option><option value="US">🇺🇸 United States</option><option value="PK">🇵🇰 Pakistan</option></select></div>
         <div id="fs-heard-wrap"><label>How did you find out about Garage Pro?</label><select id="fs-heard" required onchange="document.getElementById('fs-heard-other').style.display=this.value==='other'?'block':'none'"><option value="">Select one…</option><option value="google">Google search</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp (shared with me)</option><option value="word_of_mouth">Word of mouth (friend / colleague)</option><option value="workshop_owner">Another workshop owner</option><option value="ai">AI assistant (ChatGPT, Claude, Gemini…)</option><option value="ad">An advertisement</option><option value="event">Trade show / event</option><option value="article">Blog or news article</option><option value="email">Email / newsletter</option><option value="other">Other</option></select><input id="fs-heard-other" type="text" maxlength="80" placeholder="Please tell us where (e.g. Facebook group, a podcast…)" style="display:none;margin-top:8px" /></div>
         <div>
           <label>Owner PIN (4 digits)</label>
@@ -2609,7 +2609,7 @@ window.doFirstSetup = async function(e) {
   const err    = document.getElementById('fs-err'); err.textContent = '';
   if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN must be 4–6 digits.'; return; }
   const _fsC = (document.getElementById('fs-country') || {}).value || 'IN';
-  const _fsMin = _fsC === 'AE' ? 9 : 10;   // India, USA, Pakistan: 10 digits
+  const _fsMin = _fsC === 'AE' ? 9 : _fsC === 'QA' ? 8 : 10;   // UAE 9 digits, Qatar 8, India / USA / Pakistan 10
   if ((document.getElementById('fs-phone').value || '').replace(/\D/g, '').length < _fsMin) { err.textContent = 'Enter a valid phone number (at least ' + _fsMin + ' digits).'; return; }
   const gv = (id) => (document.getElementById(id)?.value || '').trim();
   const _hf = document.getElementById('fs-heard');
@@ -8711,6 +8711,11 @@ function _waDigits(raw) {
     if (d.length === 9) d = '971' + d;
     else if (d.length === 10 && d[0] === '0') d = '971' + d.slice(1);
     else if (d.startsWith('00971')) d = d.slice(2);
+    return d;
+  }
+  if (cc === '974') {                         // Qatar: 8 digits (5X XXX XXX mobile)
+    if (d.length === 8) d = '974' + d;
+    else if (d.startsWith('00974')) d = d.slice(2);
     return d;
   }
   if (cc === '1') {                           // USA / Canada: 10 digits, or 11 starting with 1
@@ -17882,12 +17887,12 @@ function _invoiceHTMLFromRecord(inv, opts) {
   const t   = _invoiceTotals(inv);
   const cur = _cur(ws.currency);
   const taxPct = _invTaxPct(inv);
-  const PF = GP_PROFILE(ws.country), AE = PF.code === 'AE', US = PF.code === 'US', PK = PF.code === 'PK', GEN = PF.code !== 'IN';   // GEN = the per-line tax layout used outside India's GST
+  const PF = GP_PROFILE(ws.country), AE = PF.code === 'AE', US = PF.code === 'US', QA = PF.code === 'QA', PK = PF.code === 'PK', GEN = PF.code !== 'IN';   // GEN = the per-line tax layout used outside India's GST
   const vatReg = PF.regTax ? ws.vat_registered !== false : true;        // UAE / Pakistan: only registered businesses issue a "Tax Invoice"
-  const docTitle = AE ? (vatReg ? 'Tax Invoice' : 'Invoice') : PK ? (vatReg ? 'Sales Tax Invoice' : 'Invoice') : US ? 'Invoice' : (ws.gstin ? 'Tax Invoice' : 'Invoice');   // a TAX invoice needs the supplier's tax number
+  const docTitle = AE ? (vatReg ? 'Tax Invoice' : 'Invoice') : PK ? (vatReg ? 'Sales Tax Invoice' : 'Invoice') : (US || QA) ? 'Invoice' : (ws.gstin ? 'Tax Invoice' : 'Invoice');   // a TAX invoice needs the supplier's tax number
   const taxIdLbl = PF.taxIdLabel, showTaxId = !PF.regTax || vatReg;
   const exempt = !!(inv.customer && inv.customer.tax_exempt);
-  const TN = PF.taxName;
+  const SIMPLE = US || (QA && !(t.gst > 0)), TN = (QA && !(t.gst > 0)) ? 'Tax' : PF.taxName;   // SIMPLE: subtotal / tax / total wording (USA, or Qatar while there is no VAT)
   // India: CGST + SGST on an intra-state supply, IGST on an inter-state one (place of supply decides)
   const POS = GEN ? null : _gstPlace(inv, ws), intra = !GEN && POS.intra;
   // Money formatters: with currency symbol, and the "₹ N,NNN.NN" style used everywhere
@@ -18115,9 +18120,9 @@ function _invoiceHTMLFromRecord(inv, opts) {
 
   <!-- ───── TWIN TOTALS BLOCKS (right-aligned) ───── -->
   ${GEN ? `<div class="totals-row"><div class="totals-main">
-      <div class="row"><span>${US ? 'Subtotal' : 'Total excl. ' + TN}</span><span>${inr(t.partsTaxable + t.labour)}</span></div>
+      <div class="row"><span>${SIMPLE ? 'Subtotal' : 'Total excl. ' + TN}</span><span>${inr(t.partsTaxable + t.labour)}</span></div>
       ${t.disc ? `<div class="row"><span>Discount included above</span><span>${inr(t.disc)}</span></div>` : ''}
-      ${(() => {
+      ${QA && !(t.gst > 0) ? '' : (() => {
         // USA: show the state / county / city / district pieces that make up one combined rate (when the workshop entered them)
         const tp = US && ws.us_tax_parts, g0 = grp.length === 1 ? grp[0] : null;
         if (tp && g0 && g0.rate > 0) {
@@ -18128,7 +18133,7 @@ function _invoiceHTMLFromRecord(inv, opts) {
         return base.join('');
       })()}
       ${PK && t.further ? `<div class="row"><span>Further tax (sale to unregistered buyer)</span><span>${inr(t.further)}</span></div>` : ''}
-      <div class="row grand"><span>${US ? 'Total' : 'Total ' + (vatReg ? 'incl. ' + TN : 'payable')}</span><span>${inr(t.grand)}</span></div>
+      <div class="row grand"><span>${SIMPLE ? 'Total' : 'Total ' + (vatReg ? 'incl. ' + TN : 'payable')}</span><span>${inr(t.grand)}</span></div>
       ${amtPaid > 0 ? `<div class="row" style="color:#16a34a"><span>Amount Paid</span><span>${inr(amtPaid)}</span></div>` : ''}
       <div class="row balance"><span>Balance due</span><span>${inr(balance)}</span></div>
     </div></div>` : `  <div class="totals-row">
@@ -18153,7 +18158,7 @@ function _invoiceHTMLFromRecord(inv, opts) {
   </div>`}
 
   ${!GEN ? `<div style="font-size:10.5px;color:#555;margin:2px 0 6px">Tax payable on reverse charge: No</div>` : ''}
-  ${US ? '' : `<div class="words">Amount ( in Words ): ${AE ? escapeHtml(GP_WORDS_AED(t.roundOff)) : PK ? `PKR ${escapeHtml(numberToWordsIndian(Math.round(t.roundOff)))} Only` : `${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only`}</div>`}
+  ${US ? '' : `<div class="words">Amount ( in Words ): ${AE ? escapeHtml(GP_WORDS_AED(t.roundOff)) : QA ? escapeHtml(GP_WORDS_QAR(t.roundOff)) : PK ? `PKR ${escapeHtml(numberToWordsIndian(Math.round(t.roundOff)))} Only` : `${escapeHtml(cur === '₹' ? 'INR' : cur)} ${escapeHtml(numberToWordsIndian(t.roundOff))} Only`}</div>`}
   ${AE ? `<div style="font-size:10.5px;color:#666;margin:4px 0 10px">All amounts are in UAE Dirhams (AED).${vatReg ? '' : ' The supplier is not registered for VAT.'}</div>` : PK && !vatReg ? `<div style="font-size:10.5px;color:#666;margin:4px 0 10px">The supplier is not registered for sales tax.</div>` : ''}
 
   ${(inv.service_suggestions && inv.service_suggestions.length) ? `
@@ -22131,6 +22136,7 @@ async function renderWorkload(force = false) {
   const mk = (arr, plateKey) => arr.map(x => ({ name: x[0], plate: x[1], gst: '' }));
   const EMIRATES = mk([['Abu Dhabi', 'AUH'], ['Dubai', 'DXB'], ['Sharjah', 'SHJ'], ['Ajman', 'AJM'], ['Umm Al Quwain', 'UAQ'], ['Ras Al Khaimah', 'RAK'], ['Fujairah', 'FUJ']]);
   const US_STATES = mk([['Alabama', 'AL'], ['Alaska', 'AK'], ['Arizona', 'AZ'], ['Arkansas', 'AR'], ['California', 'CA'], ['Colorado', 'CO'], ['Connecticut', 'CT'], ['Delaware', 'DE'], ['District of Columbia', 'DC'], ['Florida', 'FL'], ['Georgia', 'GA'], ['Hawaii', 'HI'], ['Idaho', 'ID'], ['Illinois', 'IL'], ['Indiana', 'IN'], ['Iowa', 'IA'], ['Kansas', 'KS'], ['Kentucky', 'KY'], ['Louisiana', 'LA'], ['Maine', 'ME'], ['Maryland', 'MD'], ['Massachusetts', 'MA'], ['Michigan', 'MI'], ['Minnesota', 'MN'], ['Mississippi', 'MS'], ['Missouri', 'MO'], ['Montana', 'MT'], ['Nebraska', 'NE'], ['Nevada', 'NV'], ['New Hampshire', 'NH'], ['New Jersey', 'NJ'], ['New Mexico', 'NM'], ['New York', 'NY'], ['North Carolina', 'NC'], ['North Dakota', 'ND'], ['Ohio', 'OH'], ['Oklahoma', 'OK'], ['Oregon', 'OR'], ['Pennsylvania', 'PA'], ['Rhode Island', 'RI'], ['South Carolina', 'SC'], ['South Dakota', 'SD'], ['Tennessee', 'TN'], ['Texas', 'TX'], ['Utah', 'UT'], ['Vermont', 'VT'], ['Virginia', 'VA'], ['Washington', 'WA'], ['West Virginia', 'WV'], ['Wisconsin', 'WI'], ['Wyoming', 'WY']]);
+  const QA_MUNICIPALITIES = mk([['Doha', 'DOH'], ['Al Rayyan', 'RAY'], ['Al Wakrah', 'WAK'], ['Al Khor & Al Thakhira', 'KHO'], ['Umm Salal', 'UMS'], ['Al Daayen', 'DAA'], ['Al Shamal', 'SHA'], ['Al Shahaniya', 'SHH']]);
   const PK_PROVINCES = mk([['Punjab', 'PB'], ['Sindh', 'SD'], ['Khyber Pakhtunkhwa', 'KP'], ['Balochistan', 'BA'], ['Islamabad Capital Territory', 'ICT'], ['Gilgit-Baltistan', 'GB'], ['Azad Jammu & Kashmir', 'AJK']]);
   // Services (labour) sales-tax rate is set by each province in Pakistan; these are STARTING suggestions only — confirm with PRA / SRB / KPRA / BRA / ICT.
   const PK_SERVICES_HINT = { 'Punjab': 16, 'Sindh': 15, 'Khyber Pakhtunkhwa': 15, 'Balochistan': 15, 'Islamabad Capital Territory': 16, 'Gilgit-Baltistan': 15, 'Azad Jammu & Kashmir': 15 };
@@ -22138,9 +22144,10 @@ async function renderWorkload(force = false) {
     IN: { code: 'IN', name: 'India', flag: '🇮🇳', currency: '₹', currencyCode: 'INR', locale: 'en-IN', taxName: 'GST', taxDefault: 18, taxIdLabel: 'GSTIN', regionLabel: 'State', decimals: 0, phonePrefix: '91', labourTaxed: false, itemCode: 'HSN/SAC', bankCode: 'IFSC code', regTax: false, taxPh: '27ABCDE1234F1Z5', phonePh: '+91 98765 43210', emailTld: 'in', cityEx: 'Pune', regionEx: 'Maharashtra', addrEx: 'Street, area, PIN' },
     AE: { code: 'AE', name: 'United Arab Emirates', flag: '🇦🇪', currency: 'AED', currencyCode: 'AED', locale: 'en-US', taxName: 'VAT', taxDefault: 5, taxIdLabel: 'TRN', regionLabel: 'Emirate', decimals: 2, phonePrefix: '971', labourTaxed: true, itemCode: 'Item code', bankCode: 'IBAN', regTax: true, taxPh: '15-digit TRN, e.g. 100123456700003', phonePh: '+971 50 123 4567', emailTld: 'ae', cityEx: 'Dubai', regionEx: 'Dubai', addrEx: 'Building, street, area' },
     US: { code: 'US', name: 'United States', flag: '🇺🇸', currency: '$', currencyCode: 'USD', locale: 'en-US', taxName: 'Sales tax', taxDefault: 0, taxIdLabel: 'EIN', regionLabel: 'State', decimals: 2, phonePrefix: '1', labourTaxed: false, itemCode: 'Part no.', bankCode: 'Routing no.', regTax: false, taxPh: 'EIN, e.g. 12-3456789 (optional)', phonePh: '+1 555 123 4567', emailTld: 'com', cityEx: 'Austin', regionEx: 'Texas', addrEx: 'Street, city, state ZIP' },
+    QA: { code: 'QA', name: 'Qatar', flag: '🇶🇦', currency: 'QAR', currencyCode: 'QAR', locale: 'en-US', taxName: 'VAT', taxDefault: 0, taxIdLabel: 'CR No.', regionLabel: 'Municipality', decimals: 2, phonePrefix: '974', labourTaxed: false, itemCode: 'Item code', bankCode: 'IBAN', regTax: false, taxPh: 'Commercial Registration (CR) no.', phonePh: '+974 5512 3456', emailTld: 'qa', cityEx: 'Doha', regionEx: 'Doha', addrEx: 'Building, street, zone' },
     PK: { code: 'PK', name: 'Pakistan', flag: '🇵🇰', currency: 'Rs', currencyCode: 'PKR', locale: 'en-IN', taxName: 'Sales tax', taxDefault: 18, taxIdLabel: 'STRN', regionLabel: 'Province', decimals: 2, phonePrefix: '92', labourTaxed: true, itemCode: 'HS code', bankCode: 'IBAN', regTax: true, dualRate: true, taxPh: 'STRN (13 digits)', phonePh: '+92 300 1234567', emailTld: 'pk', cityEx: 'Lahore', regionEx: 'Punjab', addrEx: 'Street, area, city' }
   };
-  const REGIONS = { IN: null, AE: EMIRATES, US: US_STATES, PK: PK_PROVINCES };
+  const REGIONS = { IN: null, AE: EMIRATES, QA: QA_MUNICIPALITIES, US: US_STATES, PK: PK_PROVINCES };
   window.GP_EMIRATES = EMIRATES; window.GP_COUNTRIES = PROFILES; window.GP_PK_SERVICES_HINT = PK_SERVICES_HINT;
   window.GP_COUNTRY_LIST = Object.values(PROFILES).map(p => [p.code, p.flag + ' ' + p.name]);
   window.GP_PROFILE = c => PROFILES[c] || PROFILES.IN;
@@ -22171,12 +22178,14 @@ async function renderWorkload(force = false) {
   const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'], TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
   const below1000 = n => { let o = ''; if (n >= 100) { o += ONES[Math.floor(n / 100)] + ' Hundred'; n %= 100; if (n) o += ' and '; } if (n >= 20) { o += TENS[Math.floor(n / 10)] + (n % 10 ? '-' + ONES[n % 10] : ''); } else if (n) o += ONES[n]; return o; };
   const words = n => { if (!n) return 'Zero'; const parts = []; [[1e9, 'Billion'], [1e6, 'Million'], [1e3, 'Thousand']].forEach(([v, l]) => { if (n >= v) { parts.push(below1000(Math.floor(n / v)) + ' ' + l); n %= v; } }); if (n) parts.push(below1000(n)); return parts.join(' '); };
+  window.GP_WORDS_QAR = amt => { amt = Math.max(0, Number(amt) || 0); const d = Math.floor(amt + 1e-9), f = Math.round((amt - d) * 100); return 'Qatari Riyals ' + words(d) + (f ? ' and ' + words(f) + ' Dirhams' : '') + ' Only'; };
   window.GP_WORDS_AED = amt => { amt = Math.max(0, Number(amt) || 0); const d = Math.floor(amt + 1e-9), f = Math.round((amt - d) * 100); return 'UAE Dirhams ' + words(d) + (f ? ' and ' + words(f) + ' Fils' : '') + ' Only'; };
 
   // ── tax-ID validation (the app's validateGSTIN is used for the corporate customer check too) ──
   const _vg = window.validateGSTIN;
   window.validateGSTIN = function (v, st) {
     const c = ctry().code; if (c === 'IN') return _vg.apply(this, arguments);
+    if (c === 'QA') return String(v || '').trim() ? { ok: true } : { ok: false, reason: 'CR number is required' };
     const x = String(v || '').replace(/[\s-]/g, '');
     if (c === 'AE') return !x ? { ok: false, reason: 'TRN is required' } : /^\d{15}$/.test(x) ? { ok: true } : { ok: false, reason: 'a UAE TRN is 15 digits' };
     if (c === 'PK') return !x ? { ok: false, reason: 'NTN / STRN is required' } : /^\d{7,15}$/.test(x) ? { ok: true } : { ok: false, reason: 'an NTN is 7 digits (CNIC 13), an STRN 13–15 digits' };
@@ -22196,6 +22205,7 @@ async function renderWorkload(force = false) {
   // ── vehicles by market (added to the make/model list; the workshop's own edits still win) ──
   const T = (o) => o;   // { Make: { Model: [fromYear, [variants]] } }
   const MARKET = {
+    QA: null,   // same Gulf list as the UAE (filled in just below)
     AE: {
       'Toyota': { 'Land Cruiser': [2008, ['GX', 'GXR', 'VXR', 'GR Sport']], 'Prado': [2003, ['TXL', 'VXR']], 'Hilux': [2005, ['GL', 'GLX', 'SR5', 'Adventure']], 'Fortuner': [2005, ['EXR', 'VXR']], 'Camry': [2002, ['LE', 'SE', 'GLE', 'Grande']], 'Corolla': [2002, ['XLi', 'SE', 'GLi']], 'Yaris': [2006, ['E', 'SE']], 'Rush': [2018, ['E', 'G']], 'Innova': [2008, ['E', 'G']], 'Avalon': [2005, ['XLE', 'Limited']], 'Raize': [2022, ['G']] },
       'Nissan': { 'Patrol': [2000, ['XE', 'SE', 'LE', 'Nismo']], 'Altima': [2003, ['S', 'SV', 'SL']], 'Sunny': [2005, ['S', 'SV']], 'Kicks': [2018, ['S', 'SV']], 'X-Trail': [2008, ['S', 'SL']], 'Pathfinder': [2005, ['S', 'SV', 'Platinum']], 'Maxima': [2005, ['SV', 'SR']], 'Navara': [2008, ['XE', 'LE']] },
@@ -22250,6 +22260,7 @@ async function renderWorkload(force = false) {
       'Mitsubishi': { 'Pajero': [2000, ['Standard']], 'Lancer': [2000, ['Standard']] }
     }
   };
+  MARKET.QA = MARKET.AE;
   function withMarket(base, code) {
     const add = MARKET[code]; if (!add) return base;
     const out = {}; for (const mk of Object.keys(base)) out[mk] = base[mk];
@@ -22885,6 +22896,9 @@ async function renderWorkload(force = false) {
       if (vatReg && !c.address && (t.grand > 10000 || c.gstin)) out.push('Customer address is missing — a full tax invoice needs the customer\'s name and address (always above AED 10,000, or when the customer is VAT-registered).');
       if (!vatReg) out.push('You are marked as NOT VAT-registered, so this prints as "Invoice" with no VAT. If your turnover is above AED 375,000 you must register.');
       if ((inv.lines || []).some(l => l.taxable === false)) out.push('Some lines have no VAT: Garage Pro prints them as 0%, but cannot tell zero-rated from exempt supplies — check these with your accountant.');
+    } else if (cc === 'QA') {
+      if (!ws.gstin) out.push('Your Commercial Registration (CR) number is not set — add it in Settings → Workshop info so it prints on invoices.');
+      if (Number(inv.tax_pct) > 0) out.push('You are charging a tax rate on this invoice. Qatar has no VAT or sales tax on workshop services at the moment — only keep a rate if the law has changed and your accountant says so.');
     } else if (US) {
       if (!(Number(inv.tax_pct) > 0) && !c.tax_exempt && (inv.lines || []).length) out.push('Sales tax is 0% on this invoice. If your state taxes parts, set your combined state + local rate in Settings → Workshop info (rates differ by state, county and city).');
       if (c.tax_exempt && !c.exempt_cert) out.push('This customer is marked tax-exempt but no exemption / resale certificate number is on file — keep the certificate for your records.');
