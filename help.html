@@ -93,7 +93,7 @@ function form() {
       <label>What's happened? *</label>
       <select id="fIssue"><option value="">Choose…</option>${['Won’t start', 'Flat tyre / puncture', 'Battery / electrical', 'Overheating', 'Accident / collision', 'Out of fuel', 'Warning light / strange noise', 'Stuck / need recovery', 'Something else'].map(x => `<option>${x}</option>`).join('')}</select>
       <label>Your name *</label><input id="fName" autocomplete="name">
-      <label>Mobile number we can call *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${({ AE: '50 123 4567', US: '555 123 4567', PK: '300 1234567' })[H.country] || '98765 43210'}">
+      <label>Mobile number we can call *</label><input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="${({ AE: '50 123 4567', QA: '5512 3456', US: '555 123 4567', PK: '300 1234567' })[H.country] || '98765 43210'}">
       <label>Vehicle number</label><input id="fPlate" style="text-transform:uppercase" autocomplete="off">
       <label>Car (make &amp; model)</label><input id="fCar" placeholder="e.g. Toyota Camry" autocomplete="off">
       <label>Where are you? *</label>
@@ -121,7 +121,7 @@ async function send() {
   const issue = $('fIssue').value, name = $('fName').value.trim(), phone = $('fPhone').value.replace(/[^\d+]/g, ''), place = $('fPlace').value.trim();
   if (!issue) return err.textContent = 'Please tell us what has happened.';
   if (name.length < 2) return err.textContent = 'Please enter your name.';
-  if (phone.replace(/\D/g, '').length < (H.country === 'AE' ? 9 : 10)) return err.textContent = 'Please enter a mobile number we can call.';
+  if (phone.replace(/\D/g, '').length < (H.country === 'AE' ? 9 : H.country === 'QA' ? 8 : 10)) return err.textContent = 'Please enter a mobile number we can call.';
   if (!loc && place.length < 4) return err.textContent = 'Please share your location or type where you are.';
   if (Date.now() - loadedAt < 2000) return err.textContent = 'One moment…';
   try { const last = Number(localStorage.getItem(KEEP + '_t') || 0); if (Date.now() - last < 60000) return err.textContent = 'You just sent a request — please wait a minute.'; } catch (_) {}
