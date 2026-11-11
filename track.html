@@ -6,20 +6,20 @@
 <title>Track your repair · Garage Pro</title>
 <meta name="description" content="See where your car is in real time — pick your workshop, type your plate or booking number. No login needed." />
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0a0e14; --bg2:#121722; --surf:#0e1420; --border:#26303f;
-    --text:#e7ecf3; --dim:#9fb0c6; --faint:#69788f;
-    --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2; --blue:#639fff;
-    --fd:'Sora',sans-serif; --fb:'Inter',sans-serif;
+    --bg:#f4f6f7; --bg2:#eaeef0; --surf:#ffffff; --border:#dce3e6; --brd:#dce3e6; --brd2:#c4cdd2;
+    --text:#1b2a31; --txt:#1b2a31; --dim:#46575f; --faint:#6d7d85;
+    --acc:#2563b8; --acc2:#2563b8; --onacc:#ffffff; --teal:#157a5b; --red:#bf3a2e; --blue:#2563b8;
+    --fd:'Plus Jakarta Sans','Segoe UI',system-ui,sans-serif; --fb:'Plus Jakarta Sans','Segoe UI',system-ui,sans-serif; --fm:'IBM Plex Mono',ui-monospace,monospace;
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--fb);-webkit-font-smoothing:antialiased}
   a{color:var(--acc2)}
   .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border)}
   .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
-  .brand .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center}
+  .brand .logo{width:34px;height:34px;border-radius:9px;background:var(--acc);display:grid;place-items:center}
   .brand .logo svg{width:19px;height:19px}
   .brand b{font-family:var(--fd);font-size:16px}
   .topbar .back{font-size:13px;color:var(--dim);text-decoration:none}
@@ -30,7 +30,7 @@
   .eyebrow{font-family:var(--fd);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--acc2);margin-bottom:10px}
   .sec-head h2{font-family:var(--fd);font-size:clamp(24px,4vw,34px);margin:0;line-height:1.2}
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;font-family:var(--fd);font-weight:700;cursor:pointer;border:0;transition:filter .15s}
-  .btn-primary{background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--onacc,#170f05)}
+  .btn-primary{background:var(--acc);color:var(--onacc,#170f05)}
   .btn-primary:hover{filter:brightness(1.08)}
   .btn-ghost{background:none;border:1px solid var(--border);color:var(--dim)}
   .btn-ghost:hover{color:var(--text)}
@@ -62,7 +62,7 @@
      live status of their vehicle. Reads from users/{wsUid}/public_status/
      {plateNorm} — a minimal, customer-safe mirror (no name/phone/address).
      ════════════════════════════════════════════════════════════════════════ -->
-<section class="sec" id="track" style="background:linear-gradient(180deg,rgba(255,179,71,0.04) 0%,transparent 100%)">
+<section class="sec" id="track">
   <div class="wrap">
     <div class="sec-head reveal" style="text-align:center">
       <div class="eyebrow">Track your repair</div>
@@ -172,7 +172,7 @@
 }
 .track-status-big {
   text-align: center; padding: 24px 18px;
-  background: linear-gradient(135deg, rgba(255,179,71,.08), rgba(32,227,178,.04));
+  background: var(--surf);
   border: 1px solid var(--border); border-radius: 12px;
 }
 .track-status-big .pill {
@@ -196,7 +196,7 @@
   width: 10px; height: 10px; border-radius: 50%; background: var(--dim);
   margin: 0 auto;
 }
-.track-hist-item.is-current .dot { background: var(--acc2); box-shadow: 0 0 0 4px rgba(255,179,71,.22) }
+.track-hist-item.is-current .dot { background: var(--acc2); box-shadow: none }
 .track-hist-item .time { color: var(--faint); font-size: 12px; white-space: nowrap }
 </style>
 
