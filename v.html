@@ -6,16 +6,21 @@
 <title>Your car's service history · Garage Pro</title>
 <meta name="robots" content="noindex, nofollow" />
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{--bg:#0a0e14;--bg2:#121722;--surf:#0e1420;--border:#26303f;--text:#e7ecf3;--dim:#9fb0c6;--faint:#69788f;--acc:#ff7a18;--acc2:#ffb347;--teal:#20e3b2;--red:#ff6b6b;--fd:'Sora',sans-serif;--fb:'Inter',sans-serif}
-  @media (prefers-color-scheme: light){:root{--bg:#f6f4ef;--bg2:#efece4;--surf:#fff;--border:#e2ddd2;--text:#16130e;--dim:#5b564b;--faint:#8b8576;--teal:#0c8f6c;--red:#d63b3b}}
+  :root{
+    --bg:#f4f6f7; --bg2:#eaeef0; --surf:#ffffff; --border:#dce3e6; --brd:#dce3e6; --brd2:#c4cdd2;
+    --text:#1b2a31; --txt:#1b2a31; --dim:#46575f; --faint:#6d7d85;
+    --acc:#2563b8; --acc2:#2563b8; --onacc:#ffffff; --teal:#157a5b; --red:#bf3a2e; --blue:#2563b8;
+    --fd:'Plus Jakarta Sans','Segoe UI',system-ui,sans-serif; --fb:'Plus Jakarta Sans','Segoe UI',system-ui,sans-serif; --fm:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--fb);-webkit-font-smoothing:antialiased}
   a{color:var(--acc2)}
   .top{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border)}
   .brand{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;font:700 15px var(--fd)}
-  .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center}
+  .logo{width:32px;height:32px;border-radius:9px;background:var(--acc);display:grid;place-items:center}
   .wrap{max-width:640px;margin:0 auto;padding:24px 16px 70px}
   h1{font:800 clamp(24px,5vw,30px)/1.15 var(--fd);margin:0 0 4px}
   .sub{color:var(--dim);font-size:14.5px;line-height:1.6;margin:0 0 4px}
@@ -23,7 +28,7 @@
   .card{background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px}
   .muted{color:var(--faint);font-size:13.5px}
   .pill{display:inline-block;padding:5px 12px;border-radius:100px;background:var(--bg2);border:1px solid var(--border);color:var(--dim);font-size:12.5px;text-decoration:none}
-  .cta{display:block;text-align:center;padding:13px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:var(--onacc,#170f05);font:800 15px var(--fd);text-decoration:none;border:0;width:100%;cursor:pointer}
+  .cta{display:block;text-align:center;padding:13px;border-radius:12px;background:var(--acc);color:var(--onacc,#170f05);font:800 15px var(--fd);text-decoration:none;border:0;width:100%;cursor:pointer}
   h2{font:700 15px var(--fd);margin:0 0 12px}
   .ev{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)} .ev:last-child{border-bottom:0}
   .ev .d{min-width:88px;color:var(--faint);font-size:13px}
