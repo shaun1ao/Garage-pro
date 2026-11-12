@@ -20366,7 +20366,7 @@ async function renderWorkload(force = false) {
   const esc = s => escapeHtml(String(s == null ? '' : s));
   const tzNow = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
   const defaults = () => ({
-    enabled: false, slug: '', welcome: '', brandColor: '', services: [], slotMins: 30, capacity: 2, minNoticeH: 2, maxDays: 30, autoAccept: false, verify: false, selfService: false, cutoffH: 24,
+    enabled: false, slug: '', welcome: '', brandColor: '', services: [], slotMins: 30, capacity: 2, minNoticeH: 2, maxDays: 30, autoAccept: false, selfService: false, cutoffH: 24,
     hours: { mon:{open:true,from:'09:00',to:'18:00'}, tue:{open:true,from:'09:00',to:'18:00'}, wed:{open:true,from:'09:00',to:'18:00'},
              thu:{open:true,from:'09:00',to:'18:00'}, fri:{open:true,from:'09:00',to:'18:00'}, sat:{open:true,from:'09:00',to:'18:00'}, sun:{open:false,from:'09:00',to:'13:00'} },
     breaks: [{ from: '13:00', to: '14:00' }], blocks: [], tz: tzNow()
@@ -20429,7 +20429,7 @@ async function renderWorkload(force = false) {
         uid: wsUid(), enabled: !!c.enabled, slug: c.slug, name: s.workshop_name || userProfile?.workshop_name || '',
         city: s.city || '', country: ctry().code, address: (s.address || '').split('\n')[0].slice(0, 120), phone: s.phone || '', welcome: (c.welcome || '').slice(0, 300),
         services: (c.services || []).slice(0, 40), hours: c.hours, breaks: c.breaks || [], blocks: (c.blocks || []).filter(b => b.date >= today).slice(0, 120),
-        verify: !!c.verify, self_service: !!(c.enabled && c.selfService), cutoff_h: +c.cutoffH >= 0 ? +c.cutoffH : 24, slotMins: +c.slotMins || 30, capacity: +c.capacity || 1, minNoticeH: +c.minNoticeH >= 0 ? +c.minNoticeH : 2, maxDays: +c.maxDays || 30,
+        loaner: !!(c.enabled && (s.loaners || {}).enabled && (s.loaners || {}).offer_online), self_service: !!(c.enabled && c.selfService), cutoff_h: +c.cutoffH >= 0 ? +c.cutoffH : 24, slotMins: +c.slotMins || 30, capacity: +c.capacity || 1, minNoticeH: +c.minNoticeH >= 0 ? +c.minNoticeH : 2, maxDays: +c.maxDays || 30,
         tz: c.tz || tzNow(), busy: busyMap(c), brand: await window.obBrand(), vehicles: compactVehicleDB(), updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       await fbDb.collection('public_booking').doc(c.slug).set(doc);
@@ -20504,7 +20504,6 @@ async function renderWorkload(force = false) {
       <div class="f-row r3">
         <div class="f-grp"><label>How far ahead (days)</label><input type="number" id="ob-days" min="1" max="90" value="${+c.maxDays || 30}"></div>
         <div class="f-grp" style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;margin-top:22px"><input type="checkbox" id="ob-auto" ${c.autoAccept ? 'checked' : ''} style="width:16px;height:16px"> Auto-accept requests that fit a free slot <span style="color:var(--faint);font-weight:500">(while the app is open)</span></label></div>
-        <div class="f-grp" style="grid-column:span 2"><label style="display:flex;align-items:flex-start;gap:8px"><input type="checkbox" id="ob-verify" ${c.verify ? 'checked' : ''} style="width:16px;height:16px;margin-top:2px"> <span>Verify the customer's email with a one-time code before a booking is accepted <span style="color:var(--faint);font-weight:500;display:block;font-size:12px;margin-top:2px">Stops fake and spam bookings, and fills in details for returning customers. The code is emailed (SMS costs money per message, so it is not used). Requires the latest email relay to be deployed.</span></span></label></div>
         <div class="f-grp" style="grid-column:span 2"><label style="display:flex;align-items:flex-start;gap:8px"><input type="checkbox" id="ob-self" ${c.selfService && c.enabled ? 'checked' : ''} ${c.enabled ? '' : 'disabled'} style="width:16px;height:16px;margin-top:2px"> <span>Let customers reschedule or cancel their own booking <span style="color:var(--faint);font-weight:500;display:block;font-size:12px;margin-top:2px">Adds a "change or cancel" link to the booking emails. They can only do it up to <input id="ob-cutoff" type="number" min="0" max="168" value="${+c.cutoffH >= 0 ? +c.cutoffH : 24}" style="width:64px;padding:3px 6px;display:inline-block"> hours before the slot, and move it once. Needs online booking switched on.</span></span></label></div>
       </div>
 
@@ -20565,7 +20564,7 @@ async function renderWorkload(force = false) {
       enabled, slug, welcome: v('ob-welcome').trim(), tz: prev.tz || tzNow(), brandColor: document.getElementById('ob-brand-default').checked ? '' : v('ob-brand'),
       services: v('ob-services').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 40), hours, breaks: bf ? [{ from: bf, to: bt }] : [],
       slotMins: +v('ob-slot') || 30, capacity: Math.max(1, +v('ob-cap') || 1), minNoticeH: Math.max(0, +v('ob-notice') || 0),
-      maxDays: Math.min(90, Math.max(1, +v('ob-days') || 30)), autoAccept: document.getElementById('ob-auto').checked, verify: document.getElementById('ob-verify').checked, selfService: document.getElementById('ob-enabled').checked && document.getElementById('ob-self').checked, cutoffH: Math.min(168, Math.max(0, +(document.getElementById('ob-cutoff').value) >= 0 ? +document.getElementById('ob-cutoff').value : 24)), blocks: blocksDraft || []
+      maxDays: Math.min(90, Math.max(1, +v('ob-days') || 30)), autoAccept: document.getElementById('ob-auto').checked, selfService: document.getElementById('ob-enabled').checked && document.getElementById('ob-self').checked, cutoffH: Math.min(168, Math.max(0, +(document.getElementById('ob-cutoff').value) >= 0 ? +document.getElementById('ob-cutoff').value : 24)), blocks: blocksDraft || []
     });
     msg.style.color = 'var(--faint)'; msg.textContent = 'Saving…';
     try {
@@ -20667,8 +20666,8 @@ async function renderWorkload(force = false) {
       veh_make: r.make || knownVeh?.make || vehParts[1] || '', veh_model: r.model || knownVeh?.model || vehParts.slice(2).join(' '), veh_year: r.year || knownVeh?.year || '', vin: r.vin || knownVeh?.vin || '', colour: r.colour || knownVeh?.colour || knownVeh?.color || '', fuel_type: fuelOk,
       service: r.service || 'Service', department: departments()[0] || 'Mechanical',
       date: r.date, time: r.time, time_start: r.time, time_end: end, estimated_delivery: r.date,
-      cost_estimate: 0, notes: r.notes || '', complaints: r.notes ? [{ text: r.notes }] : [],
-      quick_created: true, source: 'online', online_request_id: id,
+      cost_estimate: 0, notes: (r.notes || '') + (r.loaner ? ((r.notes ? ' ' : '') + '[Customer asked for a courtesy car]') : ''), complaints: r.notes ? [{ text: r.notes }] : [],
+      quick_created: true, source: 'online', online_request_id: id, loaner_requested: !!r.loaner,
       status: 'Scheduled', created_at: nowStr(), updated_at: nowStr(), lang: (window.GP && GP.valid(r.lang)) ? r.lang : ''
     };
     D.bookings.push(patch);
@@ -23470,6 +23469,498 @@ async function renderWorkload(force = false) {
   const _ea = window.enterApp;
   if (typeof _ea === 'function') window.enterApp = function () { const r = _ea.apply(this, arguments); setTimeout(start, 2600); return r; };
   setTimeout(() => { try { if (currentWorker) start(); } catch (_) {} }, 3500);
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  CUSTOMER EXTRAS — three optional features, each switched on in Settings → Customer extras
+//   1. LIVE REPAIR FEED  — mechanics post timestamped photos/short clips from the job card; the customer sees them on the
+//      Track page ("here's the cracked bracket") and can see which ones need a decision before extra cost is approved.
+//   2. LOANER CARS       — a fleet of courtesy cars: hand out / return with licence, odometer, fuel, deposit, printed agreement,
+//      overdue + insurance alerts, and the customer sees "your courtesy car" on their Track page. Optional request tick on
+//      the online booking page.
+//   3. INSTALMENTS       — split an invoice into 3 or 6 (or any) payments, tracked per instalment, reminders by WhatsApp, and
+//      the customer sees their plan on the Track page. Or send a financing-partner link (Tabby, Razorpay EMI, Affirm…) so the
+//      partner pays the workshop upfront. Garage Pro does not lend money or run credit checks itself.
+//  Each is also a permission in Settings → Role permissions (Loaner cars, Instalments).
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const cur = () => { try { return _cur(); } catch (_) { return ''; } };
+  const money = n => cur() + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const S = () => (D.settings || (D.settings = {}));
+  const DEF_TERMS = 'The borrower holds a valid driving licence, will return the car on the agreed date with the fuel level recorded, is responsible for fines, tolls and any damage not recorded at hand-out (up to the insurance excess), will not let anyone else drive it, and will not take it out of the country.';
+  const FEED = () => Object.assign({ enabled: false, video: true }, S().live_feed || {});
+  const LOAN = () => Object.assign({ enabled: false, offer_online: false, daily_rate: 0, deposit: 0, terms: DEF_TERMS }, S().loaners || {});
+  const INST = () => Object.assign({ enabled: false, plans: '3,6', partner_name: '', partner_link: '' }, S().instalments || {});
+  const today = () => new Date().toISOString().slice(0, 10);
+  const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const dmy = iso => { try { return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return iso || ''; } };
+  const g = id => document.getElementById(id);
+  const val = id => (g(id) ? g(id).value : '');
+  const plateNorm = p => { try { return _plateNorm(p); } catch (_) { return String(p || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase(); } };
+  const pubRef = pn => fbDb.collection('users').doc(wsUid()).collection('public_status').doc(pn);
+  const SVG = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+
+  // ───────── tab plumbing (same approach as Breakdown / Parts Exchange) ─────────
+  const TABS = [];
+  function addTab(id, label, svg, roles, enabled, draw) {
+    try {
+      roles.forEach(r => { if (DEFAULT_ROLE_PERMS[r] && !DEFAULT_ROLE_PERMS[r].includes(id)) DEFAULT_ROLE_PERMS[r].push(id); });
+      if (!ALL_TABS.some(t => t.id === id)) ALL_TABS.push({ id, label });
+      TAB_TITLES[id] = label;
+    } catch (e) { console.warn('[tab perms]', id, e); }
+    const base = window.canSee;
+    const can = () => { try { return enabled() && !isChainHQMode() && base(id); } catch (_) { return false; } };
+    window.canSee = function (t) { return t === id ? can() : base.apply(this, arguments); };
+    TABS.push({ id, label, svg, can, draw });
+  }
+  function ensureUi() {
+    TABS.forEach(T => {
+      const nav = document.querySelector(`.snav[data-tab="${T.id}"]`), panel = g('tab-' + T.id);
+      if (!T.can()) { if (nav) nav.remove(); if (panel) panel.remove(); return; }
+      if (!nav) {
+        const after = document.querySelector('.snav[data-tab="invoices"]') || document.querySelector('.snav[data-tab="jobs"]');
+        if (after) {
+          const b = document.createElement('button'); b.className = 'snav'; b.dataset.tab = T.id; b.onclick = () => switchTab(T.id);
+          b.innerHTML = SVG(T.svg) + esc(T.label) + `<span id="${T.id}Badge" style="margin-left:auto;display:none;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;padding:0 5px"></span>`;
+          after.after(b);
+        }
+      }
+      if (!panel) { const host = g('tab-workload') && g('tab-workload').parentNode; if (host) { const d = document.createElement('div'); d.className = 'tab-panel'; d.id = 'tab-' + T.id; host.appendChild(d); } }
+    });
+  }
+  const _rsv = window.renderSidebarVisibility;
+  if (typeof _rsv === 'function') window.renderSidebarVisibility = function () { const r = _rsv.apply(this, arguments); try { ensureUi(); } catch (e) { console.warn('[extras ui]', e); } return r; };
+  const _st = window.switchTab;
+  if (typeof _st === 'function') window.switchTab = function (tab) { const r = _st.apply(this, arguments); const T = TABS.find(x => x.id === tab); if (T) T.draw(); return r; };
+  function setBadge(id, n) { const b = g(id + 'Badge'); if (b) { b.textContent = n; b.style.display = n ? 'inline-flex' : 'none'; } }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  1 · LIVE REPAIR FEED
+  // ══════════════════════════════════════════════════════════════════════════
+  const feedOn = () => FEED().enabled;
+  const isHttps = u => /^https:\/\//.test(String(u || ''));
+  const jobPlate = j => { const b = (D.bookings || []).find(x => x.id === j.booking_id); return (b && b.plate) || j.plate || ''; };
+  let FS = { job: null, items: [], busy: false };
+
+  async function uploadMedia(blob, name, isVideo) {
+    const form = new FormData(); form.append('file', blob, name); form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${isVideo ? 'video' : 'image'}/upload`, { method: 'POST', body: form });
+    const d = await r.json().catch(() => null);
+    if (!r.ok || !d || !d.secure_url) throw new Error((d && d.error && d.error.message) || (isVideo ? 'Video upload failed — check the upload preset allows video' : 'Photo upload failed'));
+    return d.secure_url;
+  }
+  const thumbOf = (url, isVideo) => isVideo ? url.replace('/video/upload/', '/video/upload/so_1,w_480,c_limit,f_jpg/').replace(/\.[a-z0-9]+$/i, '.jpg') : url.replace('/image/upload/', '/image/upload/w_480,c_limit,q_auto/');
+
+  async function loadFeed(jobId) { try { const d = await wsCol('job_feed').doc(jobId).get(); return d.exists ? (d.data().items || []) : []; } catch (e) { console.warn('[feed load]', e); return []; } }
+  async function saveFeed(j, items) {
+    await wsCol('job_feed').doc(j.id).set({ items, updated_at: nowStr() });
+    const pn = plateNorm(jobPlate(j)); if (!pn) return;
+    if (j.booking_id) { try { await publishTracking(j.booking_id); } catch (_) {} }
+    const vis = items.filter(x => !x.hidden).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 30)
+      .map(x => ({ id: x.id, type: x.type, url: x.url, thumb: x.thumb || '', caption: x.caption || '', flag: !!x.flag, at: x.at, by: x.by || '' }));
+    await pubRef(pn).set({ feed: vis, feed_job: j.id, feed_updated: nowStr() }, { merge: true });
+  }
+  window.gpFeedOpen = async function (jobId) {
+    const j = (D.jobs || []).find(x => x.id === jobId); if (!j) return showToast('Save the job card first', 'bad');
+    if (!jobPlate(j)) return showToast('This job has no vehicle plate yet — add one so the customer can find it', 'bad');
+    FS = { job: j, items: await loadFeed(j.id), busy: false };
+    _openSubModal({ title: `Live feed · ${jobPlate(j)}`, bodyHtml: '<div id="gpFeedBody"></div>', footHtml: '<div style="flex:1"></div><button class="fbtn fbtn-save" onclick="closeSubModal()">Done</button>' });
+    drawFeed();
+  };
+  function drawFeed() {
+    const el = g('gpFeedBody'); if (!el) return;
+    const v = FEED().video;
+    el.innerHTML = `<div style="font-size:13px;color:var(--dim);line-height:1.55;margin-bottom:12px">What you post here appears on the customer's Track page as it happens. Flag anything that needs their decision — they see it before approving extra work. Keep clips under 30 seconds.</div>
+      <div style="display:grid;gap:8px;background:var(--bg2);border-radius:12px;padding:12px;margin-bottom:14px">
+        <input id="gfCaption" type="text" maxlength="140" placeholder="What are they looking at? e.g. Cracked front brake bracket">
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="gfFlag" style="width:16px;height:16px"> This needs the customer's decision (extra work or cost)</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="add-btn" ${FS.busy ? 'disabled' : ''} onclick="g_feedPick(true)">${v ? '📸 Take photo / video' : '📸 Take photo'}</button>
+          <button type="button" class="mini-btn" ${FS.busy ? 'disabled' : ''} onclick="g_feedPick(false)">Choose from gallery</button>
+        </div>
+        <input id="gfFile" type="file" accept="${v ? 'image/*,video/*' : 'image/*'}" multiple style="display:none">
+        <div id="gfMsg" style="font-size:12.5px;color:var(--faint);min-height:16px">${FS.busy ? 'Uploading…' : ''}</div>
+      </div>
+      <div style="display:grid;gap:10px">${FS.items.length ? FS.items.slice().sort((a, b) => String(b.at).localeCompare(String(a.at))).map(it => `<div style="display:flex;gap:10px;align-items:flex-start;border:1px solid var(--brd);border-radius:12px;padding:8px;${it.hidden ? 'opacity:.55' : ''}">
+          <a href="${esc(it.url)}" target="_blank" rel="noopener" style="flex:0 0 96px;height:72px;border-radius:8px;overflow:hidden;background:var(--bg2);display:block;position:relative"><img src="${esc(it.thumb || it.url)}" style="width:100%;height:100%;object-fit:cover" alt="">${it.type === 'video' ? '<span style="position:absolute;inset:auto 4px 4px auto;background:rgba(0,0,0,.7);color:#fff;font-size:10px;padding:1px 5px;border-radius:4px">▶ clip</span>' : ''}</a>
+          <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:600;word-break:break-word">${esc(it.caption || '(no caption)')}</div>
+            <div style="font-size:11.5px;color:var(--faint);margin-top:2px">${esc(it.by || '')} · ${esc(it.at || '')}${it.flag ? ' · <b style="color:var(--red)">needs decision</b>' : ''}${it.hidden ? ' · hidden from customer' : ''}</div>
+            <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button type="button" class="mini-btn" onclick="g_feedToggle('${esc(it.id)}','hidden')">${it.hidden ? 'Show to customer' : 'Hide'}</button><button type="button" class="mini-btn" onclick="g_feedToggle('${esc(it.id)}','flag')">${it.flag ? 'Unflag' : 'Flag for decision'}</button><button type="button" class="mini-btn danger" onclick="g_feedDel('${esc(it.id)}')">Delete</button></div></div></div>`).join('') : '<div style="color:var(--faint);font-size:13px;text-align:center;padding:14px">Nothing posted yet.</div>'}</div>`;
+    const f = g('gfFile'); if (f) f.onchange = () => handleFiles(Array.from(f.files || []));
+  }
+  window.g_feedPick = cam => { const f = g('gfFile'); if (!f) return; if (cam) f.setAttribute('capture', 'environment'); else f.removeAttribute('capture'); f.value = ''; f.click(); };
+  async function handleFiles(files) {
+    if (!files.length || FS.busy) return;
+    const cap = val('gfCaption').trim().slice(0, 140), flag = !!(g('gfFlag') && g('gfFlag').checked);
+    FS.busy = true; drawFeed();
+    const msg = t => { const m = g('gfMsg'); if (m) m.textContent = t; };
+    let done = 0;
+    try {
+      for (const file of files) {
+        const isVideo = file.type.startsWith('video/');
+        if (isVideo && !FEED().video) throw new Error('Video is switched off in Settings');
+        if (isVideo && file.size > 60 * 1024 * 1024) throw new Error('That clip is over 60 MB — record a shorter one (under 30 seconds)');
+        if (!isVideo && !file.type.startsWith('image/')) throw new Error('Only photos and videos can be posted');
+        msg(`Uploading ${++done} of ${files.length}…`);
+        let url;
+        if (isVideo) url = await uploadMedia(file, file.name || 'clip.mp4', true);
+        else { const rs = await _resizePhoto(file, 1280); url = await uploadMedia(_dataUrlToBlob(rs), (file.name || 'photo') + '.jpg', false); }
+        FS.items.push({ id: uid('fd'), type: isVideo ? 'video' : 'photo', url, thumb: thumbOf(url, isVideo), caption: cap, flag, hidden: false, at: nowStr(), by: ((currentWorker && currentWorker.name) || '').split(' ')[0] });
+      }
+      await saveFeed(FS.job, FS.items);
+      audit('live-feed', `${jobPlate(FS.job)} · +${files.length}`, { job_id: FS.job.id });
+      showToast(files.length > 1 ? 'Posted to the customer feed' : 'Posted — the customer can see it now', 'good');
+    } catch (e) { showToast(e.message || String(e), 'bad'); }
+    FS.busy = false; drawFeed();
+  }
+  window.g_feedToggle = async (id, k) => { const it = FS.items.find(x => x.id === id); if (!it) return; it[k] = !it[k]; try { await saveFeed(FS.job, FS.items); } catch (e) { it[k] = !it[k]; showToast('Could not update: ' + (e.message || e), 'bad'); } drawFeed(); };
+  window.g_feedDel = async id => {
+    if (!(await customConfirm('Delete this photo/clip from the customer feed?', { title: 'Delete', okLabel: 'Delete' }))) return;
+    FS.items = FS.items.filter(x => x.id !== id);
+    try { await saveFeed(FS.job, FS.items); } catch (e) { showToast('Could not delete: ' + (e.message || e), 'bad'); }
+    drawFeed();
+  };
+  const _oj = window.openJobForm;
+  if (typeof _oj === 'function') window.openJobForm = async function (id) {
+    const r = await _oj.apply(this, arguments);
+    try {
+      const sec = g('jf-sec-photos');
+      if (feedOn() && sec && !g('jfFeedBtn')) {
+        const d = document.createElement('div'); d.id = 'jfFeedBtn'; d.style.cssText = 'margin:0 0 10px';
+        d.innerHTML = `<button type="button" class="add-btn" style="width:100%;justify-content:center" onclick="gpFeedOpen('${esc(id)}')">📸 Live feed — show the customer what you found</button>`;
+        sec.parentNode.insertBefore(d, sec);
+      }
+    } catch (e) { console.warn('[feed button]', e); }
+    return r;
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  2 · LOANER CARS
+  // ══════════════════════════════════════════════════════════════════════════
+  const loanOn = () => LOAN().enabled;
+  const FUEL = ['Full', '3/4', '1/2', '1/4', 'Reserve'];
+  let LS = { loaded: false, tab: 'fleet' };
+  async function loadLoaners() {
+    if (LS.loaded) return;
+    D.loaner_cars = (await wsLoad('loaner_cars')) || []; D.loaner_loans = (await wsLoad('loaner_loans')) || []; LS.loaded = true;
+  }
+  const carOf = id => (D.loaner_cars || []).find(c => c.id === id);
+  const openLoanOf = carId => (D.loaner_loans || []).find(l => l.car_id === carId && l.status === 'out');
+  const daysBetween = (aIso, bIso) => Math.max(1, Math.ceil((new Date(bIso) - new Date(aIso)) / 86400000) || 1);
+
+  addTab('loaners', 'Loaner cars', '<path d="M5 17h14M3 13l2-6h14l2 6v4H3z"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/>',
+    ['manager', 'service_advisor', 'floor_manager', 'receptionist'], loanOn, async () => { await loadLoaners(); drawLoaners(); });
+
+  function drawLoaners() {
+    const p = g('tab-loaners'); if (!p) return;
+    const cars = D.loaner_cars || [], loans = D.loaner_loans || [], out = loans.filter(l => l.status === 'out');
+    const overdue = out.filter(l => l.due_at && l.due_at < today());
+    setBadge('loaners', overdue.length);
+    const asked = (D.bookings || []).filter(b => b.loaner_requested && !['Cancelled', 'Delivered', 'Completed'].includes(b.status) && (b.date || '') >= addDays(today(), -1) && !loans.some(l => l.booking_id === b.id));
+    p.innerHTML = `<div class="page-head"><div><h2>Loaner cars</h2><div class="dash-meta"><span class="live-dot"></span><span>${cars.filter(c => c.status !== 'out' && c.status !== 'unavailable').length} available · ${out.length} out${overdue.length ? ` · <b style="color:var(--red)">${overdue.length} overdue</b>` : ''}</span></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="add-btn" type="button" onclick="lnHandout()">Hand out a car</button><button class="refresh-btn" type="button" onclick="lnCarEdit()">+ Add loaner car</button></div></div>
+      ${asked.length ? `<div class="card" style="padding:12px 16px;margin-bottom:12px;border-left:4px solid var(--acc2)"><b>Asked for a loaner:</b> ${asked.map(b => `${esc(b.cust_name)} (${esc(b.plate || '—')}, ${esc(dmy(b.date))})`).join(' · ')}</div>` : ''}
+      <div style="display:flex;gap:4px;border-bottom:1px solid var(--brd);margin-bottom:14px">${[['fleet', 'Fleet (' + cars.length + ')'], ['out', 'Out now (' + out.length + ')'], ['history', 'History']].map(([k, l]) => `<button type="button" onclick="lnTab('${k}')" style="border:0;background:none;color:${LS.tab === k ? 'var(--txt)' : 'var(--dim)'};font-weight:700;padding:8px 14px;border-bottom:2px solid ${LS.tab === k ? 'var(--acc)' : 'transparent'};cursor:pointer">${l}</button>`).join('')}</div>
+      ${LS.tab === 'fleet' ? fleetHtml(cars) : LS.tab === 'out' ? outHtml(out) : histHtml(loans.filter(l => l.status === 'returned'))}`;
+  }
+  function fleetHtml(cars) {
+    if (!cars.length) return `<div class="placeholder"><h3>No loaner cars yet</h3><p>Add the courtesy cars you lend to customers. Then hand one out from here or when a customer's repair takes more than a day.</p></div>`;
+    return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px">${cars.map(c => {
+      const lo = openLoanOf(c.id), ins = c.insurance_expiry, insDays = ins ? Math.round((new Date(ins) - new Date(today())) / 86400000) : null;
+      const st = lo ? 'out' : (c.status === 'unavailable' ? 'unavailable' : 'available'), col = st === 'out' ? 'var(--acc2)' : st === 'unavailable' ? 'var(--faint)' : 'var(--teal)';
+      return `<div class="card" style="padding:14px 16px"><div style="display:flex;justify-content:space-between;gap:8px"><div><span class="plate">${esc(c.plate)}</span><div style="font-weight:700;margin-top:6px">${esc(c.model || '')}</div></div><span style="height:fit-content;font-size:11px;font-weight:700;padding:3px 10px;border-radius:100px;background:var(--bg2);color:${col}">${st === 'out' ? 'Out' : st === 'unavailable' ? 'Unavailable' : 'Available'}</span></div>
+        <div style="font-size:12.5px;color:var(--dim);margin-top:8px;line-height:1.7">${c.odometer ? Number(c.odometer).toLocaleString('en-IN') + ' km · ' : ''}${Number(c.daily_rate) > 0 ? money(c.daily_rate) + '/day' : 'Free of charge'}${lo ? `<br>With <b>${esc(lo.customer_name)}</b> · due ${esc(dmy(lo.due_at))}` : ''}${ins ? `<br><span style="color:${insDays < 0 ? 'var(--red)' : insDays < 30 ? 'var(--acc2)' : 'var(--faint)'}">Insurance ${insDays < 0 ? 'EXPIRED' : 'to'} ${esc(dmy(ins))}</span>` : ''}</div>
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">${lo ? `<button class="add-btn" type="button" onclick="lnReturn('${esc(lo.id)}')">Return</button>` : (st === 'available' ? `<button class="add-btn" type="button" onclick="lnHandout('${esc(c.id)}')">Hand out</button>` : '')}<button class="mini-btn" type="button" onclick="lnCarEdit('${esc(c.id)}')">Edit</button></div></div>`;
+    }).join('')}</div>`;
+  }
+  function outHtml(out) {
+    if (!out.length) return `<div class="placeholder"><h3>Nothing out right now</h3><p>Every loaner is back in the yard.</p></div>`;
+    return out.sort((a, b) => String(a.due_at).localeCompare(String(b.due_at))).map(l => { const c = carOf(l.car_id) || {}, late = l.due_at < today();
+      return `<div class="card" style="padding:14px 16px;margin-bottom:10px;border-left:4px solid ${late ? 'var(--red)' : 'var(--acc2)'}"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><b>${esc(l.customer_name)}</b> · ${esc(l.phone || '')}<div style="font-size:12.5px;color:var(--dim);margin-top:3px"><span class="plate">${esc(c.plate || '')}</span> ${esc(c.model || '')} · out ${esc(dmy(l.out_at.slice(0, 10)))} · due <b style="color:${late ? 'var(--red)' : 'inherit'}">${esc(dmy(l.due_at))}${late ? ' — OVERDUE' : ''}</b></div><div style="font-size:12px;color:var(--faint);margin-top:2px">Out ${Number(l.out_odo || 0).toLocaleString('en-IN')} km · fuel ${esc(l.out_fuel)}${Number(l.deposit) > 0 ? ' · deposit ' + money(l.deposit) : ''}${l.customer_plate ? ' · their car ' + esc(l.customer_plate) : ''}</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start"><button class="mini-btn" type="button" onclick="lnWhatsapp('${esc(l.id)}')">💬 WhatsApp</button><button class="mini-btn" type="button" onclick="lnPrint('${esc(l.id)}')">🖨 Agreement</button><button class="add-btn" type="button" onclick="lnReturn('${esc(l.id)}')">Return</button></div></div></div>`; }).join('');
+  }
+  function histHtml(list) {
+    if (!list.length) return `<div class="placeholder"><h3>No returns yet</h3></div>`;
+    return `<div class="card" style="padding:0;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:var(--faint);font-size:12px"><th style="padding:10px 14px">Customer</th><th>Car</th><th>Out</th><th>Back</th><th>Km</th><th>Charge</th></tr></thead><tbody>${list.sort((a, b) => String(b.ret_at).localeCompare(String(a.ret_at))).map(l => { const c = carOf(l.car_id) || {};
+      return `<tr style="border-top:1px solid var(--brd)"><td style="padding:10px 14px"><b>${esc(l.customer_name)}</b></td><td>${esc(c.plate || '')}</td><td>${esc(dmy((l.out_at || '').slice(0, 10)))}</td><td>${esc(dmy((l.ret_at || '').slice(0, 10)))}</td><td>${Math.max(0, Number(l.ret_odo || 0) - Number(l.out_odo || 0)).toLocaleString('en-IN')}</td><td>${Number(l.fee) > 0 ? money(l.fee) : 'Free'}</td></tr>`; }).join('')}</tbody></table></div>`;
+  }
+  window.lnTab = k => { LS.tab = k; drawLoaners(); };
+
+  window.lnCarEdit = function (id) {
+    const c = id ? carOf(id) : null, L = LOAN();
+    openModal({ title: c ? 'Edit loaner car' : 'Add loaner car', saveLabel: 'Save', body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="f-grp"><label>Plate *</label><input id="lcPlate" value="${esc(c ? c.plate : '')}"></div><div class="f-grp"><label>Make &amp; model *</label><input id="lcModel" value="${esc(c ? c.model : '')}" placeholder="Maruti Swift"></div>
+      <div class="f-grp"><label>Odometer (km)</label><input id="lcOdo" type="number" min="0" value="${esc(c ? c.odometer || '' : '')}"></div><div class="f-grp"><label>Daily rate (0 = free)</label><input id="lcRate" type="number" min="0" step="0.01" value="${esc(c ? c.daily_rate : L.daily_rate)}"></div>
+      <div class="f-grp"><label>Insurance valid until</label><input id="lcIns" type="date" value="${esc(c ? c.insurance_expiry || '' : '')}"></div>
+      <div class="f-grp"><label>Status</label><select id="lcStatus"><option value="available" ${!c || c.status !== 'unavailable' ? 'selected' : ''}>In service</option><option value="unavailable" ${c && c.status === 'unavailable' ? 'selected' : ''}>Unavailable (being repaired)</option></select></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Notes</label><input id="lcNotes" value="${esc(c ? c.notes || '' : '')}" placeholder="Existing scratches, features…"></div></div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>`,
+      danger: c ? { label: 'Delete car', handler: new Function('lnCarDelete(' + JSON.stringify(id) + ')') } : null,
+      onSave: async () => {
+        const plate = val('lcPlate').trim().toUpperCase(), model = val('lcModel').trim();
+        if (!plate || !model) throw new Error('Plate and make/model are required');
+        if ((D.loaner_cars || []).some(x => x.id !== (c && c.id) && plateNorm(x.plate) === plateNorm(plate))) throw new Error('That plate is already in the fleet');
+        const rec = Object.assign(c || { id: uid('lc'), created_at: nowStr() }, { plate, model, odometer: Number(val('lcOdo')) || 0, daily_rate: Math.max(0, Number(val('lcRate')) || 0), insurance_expiry: val('lcIns'), status: openLoanOf(c && c.id) ? 'out' : val('lcStatus'), notes: val('lcNotes').trim() });
+        if (!c) D.loaner_cars.push(rec);
+        await wsSave('loaner_cars', D.loaner_cars); closeModal(); drawLoaners(); showToast('Saved', 'good');
+      } });
+  };
+  window.lnCarDelete = async function (id) {
+    if (openLoanOf(id)) return showToast('That car is out on loan — return it first', 'bad');
+    if (!(await customConfirm('Remove this car from the loaner fleet? Past loan history is kept.', { title: 'Remove car', okLabel: 'Remove' }))) return;
+    D.loaner_cars = D.loaner_cars.filter(c => c.id !== id); await wsSave('loaner_cars', D.loaner_cars); closeModal(); drawLoaners();
+  };
+
+  window.lnHandout = async function (carId) {
+    await loadLoaners();
+    const free = D.loaner_cars.filter(c => !openLoanOf(c.id) && c.status !== 'unavailable');
+    if (!free.length) return showToast(D.loaner_cars.length ? 'No loaner is free right now' : 'Add a loaner car first', 'bad');
+    const L = LOAN(), pick = carId ? carOf(carId) : free[0];
+    const bks = (D.bookings || []).filter(b => !['Cancelled', 'Delivered', 'Completed'].includes(b.status) && (b.date || '') >= addDays(today(), -14)).sort((a, b) => (b.loaner_requested ? 1 : 0) - (a.loaner_requested ? 1 : 0) || String(b.date).localeCompare(String(a.date))).slice(0, 60);
+    openModal({ title: 'Hand out a loaner', saveLabel: 'Hand over keys', wide: true, body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="f-grp"><label>Car *</label><select id="lhCar" onchange="lnFillCar()">${free.map(c => `<option value="${esc(c.id)}" ${c.id === pick.id ? 'selected' : ''}>${esc(c.plate)} · ${esc(c.model)}</option>`).join('')}</select></div>
+      <div class="f-grp"><label>For booking (optional)</label><select id="lhBk" onchange="lnFillBk()"><option value="">— walk-in / not listed —</option>${bks.map(b => `<option value="${esc(b.id)}">${b.loaner_requested ? '★ ' : ''}${esc(b.cust_name)} · ${esc(b.plate || '—')} · ${esc(b.service || '')}</option>`).join('')}</select></div>
+      <div class="f-grp"><label>Customer name *</label><input id="lhName"></div><div class="f-grp"><label>Phone *</label><input id="lhPhone" type="tel"></div>
+      <div class="f-grp"><label>Their own car (plate)</label><input id="lhPlate" placeholder="So they see this on Track"></div><div class="f-grp"><label>Driving licence no. *</label><input id="lhLic"></div>
+      <div class="f-grp"><label>Licence expiry</label><input id="lhLicExp" type="date"></div><div class="f-grp"><label>Return by *</label><input id="lhDue" type="date" min="${today()}" value="${addDays(today(), 2)}"></div>
+      <div class="f-grp"><label>Odometer out (km)</label><input id="lhOdo" type="number" min="0" value="${esc(pick.odometer || 0)}"></div><div class="f-grp"><label>Fuel out</label><select id="lhFuel">${FUEL.map(f => `<option>${f}</option>`).join('')}</select></div>
+      <div class="f-grp"><label>Daily rate (0 = free)</label><input id="lhRate" type="number" min="0" step="0.01" value="${esc(pick.daily_rate != null ? pick.daily_rate : L.daily_rate)}"></div><div class="f-grp"><label>Deposit taken</label><input id="lhDep" type="number" min="0" step="0.01" value="${esc(L.deposit || 0)}"></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Condition at hand-out (scratches, dents, warning lights)</label><textarea id="lhCond" rows="2">${esc(pick.notes || '')}</textarea></div>
+      <label style="grid-column:span 2;display:flex;gap:8px;align-items:flex-start;font-size:13px"><input type="checkbox" id="lhOk" style="width:16px;height:16px;margin-top:2px"> I checked the customer's original licence and they have read and accepted the loaner terms (print the agreement after saving).</label></div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>`,
+      onSave: async () => {
+        const car = carOf(val('lhCar')), name = val('lhName').trim(), phone = val('lhPhone').trim(), lic = val('lhLic').trim(), due = val('lhDue');
+        if (!car) throw new Error('Pick a car'); if (!name || !phone) throw new Error('Customer name and phone are required'); if (!lic) throw new Error('Record the driving licence number');
+        if (!due || due < today()) throw new Error('Pick a return date');
+        if (!g('lhOk').checked) throw new Error('Tick the box to confirm the licence check and terms');
+        if (openLoanOf(car.id)) throw new Error('That car was just handed out on another device');
+        if (car.insurance_expiry && car.insurance_expiry < today() && !(await customConfirm('This car’s insurance has expired. Hand it out anyway?', { title: 'Insurance expired', okLabel: 'Hand out anyway' }))) return;
+        const loan = { id: uid('ln'), car_id: car.id, booking_id: val('lhBk'), customer_name: name, phone, customer_plate: val('lhPlate').trim().toUpperCase(), licence_no: lic, licence_expiry: val('lhLicExp'),
+          out_at: nowStr(), due_at: due, out_odo: Number(val('lhOdo')) || 0, out_fuel: val('lhFuel'), daily_rate: Math.max(0, Number(val('lhRate')) || 0), deposit: Math.max(0, Number(val('lhDep')) || 0), out_notes: val('lhCond').trim(), status: 'out', by: (currentWorker && currentWorker.name) || '' };
+        D.loaner_loans.push(loan); car.status = 'out'; car.odometer = loan.out_odo;
+        await Promise.all([wsSave('loaner_loans', D.loaner_loans), wsSave('loaner_cars', D.loaner_cars)]);
+        publishLoan(loan, car); audit('loaner-out', `${car.plate} → ${name}`, { loan_id: loan.id }); closeModal(); LS.tab = 'out'; drawLoaners();
+        showToast('Loaner handed out — print the agreement for signing', 'good'); setTimeout(() => lnPrint(loan.id), 300);
+      } });
+    setTimeout(() => { lnFillBk(); }, 0);
+  };
+  window.lnFillCar = () => { const c = carOf(val('lhCar')); if (!c) return; g('lhOdo').value = c.odometer || 0; g('lhRate').value = c.daily_rate || 0; g('lhCond').value = c.notes || ''; };
+  window.lnFillBk = () => { const b = (D.bookings || []).find(x => x.id === val('lhBk')); if (!b) return; g('lhName').value = b.cust_name || ''; g('lhPhone').value = b.cust_phone || ''; g('lhPlate').value = b.plate || ''; };
+
+  window.lnReturn = function (loanId) {
+    const l = (D.loaner_loans || []).find(x => x.id === loanId), c = l && carOf(l.car_id); if (!l || !c) return;
+    const days = daysBetween(l.out_at.replace(' ', 'T') + 'Z', new Date().toISOString()), fee = days * Number(l.daily_rate || 0);
+    openModal({ title: `Return · ${c.plate}`, saveLabel: 'Check back in', body: `<div style="font-size:13px;color:var(--dim);margin-bottom:12px">${esc(l.customer_name)} · out ${esc(dmy(l.out_at.slice(0, 10)))} (${days} day${days === 1 ? '' : 's'}) · left with ${Number(l.out_odo || 0).toLocaleString('en-IN')} km, fuel ${esc(l.out_fuel)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="f-grp"><label>Odometer back (km) *</label><input id="lrOdo" type="number" min="${esc(l.out_odo || 0)}" value="${esc(l.out_odo || 0)}"></div><div class="f-grp"><label>Fuel back</label><select id="lrFuel">${FUEL.map(f => `<option ${f === l.out_fuel ? 'selected' : ''}>${f}</option>`).join('')}</select></div>
+      <div class="f-grp"><label>Loan charge (${days} × ${money(l.daily_rate)})</label><input id="lrFee" type="number" min="0" step="0.01" value="${fee}"></div><div class="f-grp"><label>Extra charges (fuel, damage, fines)</label><input id="lrExtra" type="number" min="0" step="0.01" value="0"></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Condition on return — new damage?</label><textarea id="lrCond" rows="2" placeholder="None"></textarea></div>
+      ${Number(l.deposit) > 0 ? `<label style="grid-column:span 2;display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="lrDep" checked style="width:16px;height:16px"> Deposit of ${money(l.deposit)} refunded in full (untick if any was kept)</label>` : ''}</div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>`,
+      onSave: async () => {
+        const odo = Number(val('lrOdo')); if (!(odo >= Number(l.out_odo || 0))) throw new Error('Odometer can’t be lower than when it left (' + (l.out_odo || 0) + ' km)');
+        Object.assign(l, { status: 'returned', ret_at: nowStr(), ret_odo: odo, ret_fuel: val('lrFuel'), ret_notes: val('lrCond').trim(), fee: Math.max(0, Number(val('lrFee')) || 0), extra: Math.max(0, Number(val('lrExtra')) || 0), deposit_refunded: g('lrDep') ? g('lrDep').checked : null });
+        c.status = 'available'; c.odometer = odo; if (l.ret_notes) c.notes = l.ret_notes;
+        await Promise.all([wsSave('loaner_loans', D.loaner_loans), wsSave('loaner_cars', D.loaner_cars)]);
+        publishLoan(l, c, true); audit('loaner-back', `${c.plate} ← ${l.customer_name}`, { loan_id: l.id });
+        closeModal(); drawLoaners(); const tot = l.fee + l.extra; showToast(tot > 0 ? `Checked in — charge ${money(tot)} (add it to their invoice)` : 'Checked in', 'good');
+      } });
+  };
+  async function publishLoan(l, c, cleared) {
+    try { const pn = plateNorm(l.customer_plate); if (!pn) return; await pubRef(pn).set({ loaner: cleared ? null : { car: c.model || '', plate: c.plate || '', due: l.due_at, since: (l.out_at || '').slice(0, 10) } }, { merge: true }); } catch (e) { console.warn('[loaner publish]', e); }
+  }
+  window.lnWhatsapp = function (id) {
+    const l = D.loaner_loans.find(x => x.id === id), c = l && carOf(l.car_id); if (!l) return;
+    const late = l.due_at < today();
+    _waOpen(l.phone, `Hi ${(l.customer_name || '').split(' ')[0]}, this is ${_wsName()}. ${late ? 'Our courtesy car ' + (c ? c.plate : '') + ' was due back on ' + dmy(l.due_at) + '.' : 'A quick reminder that the courtesy car ' + (c ? c.plate : '') + ' is due back on ' + dmy(l.due_at) + '.'} Please bring it in or let us know if you need it longer. Thank you!`);
+  };
+  window.lnPrint = function (id) {
+    const l = D.loaner_loans.find(x => x.id === id), c = l && carOf(l.car_id); if (!l || !c) return;
+    const w = window.open('', '_blank'); if (!w) return showToast('Allow pop-ups to print the agreement', 'bad');
+    w.document.write(`<!doctype html><meta charset="utf-8"><title>Loaner agreement</title><style>body{font:14px/1.6 system-ui,sans-serif;max-width:720px;margin:30px auto;padding:0 20px;color:#111}h1{font-size:22px;margin:0 0 4px}table{width:100%;border-collapse:collapse;margin:14px 0}td{border:1px solid #bbb;padding:8px 10px;vertical-align:top}td:first-child{width:34%;background:#f4f4f4;font-weight:600}.sig{display:flex;gap:40px;margin-top:60px}.sig div{flex:1;border-top:1px solid #111;padding-top:6px;font-size:12px}</style>
+      <h1>${esc(_wsName())}</h1><div>Courtesy / loaner vehicle agreement</div><table>
+      <tr><td>Borrower</td><td>${esc(l.customer_name)} · ${esc(l.phone)}</td></tr><tr><td>Driving licence</td><td>${esc(l.licence_no)}${l.licence_expiry ? ' · valid to ' + esc(dmy(l.licence_expiry)) : ''}</td></tr>
+      <tr><td>Loaner car</td><td>${esc(c.plate)} · ${esc(c.model)}</td></tr><tr><td>Out</td><td>${esc(l.out_at)} UTC · ${Number(l.out_odo || 0).toLocaleString('en-IN')} km · fuel ${esc(l.out_fuel)}</td></tr>
+      <tr><td>Return by</td><td>${esc(dmy(l.due_at))}</td></tr><tr><td>Charge</td><td>${Number(l.daily_rate) > 0 ? esc(money(l.daily_rate)) + ' per day' : 'No charge'}${Number(l.deposit) > 0 ? ' · deposit ' + esc(money(l.deposit)) : ''}</td></tr>
+      <tr><td>Condition at hand-out</td><td>${esc(l.out_notes || 'No marks recorded')}</td></tr></table>
+      <p><b>Terms.</b> ${esc(LOAN().terms || DEF_TERMS)}</p><div class="sig"><div>Borrower signature &amp; date</div><div>${esc(_wsName())} representative</div></div><script>setTimeout(()=>print(),300)<\/script>`);
+    w.document.close();
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  3 · INSTALMENTS
+  // ══════════════════════════════════════════════════════════════════════════
+  const instOn = () => INST().enabled;
+  let IS = { loaded: false, tab: 'active' };
+  async function loadPlans() { if (IS.loaded) return; D.instalment_plans = (await wsLoad('instalment_plans')) || []; IS.loaded = true; }
+  const invOf = id => (D.invoices || []).find(i => i.id === id);
+  const balOf = inv => { try { return Math.max(0, _invoiceTotals(inv).roundOff - Number(inv.amount_paid || 0)); } catch (_) { return 0; } };
+  const planPaid = p => p.schedule.filter(s => s.paid_at).reduce((a, s) => a + s.amount, 0);
+  const planNext = p => p.schedule.find(s => !s.paid_at);
+  const planOf = invId => (D.instalment_plans || []).find(p => p.invoice_id === invId && p.status === 'active');
+
+  addTab('instalments', 'Instalments', '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
+    ['manager', 'service_advisor', 'receptionist'], instOn, async () => { await loadPlans(); drawPlans(); });
+
+  function drawPlans() {
+    const p = g('tab-instalments'); if (!p) return;
+    const all = D.instalment_plans || [], act = all.filter(x => x.status === 'active'), late = act.filter(x => { const n = planNext(x); return n && n.due < today(); });
+    setBadge('instalments', late.length);
+    const owed = act.reduce((a, x) => a + x.schedule.filter(s => !s.paid_at).reduce((b, s) => b + s.amount, 0), 0);
+    const list = IS.tab === 'active' ? act : all.filter(x => x.status !== 'active');
+    p.innerHTML = `<div class="page-head"><div><h2>Instalments</h2><div class="dash-meta"><span class="live-dot"></span><span>${act.length} active plan${act.length === 1 ? '' : 's'} · ${money(owed)} still to collect${late.length ? ` · <b style="color:var(--red)">${late.length} behind</b>` : ''}</span></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="add-btn" type="button" onclick="inNew()">New plan</button></div></div>
+      <div style="display:flex;gap:4px;border-bottom:1px solid var(--brd);margin-bottom:14px">${[['active', 'Active (' + act.length + ')'], ['closed', 'Completed / cancelled']].map(([k, l]) => `<button type="button" onclick="inTab('${k}')" style="border:0;background:none;color:${IS.tab === k ? 'var(--txt)' : 'var(--dim)'};font-weight:700;padding:8px 14px;border-bottom:2px solid ${IS.tab === k ? 'var(--acc)' : 'transparent'};cursor:pointer">${l}</button>`).join('')}</div>
+      ${list.length ? list.map(planCard).join('') : `<div class="placeholder"><h3>${IS.tab === 'active' ? 'No payment plans' : 'Nothing closed yet'}</h3><p>${IS.tab === 'active' ? 'On any unpaid invoice tap “Instalments” to split the bill into 3 or 6 payments, or send the customer a financing-partner link.' : ''}</p></div>`}`;
+  }
+  window.inTab = k => { IS.tab = k; drawPlans(); };
+  function planCard(p) {
+    const n = planNext(p), late = n && n.due < today(), paid = planPaid(p), total = p.schedule.reduce((a, s) => a + s.amount, 0);
+    return `<div class="card" style="padding:14px 16px;margin-bottom:10px;border-left:4px solid ${p.status !== 'active' ? 'var(--faint)' : late ? 'var(--red)' : 'var(--teal)'}">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:230px"><b>${esc(p.customer)}</b> · ${esc(p.invoice_no || '')}${p.plate ? ` · <span class="plate">${esc(p.plate)}</span>` : ''}
+        <div style="font-size:12.5px;color:var(--dim);margin-top:3px">${money(paid)} of ${money(total)} paid · ${p.schedule.filter(s => s.paid_at).length}/${p.schedule.length} instalments${n && p.status === 'active' ? ` · next <b style="color:${late ? 'var(--red)' : 'inherit'}">${money(n.amount)} on ${esc(dmy(n.due))}${late ? ' — OVERDUE' : ''}</b>` : ''}</div>
+        <div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap">${p.schedule.map(s => `<span title="${esc(dmy(s.due))}${s.paid_at ? ' · paid ' + esc(s.method || '') : ''}" style="font-size:11px;padding:2px 9px;border-radius:100px;background:${s.paid_at ? 'color-mix(in srgb,var(--teal) 18%,transparent)' : s.due < today() ? 'color-mix(in srgb,var(--red) 16%,transparent)' : 'var(--bg2)'};color:${s.paid_at ? 'var(--teal)' : s.due < today() ? 'var(--red)' : 'var(--dim)'}">${s.paid_at ? '✓ ' : ''}${esc(money(s.amount))} · ${esc(dmy(s.due))}</span>`).join('')}</div></div>
+        ${p.status === 'active' ? `<div style="display:flex;flex-direction:column;gap:6px;min-width:150px"><button class="add-btn" type="button" onclick="inPay('${esc(p.id)}')">Record payment</button><button class="mini-btn" type="button" onclick="inRemind('${esc(p.id)}')">💬 Remind</button><button class="mini-btn danger" type="button" onclick="inCancel('${esc(p.id)}')">Cancel plan</button></div>` : `<span style="font-size:12px;font-weight:700;color:var(--faint)">${esc(p.status)}</span>`}</div></div>`;
+  }
+
+  window.inNew = async function (invId) {
+    await loadPlans();
+    const cand = (D.invoices || []).filter(i => !i.is_estimate && i.status !== 'Cancelled' && i.payment_status !== 'Paid' && balOf(i) > 0 && !planOf(i.id));
+    if (!cand.length) return showToast('No unpaid invoices without a plan', 'bad');
+    const pick = (invId && cand.find(i => i.id === invId)) || cand[0], I = INST(), opts = String(I.plans || '3,6').split(',').map(x => parseInt(x, 10)).filter(x => x >= 2 && x <= 24);
+    openModal({ title: 'Payment plan', saveLabel: 'Create plan', body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="f-grp" style="grid-column:span 2"><label>Invoice</label><select id="ipInv" onchange="inPreview()">${cand.map(i => `<option value="${esc(i.id)}" ${i.id === pick.id ? 'selected' : ''}>${esc(i.number || '—')} · ${esc((i.customer && i.customer.name) || '—')} · ${esc(money(balOf(i)))} due</option>`).join('')}</select></div>
+      <div class="f-grp"><label>Number of payments</label><select id="ipN" onchange="inPreview()">${(opts.length ? opts : [3, 6]).map(n => `<option value="${n}">${n} payments</option>`).join('')}</select></div>
+      <div class="f-grp"><label>Deposit today (optional)</label><input id="ipDown" type="number" min="0" step="0.01" value="0" oninput="inPreview()"></div>
+      <div class="f-grp"><label>First instalment due</label><input id="ipStart" type="date" value="${addDays(today(), 30)}" oninput="inPreview()"></div>
+      <div class="f-grp"><label>Gap between payments (days)</label><input id="ipGap" type="number" min="7" max="90" value="30" oninput="inPreview()"></div>
+      <div id="ipPrev" style="grid-column:span 2;background:var(--bg2);border-radius:10px;padding:12px;font-size:13px;line-height:1.7"></div>
+      ${I.partner_link ? `<div style="grid-column:span 2;font-size:12.5px;color:var(--dim)">Prefer ${esc(I.partner_name || 'your financing partner')} to pay you upfront? Create the plan as “partner” after saving — use <b>Send financing link</b> on the invoice list.</div>` : ''}</div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>`,
+      onSave: async () => {
+        const sch = buildSchedule(); if (!sch.ok) throw new Error(sch.err);
+        const inv = invOf(val('ipInv')); if (!inv) throw new Error('Pick an invoice');
+        const plan = { id: uid('ip'), invoice_id: inv.id, invoice_no: inv.number || '', customer: (inv.customer && inv.customer.name) || '', phone: (inv.customer && inv.customer.phone) || '', plate: (inv.vehicle && inv.vehicle.plate) || '', currency: cur(), schedule: sch.rows, status: 'active', mode: 'inhouse', created_at: nowStr() };
+        D.instalment_plans.push(plan);
+        if (sch.rows[0].paid_at) { applyPayment(inv, sch.rows[0].amount); await wsSave('invoices', D.invoices); }
+        await wsSave('instalment_plans', D.instalment_plans);
+        publishPlan(plan); audit('instalment-plan', `${plan.invoice_no} · ${plan.schedule.length} payments`, { plan_id: plan.id });
+        closeModal(); IS.tab = 'active'; if (currentTab === 'instalments') drawPlans(); try { renderInvoices(); } catch (_) {} showToast('Payment plan created', 'good');
+      } });
+    setTimeout(inPreview, 0);
+  };
+  function buildSchedule() {
+    const inv = invOf(val('ipInv')); if (!inv) return { ok: false, err: 'Pick an invoice' };
+    const bal = balOf(inv), n = parseInt(val('ipN'), 10) || 3, down = Math.max(0, Number(val('ipDown')) || 0), start = val('ipStart'), gap = Math.max(7, parseInt(val('ipGap'), 10) || 30);
+    if (down >= bal) return { ok: false, err: 'The deposit must be less than the balance — just record a normal payment instead' };
+    if (!start || start <= today()) return { ok: false, err: 'First instalment must be in the future' };
+    const rest = Math.round((bal - down) * 100) / 100, each = Math.floor(rest / n * 100) / 100, rows = [];
+    if (down > 0) rows.push({ no: 0, due: today(), amount: down, paid_at: nowStr(), method: 'Deposit' });
+    for (let i = 0; i < n; i++) rows.push({ no: i + 1, due: addDays(start, gap * i), amount: i === n - 1 ? Math.round((rest - each * (n - 1)) * 100) / 100 : each, paid_at: '', method: '' });
+    return { ok: true, rows, bal };
+  }
+  window.inPreview = function () { const s = buildSchedule(), el = g('ipPrev'); if (!el) return; el.innerHTML = s.ok ? `Balance ${esc(money(s.bal))} →<br>${s.rows.map(r => `${r.no === 0 ? 'Deposit' : 'Payment ' + r.no} · <b>${esc(money(r.amount))}</b> · ${esc(dmy(r.due))}`).join('<br>')}` : `<span style="color:var(--faint)">${esc(s.err)}</span>`; };
+  function applyPayment(inv, amount) {
+    const paid = Math.round((Number(inv.amount_paid || 0) + amount) * 100) / 100, total = _invoiceTotals(inv).roundOff, full = paid >= total - 0.005;
+    _normaliseInvoicePayment(inv, { payment_status: full ? 'Paid' : 'Partial', amount_paid: paid }); inv.updated_at = nowStr();
+    const b = inv.booking_id && (D.bookings || []).find(x => x.id === inv.booking_id); if (b) { b.payment_status = full ? 'Paid' : 'Partial'; wsSave('bookings', D.bookings).catch(() => {}); }
+    return full;
+  }
+  window.inPay = async function (id) {
+    const p = (D.instalment_plans || []).find(x => x.id === id), s = p && planNext(p); if (!s) return;
+    const method = await customPrompt(`Record ${money(s.amount)} received from ${p.customer}. How did they pay?`, { title: 'Record payment', initial: 'Cash', okLabel: 'Record' }); if (method == null) return;
+    s.paid_at = nowStr(); s.method = String(method).slice(0, 30) || 'Cash';
+    const inv = invOf(p.invoice_id); let full = false; if (inv) { full = applyPayment(inv, s.amount); await wsSave('invoices', D.invoices); }
+    if (!planNext(p)) p.status = 'completed';
+    await wsSave('instalment_plans', D.instalment_plans); publishPlan(p); audit('instalment-paid', `${p.invoice_no} · ${money(s.amount)}`, { plan_id: p.id });
+    drawPlans(); try { renderInvoices(); } catch (_) {} showToast(p.status === 'completed' ? 'Final instalment received — invoice is paid in full' : 'Payment recorded', 'good');
+  };
+  window.inCancel = async function (id) {
+    const p = D.instalment_plans.find(x => x.id === id); if (!p) return;
+    if (!(await customConfirm('Cancel this plan? Payments already received stay on the invoice; the rest becomes a normal balance due.', { title: 'Cancel plan', okLabel: 'Cancel plan' }))) return;
+    p.status = 'cancelled'; await wsSave('instalment_plans', D.instalment_plans); publishPlan(p); drawPlans(); try { renderInvoices(); } catch (_) {}
+  };
+  window.inRemind = function (id) {
+    const p = D.instalment_plans.find(x => x.id === id), n = p && planNext(p); if (!n) return; const late = n.due < today();
+    _waOpen(p.phone, `Hi ${(p.customer || '').split(' ')[0]}, a ${late ? 'reminder' : 'gentle reminder'} from ${_wsName()}: your instalment of ${money(n.amount)} for invoice ${p.invoice_no} ${late ? 'was due on' : 'is due on'} ${dmy(n.due)}. Thank you!`);
+  };
+  async function publishPlan(p) {
+    try {
+      const pn = plateNorm(p.plate); if (!pn) return; const n = planNext(p), act = p.status === 'active' && n;
+      await pubRef(pn).set({ payplan: act ? { invoice: p.invoice_no || '', total_parts: p.schedule.length, paid_parts: p.schedule.filter(s => s.paid_at).length, next_due: n.due, next_amount: n.amount, remaining: Math.round(p.schedule.filter(s => !s.paid_at).reduce((a, s) => a + s.amount, 0) * 100) / 100, currency: p.currency || cur() } : null }, { merge: true });
+    } catch (e) { console.warn('[plan publish]', e); }
+  }
+  // Financing partner: send the customer the partner's checkout link; when the partner has paid the workshop, mark the invoice paid.
+  window.inPartnerSend = function (invId) {
+    const inv = invOf(invId), I = INST(); if (!inv) return; if (!I.partner_link) return showToast('Add your financing partner link in Settings → Customer extras', 'bad');
+    const link = I.partner_link.replace(/\{amount\}/g, balOf(inv).toFixed(2)).replace(/\{invoice\}/g, encodeURIComponent(inv.number || ''));
+    _waOpen(_invPhone(inv), `Hi ${((inv.customer && inv.customer.name) || 'there').split(' ')[0]}, you can split your ${_wsName()} bill (${money(balOf(inv))}) into instalments with ${I.partner_name || 'our financing partner'}: ${link}\nWe're paid by them upfront, so you just follow their schedule. Subject to their approval.`);
+  };
+  window.inPartnerPaid = async function (invId) {
+    const inv = invOf(invId), I = INST(); if (!inv) return;
+    if (!(await customConfirm(`Confirm that ${I.partner_name || 'the financing partner'} has paid you ${money(balOf(inv))} for ${inv.number || 'this invoice'}? It will be marked paid.`, { title: 'Partner paid', okLabel: 'Mark paid', danger: false }))) return;
+    _normaliseInvoicePayment(inv, { payment_status: 'Paid' }); inv.payment_method = 'Financing — ' + (I.partner_name || 'partner'); inv.updated_at = nowStr();
+    await wsSave('invoices', D.invoices); audit('invoice-paid', `${inv.number || ''} · partner financing`, { invoice_id: inv.id }); try { renderInvoices(); } catch (_) {} showToast('Marked paid', 'good');
+  };
+  // invoice list: add the buttons next to "Paid"
+  const _ri = window.renderInvoices;
+  if (typeof _ri === 'function') window.renderInvoices = function () {
+    const r = _ri.apply(this, arguments);
+    try {
+      if (!instOn() || !canSee('instalments')) return r;
+      document.querySelectorAll('button[onclick^="_quickMarkPaid("]').forEach(btn => {
+        const m = /_quickMarkPaid\('([^']+)'\)/.exec(btn.getAttribute('onclick') || ''); if (!m || btn.parentNode.querySelector('.gp-inst-btn')) return;
+        const inv = invOf(m[1]); if (!inv) return;
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'mini-btn gp-inst-btn';
+        if (D.instalment_plans && planOf(inv.id)) { b.textContent = 'On plan'; b.onclick = () => switchTab('instalments'); b.title = 'This invoice is on an instalment plan'; }
+        else if (balOf(inv) > 0) { b.textContent = 'Instalments'; b.onclick = () => inNew(inv.id); }
+        else return;
+        btn.parentNode.insertBefore(b, btn);
+        if (INST().partner_link && !(D.instalment_plans && planOf(inv.id))) {
+          const f = document.createElement('button'); f.type = 'button'; f.className = 'mini-btn gp-inst-btn'; f.textContent = 'Financing link'; f.title = 'WhatsApp the customer your financing partner link'; f.onclick = () => inPartnerSend(inv.id); btn.parentNode.insertBefore(f, btn);
+          const q = document.createElement('button'); q.type = 'button'; q.className = 'mini-btn gp-inst-btn'; q.textContent = 'Partner paid'; q.title = 'The financing partner has paid us — mark paid'; q.onclick = () => inPartnerPaid(inv.id); btn.parentNode.insertBefore(q, btn);
+        }
+      });
+    } catch (e) { console.warn('[instalment buttons]', e); }
+    return r;
+  };
+  // the plans list is loaded lazily; fetch it once the app is up so invoice rows can show "On plan"
+  setTimeout(() => { try { if (currentWorker && instOn()) loadPlans().then(() => { try { renderInvoices(); } catch (_) {} }); } catch (_) {} }, 4500);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  SETTINGS CARD
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderCard() {
+    const body = g('settingsBody'); if (!body || !isAdminRole()) return;
+    let host = g('extrasCardHost');
+    if (!host) { host = document.createElement('div'); host.id = 'extrasCardHost'; const grid = body.firstElementChild; if (!grid) return; const after = g('pkgCardHost') || g('obCardHost'); grid.insertBefore(host, after ? after.nextSibling : (grid.children[2] || null)); }
+    const f = FEED(), l = LOAN(), i = INST();
+    host.innerHTML = `<div class="card" style="padding:18px"><h3 style="margin:0 0 4px">Customer extras</h3><div style="color:var(--faint);font-size:13px;margin-bottom:14px;max-width:640px">Three optional features. Each one appears for staff only when switched on, and the Loaner cars and Instalments tabs can be given to specific roles under Role permissions.</div>
+      <div style="display:grid;gap:14px">
+      <div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="xf-on" ${f.enabled ? 'checked' : ''} style="width:16px;height:16px"> Live repair feed</label>
+        <div style="font-size:12.5px;color:var(--faint);margin:6px 0 8px">Mechanics post photos and short clips from the job card; the customer sees them on the Track page. Anyone who knows the number plate can open the Track page, so don't post anything you wouldn't show them — you can hide any item.</div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="xf-video" ${f.video ? 'checked' : ''} style="width:16px;height:16px"> Allow short video clips (uses your Cloudinary upload preset)</label></div>
+      <div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="xl-on" ${l.enabled ? 'checked' : ''} style="width:16px;height:16px"> Loaner car management</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px"><div class="f-grp"><label>Default daily rate (0 = free)</label><input id="xl-rate" type="number" min="0" step="0.01" value="${esc(l.daily_rate)}"></div><div class="f-grp"><label>Default deposit</label><input id="xl-dep" type="number" min="0" step="0.01" value="${esc(l.deposit)}"></div>
+        <div class="f-grp" style="grid-column:span 2"><label>Loaner terms (printed on the agreement)</label><textarea id="xl-terms" rows="3">${esc(l.terms || DEF_TERMS)}</textarea></div>
+        <label style="grid-column:span 2;display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="xl-online" ${l.offer_online ? 'checked' : ''} style="width:16px;height:16px"> Let customers tick “I'd like a courtesy car if one is available” on the online booking page</label></div></div>
+      <div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="xi-on" ${i.enabled ? 'checked' : ''} style="width:16px;height:16px"> Pay in instalments</label>
+        <div style="font-size:12.5px;color:var(--faint);margin:6px 0 8px">Split a bill into payments you track yourself. To be paid upfront, connect a financing partner (Tabby/Tamara, Razorpay EMI, Affirm/Klarna, a bank…): sign up with them, paste their customer checkout link below, and send it from the invoice list. Garage Pro doesn't lend money or run credit checks — the partner does, under their own terms. Check consumer-credit rules in your country before charging any fee.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:10px"><div class="f-grp"><label>Payment options</label><input id="xi-plans" value="${esc(i.plans)}" placeholder="3,6"></div><div class="f-grp"><label>Partner name</label><input id="xi-pname" value="${esc(i.partner_name)}" placeholder="Tabby"></div>
+        <div class="f-grp"><label>Partner checkout link <span style="font-weight:400;color:var(--faint)">({amount} and {invoice} are filled in)</span></label><input id="xi-plink" value="${esc(i.partner_link)}" placeholder="https://…"></div></div></div>
+      </div><div style="margin-top:14px"><button class="add-btn" type="button" onclick="extrasSave()">Save</button></div></div>`;
+  }
+  window.extrasSave = async function () {
+    const s = S(), link = val('xi-plink').trim();
+    if (link && !/^https:\/\//i.test(link)) return showToast('The partner link must start with https://', 'bad');
+    s.live_feed = { enabled: g('xf-on').checked, video: g('xf-video').checked };
+    s.loaners = { enabled: g('xl-on').checked, offer_online: g('xl-on').checked && g('xl-online').checked, daily_rate: Math.max(0, Number(val('xl-rate')) || 0), deposit: Math.max(0, Number(val('xl-dep')) || 0), terms: val('xl-terms').trim().slice(0, 1200) || DEF_TERMS };
+    s.instalments = { enabled: g('xi-on').checked, plans: val('xi-plans').trim() || '3,6', partner_name: val('xi-pname').trim().slice(0, 40), partner_link: link };
+    try { await wsSaveSettings(); if (typeof obPublish === 'function') obPublish().catch(() => {}); } catch (e) { return showToast('Save failed: ' + (e.message || e), 'bad'); }
+    try { renderSidebarVisibility(); } catch (_) {} showToast('Saved', 'good');
+  };
+  const _rs = window.renderSettings;
+  if (typeof _rs === 'function') window.renderSettings = async function () { const r = await _rs.apply(this, arguments); try { renderCard(); } catch (e) { console.warn('[extras card]', e); } return r; };
+  // the page asked for a courtesy car → tag the booking so the loaner tab can flag it
+  setInterval(() => { try { if (loanOn() && currentTab === 'loaners' && !document.hidden) drawLoaners(); if (instOn() && currentTab === 'instalments' && !document.hidden) drawPlans(); } catch (_) {} }, 60000);
 })();
 </script>
 
