@@ -221,6 +221,7 @@ async function loadHolds() {
 const COLOURS = ['White', 'Silver', 'Grey', 'Black', 'Red', 'Blue', 'Brown', 'Beige', 'Green', 'Yellow', 'Orange', 'Maroon', 'Gold', 'Purple'];
 const FUELS = ['Petrol', 'Diesel', 'CNG', 'LPG', 'Electric', 'Hybrid'];
 const OTHER = '__other';
+let loanerAsk = false;
 let F = {};   // (fLang defaults to the language chosen in the 🌐 picker — set below)                                   // everything the customer has typed / picked (survives re-renders)
 try { F = JSON.parse(localStorage.getItem('gp_book_me') || '{}') || {}; } catch (e) { F = {}; }
 if (window.GP && GP.code() !== 'en') F.fLang = GP.code();      // someone browsing in Tamil gets Tamil messages unless they change it
@@ -321,6 +322,7 @@ function render() {
       <label>Email *</label><input id="fEmail" type="email" autocomplete="email" placeholder="you@example.com" />
       <label>Language for our messages</label><select id="fLang">${(window.GP ? GP.LANGS : [['en', 'English', 'English']]).map(l => `<option value="${l[0]}">${esc(l[2])}${l[0] === 'en' ? '' : ' · ' + esc(l[1])}</option>`).join('')}</select>
       <label>Anything we should know? <span style="font-weight:400;color:var(--faint)">(optional)</span></label><textarea id="fNotes" rows="3" maxlength="500" placeholder="Noise, warning light, pickup needed…"></textarea>
+      ${W.loaner ? `<label style="display:flex;gap:10px;align-items:flex-start;font-weight:500;margin-top:12px"><input type="checkbox" id="fLoaner" ${loanerAsk ? 'checked' : ''} style="width:18px;height:18px;margin-top:2px;flex:none"> <span>I'd like a courtesy car while mine is in the workshop, if one is available <span style="display:block;color:var(--faint);font-size:12.5px;font-weight:400;margin-top:2px">We'll confirm with you. A licence check applies.</span></span></label>` : ''}
       <input class="hp" id="fHp" tabindex="-1" autocomplete="off" aria-hidden="true" />
       <div class="err" id="err"></div>
       <button class="btn" id="go" type="button" ${canPick ? '' : 'disabled'}>Request this booking</button>
@@ -332,7 +334,7 @@ function render() {
   document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { sel.time = b.dataset.t; keepForm(); });
   $('go').onclick = submit;
   const A = $('app');
-  A.oninput = A.onchange = e => { const id = e.target.id; if (!id || id === 'fHp') return; F[id] = e.target.value; if (id === 'fPlate') lookupPlateSoon(); };
+  A.oninput = A.onchange = e => { const id = e.target.id; if (!id || id === 'fHp') return; if (id === 'fLoaner') { loanerAsk = e.target.checked; return; } F[id] = e.target.value; if (id === 'fPlate') lookupPlateSoon(); };
   ['vMake', 'vModel', 'vYear'].forEach(id => $(id) && ($(id).onchange = onVeh));
   $('vColour').onchange = e => { F.vColour = e.target.value; syncVehicleUI(); };
   applyF(); syncVehicleUI(); if (F.fPlate) lookupPlate();
@@ -372,7 +374,7 @@ async function submit() {
     const batch = db.batch();
     batch.set(ref, { slug: SLUG, name, phone, email, lang, plate, make: make.slice(0, 40), model: model.slice(0, 50), year, colour: colour.slice(0, 30), fuel, vin,
       vehicle: [year, make, model].filter(Boolean).join(' ').slice(0, 100), service: sel.service.slice(0, 100),
-      date: sel.date, time: sel.time, notes: v('fNotes').slice(0, 500), status: 'pending', created_at: new Date().toISOString() });
+      date: sel.date, time: sel.time, notes: v('fNotes').slice(0, 500), ...(W.loaner && loanerAsk ? { loaner: true } : {}), status: 'pending', created_at: new Date().toISOString() });
     batch.set(db.collection('users').doc(W.uid).collection('slot_holds').doc(ref.id), { slug: SLUG, date: sel.date, time: sel.time, created_at: new Date().toISOString() });
     await batch.commit();
     try { const keep = {}; ['fName', 'fPhone', 'fEmail', 'fLang', 'fPlate', 'vMake', 'vMakeO', 'vModel', 'vModelO', 'vYear', 'vYearO', 'vColour', 'vColourO', 'vFuel', 'vVin'].forEach(k => { if (F[k]) keep[k] = F[k]; }); localStorage.setItem('gp_book_me', JSON.stringify(keep)); } catch (e) {}
