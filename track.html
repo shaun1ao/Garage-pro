@@ -3,739 +3,247 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Track your repair · Garage Pro</title>
-<meta name="description" content="See where your car is in real time — pick your workshop, type your plate or booking number. No login needed." />
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Terms &amp; Conditions · Garage Pro</title>
+<meta name="description" content="Garage Pro terms and conditions — the rules for using our software." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#f4f6f7; --bg2:#eaeef0; --surf:#ffffff; --border:#dce3e6; --brd:#dce3e6; --brd2:#c4cdd2;
-    --text:#1b2a31; --txt:#1b2a31; --dim:#46575f; --faint:#6d7d85;
-    --acc:#2563b8; --acc2:#2563b8; --onacc:#ffffff; --teal:#157a5b; --red:#bf3a2e; --blue:#2563b8;
-    --fd:'Plus Jakarta Sans','Segoe UI',system-ui,sans-serif; --fb:'Plus Jakarta Sans','Segoe UI',system-ui,sans-serif; --fm:'IBM Plex Mono',ui-monospace,monospace;
+  :root {
+    --bg:#0a0e14; --bg2:#0e131c; --surf:#141b26; --surf2:#1a2330;
+    --brd:rgba(255,255,255,0.08); --brd2:rgba(255,255,255,0.14);
+    --txt:#eef2f7; --dim:#9aa7b8; --faint:#6b7888;
+    --acc:#ff7a18; --acc2:#ffb347; --teal:#20e3b2; --teal2:#16c79a;
+    --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--fb);-webkit-font-smoothing:antialiased}
-  a{color:var(--acc2)}
-  .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border)}
-  .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text)}
-  .brand .logo{width:34px;height:34px;border-radius:9px;background:var(--acc);display:grid;place-items:center}
-  .brand .logo svg{width:19px;height:19px}
-  .brand b{font-family:var(--fd);font-size:16px}
-  .topbar .back{font-size:13px;color:var(--dim);text-decoration:none}
-  .topbar .back:hover{color:var(--acc2)}
-  .sec{padding:44px 0 70px}
-  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
-  .sec-head{text-align:center}
-  .eyebrow{font-family:var(--fd);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--acc2);margin-bottom:10px}
-  .sec-head h2{font-family:var(--fd);font-size:clamp(24px,4vw,34px);margin:0;line-height:1.2}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;font-family:var(--fd);font-weight:700;cursor:pointer;border:0;transition:filter .15s}
-  .btn-primary{background:var(--acc);color:var(--onacc,#170f05)}
-  .btn-primary:hover{filter:brightness(1.08)}
-  .btn-ghost{background:none;border:1px solid var(--border);color:var(--dim)}
-  .btn-ghost:hover{color:var(--text)}
-  footer{padding:26px 22px;text-align:center;color:var(--faint);font-size:12.5px;border-top:1px solid var(--border)}
+  html,body{margin:0;padding:0}
+  body{font-family:var(--fb);background:var(--bg);color:var(--txt);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--acc);color:#14100a}
+
+  header.nav{position:sticky;top:0;z-index:50;background:rgba(10,14,20,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--brd)}
+  .nav-inner{max-width:900px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-weight:800;font-size:17px}
+  .brand-sub{font-size:.5em;font-weight:600;color:var(--faint,#888);letter-spacing:.01em;margin-left:2px}
+  .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:grid;place-items:center;flex:none}
+  .back-link{display:flex;align-items:center;gap:6px;color:var(--dim);font-weight:500;font-size:14px;transition:color .2s}
+  .back-link:hover{color:var(--txt)}
+
+  .wrap{max-width:900px;margin:0 auto;padding:48px 24px 90px}
+  .lead{font-size:15.5px;color:var(--dim);margin:0 0 6px}
+  .updated{font-size:13px;color:var(--faint);margin:0 0 36px}
+  h1{font-family:var(--fd);font-size:34px;font-weight:800;margin:0 0 12px}
+  h2{font-family:var(--fd);font-size:19px;font-weight:700;margin:34px 0 12px;color:var(--txt)}
+  h2 .num{color:var(--acc2);margin-right:8px}
+  p{font-size:14.5px;color:var(--dim);margin:0 0 14px}
+  ul{margin:0 0 14px;padding:0 0 0 4px;list-style:none}
+  li{position:relative;padding:0 0 10px 20px;font-size:14.5px;color:var(--dim)}
+  li::before{content:'';position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  li:last-child{padding-bottom:0}
+  b,strong{color:var(--txt)}
+  .card{background:var(--surf);border:1px solid var(--brd);border-radius:16px;padding:26px 28px;margin-bottom:8px}
+  .note{display:flex;gap:10px;background:var(--bg2);border:1px solid var(--brd2);border-radius:10px;padding:14px 16px;font-size:13.5px;color:var(--dim);margin:20px 0 30px}
+  .note svg{flex:none;color:var(--acc2);margin-top:2px}
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 34px}
+  .toc a{font-size:12.5px;font-weight:600;color:var(--dim);background:var(--surf);border:1px solid var(--brd2);padding:6px 12px;border-radius:100px;transition:color .15s,border-color .15s}
+  .toc a:hover{color:var(--acc2);border-color:var(--acc2)}
+  .foot-note{margin-top:44px;padding-top:24px;border-top:1px solid var(--brd);font-size:13px;color:var(--faint);text-align:center}
 </style>
-<link rel="canonical" href="https://garagepro.me/track.html" />
+<link rel="canonical" href="https://garagepro.me/terms.html" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Garage Pro" />
 <meta property="og:locale" content="en_IN" />
-<meta property="og:title" content="Track your repair · Garage Pro" />
-<meta property="og:description" content="See where your car is in real time — pick your workshop, type your plate or booking number. No login needed." />
-<meta property="og:url" content="https://garagepro.me/track.html" />
+<meta property="og:title" content="Terms &amp; Conditions · Garage Pro" />
+<meta property="og:description" content="Garage Pro terms and conditions — the rules for using our software." />
+<meta property="og:url" content="https://garagepro.me/terms.html" />
 <meta property="og:image" content="https://garagepro.me/garage-pro-logo.png" />
 <meta name="twitter:card" content="summary" />
-<meta name="twitter:title" content="Track your repair · Garage Pro" />
-<meta name="twitter:description" content="See where your car is in real time — pick your workshop, type your plate or booking number. No login needed." />
+<meta name="twitter:title" content="Terms &amp; Conditions · Garage Pro" />
+<meta name="twitter:description" content="Garage Pro terms and conditions — the rules for using our software." />
 <meta name="twitter:image" content="https://garagepro.me/garage-pro-logo.png" />
-<link rel="stylesheet" href="ui.css">
 </head>
 <body>
 
-<div class="topbar">
-  <a class="brand" href="/"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span><b id="tb-name" class="bname">Garage Pro</b></a>
-  <a class="back" id="poweredby" href="/">&larr; garagepro.me</a>
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#170f05" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/></svg></span>
+      Garage&nbsp;Pro<span class="brand-sub">a product of Chassys</span>
+    </a>
+    <a href="index.html" class="back-link">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back to garagepro.me
+    </a>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1>Terms &amp; Conditions</h1>
+  <p class="lead">The rules for using Garage Pro's website, workshop app, and mobile app.</p>
+  <p class="updated">Last updated: <span id="lastUpdated"></span></p>
+
+  <div class="note">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <span>By creating an account or using Garage Pro in any form, you agree to these terms. If you're signing up on behalf of a workshop or company, you confirm you have the authority to bind that business to these terms.</span>
+  </div>
+
+  <div class="toc">
+    <a href="#acceptance">1. Acceptance of terms</a>
+    <a href="#the-service">2. The Service</a>
+    <a href="#accounts">3. Accounts &amp; eligibility</a>
+    <a href="#subscriptions">4. Subscriptions &amp; billing</a>
+    <a href="#acceptable-use">5. Acceptable use</a>
+    <a href="#your-data">6. Your data &amp; your customers</a>
+    <a href="#invoicing-tax">7. Invoices, tax &amp; legal compliance</a>
+    <a href="#communications">8. Customer communications &amp; public links</a>
+    <a href="#optional-features">9. Optional features: Parts Exchange, reminders &amp; automations</a>
+    <a href="#third-party">10. Third-party services</a>
+    <a href="#ip">11. Intellectual property</a>
+    <a href="#availability">12. Availability &amp; changes</a>
+    <a href="#disclaimer">13. Disclaimer of warranties</a>
+    <a href="#liability">14. Limitation of liability</a>
+    <a href="#indemnity">15. Indemnity</a>
+    <a href="#termination">16. Termination</a>
+    <a href="#governing-law">17. Governing law</a>
+    <a href="#contact">18. Contact us</a>
+  </div>
+
+  <div class="card">
+    <h2 id="acceptance"><span class="num">1.</span>Acceptance of terms</h2>
+    <p>These Terms &amp; Conditions ("Terms") govern your access to and use of garagepro.me, the Garage Pro workshop web app, and the Garage Pro mobile app (together, the "Service"), operated by Garage Pro ("we", "us", "our"). By accessing or using the Service you agree to be bound by these Terms and our <a href="privacy.html" style="color:var(--acc2);font-weight:600">Privacy Policy</a>. If you do not agree, do not use the Service.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="the-service"><span class="num">2.</span>The Service</h2>
+    <p>Garage Pro is workshop management software for independent garages and workshop chains — covering appointments, job cards, digital vehicle inspection, estimates, parts &amp; inventory, invoicing, staff roles, and related workflows, accessible via web browser and the Garage Pro mobile app. Features may vary by plan and may be added, changed, or removed over time.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="accounts"><span class="num">3.</span>Accounts &amp; eligibility</h2>
+    <ul>
+      <li>You must provide accurate, current information when creating an account, and keep your login credentials confidential.</li>
+      <li>You're responsible for all activity that happens under your workshop's account, including actions taken by staff you've given access to (owner login, shared shop login, or individual staff PINs).</li>
+      <li>You must be legally able to enter into a binding contract to create an account.</li>
+      <li>Notify us immediately at <a href="mailto:support@garagepro.me" style="color:var(--acc2)">support@garagepro.me</a> if you suspect unauthorized access to your account.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2 id="subscriptions"><span class="num">4.</span>Subscriptions &amp; billing</h2>
+    <p>Some features require an active paid subscription. Where applicable: prices are shown in the app/site at time of purchase; subscriptions renew automatically unless cancelled before the renewal date; and access to subscription-gated features is suspended if a subscription lapses or payment fails. Refunds, if any, are handled case-by-case — contact support.</p>
+    <p>We reserve the right to change pricing or plan features going forward, with reasonable notice to active subscribers.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="acceptable-use"><span class="num">5.</span>Acceptable use</h2>
+    <p>You agree not to:</p>
+    <ul>
+      <li>Use the Service for any unlawful purpose, or to store/transmit data you don't have the right to store.</li>
+      <li>Attempt to gain unauthorized access to another workshop's account or data, or probe/scan the Service for vulnerabilities.</li>
+      <li>Reverse-engineer, decompile, or resell the Service without our written permission.</li>
+      <li>Upload malicious code, or use the Service in a way that disrupts it for other users.</li>
+      <li>Misuse customer-facing features (e.g. the Track Repair page, WhatsApp messaging, estimate-approval links) to send unsolicited or abusive communications.</li>
+    </ul>
+    <p>We may suspend or terminate accounts that violate these terms.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="your-data"><span class="num">6.</span>Your data &amp; your customers</h2>
+    <p>You own the operational data you enter into the Service (job cards, customer records, invoices, etc.). You're responsible for the accuracy of that data and for having the right to collect and store any personal data about your own customers that you enter into the Service — see our <a href="privacy.html" style="color:var(--acc2)">Privacy Policy</a> for how we process it on your behalf.</p>
+    <p>Optional customer-communication features (WhatsApp status updates, invoice links, the public Track Repair page) are provided as tools for you to use responsibly with your own customers' consent and expectations.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="invoicing-tax"><span class="num">7.</span>Invoices, tax &amp; legal compliance</h2>
+    <p>Garage Pro is a software tool. We are <b>not</b> a tax adviser, accountant, auditor or law firm, and we are <b>not</b> an accredited e-invoicing service provider or a tax-authority-approved invoicing intermediary. Invoices, estimates, credit notes, tax calculations and exports produced with the Service are generated from the information and settings <b>you</b> enter.</p>
+    <ul>
+      <li><b>You are solely responsible</b> for the content and legality of every document you issue: your registration status and tax number (GSTIN, TRN or other), your business name and address, customer details, place of supply, tax rates and categories (taxable, zero-rated, exempt, reverse charge), HSN/SAC or other item codes, discounts, rounding, totals, invoice numbering, dates and any wording you add.</li>
+      <li><b>Templates, defaults, warnings and checks are aids only.</b> They are not legal, tax or accounting advice and do not guarantee that a document meets the requirements of any tax authority. Tax laws, rates, thresholds and deadlines change, and we may not update the Service at the moment they do. Confirm your set-up and sample documents with a qualified adviser in your country before relying on them.</li>
+      <li><b>You are responsible</b> for registering for tax where required, charging and reporting the correct tax, issuing credit and debit notes where the law requires them, filing returns, paying tax, and keeping records for as long as the law in your country requires. Export and back up the records you need.</li>
+      <li><b>Country rules differ.</b> The Service offers settings and invoice layouts for India (GST), the UAE (VAT), Qatar (no tax at present), the USA (sales tax) and Pakistan (federal and provincial sales tax). <b>USA:</b> there is no single rate — sales tax depends on state, county and city, on what is taxable (parts, labour, shop fees) and on whether you have a tax obligation ("nexus") in a place; you set your own rates, collect and keep exemption or resale certificates, and file in each jurisdiction. <b>Qatar:</b> the Service defaults to no VAT or sales tax because none is charged on workshop services at present; if a tax is introduced you are responsible for setting your rates and issuing compliant invoices. <b>Pakistan:</b> goods and services are taxed by different authorities at different rates (federal and provincial), buyers who are not registered can attract further tax, and registration and e-invoicing rules apply to some businesses; you are responsible for all of it. For any other country the Service is used at your own risk, with no tax layout provided.</li>
+      <li><b>E-invoicing.</b> Any e-invoice export (for example the UAE XML file) is a <b>draft</b> prepared for you to give to an accredited service provider or a government portal. It is not a valid e-invoice until it has been validated and transmitted through the channel your country requires. We do not submit documents to any tax authority on your behalf, and we do not guarantee that an export will be accepted.</li>
+      <li><b>Translations.</b> Bilingual labels and machine translation (including Arabic and Hindi) are provided for convenience and may contain errors. They are not certified translations. The English text is the reference version.</li>
+      <li>Amounts shown on estimates and approval pages are quotes. The invoice you issue is the legal document; you must make sure the two agree.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2 id="communications"><span class="num">8.</span>Customer communications &amp; public links</h2>
+    <p>You decide what is sent to your customers and when. Emails, WhatsApp messages, reminders, estimate links, booking pages, tracking pages, customer-portal links and the car-owner page opened by scanning a QR sticker are sent or published <b>on your instructions and in your name</b>.</p>
+    <ul>
+      <li>You are responsible for having a lawful basis (including any consent or opt-in) to contact your customers, for honouring opt-outs, and for following the anti-spam, marketing, consumer-protection and data-protection laws that apply to you and to them.</li>
+      <li>Anyone who holds a public link or QR code can open the page it points to. You are responsible for who you give links to, and for removing or replacing a link if it has been shared too widely.</li>
+      <li>A customer's tap on "Approve" or "Decline" on an estimate page is a record kept in your account. It is not legal advice and does not replace the agreement you have with your customer. Garage Pro is not a party to your dealings with your customers and is not responsible for disputes between you and them.</li>
+      <li>Email and messaging delivery depends on third parties; we do not guarantee that any message will be delivered or read.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2 id="optional-features"><span class="num">9.</span>Optional features: Parts Exchange, reminders &amp; automations</h2>
+    <ul>
+      <li><b>Parts Exchange</b> is optional and off unless you switch it on. It only lets workshops find each other. We are not a party to any listing, request, sale, loan or exchange, we do not hold stock or money, and we do not check the quality, condition, authenticity, price, safety, legality or fitness of any part or the identity or reliability of any workshop. You deal with other workshops at your own risk and are responsible for the terms, payment, collection and any warranty you agree between yourselves. We may remove listings or members at any time.</li>
+      <li><b>Live repair feed, loaner cars and instalments</b> are optional and off unless you switch them on. You are responsible for what you post to customers, for the insurance, licence checks, agreements and condition records for any vehicle you lend, and for the terms you agree with customers on paying in instalments. We do not lend money, run credit checks, hold or transfer funds, or provide the financing: any financing partner you use does so under its own terms, and you must follow the consumer-credit, fee and disclosure rules that apply in your country. Photos and clips you post can be opened by anyone who knows the vehicle's number plate.</li>
+      <li><b>Breakdown / tow requests</b> are optional and off unless you switch them on. They are a request-and-dispatch tool, not an emergency service. We do not provide, supervise or guarantee any recovery, towing or repair, any response time or arrival time, or the safety of any driver, vehicle or customer. The call-back time shown to customers is your own promise. The page tells customers to contact the emergency services first when anyone is at risk, and you must not rely on it for emergencies. You are responsible for your drivers, vehicles, insurance, licences and the way you handle customers' locations, which are personal data.</li>
+      <li><b>Self-service changes and reminders.</b> If you switch on customer reschedule / cancel links, a customer holding the link can change or cancel that one booking within the limits you set; you remain responsible for your cancellation policy, for any fees you charge, and for checking the appointment list. Appointment reminders are a convenience, are sent in English only, and may fail to arrive; you remain responsible for honouring your appointments.</li>
+      <li><b>Service reminders</b> are sent only to people who ask for them on the car-owner page. The due date is an estimate from figures the person enters and from average usage; it is not a safety or warranty determination, and a missing reminder does not change anyone's maintenance responsibilities.</li>
+      <li>Delivery estimates, status labels, suggested labour or price checks and similar automations are aids; you remain responsible for the decisions you make using them.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2 id="third-party"><span class="num">10.</span>Third-party services</h2>
+    <p>The Service relies on third-party infrastructure — including Google Firebase (hosting, database, authentication), Cloudinary (photo hosting), Cloudflare and Vercel (hosting and email relay), email delivery providers, Lemon Squeezy (payments, acting as merchant of record), Google (including translation if you switch it on), and WhatsApp (via standard wa.me links sent from your own device). We aren't responsible for outages or issues originating from these third-party providers, though we'll work to minimize their impact on you.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="ip"><span class="num">11.</span>Intellectual property</h2>
+    <p>Garage Pro, its logo, and the underlying software are our property (or our licensors'). These Terms don't grant you any ownership rights in the Service — only a limited, non-exclusive, non-transferable right to use it for your own workshop's operations, for as long as your account remains active and in good standing.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="availability"><span class="num">12.</span>Availability &amp; changes</h2>
+    <p>We aim to keep the Service available and reliable but don't guarantee uninterrupted access — maintenance, updates, or factors outside our control (including third-party outages) may cause downtime. We may update, modify, or discontinue features of the Service at any time; we'll give reasonable notice for material changes that affect your usage.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="disclaimer"><span class="num">13.</span>Disclaimer of warranties</h2>
+    <p>The Service is provided "as is" and "as available," without warranties of any kind, express or implied, including fitness for a particular purpose or non-infringement, to the maximum extent permitted by law. We don't warrant that the Service will be error-free or uninterrupted, that its calculations, templates or exports will meet the requirements of any tax authority or court, or that any document produced with it is legally valid in your jurisdiction.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="liability"><span class="num">14.</span>Limitation of liability</h2>
+    <p>To the maximum extent permitted by law, Garage Pro will not be liable for any indirect, incidental, special, consequential, exemplary or punitive damages, or for any loss of profits, revenue, data, goodwill or business opportunity, arising from your use of (or inability to use) the Service.</p>
+    <p><b>Without limiting the above, we are not liable for</b> any tax, interest, penalty, fine, surcharge, assessment, disallowed input credit, rejected or late e-invoice, or professional fees that arise from an invoice, credit note, estimate, calculation, export, rate, code, translation or record created or issued using the Service, or from any change in law, or from a dispute between you and a customer, supplier or other workshop.</p>
+    <p>Our total liability for all claims relating to the Service is limited to the amount you paid us for the Service in the 12 months before the event that gave rise to the claim. Nothing in these Terms limits liability that cannot be limited under applicable law (for example, for fraud or for death or personal injury caused by negligence). You use the Service at your own risk and are responsible for keeping your own backups of records you are legally required to keep.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="indemnity"><span class="num">15.</span>Indemnity</h2>
+    <p>To the maximum extent permitted by law, you agree to defend, indemnify and hold harmless Garage Pro, its owners, affiliates, employees and contractors from claims, penalties, assessments, losses and reasonable costs (including legal fees) arising from: the invoices, estimates, credit notes, tax treatment and records you create or issue; your tax filings and registrations; the content you upload; your messages to customers; your dealings with customers, other workshops and suppliers; or your breach of these Terms or of any law.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="termination"><span class="num">16.</span>Termination</h2>
+    <p>You may stop using the Service and request account closure at any time by contacting support. We may suspend or terminate your access if you breach these Terms, fail to pay applicable fees, or if required by law. On termination, your right to use the Service ends immediately; data handling on termination follows the Retention section of our <a href="privacy.html" style="color:var(--acc2)">Privacy Policy</a>.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="governing-law"><span class="num">17.</span>Governing law</h2>
+    <p>These Terms are governed by the laws applicable in the jurisdiction where Garage Pro operates, without regard to conflict-of-law principles. Any disputes will be handled through good-faith negotiation in the first instance; if unresolved, through the courts or arbitration process applicable in that jurisdiction.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="contact"><span class="num">18.</span>Contact us</h2>
+    <p>Questions about these Terms? Reach us at <a href="mailto:support@garagepro.me" style="color:var(--acc2);font-weight:600">support@garagepro.me</a>.</p>
+  </div>
+
+  <p class="foot-note">© <span id="year"></span> Garage Pro. All rights reserved. Garage Pro is a product of Chassys. See also our <a href="privacy.html" style="color:var(--acc2)">Privacy Policy</a>.</p>
 </div>
 
-<!-- ═══════════════ TRACK REPAIR ═══════════════
-     Public page where a customer enters their workshop + plate and sees the
-     live status of their vehicle. Reads from users/{wsUid}/public_status/
-     {plateNorm} — a minimal, customer-safe mirror (no name/phone/address).
-     ════════════════════════════════════════════════════════════════════════ -->
-<section class="sec" id="track">
-  <div class="wrap">
-    <div class="sec-head reveal" style="text-align:center">
-      <div class="eyebrow">Track your repair</div>
-      <h2>See where your car is in real time</h2>
-      <p style="color:var(--dim);max-width:580px;margin:14px auto 0;font-size:15.5px;line-height:1.6">No login. Just pick your workshop and type your plate.</p>
-    </div>
-
-    <div class="track-box reveal" style="max-width:640px;margin:36px auto 0;background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.35)">
-
-      <!-- Step 1: state picker -->
-      <div id="track-step-state">
-        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Country</label>
-        <select id="track-country-input" style="width:100%;padding:14px 16px;margin-bottom:16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" onchange="_trackCountryChanged()">
-          <option value="IN">🇮🇳 India</option><option value="AE">🇦🇪 United Arab Emirates</option><option value="QA">🇶🇦 Qatar</option><option value="US">🇺🇸 United States</option><option value="PK">🇵🇰 Pakistan</option>
-        </select>
-        <label id="track-region-q" style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Which state is your workshop in?</label>
-        <select id="track-state-input" style="width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" onchange="_trackStatePicked()">
-          <option value="">— Pick a state —</option>
-        </select>
-        <div id="track-state-msg" style="margin-top:8px;font-size:12.5px;color:var(--faint);min-height:16px"></div>
-      </div>
-
-      <!-- Step 2: workshop picker (filtered by state) -->
-      <div id="track-step-workshop" style="display:none">
-        <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-          <div style="font-size:13.5px"><span id="track-region-lbl" style="color:var(--faint)">State:</span><b id="track-state-name" style="color:var(--text);margin-left:6px"></b></div>
-          <button onclick="trackBack('state')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
-        </div>
-        <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Pick your workshop</label>
-        <div style="position:relative">
-          <input id="track-ws-input" type="text" autocomplete="off" placeholder="Start typing your workshop name…" style="width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:var(--fb);font-size:15px" />
-          <div id="track-ws-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;max-height:260px;overflow-y:auto;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.4)"></div>
-        </div>
-        <div id="track-ws-msg" style="margin-top:8px;font-size:12.5px;color:var(--faint);min-height:16px"></div>
-      </div>
-
-      <!-- Step 3: plate OR booking# input -->
-      <div id="track-step-plate" style="display:none">
-        <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-          <div style="font-size:13.5px">
-            <span style="color:var(--faint)">Workshop:</span>
-            <b id="track-ws-name" style="color:var(--text);margin-left:6px"></b>
-          </div>
-          <button id="track-change-ws" onclick="trackBack('workshop')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:6px 12px;border-radius:6px;font-size:12.5px;cursor:pointer">Change</button>
-        </div>
-
-        <!-- Mode tabs: plate vs booking number -->
-        <div role="tablist" style="display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--border)">
-          <button id="track-tab-plate"   onclick="_trackSwitchMode('plate')"   style="flex:1;padding:11px 14px;background:none;border:0;border-bottom:2px solid var(--acc2);color:var(--acc2);font-family:var(--fd);font-weight:700;font-size:13.5px;cursor:pointer">Search by plate</button>
-          <button id="track-tab-booking" onclick="_trackSwitchMode('booking')" style="flex:1;padding:11px 14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--dim);font-family:var(--fd);font-weight:700;font-size:13.5px;cursor:pointer">Search by booking #</button>
-        </div>
-
-        <!-- Plate mode -->
-        <div id="track-mode-plate">
-          <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">License plate</label>
-          <div style="display:flex;gap:8px">
-            <input id="track-plate-input" type="text" autocomplete="off" placeholder="MH 12 AB 1234" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Courier New',monospace;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase" onkeydown="if(event.key==='Enter')trackLookup('plate')" />
-            <button onclick="trackLookup('plate')" class="btn btn-primary" style="padding:0 22px;font-size:14px">Find my car</button>
-          </div>
-        </div>
-
-        <!-- Booking# mode -->
-        <div id="track-mode-booking" style="display:none">
-          <label style="display:block;font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:8px">Booking number</label>
-          <div style="display:flex;gap:8px">
-            <input id="track-booking-input" type="text" autocomplete="off" placeholder="BK-0042" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Courier New',monospace;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase" onkeydown="if(event.key==='Enter')trackLookup('booking')" />
-            <button onclick="trackLookup('booking')" class="btn btn-primary" style="padding:0 22px;font-size:14px">Find my car</button>
-          </div>
-          <div style="margin-top:6px;font-size:11.5px;color:var(--faint)">The booking number is on the slip your workshop gave you (looks like <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--acc2)">BK-0042</code>).</div>
-        </div>
-
-        <div id="track-lookup-msg" style="margin-top:10px;font-size:12.5px;color:var(--faint);min-height:16px;line-height:1.5"></div>
-      </div>
-
-      <!-- Step 3: status display -->
-      <div id="track-step-status" style="display:none">
-        <div id="track-status-card"></div>
-        <div style="margin-top:20px">
-          <div style="font-family:var(--fd);font-weight:700;font-size:13.5px;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Status history
-          </div>
-          <div id="track-history"></div>
-        </div>
-        <div style="margin-top:18px;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">
-          <button onclick="trackBack('state')" style="background:none;border:1px solid var(--border);color:var(--dim);padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer">Track another car</button>
-          <button onclick="trackLookup()" class="btn btn-ghost" style="padding:8px 14px;font-size:13px">Refresh</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<style>
-/* Track Repair — scoped styles. Reuses existing var(--…) tokens. */
-.track-ws-item {
-  display: block; padding: 12px 14px; cursor: pointer;
-  border-bottom: 1px solid var(--border); transition: background .12s;
-  font-family: var(--fb); font-size: 13.5px; color: var(--text);
-}
-.track-ws-item:last-child { border-bottom: 0 }
-.track-ws-item:hover { background: rgba(255,179,71,.08) }
-.track-ws-item .branch-tag {
-  font-size: 10.5px; color: var(--acc2); background: rgba(255,179,71,.14);
-  padding: 2px 8px; border-radius: 100px; margin-left: 6px;
-  font-weight: 700; letter-spacing: .04em;
-}
-.track-status-big {
-  text-align: center; padding: 24px 18px;
-  background: var(--surf);
-  border: 1px solid var(--border); border-radius: 12px;
-}
-.track-status-big .pill {
-  display: inline-block; padding: 8px 18px; border-radius: 100px;
-  font-family: var(--fd); font-weight: 800; font-size: 16px;
-  letter-spacing: .02em; margin-bottom: 12px;
-}
-.track-status-big .meta {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 14px; margin-top: 16px; padding-top: 16px;
-  border-top: 1px solid var(--border); text-align: left; font-size: 13px;
-}
-.track-status-big .meta b { color: var(--text); display: block; margin-bottom: 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); font-weight: 700 }
-.track-hist-item {
-  display: grid; grid-template-columns: 24px 1fr auto;
-  gap: 12px; padding: 12px 0; align-items: center;
-  border-bottom: 1px solid var(--border); font-size: 13.5px;
-}
-.track-hist-item:last-child { border-bottom: 0 }
-.track-hist-item .dot {
-  width: 10px; height: 10px; border-radius: 50%; background: var(--dim);
-  margin: 0 auto;
-}
-.track-hist-item.is-current .dot { background: var(--acc2); box-shadow: none }
-.track-hist-item .time { color: var(--faint); font-size: 12px; white-space: nowrap }
-</style>
-
-
-
-<footer>Powered by <a href="/">Garage Pro</a> — a product of Chassys. Workshop management for Indian garages.</footer>
-
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
-firebase.initializeApp({
-  apiKey: "AIzaSyA1PzbhboU9Qdlpqs5cbLR3hsvFpWXCI54",
-  authDomain: "garagepro26.firebaseapp.com",
-  projectId: "garagepro26",
-  storageBucket: "garagepro26.firebasestorage.app",
-  messagingSenderId: "605094681607",
-  appId: "1:605094681607:web:095fbfb8ff0446faaedea2"
-});
-const fbDb = firebase.firestore();
-
-// ══════════════════════════════════════════════════════════════════════════
-//  TRACK REPAIR  — public page where customers look up their car's status
-//  Flow: State → Workshop → (Plate OR Booking #)
-//  Reads: users root docs (public) for workshop list, and the privacy-safe
-//  status mirror at users/{wsUid}/public_status/{plateNorm} for lookups.
-// ══════════════════════════════════════════════════════════════════════════
-
-// Canonical Indian state list — mirrors INDIA_STATES in the app so the
-// dropdown order matches what workshop owners chose in their Settings.
-const TRACK_INDIA_STATES = [
-  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa',
-  'Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala',
-  'Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland',
-  'Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura',
-  'Uttar Pradesh','Uttarakhand','West Bengal',
-  'Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu',
-  'Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry'
-];
-
-const TRACK_UAE_EMIRATES = ['Abu Dhabi','Dubai','Sharjah','Ajman','Umm Al Quwain','Ras Al Khaimah','Fujairah'];
-const TRACK_US_STATES = ['Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','District of Columbia','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming'];
-const TRACK_PK_PROVINCES = ['Punjab','Sindh','Khyber Pakhtunkhwa','Balochistan','Islamabad Capital Territory','Gilgit-Baltistan','Azad Jammu & Kashmir'];
-const TRACK_QA = ['Doha','Al Rayyan','Al Wakrah','Al Khor & Al Thakhira','Umm Salal','Al Daayen','Al Shamal','Al Shahaniya'];
-const TRACK_REGION = { IN: ['state', null], AE: ['emirate', TRACK_UAE_EMIRATES], QA: ['municipality', TRACK_QA], US: ['state', TRACK_US_STATES], PK: ['province', TRACK_PK_PROVINCES] };
-const TRACK_PLACE = { IN: 'India', AE: 'the UAE', QA: 'Qatar', US: 'the USA', PK: 'Pakistan' };
-let _trackCountry = 'IN';
-try { const z = Intl.DateTimeFormat().resolvedOptions().timeZone; if (/Asia\/(Dubai|Muscat)/.test(z)) _trackCountry = 'AE'; else if (/Asia\/Qatar/.test(z)) _trackCountry = 'QA'; else if (/Asia\/Karachi/.test(z)) _trackCountry = 'PK'; else if (/^America\//.test(z) || /^Pacific\/Honolulu/.test(z)) _trackCountry = 'US'; } catch (_) {}
-let _trackAllWorkshops = null;   // cached list of {uid, name, state, isBranch, parent}
-let _trackPickedState  = null;
-let _trackPickedUid    = null;
-let _trackPickedName   = null;
-let _trackLastResult   = null;
-let _trackMode         = 'plate';   // 'plate' | 'booking'
-let _trackLocked       = false;     // true when opened via ?ws=<slug> — one garage only
-
-
-// Workshop branding: logo + name + colour scheme, with "Powered by Garage Pro" kept visible.
-function applyBrand(b, name) {
-  b = b || {};
-  const root = document.documentElement.style;
-  if (/^#[0-9a-fA-F]{6}$/.test(b.color || '')) {
-    const n = parseInt(b.color.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, bl = n & 255, mix = x => Math.round(x + (255 - x) * 0.28);
-    root.setProperty('--acc', b.color); root.setProperty('--acc2', `rgb(${mix(r)},${mix(g)},${mix(bl)})`);
-    root.setProperty('--onacc', (0.299 * r + 0.587 * g + 0.114 * bl) / 255 > 0.62 ? '#16130e' : '#ffffff');
-  }
-  const brand = document.querySelector('.brand'); if (!brand) return;
-  const logoEl = brand.querySelector('.logo'), nm = brand.querySelector('.bname');
-  if (name && nm) nm.textContent = name;
-  if (logoEl) {
-    if (/^(data:image\/(png|jpeg|webp);base64,|https:\/\/)/.test(b.logo || '')) {
-      logoEl.style.cssText = 'background:#fff;padding:3px 6px;width:auto;min-width:32px;height:34px';
-      logoEl.innerHTML = '<img alt="" style="height:26px;max-width:120px;object-fit:contain;display:block">'; logoEl.firstChild.src = b.logo;
-    } else if (name) {
-      logoEl.innerHTML = '<span style="font:800 16px var(--fd);color:var(--onacc,#170f05)"></span>'; logoEl.firstChild.textContent = name.trim().charAt(0).toUpperCase();
-    }
-  }
-  const pb = document.getElementById('poweredby');
-  if (pb) pb.innerHTML = 'Powered by <a href="/" style="color:inherit;font-weight:700;text-decoration:none">Garage Pro</a>';
-}
-
-function _trackPlateNorm(p) { return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
-function _trackEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-// Slugify a workshop name into URL-safe form. Lowercase, replace runs of
-// non-alphanumeric with single dash, strip leading/trailing dash. Same logic
-// used in the app's Settings share-link so the URL the workshop owner copies
-// always matches what this page expects.
-function _trackSlugify(s) {
-  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
-}
-
-async function _trackLoadWorkshops() {
-  if (_trackAllWorkshops) return _trackAllWorkshops;
-  if (!fbDb) throw new Error('Site not connected to Firebase yet. Refresh in a moment.');
-  let snap;
-  // Reads the public-safe directory (name/city/state/chain-label only), not
-  // the full users collection — that used to mean every visitor of this
-  // page fetched every customer's full profile (email, subscription status,
-  // everything) just to populate a "pick your workshop" dropdown. See
-  // public_workshops in firestore.rules.
-  try { snap = await fbDb.collection('public_workshops').get(); }
-  catch (e) {
-    console.error('[track] workshop directory load failed:', e);
-    throw new Error('Couldn\'t load workshops: ' + (e.code || e.message));
-  }
-  const list = [];
-  snap.forEach(doc => {
-    const d = doc.data() || {};
-    const name = (d.workshop_name || '').trim();
-    if (!name) return;
-    list.push({
-      uid:      doc.id,
-      name,
-      slug:     _trackSlugify(name),
-      state:    (d.state || '').trim(),
-      country:  ['AE', 'QA', 'US', 'PK'].includes(d.country) ? d.country : 'IN',          // accounts created before multi-country support are India
-      city:     (d.city  || '').trim(),
-      isBranch: !!d.branch,
-      parent:   d.chain_parent_name || '',
-      color:    d.brand_color || '',
-      logo:     d.brand_logo  || ''
-    });
-  });
-  list.sort((a, b) => a.name.localeCompare(b.name));
-  _trackAllWorkshops = list;
-  return list;
-}
-
-// Populate the State dropdown with every state that has at least one
-// registered workshop, plus an "Other / state not specified" bucket so
-// workshops that haven't set their state yet remain reachable.
-function _trackBuildStateDropdown() {
-  const sel = document.getElementById('track-state-input');
-  if (!sel || sel._trackBuilt) return;
-  const haveStates = new Set();
-  let haveUnspecified = false;
-  for (const w of (_trackAllWorkshops || []).filter(w => w.country === _trackCountry)) {
-    if (w.state) haveStates.add(w.state);
-    else         haveUnspecified = true;
-  }
-  // Show all India states ordered alphabetically; mark ones with no workshops
-  // as disabled so the user doesn't pick an empty bucket by mistake.
-  const opts = [];
-  const RG = TRACK_REGION[_trackCountry] || TRACK_REGION.IN, RW = RG[0];
-  opts.push(`<option value="">— Pick ${RW === 'emirate' ? 'an' : 'a'} ${RW} —</option>`);
-  for (const st of (RG[1] || TRACK_INDIA_STATES)) {
-    const has = haveStates.has(st);
-    opts.push(`<option value="${_trackEsc(st)}" ${has ? '' : 'disabled style="color:#666"'}>${_trackEsc(st)}${has ? '' : ' (no workshops yet)'}</option>`);
-  }
-  if (haveUnspecified) opts.push(`<option value="__unspecified__">Other / ${RW} not specified</option>`);
-  sel.innerHTML = opts.join('');
-  sel._trackBuilt = true;
-  const q = document.getElementById('track-region-q'); if (q) q.textContent = `Which ${RW} is your workshop in?`;
-  const ci = document.getElementById('track-country-input'); if (ci) ci.value = _trackCountry;
-}
-window._trackCountryChanged = function () {
-  _trackCountry = document.getElementById('track-country-input').value === 'AE' ? 'AE' : 'IN';
-  const sel = document.getElementById('track-state-input'); if (sel) sel._trackBuilt = false;
-  _trackBuildStateDropdown();
-  const n = (_trackAllWorkshops || []).filter(w => w.country === _trackCountry).length;
-  { const RW2 = (TRACK_REGION[_trackCountry] || TRACK_REGION.IN)[0]; document.getElementById('track-state-msg').textContent = n ? `${n} workshop${n === 1 ? '' : 's'} in ${TRACK_PLACE[_trackCountry]} · pick ${RW2 === 'emirate' ? 'an' : 'a'} ${RW2} to narrow down` : 'No workshops registered here yet'; }
-};
-
-// Filter the cached workshop list by the picked state. "__unspecified__"
-// matches workshops whose owner hasn't set a state yet.
-function _trackWorkshopsForState(state) {
-  if (!_trackAllWorkshops) return [];
-  const inCountry = _trackAllWorkshops.filter(w => w.country === _trackCountry);
-  if (state === '__unspecified__') return inCountry.filter(w => !w.state);
-  return inCountry.filter(w => w.state === state);
-}
-
-function _trackRenderDropdown(matches) {
-  const dd = document.getElementById('track-ws-dropdown');
-  if (!matches.length) {
-    dd.innerHTML = `<div class="track-ws-item" style="color:var(--faint);cursor:default">No workshops match. Check the spelling, or change state.</div>`;
-    dd.style.display = 'block';
-    return;
-  }
-  dd.innerHTML = matches.slice(0, 20).map(w => `<div class="track-ws-item" onclick="_trackPickWorkshop('${_trackEsc(w.uid)}', '${_trackEsc(w.name).replace(/'/g, "\\'")}')">
-    <div>${_trackEsc(w.name)}${w.isBranch ? `<span class="branch-tag">BRANCH${w.parent ? ' OF ' + _trackEsc(w.parent).toUpperCase() : ''}</span>` : ''}</div>
-    ${w.city ? `<div style="font-size:11.5px;color:var(--faint);margin-top:2px">${_trackEsc(w.city)}</div>` : ''}
-  </div>`).join('');
-  dd.style.display = 'block';
-}
-
-// Bind once. Waits for Firebase, then loads workshop list and builds dropdowns.
-function _trackInit() {
-  const stateSel = document.getElementById('track-state-input');
-  const wsInput  = document.getElementById('track-ws-input');
-  if (!stateSel || stateSel._trackBound) return;
-  stateSel._trackBound = true;
-
-  const stateMsg = document.getElementById('track-state-msg');
-  stateMsg.textContent = 'Loading workshops…';
-  _trackLoadWorkshops().then(list => {
-    _trackBuildStateDropdown();
-    const n = list.filter(w => w.country === _trackCountry).length;
-    stateMsg.textContent = n
-      ? `${n} workshop${n === 1 ? '' : 's'} in ${TRACK_PLACE[_trackCountry]} · pick ${(TRACK_REGION[_trackCountry] || TRACK_REGION.IN)[0] === 'emirate' ? 'an' : 'a'} ${(TRACK_REGION[_trackCountry] || TRACK_REGION.IN)[0]} to narrow down`
-      : 'No workshops registered here yet';
-  }).catch(e => {
-    stateMsg.style.color = '#ff6b6b';
-    stateMsg.textContent = e.message || String(e);
-  });
-
-  // Workshop-name autocomplete (only active on step 2)
-  wsInput.addEventListener('input', () => {
-    const q = wsInput.value.toLowerCase().trim();
-    const pool = _trackWorkshopsForState(_trackPickedState);
-    if (!q) { _trackRenderDropdown(pool.slice(0, 20)); return; }
-    _trackRenderDropdown(pool.filter(w => w.name.toLowerCase().includes(q)));
-  });
-  wsInput.addEventListener('focus', () => {
-    const q = wsInput.value.toLowerCase().trim();
-    const pool = _trackWorkshopsForState(_trackPickedState);
-    _trackRenderDropdown(q ? pool.filter(w => w.name.toLowerCase().includes(q)) : pool.slice(0, 20));
-  });
-  document.addEventListener('click', (ev) => {
-    if (!ev.target.closest('#track-step-workshop')) {
-      const dd = document.getElementById('track-ws-dropdown');
-      if (dd) dd.style.display = 'none';
-    }
-  });
-}
-
-// Triggered when the State <select> changes — moves to the workshop step.
-window._trackStatePicked = function() {
-  const sel = document.getElementById('track-state-input');
-  const state = sel.value;
-  if (!state) return;
-  _trackPickedState = state;
-  document.getElementById('track-step-state').style.display    = 'none';
-  document.getElementById('track-step-workshop').style.display = 'block';
-  document.getElementById('track-state-name').textContent      = state === '__unspecified__' ? 'Other (not specified)' : state;
-  const rl = document.getElementById('track-region-lbl'); if (rl) rl.textContent = ((TRACK_REGION[_trackCountry] || TRACK_REGION.IN)[0].replace(/^./, c => c.toUpperCase())) + ':';
-  // Pre-populate workshop dropdown with the full list for this state
-  const pool = _trackWorkshopsForState(state);
-  _trackRenderDropdown(pool.slice(0, 20));
-  const msg = document.getElementById('track-ws-msg');
-  msg.textContent = pool.length
-    ? `${pool.length} workshop${pool.length === 1 ? '' : 's'} in this state`
-    : 'No workshops in this state yet — go back and pick another state.';
-  setTimeout(() => document.getElementById('track-ws-input').focus(), 0);
-};
-
-window._trackPickWorkshop = function(uid, name) {
-  _trackPickedUid  = uid;
-  _trackPickedName = name;
-  document.getElementById('track-step-workshop').style.display = 'none';
-  document.getElementById('track-step-plate').style.display    = 'block';
-  document.getElementById('track-step-status').style.display   = 'none';
-  document.getElementById('track-ws-name').textContent         = name;
-  // Default to whichever mode the user was last on (sticky between lookups)
-  _trackSwitchMode(_trackMode);
-  setTimeout(() => document.getElementById(_trackMode === 'plate' ? 'track-plate-input' : 'track-booking-input').focus(), 0);
-};
-
-// Tab switch between plate-based and booking#-based lookup.
-window._trackSwitchMode = function(mode) {
-  _trackMode = mode;
-  const tabP = document.getElementById('track-tab-plate');
-  const tabB = document.getElementById('track-tab-booking');
-  const onCol = 'var(--acc2)', offCol = 'var(--dim)';
-  tabP.style.borderBottomColor = mode === 'plate'   ? onCol  : 'transparent';
-  tabP.style.color             = mode === 'plate'   ? onCol  : offCol;
-  tabB.style.borderBottomColor = mode === 'booking' ? onCol  : 'transparent';
-  tabB.style.color             = mode === 'booking' ? onCol  : offCol;
-  document.getElementById('track-mode-plate').style.display   = mode === 'plate'   ? 'block' : 'none';
-  document.getElementById('track-mode-booking').style.display = mode === 'booking' ? 'block' : 'none';
-};
-
-// `to` controls which step to land on: 'state' | 'workshop'.
-// When locked (opened from a workshop's own link), the customer can NEVER go
-// back to the state/workshop pickers — they can only track another car at THIS
-// workshop, so every "back" lands on the plate step and keeps the picked shop.
-window.trackBack = function(to) {
-  to = _trackLocked ? 'plate' : (to || 'state');
-  document.getElementById('track-step-status').style.display   = 'none';
-  document.getElementById('track-step-plate').style.display    = to === 'plate'    ? 'block' : 'none';
-  document.getElementById('track-step-workshop').style.display = to === 'workshop' ? 'block' : 'none';
-  document.getElementById('track-step-state').style.display    = to === 'state'    ? 'block' : 'none';
-  document.getElementById('track-plate-input').value   = '';
-  document.getElementById('track-booking-input').value = '';
-  document.getElementById('track-lookup-msg').textContent    = '';
-  if (to !== 'plate') {
-    document.getElementById('track-ws-input').value = '';
-    document.getElementById('track-ws-dropdown').style.display = 'none';
-  }
-  if (to === 'state') {
-    document.getElementById('track-state-input').value = '';
-    _trackPickedState = null;
-    _trackPickedUid   = null;
-    _trackPickedName  = null;
-  }
-  _trackLastResult = null;
-  if (to === 'plate') setTimeout(() => document.getElementById(_trackMode === 'plate' ? 'track-plate-input' : 'track-booking-input').focus(), 0);
-};
-
-// Lock the page to a single workshop (deep-linked via ?ws=). Hides the
-// "Change workshop" affordance and re-brands the top bar with the garage name.
-function _trackLockToWorkshop(name) {
-  _trackLocked = true;
-  const tb = document.getElementById('tb-name');
-  if (tb && name) tb.textContent = name;
-  const chg = document.getElementById('track-change-ws');
-  if (chg) chg.style.display = 'none';
-  document.title = (name ? name + ' · ' : '') + 'Track your repair';
-  // Rewrite the "track another car" button copy so it's clearly same-shop
-  const another = document.querySelector('#track-step-status button[onclick*="trackBack"]');
-  if (another) another.textContent = 'Track another car';
-}
-
-// Dispatch to the right query based on _trackMode (or explicit override).
-window.trackLookup = async function(mode) {
-  mode = mode || _trackMode;
-  _trackMode = mode;
-  if (mode === 'booking') return _trackLookupByBooking();
-  return _trackLookupByPlate();
-};
-
-async function _trackLookupByPlate() {
-  const plateRaw  = (document.getElementById('track-plate-input').value || '').trim();
-  const plateNorm = _trackPlateNorm(plateRaw);
-  const msg = document.getElementById('track-lookup-msg');
-  msg.style.color = 'var(--faint)';
-  if (!plateNorm)         { msg.textContent = 'Type your license plate first.'; return; }
-  if (!_trackPickedUid)   { msg.textContent = 'Pick a workshop first.'; return; }
-  msg.textContent = 'Looking up…';
-  try {
-    const snap = await fbDb.collection('users').doc(_trackPickedUid)
-      .collection('public_status').doc(plateNorm).get();
-    if (!snap.exists) {
-      msg.style.color = '#ff6b6b';
-      msg.innerHTML = `Nothing on file for <b>${_trackEsc(plateRaw)}</b> at ${_trackEsc(_trackPickedName)}. Double-check the plate or try the booking-number tab.`;
-      return;
-    }
-    _trackLastResult = snap.data();
-    _trackRenderStatus(_trackLastResult);
-  } catch (e) {
-    msg.style.color = '#ff6b6b';
-    msg.textContent = 'Lookup failed: ' + (e?.message || e);
-  }
-}
-
-async function _trackLookupByBooking() {
-  const bkRaw = (document.getElementById('track-booking-input').value || '').trim().toUpperCase();
-  const msg   = document.getElementById('track-lookup-msg');
-  msg.style.color = 'var(--faint)';
-  if (!bkRaw)             { msg.textContent = 'Type your booking number first.'; return; }
-  if (!_trackPickedUid)   { msg.textContent = 'Pick a workshop first.'; return; }
-  msg.textContent = 'Looking up…';
-  try {
-    const qsnap = await fbDb.collection('users').doc(_trackPickedUid)
-      .collection('public_status')
-      .where('booking_no', '==', bkRaw)
-      .limit(1)
-      .get();
-    if (qsnap.empty) {
-      msg.style.color = '#ff6b6b';
-      msg.innerHTML = `No booking found with number <b>${_trackEsc(bkRaw)}</b> at ${_trackEsc(_trackPickedName)}. The number on your slip should look like <code style="background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--acc2)">BK-0042</code>.`;
-      return;
-    }
-    _trackLastResult = qsnap.docs[0].data();
-    _trackRenderStatus(_trackLastResult);
-  } catch (e) {
-    msg.style.color = '#ff6b6b';
-    msg.textContent = 'Lookup failed: ' + (e?.message || e);
-  }
-}
-
-function _trackStatusColor(s) {
-  const t = String(s || '').toLowerCase();
-  if (t.includes('delivered') || t.includes('ready'))     return { bg: 'rgba(32,227,178,.15)', fg: 'var(--teal,#20e3b2)' };
-  if (t.includes('cancel') || t.includes('rejected'))     return { bg: 'rgba(255,107,107,.15)', fg: '#ff6b6b' };
-  if (t.includes('progress') || t.includes('execut'))     return { bg: 'rgba(255,179,71,.18)', fg: 'var(--acc2)' };
-  if (t.includes('approved'))                             return { bg: 'rgba(99,159,255,.15)', fg: 'var(--blue,#639fff)' };
-  return { bg: 'rgba(255,255,255,.07)', fg: 'var(--text)' };
-}
-
-// Top-down car outline — matches the workshop app's intake diagram so the
-// damage pins recorded at drop-off land in the same spots. Read-only.
-function _trackCarSVG(){
-  return `<svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block;color:var(--faint);pointer-events:none">
-    <rect x="30" y="20" width="140" height="360" rx="35" fill="none" stroke="currentColor" stroke-width="3"/>
-    <rect x="34" y="55" width="132" height="70" rx="6" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/>
-    <rect x="34" y="145" width="132" height="110" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/>
-    <rect x="34" y="275" width="132" height="65" rx="6" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/>
-    <rect x="8" y="72" width="16" height="52" rx="6" fill="currentColor" opacity=".5"/>
-    <rect x="176" y="72" width="16" height="52" rx="6" fill="currentColor" opacity=".5"/>
-    <rect x="8" y="276" width="16" height="52" rx="6" fill="currentColor" opacity=".5"/>
-    <rect x="176" y="276" width="16" height="52" rx="6" fill="currentColor" opacity=".5"/>
-    <text x="100" y="42" text-anchor="middle" font-size="12" fill="currentColor" opacity=".6">FRONT</text>
-    <text x="100" y="365" text-anchor="middle" font-size="12" fill="currentColor" opacity=".6">REAR</text>
-  </svg>`;
-}
-function _trackDamageHTML(data){
-  const pins = Array.isArray(data.damage_pins) ? data.damage_pins : [];
-  if (!pins.length) return '';
-  return `<div style="margin-top:16px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;text-align:left">
-    <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:2px">Condition noted at drop-off</div>
-    <div style="font-size:11.5px;color:var(--faint);margin-bottom:12px">Marks recorded when you handed the vehicle over.</div>
-    <div style="position:relative;width:120px;height:240px;margin:0 auto 12px">${_trackCarSVG()}
-      ${pins.map((p,i)=>`<div title="${_trackEsc(p.type)}${p.note?': '+_trackEsc(p.note):''}" style="position:absolute;left:${p.x}%;top:${p.y}%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:#ff6b6b;border:2px solid #fff;color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center">${i+1}</div>`).join('')}
-    </div>
-    <div style="display:grid;gap:5px">
-      ${pins.map((p,i)=>`<div style="font-size:12px;color:var(--dim)"><b style="color:#ff6b6b">${i+1}.</b> ${_trackEsc(p.type)}${p.note?' — '+_trackEsc(p.note):''}</div>`).join('')}
-    </div>
-  </div>`;
-}
-
-function _trackRenderStatus(data) {
-  document.getElementById('track-step-plate').style.display  = 'none';
-  document.getElementById('track-step-status').style.display = 'block';
-  const c = _trackStatusColor(data.status);
-  const updatedAgo = _trackTimeAgo(data.updated_at);
-  document.getElementById('track-status-card').innerHTML = `<div class="track-status-big">
-    <div class="pill" style="background:${c.bg};color:${c.fg}">${_trackEsc(data.status || '—')}</div>
-    <div style="font-size:13.5px;color:var(--dim);margin-top:4px">Updated ${_trackEsc(updatedAgo)}</div>
-    <div class="meta">
-      <div><b>Vehicle</b>${_trackEsc(data.plate || '—')}</div>
-      ${data.service           ? `<div><b>Service</b>${_trackEsc(data.service)}</div>` : ''}
-      ${data.mechanic_first_name ? `<div><b>Mechanic</b>${_trackEsc(data.mechanic_first_name)}</div>` : ''}
-      ${data.booking_no        ? `<div><b>Booking</b>${_trackEsc(data.booking_no)}</div>` : ''}
-    </div>
-    ${data.status === 'Ready for Pickup' ? `<div style="margin-top:16px;padding:14px 16px;background:rgba(32,227,178,.08);border:1px dashed rgba(32,227,178,.5);border-radius:12px;text-align:center;font-size:13px;color:var(--dim)">If the workshop uses a pickup OTP, it's been emailed to you directly — check your inbox (and spam folder) for the code.</div>` : ''}
-    ${_trackDamageHTML(data)}
-  </div>`;
-  const hist = Array.isArray(data.history) ? data.history.slice().reverse() : [];
-  const histHtml = hist.length
-    ? hist.map((h, i) => `<div class="track-hist-item ${i === 0 ? 'is-current' : ''}">
-        <div class="dot"></div>
-        <div>${_trackEsc(h.status || '—')}</div>
-        <div class="time">${_trackEsc(_trackTimeAgo(h.at))}</div>
-      </div>`).join('')
-    : `<div style="color:var(--faint);font-size:13px;padding:14px;text-align:center;background:var(--bg2);border-radius:8px">No status changes recorded yet.</div>`;
-  document.getElementById('track-history').innerHTML = histHtml;
-}
-
-// Pickup OTP is emailed directly to the customer (see app/index.html's
-// _sendPickupOtpEmail) — this page never holds or reveals the code itself,
-// it just points the customer at their inbox (see _trackRenderStatus above).
-
-// "5 minutes ago" / "2 hours ago" / "yesterday" — relative when recent, absolute
-// (date) when old. Falls back to the raw string if parsing fails.
-//
-// nowStr() (app/index.html) stores UTC time via toISOString() with no zone
-// suffix, e.g. "2026-07-14 15:47:34". Without an explicit "Z", `new Date(...)`
-// parses a string like that as LOCAL time instead of UTC — so every "ago"
-// came out wrong by exactly the viewer's UTC offset (5.5 hours for IST),
-// making recent updates read as hours old. Appending "Z" forces UTC parsing,
-// matching how the string was actually produced.
-function _trackTimeAgo(s) {
-  if (!s) return '—';
-  const d = new Date(String(s).replace(' ', 'T') + 'Z');
-  if (isNaN(d)) return s;
-  const diff = (Date.now() - d.getTime()) / 1000;
-  if (diff < 60)        return 'just now';
-  if (diff < 3600)      return Math.floor(diff / 60) + ' min ago';
-  if (diff < 86400)     return Math.floor(diff / 3600) + ' hr ago';
-  if (diff < 172800)    return 'yesterday';
-  if (diff < 604800)    return Math.floor(diff / 86400) + ' days ago';
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-// Watch for the section to come on-screen / for Firebase to come up, then init
-function _trackWaitForFirebase() {
-  if (fbDb && document.getElementById('track-ws-input')) {
-    _trackInit();
-    // Deep-link: if URL is /track/<slug> OR /#track/<slug>, auto-pick that
-    // workshop and skip the state/workshop pickers. Plate field gets focus
-    // so a customer who scans/clicks the workshop's shareable link is one
-    // tap from typing their plate.
-    _trackAutoPickFromUrl().catch(e => console.warn('[track] autopick failed:', e));
-    return;
-  }
-  setTimeout(_trackWaitForFirebase, 250);
-}
-_trackWaitForFirebase();
-
-// Try to match the current URL to a workshop slug. Supports both:
-//   /track/<slug>           — needs the host to rewrite to index.html
-//   /#track/<slug>          — works on any static host (hash routing)
-async function _trackAutoPickFromUrl() {
-  const params = new URLSearchParams(location.search);
-  let slug = params.get('ws') || '';
-  // Plate/booking# carried over from an email or WhatsApp message (see
-  // _wsTrackLink() in app/index.html) — lets us skip straight to the status
-  // instead of making the customer re-type what we already know.
-  const plate   = params.get('plate')   || '';
-  const booking = params.get('booking') || '';
-  // Path: /track/<slug>
-  const pm = (location.pathname || '').match(/^\/track\/([^\/?#]+)/i);
-  if (pm) slug = decodeURIComponent(pm[1]);
-  // Hash: #track/<slug>
-  if (!slug) {
-    const hm = (location.hash || '').match(/^#track\/([^\/?#]+)/i);
-    if (hm) slug = decodeURIComponent(hm[1]);
-  }
-  if (!slug) return;
-  // Scroll to the track section so the user sees what's happening
-  const sec = document.getElementById('track');
-  if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  // Wait for the workshop list
-  const list = await _trackLoadWorkshops();
-  const wantSlug = _trackSlugify(slug);
-  const match = list.find(w => w.slug === wantSlug)
-              || list.find(w => w.slug.startsWith(wantSlug))   // partial
-              || list.find(w => _trackSlugify(w.name).includes(wantSlug));
-  if (!match) {
-    const msg = document.getElementById('track-state-msg');
-    if (msg) {
-      msg.style.color = '#ff6b6b';
-      msg.innerHTML = `Workshop <b>${_trackEsc(slug)}</b> not found. Pick from the dropdown below.`;
-    }
-    return;
-  }
-  // Deep-linked from a workshop's own share link → lock to this shop only.
-  _trackLockToWorkshop(match.name);
-  applyBrand({ color: match.color, logo: match.logo }, match.name);   // their logo, name & colour — still "Powered by Garage Pro"
-  // Jump straight to step 3 (plate input) bypassing state + workshop pickers.
-  _trackPickedState = match.state || '__unspecified__';
-  _trackPickWorkshop(match.uid, match.name);
-  // Auto-fill + auto-submit when the link already carries the plate/booking#
-  // (_trackPickWorkshop just switched modes and focused the empty input —
-  // override that here since we're about to fill it ourselves).
-  if (plate) {
-    _trackSwitchMode('plate');
-    document.getElementById('track-plate-input').value = plate;
-    trackLookup('plate');
-  } else if (booking) {
-    _trackSwitchMode('booking');
-    document.getElementById('track-booking-input').value = booking;
-    trackLookup('booking');
-  }
-}
+  document.getElementById('year').textContent = new Date().getFullYear();
+  document.getElementById('lastUpdated').textContent = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
 </script>
 <script src="i18n/gp-lang.js"></script>
-<script src="gp-busy.js"></script>
 </body>
 </html>
