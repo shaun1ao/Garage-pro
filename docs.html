@@ -191,6 +191,7 @@
       <a href="#multi-branch">Multi-branch chains</a>
       <a href="#fleet">Fleet accounts</a>
       <a href="#breakdown">Breakdown / tow requests</a>
+      <a href="#extras">Live feed, loaner cars &amp; instalments</a>
       <a href="#parts-exchange">Parts Exchange</a>
       <a href="#scan-packages">Barcode scan &amp; job packages</a>
     </div>
@@ -572,7 +573,6 @@
         <li>The page shows <b>your logo, name and colours</b>, with a small "Powered by Garage Pro" line.</li>
         <li>Customers enter their vehicle with the same make / model / year list the app uses, plus colour, fuel and VIN; the <b>email address is required</b> so a confirmation can be sent.</li>
         <li>Requests land in an <b>inbox</b> in the app. Accept or decline each one — accepting creates the appointment and emails the customer in their language.</li>
-        <li><b>Email-code verification</b> (optional): turn it on and a customer must enter a 6-digit code emailed to them before a booking is accepted. It stops fake bookings and fills in name, phone and cars for returning customers.</li>
         <li><b>Reschedule / cancel link</b> (optional, and only available while online booking is on): customers get a "Change or cancel your booking" link in their booking emails. They can cancel, or move the slot once, up to the number of hours you set before the appointment; after that the page tells them to phone you. Your app applies the change to the appointment automatically (and emails you if no app is open), and the customer gets a confirmation.</li>
         <li><b>24-hour reminder</b>: each customer with an email address gets one reminder about a day before the appointment, with an "Add to calendar" file. Switch it off in Settings → Customer email notifications → "24-hour appointment reminder".</li>
         <li>Switch the page off at any time; the link then shows a polite "not taking online bookings" message. There is no limit on bookings.</li>
@@ -628,6 +628,20 @@
       <div class="doc-note">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
         <div>Parts Exchange connects workshops — you agree price, payment and collection between yourselves. Garage Pro does not take payment or hold stock. By default only owners, managers and the parts department can use it; you can change that for any role under Settings → Role permissions (tick <b>Parts Exchange</b>).</div>
+      </div>
+    </section>
+
+    <section id="extras" class="section-card">
+      <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M12 8v8"/></svg></span>Live feed, loaner cars &amp; instalments</h2>
+      <p class="desc">Three optional customer-facing features. Switch each on at <b>Settings → Customer extras</b>; all are off by default.</p>
+      <ul class="doc-list">
+        <li><b>Live repair feed.</b> On a job card, tap <b>Live feed</b> to post photos or short clips with a caption ("cracked front bracket"). The customer sees them on the Track page, newest first. Tick <b>needs the customer's decision</b> on anything that involves extra cost; it is shown with a clear tag, and nothing extra should be done until they approve it. You can hide or delete any item. Anyone who knows the number plate can open the Track page, so don't post anything you wouldn't show the customer.</li>
+        <li><b>Loaner cars.</b> A <b>Loaner cars</b> tab (give it to roles under <b>Role permissions</b>) holds your fleet. <b>Hand out</b> records the customer, driving licence, odometer, fuel, deposit and condition, and prints an agreement to sign; <b>Return</b> records the odometer, fuel and any damage and works out the charge. Overdue loans and expiring insurance are flagged, and the customer sees their courtesy car and return date on the Track page. Optionally, customers can tick a courtesy-car request on the online booking page.</li>
+        <li><b>Pay in instalments.</b> On an unpaid invoice tap <b>Instalments</b> to split the balance into 3 or 6 payments (or the options you set), with an optional deposit. Record each payment as it arrives; the invoice moves to Partial and then Paid automatically, and the customer sees their plan on the Track page. To be paid upfront, add a financing partner's checkout link in settings, then use <b>Financing link</b> to send it and <b>Partner paid</b> when the partner has paid you.</li>
+      </ul>
+      <div class="doc-note">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>Garage Pro does not lend money, run credit checks or hold funds. In-house plans are simply you tracking payments you agreed with your customer; financing is provided by the partner under its own terms. Rules on credit, fees, insurance and licence checks differ by country, so check yours before offering any of this.</div>
       </div>
     </section>
 
