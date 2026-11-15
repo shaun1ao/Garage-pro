@@ -4736,6 +4736,7 @@ function ensureQR() {
   if (typeof QRCode !== 'undefined' && QRCode.CorrectLevel) return Promise.resolve(true);
   if (_qrLoadPromise) return _qrLoadPromise;
   const sources = [
+    '../vendor/qrcode.min.js',                   // our own copy first — no third-party request
     'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
     'https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js',
     'https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js'
@@ -20339,6 +20340,7 @@ async function renderWorkload(force = false) {
 <script>
 (function loadZXing(){
   const sources = [
+    '../vendor/zxing-browser.min.js',            // our own copy first — no third-party request
     'https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js',
     'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js',
     'https://unpkg.com/@zxing/browser@0.1.5',
@@ -24288,7 +24290,6 @@ async function renderWorkload(force = false) {
 //   2. CONDITION REPORT   — on a customer's vehicle history: a shareable "verified by <workshop>" report (link + PDF).
 //   3. PICKUP SCHEDULING  — when a car is Ready for Pickup the customer picks a collection slot on the Track page.
 //   4. GIFT VOUCHERS      — customers order a voucher from a public page; the workshop confirms payment, then the voucher is live.
-//   5. PHOTO → ESTIMATE   — photograph a worn part or warning light; AI suggests likely parts + labour lines (needs the relay).
 //  The Pickups and Vouchers tabs are role permissions too (Settings → Role permissions).
 // ══════════════════════════════════════════════════════════════════════════
 (function () {
@@ -24307,7 +24308,6 @@ async function renderWorkload(force = false) {
   const AC = () => Object.assign({ sales_ledger: 'Sales', tax_ledger: 'Output Tax', round_ledger: 'Round Off', company: '' }, S().acct_export || {});
   const PK = () => Object.assign({ enabled: false, open: '09:00', close: '18:00', slotMins: 30, capacity: 3, days: 3, closedSun: true }, S().pickup || {});
   const GF = () => Object.assign({ enabled: false, amounts: '1000,2500,5000', min: 500, months: 12, pay_note: '', pay_link: '', terms: 'Valid for the services and parts at this workshop until the expiry date. Not refundable or exchangeable for cash. Lost or stolen vouchers cannot be replaced.' }, S().gifts || {});
-  const AI = () => Object.assign({ enabled: false }, S().ai_suggest || {});
   const CR = () => Object.assign({ enabled: true }, S().cond_report || {});
   const wsSlug = () => { const ob = S().online_booking || {}; return ob.slug || (typeof _wsSlug === 'function' ? _wsSlug(S().workshop_name || '') : ''); };
 
@@ -24644,86 +24644,17 @@ ${round > 0.004 ? ent(ac.round_ledger, round, false) : round < -0.004 ? ent(ac.r
   };
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  5 · PHOTO → ESTIMATE
-  // ══════════════════════════════════════════════════════════════════════════
-  const aiOn = () => AI().enabled;
-  const aiUrl = () => { try { return EMAIL_RELAY_URL.replace(/\/api\/send\/?$/, '/api/suggest'); } catch (_) { return ''; } };
-  let AS = { job: null, res: null, busy: false, photo: null };
-  window.gpAiOpen = function (jobId) {
-    const j = (D.jobs || []).find(x => x.id === jobId); if (!j) return showToast('Save the job card first', 'bad');
-    AS = { job: j, res: null, busy: false, photo: null };
-    const concerns = _prConcernsForJob ? _prConcernsForJob(j) : [];
-    _openSubModal({ title: 'Photo → suggested parts', bodyHtml: `<div style="font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:10px">Photograph the worn part, leak or warning light. The AI suggests likely parts and labour lines <b>for you to check</b> — it can be wrong, it never gives prices, and nothing is added until you tick it. The photo is sent to an AI service to analyse it.</div>
-      <div style="display:grid;gap:8px"><select id="aiConcern" style="padding:8px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)"><option value="">Which concern is this about? (optional)</option>${concerns.map(c => `<option value="${esc(c.title)}">${esc(c.title)}</option>`).join('')}</select>
-      <input id="aiNote" type="text" maxlength="200" placeholder="What did you notice? e.g. squealing when braking" style="padding:9px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)">
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="add-btn" onclick="gpAiPick(true)">📷 Take photo</button><button type="button" class="mini-btn" onclick="gpAiPick(false)">Choose from gallery</button></div><input id="aiFile" type="file" accept="image/*" style="display:none"></div><div id="aiOut" style="margin-top:12px"></div>`,
-      footHtml: '<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>' });
-    setTimeout(() => { const f = g('aiFile'); if (f) f.onchange = () => f.files && f.files[0] && gpAiRun(f.files[0]); }, 0);
-  };
-  window.gpAiPick = cam => { const f = g('aiFile'); if (!f) return; if (cam) f.setAttribute('capture', 'environment'); else f.removeAttribute('capture'); f.value = ''; f.click(); };
-  async function gpAiRun(file) {
-    const out = g('aiOut'); out.innerHTML = '<div style="color:var(--faint)">Analysing the photo…</div>';
-    try {
-      const dataUrl = await _resizePhoto(file, 1024); AS.photo = file;
-      const j = AS.job, b = (D.bookings || []).find(x => x.id === j.booking_id) || {};
-      const tok = await fbAuth.currentUser.getIdToken();
-      const r = await fetch(aiUrl(), { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-relay-key': EMAIL_RELAY_KEY, Authorization: 'Bearer ' + tok }, body: JSON.stringify({ image: dataUrl, vehicle: [b.veh_make, b.veh_model, b.veh_year].filter(Boolean).join(' ') || b.vehicle || '', concern: val('aiConcern'), note: val('aiNote'), country: (typeof ctry === 'function' ? ctry().code : ''), department: j.department || '' }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || !d.ok) throw new Error(d.error || ('The suggestion service is unavailable (' + r.status + ')'));
-      AS.res = d; renderAi();
-    } catch (e) { out.innerHTML = `<div style="color:var(--red);font-size:13px">${esc(e.message || e)}</div>`; }
-  }
-  function renderAi() {
-    const d = AS.res, out = g('aiOut'); if (!d || !out) return;
-    const rows = [].concat((d.parts || []).map(p => ({ kind: 'part', name: p.name, qty: p.qty || 1, why: p.reason })), (d.services || []).map(s => ({ kind: 'service', name: s.name, qty: 1, why: s.reason })));
-    AS.rows = rows;
-    const adv = isServiceAdvisorRole();
-    out.innerHTML = `<div style="padding:10px 12px;background:var(--bg2);border-radius:10px;font-size:13px;line-height:1.55"><b>${esc(d.summary || 'No clear fault visible')}</b>${d.confidence ? ` <span style="color:var(--faint)">· confidence ${esc(d.confidence)}</span>` : ''}${d.needs_inspection ? '<div style="color:var(--acc2);margin-top:4px">Needs a hands-on inspection before quoting.</div>' : ''}</div>
-      ${rows.length ? `<div style="margin-top:10px;display:grid;gap:6px">${rows.map((r, i) => `<label style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--brd);border-radius:9px"><input type="checkbox" class="aiPick" data-i="${i}" checked style="width:16px;height:16px;margin-top:2px"><span style="flex:1"><b>${esc(r.name)}</b> <span style="color:var(--faint);font-size:12px">${r.kind === 'service' ? 'labour / service' : 'part × ' + esc(r.qty)}</span>${r.why ? `<div style="font-size:12px;color:var(--dim)">${esc(r.why)}</div>` : ''}</span></label>`).join('')}</div>
-      <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-top:10px"><input type="checkbox" id="aiSave" checked style="width:16px;height:16px"> Also save the photo on the job card</label>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">${adv ? '<button type="button" class="add-btn" onclick="gpAiAdd()">Add ticked items to the estimate</button>' : ''}<button type="button" class="mini-btn" onclick="gpAiRequest()">Request the ticked parts</button></div>` : ''}`;
-  }
-  const ticked = () => [...document.querySelectorAll('.aiPick:checked')].map(c => AS.rows[Number(c.dataset.i)]).filter(Boolean);
-  async function savePhotoToo() { if (g('aiSave') && g('aiSave').checked && AS.photo && AS.job) { try { await uploadJobPhoto(AS.job.id, AS.photo, 'Damage'); } catch (e) { showToast('Photo not saved: ' + (e.message || e), 'bad'); } } }
-  window.gpAiAdd = async function () {
-    const pick = ticked(); if (!pick.length) return showToast('Tick something first', 'bad');
-    if (typeof _editingJob === 'undefined' || !_editingJob || _editingJob.id !== AS.job.id) return showToast('Open the job card first', 'bad');
-    const concernTitle = val('aiConcern'), ci = (_editingJob.concerns || []).findIndex(c => (c.title || '').trim() === concernTitle && concernTitle);
-    const priceOf = n => { const it = (D.inventory || []).find(i => (i.name || '').toLowerCase() === String(n).toLowerCase()); return it && Number(it.sell_price) > 0 ? Number(it.sell_price) : 0; };
-    pick.forEach(r => {
-      if (ci >= 0) _editingJob.concerns[ci].items.push({ id: uid('ci'), name: r.name, qty: r.qty, price: r.kind === 'part' ? priceOf(r.name) : 0, taxable: true, kind: r.kind === 'service' ? 'service' : 'part' });
-      else if (r.kind === 'part') _editingJob.est_parts.push({ name: r.name, qty: r.qty, price: priceOf(r.name), source: 'ai', taxable: true, concern_id: '', concern_title: '' });
-      else _editingJob.est_services.push({ name: r.name, type: '', price: 0, taxable: true });
-    });
-    try { _drawEstRows(); _drawConcerns(); } catch (_) {}
-    await savePhotoToo(); closeSubModal(); showToast(`${pick.length} line${pick.length === 1 ? '' : 's'} added — set the prices, then save the job card`, 'good');
-  };
-  window.gpAiRequest = async function () {
-    const pick = ticked().filter(r => r.kind === 'part'); if (!pick.length) return showToast('Tick at least one part', 'bad');
-    if (!(await customConfirm('This opens the parts request form and closes the job card — save any changes to the job card first. Continue?', { title: 'Request parts', okLabel: 'Continue', danger: false }))) return;
-    const ct = val('aiConcern'), c = ct ? (_prConcernsForJob(AS.job).find(x => x.title === ct) || null) : null; await savePhotoToo(); closeSubModal();
-    openPartRequestForm({ job_id: AS.job.id, items: pick.map(r => ({ name: r.name, qty: r.qty, concern_id: c ? c.id : '', concern_title: c ? c.title : '' })) });
-  };
-  const _oj = window.openJobForm;
-  if (typeof _oj === 'function') window.openJobForm = async function (id) {
-    const r = await _oj.apply(this, arguments);
-    try { const sec = g('jf-sec-photos'); if (aiOn() && sec && !g('jfAiBtn')) { const d = document.createElement('div'); d.id = 'jfAiBtn'; d.style.cssText = 'margin:0 0 10px'; d.innerHTML = `<button type="button" class="add-btn" style="width:100%;justify-content:center" onclick="gpAiOpen('${esc(id)}')">📷 Photo → suggested parts &amp; labour</button>`; sec.parentNode.insertBefore(d, sec); } } catch (e) { console.warn('[ai button]', e); }
-    return r;
-  };
-
-  // ══════════════════════════════════════════════════════════════════════════
   //  SETTINGS CARD
   // ══════════════════════════════════════════════════════════════════════════
   function renderCard() {
     const body = g('settingsBody'); if (!body || !isAdminRole()) return;
     let host = g('moreCardHost');
     if (!host) { host = document.createElement('div'); host.id = 'moreCardHost'; const grid = body.firstElementChild; if (!grid) return; const after = g('extrasCardHost') || g('pkgCardHost') || g('obCardHost'); grid.insertBefore(host, after ? after.nextSibling : (grid.children[2] || null)); }
-    const p = PK(), gf = GF(), a = AI(), c = CR(), box = (id, on, title, desc, inner) => `<div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="width:16px;height:16px"> ${title}</label><div style="font-size:12.5px;color:var(--faint);margin:6px 0 ${inner ? 10 : 0}px">${desc}</div>${inner}</div>`;
+    const p = PK(), gf = GF(), c = CR(), box = (id, on, title, desc, inner) => `<div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="width:16px;height:16px"> ${title}</label><div style="font-size:12.5px;color:var(--faint);margin:6px 0 ${inner ? 10 : 0}px">${desc}</div>${inner}</div>`;
     host.innerHTML = `<div class="card" style="padding:18px"><h3 style="margin:0 0 4px">More features</h3><div style="color:var(--faint);font-size:13px;margin-bottom:14px;max-width:640px">Optional extras — each appears only when switched on. Pickups and Gift vouchers can be given to specific roles under Role permissions. Accounting export lives on the Invoices page.</div><div style="display:grid;gap:14px">
       ${box('mc-cr', c.enabled, 'Condition report', 'A “Condition report” button on a customer’s vehicle history makes a shareable, workshop-verified page (service history, inspection, photos) the owner can send to a buyer. Revocable any time; the owner’s name and phone are never shown.', '')}
       ${box('mp-on', p.enabled, 'Pickup scheduling', 'When a job is “Ready for Pickup”, the customer chooses a collection time on the Track page. Set your collection hours and how many cars you can hand over per slot.', `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px"><div class="f-grp"><label>From</label><input id="mp-open" type="time" value="${esc(p.open)}"></div><div class="f-grp"><label>Until</label><input id="mp-close" type="time" value="${esc(p.close)}"></div><div class="f-grp"><label>Slot (min)</label><input id="mp-mins" type="number" min="10" max="120" value="${esc(p.slotMins)}"></div><div class="f-grp"><label>Cars per slot</label><input id="mp-cap" type="number" min="1" max="20" value="${esc(p.capacity)}"></div><div class="f-grp"><label>Days ahead</label><input id="mp-days" type="number" min="1" max="14" value="${esc(p.days)}"></div></div><label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-top:8px"><input type="checkbox" id="mp-sun" ${p.closedSun ? 'checked' : ''} style="width:16px;height:16px"> Closed on Sundays</label>`)}
       ${box('mg-on', gf.enabled, 'Gift vouchers', `Customers order a voucher at <code>garagepro.me/gift.html?w=${esc(wsSlug() || 'your-name')}</code>. Garage Pro doesn’t take the payment: they see your payment instructions, you confirm you’ve been paid, and only then does the voucher get a code.`, `<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px"><div class="f-grp"><label>Suggested amounts</label><input id="mg-amts" value="${esc(gf.amounts)}" placeholder="1000,2500,5000"></div><div class="f-grp"><label>Minimum</label><input id="mg-min" type="number" min="0" value="${esc(gf.min)}"></div><div class="f-grp"><label>Valid (months)</label><input id="mg-months" type="number" min="1" max="60" value="${esc(gf.months)}"></div><div class="f-grp" style="grid-column:span 3"><label>How buyers pay you (shown after they order)</label><textarea id="mg-pay" rows="2" placeholder="UPI: name@bank · or bank transfer details · or call us">${esc(gf.pay_note)}</textarea></div><div class="f-grp" style="grid-column:span 3"><label>Payment link (optional, https://)</label><input id="mg-link" value="${esc(gf.pay_link)}" placeholder="https://"></div><div class="f-grp" style="grid-column:span 3"><label>Voucher terms</label><textarea id="mg-terms" rows="2">${esc(gf.terms)}</textarea></div></div>`)}
-      ${box('ma-on', a.enabled, 'Photo → suggested parts (AI)', 'On a job card, photograph a worn part or warning light and an AI suggests likely parts and labour lines to quote. It needs the email relay to have an Anthropic key, costs a small amount per photo, and sends the photo to an AI service — switch on only if you’re happy with that. Suggestions are never added without you ticking them.', '')}
       ${box('mu-on', !(() => { try { return localStorage.getItem('gp_notrack') === '1'; } catch (_) { return false; } })(), 'Share anonymous usage statistics', 'Counts which screens are used and for how long (never names, plates, amounts or any customer data) so Garage Pro can improve the app, and so refund requests can be checked fairly. Untick to stop sending them from this browser.', '')}
       <div style="background:var(--bg2);border-radius:12px;padding:14px"><b>Subscription</b><div style="font-size:12.5px;color:var(--faint);margin:6px 0 10px">Cancel any time — you keep access until the end of the period you have paid for. <a href="https://garagepro.me/refund.html" target="_blank" rel="noopener">Refund policy</a> · <a href="https://garagepro.me/privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="https://garagepro.me/cookies.html" target="_blank" rel="noopener">Cookies</a></div><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="mini-btn" style="text-decoration:none" href="https://garagepro.lemonsqueezy.com/billing" target="_blank" rel="noopener">Manage or cancel subscription</a><a class="mini-btn" style="text-decoration:none" href="mailto:support@garagepro.me?subject=Please%20cancel%20my%20subscription">Cancel by email</a></div></div>
       </div><div style="margin-top:14px"><button class="add-btn" type="button" onclick="moreSave()">Save</button></div></div>`;
@@ -24733,7 +24664,6 @@ ${round > 0.004 ? ent(ac.round_ledger, round, false) : round < -0.004 ? ent(ac.r
     s.cond_report = { enabled: g('mc-cr').checked };
     s.pickup = { enabled: g('mp-on').checked, open: val('mp-open') || '09:00', close: val('mp-close') || '18:00', slotMins: Math.min(120, Math.max(10, +val('mp-mins') || 30)), capacity: Math.min(20, Math.max(1, +val('mp-cap') || 3)), days: Math.min(14, Math.max(1, +val('mp-days') || 3)), closedSun: g('mp-sun').checked };
     s.gifts = { enabled: g('mg-on').checked, amounts: val('mg-amts').trim() || '1000,2500,5000', min: Math.max(0, +val('mg-min') || 0), months: Math.min(60, Math.max(1, +val('mg-months') || 12)), pay_note: val('mg-pay').trim().slice(0, 400), pay_link: link, terms: val('mg-terms').trim().slice(0, 600) };
-    s.ai_suggest = { enabled: g('ma-on').checked };
     try { if (g('mu-on').checked) localStorage.removeItem('gp_notrack'); else localStorage.setItem('gp_notrack', '1'); } catch (_) {}
     if (s.gifts.enabled && !wsSlug()) return showToast('Set a workshop name first so your gift voucher link can be created', 'bad');
     try { await wsSaveSettings(); } catch (e) { return showToast('Save failed: ' + (e.message || e), 'bad'); }
@@ -24744,6 +24674,244 @@ ${round > 0.004 ? ent(ac.round_ledger, round, false) : round < -0.004 ? ent(ac.r
   const _ea = window.enterApp;
   if (typeof _ea === 'function') window.enterApp = function () { const r = _ea.apply(this, arguments); setTimeout(() => { try { if (pkOn()) publishPickupCfg(); if (gfOn()) publishGiftCfg(); } catch (_) {} }, 3000); return r; };
   setInterval(() => { try { if (currentTab === 'pickups' && !document.hidden) drawPickups(); } catch (_) {} }, 60000);
+})();
+</script>
+
+<script src="../scan.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  1. CAMERA SCAN for VINs and number plates (scan.js does the reading; this wires it into the forms)
+//     • "Scan VIN" next to the VIN field: ONE scanner reads a barcode or printed/etched text.
+//         – If the VIN decodes (make / model / year / variant / fuel), those fields are filled in — matched to your vehicle
+//           database where the make/model exists there, and colour/variant taken from your own records when this VIN (or car)
+//           has been here before. If it can't be decoded, ONLY the VIN is filled in.
+//     • "Scan plate" next to plate fields: the user picks the state / emirate FIRST, then the plate is read and fitted to it.
+//     • Optional switch in Settings → More features: whether VINs are decoded online (the VIN alone goes to the US NHTSA database).
+//  2. TOOLS & EQUIPMENT LOG — who has which tool, calibration due dates for diagnostic gear, service reminders for lifts and
+//     compressors, QR labels, history. Optional tab (Settings → More features), with its own role permission.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const g = id => document.getElementById(id);
+  const val = id => (g(id) ? g(id).value : '');
+  const S = () => (D.settings || (D.settings = {}));
+  const today = () => new Date().toISOString().slice(0, 10);
+  const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const dmy = iso => { try { return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return iso || ''; } };
+  const SVG = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const SC = () => Object.assign({ decode: true }, S().scan || {});
+  const TL = () => Object.assign({ enabled: false }, S().tools || {});
+
+  // ───────── scan buttons ─────────
+  const ready = () => typeof GPScan !== 'undefined';
+  const mkBtn = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'mini-btn gp-scan-btn'; b.style.cssText = 'margin-top:6px'; b.innerHTML = '📷 ' + label; b.onclick = fn; return b; };
+  function fire(el) { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+  // set a field only if it is empty, or still holds what a previous scan put there (never overwrite something the user typed)
+  function fill(el, v) {
+    if (!el || v == null || v === '') return false;
+    if (el.value && el.value !== el.dataset.gpfill) return false;
+    el.value = v; el.dataset.gpfill = v; fire(el); return true;
+  }
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const matchIn = (list, name) => { const n = norm(name); if (!n) return ''; return list.find(x => norm(x) === n) || list.find(x => norm(x).startsWith(n) || n.startsWith(norm(x))) || ''; };
+
+  function localVehicleByVin(vin) {
+    for (const c of (D.customers || [])) for (const v of (c.vehicles || [])) if (String(v.vin || '').toUpperCase() === vin) return { make: v.make, model: v.model, year: v.year, variant: v.variant, colour: v.color || v.colour, fuel: v.fuel_type };
+    const b = (D.bookings || []).slice().reverse().find(x => String(x.vin || '').toUpperCase() === vin);
+    return b ? { make: b.veh_make, model: b.veh_model, year: b.veh_year, variant: b.veh_variant, colour: b.colour, fuel: b.fuel_type } : null;
+  }
+  async function fillFromVin(vin) {
+    const local = localVehicleByVin(vin) || {};
+    let dec = { ok: false };
+    if (SC().decode) { showToast('Looking the VIN up…', 'good'); dec = await GPScan.decodeVin(vin); }
+    const makes = typeof vehicleDBMakes === 'function' ? vehicleDBMakes() : [];
+    const make = matchIn(makes, local.make || dec.make) || local.make || dec.make || '';
+    const models = make && typeof vehicleDBModels === 'function' ? vehicleDBModels(make) : [];
+    const model = matchIn(models, local.model || dec.model) || local.model || dec.model || '';
+    const variants = make && model && typeof vehicleDBVariants === 'function' ? vehicleDBVariants(make, model) : [];
+    const variant = local.variant || matchIn(variants, dec.trim) || dec.trim || '';
+    const filled = [];
+    if (!(local.make || dec.ok)) { showToast(SC().decode ? 'VIN filled in — it couldn’t be decoded, so the rest is left for you.' : 'VIN filled in.', 'good'); return; }
+    if (fill(g('bf-make'), make)) filled.push('make'); try { _bookingModelChain('make'); } catch (_) {}
+    if (fill(g('bf-model'), model)) filled.push('model'); try { _bookingModelChain('model'); } catch (_) {}
+    if (fill(g('bf-year'), local.year || dec.year)) filled.push('year');
+    if (fill(g('bf-variant'), variant)) filled.push('variant');
+    if (fill(g('bf-colour'), local.colour)) filled.push('colour');
+    const fuel = g('bf-fuel'), fv = local.fuel || dec.fuel;
+    if (fuel && fv && [...fuel.options].some(o => o.value === fv) && (!fuel.dataset.gptouched)) { fuel.value = fv; filled.push('fuel'); fire(fuel); }
+    showToast(filled.length ? `Filled from the VIN: ${filled.join(', ')}${local.make ? ' (from your records)' : ''}` : 'VIN filled in — the other fields already have values.', 'good');
+  }
+  async function scanVinInto(inp) {
+    if (!ready()) return showToast('The scanner didn’t load — check your connection and reload.', 'bad');
+    const r = await GPScan.scanVin(); if (!r) return;
+    inp.value = r.vin; fire(inp);
+    await fillFromVin(r.vin);
+  }
+  function regions() { return (typeof GP_REGIONS === 'function' ? GP_REGIONS() : []).map(r => ({ name: r.name, plate: r.plate })); }
+  async function scanPlateBooking() {
+    if (!ready()) return showToast('The scanner didn’t load — check your connection and reload.', 'bad');
+    const cc = ctry().code, r = await GPScan.scanPlate({ regions: regions(), country: cc, allowBH: cc === 'IN' }); if (!r) return;
+    const fmt = g('bf-plate-format'), st = g('bf-plate-state'), bh = g('bf-plate-bhyear'), suf = g('bf-plate-suffix');
+    if (cc === 'IN' && fmt) {
+      if (r.bh) { fmt.value = 'bh'; try { _bookingPlateFormatChange(); } catch (_) {} if (bh && r.year && [...bh.options].some(o => o.value === r.year)) bh.value = r.year; }
+      else { fmt.value = 'state'; try { _bookingPlateFormatChange(); } catch (_) {} if (st) st.value = r.region; }
+    } else if (st) st.value = r.region;
+    if (suf) { suf.value = r.suffix; fire(suf); }
+    if (r.stateMismatch) showToast('The plate reads as a different state to the one you chose — please check it.', 'bad');
+    else showToast('Plate filled in — check it against the car.', 'good');
+    try { _bookingFillFromPlate(); } catch (_) {}
+  }
+  async function scanPlateSingle(inp) {
+    if (!ready()) return showToast('The scanner didn’t load — check your connection and reload.', 'bad');
+    const cc = ctry().code, r = await GPScan.scanPlate({ regions: regions(), country: cc, allowBH: cc === 'IN' }); if (!r) return;
+    inp.value = cc === 'IN' ? (r.bh ? `${r.year || ''} BH ${r.suffix}`.trim() : `${r.region} ${r.suffix}`.trim()) : r.suffix; fire(inp);
+    showToast(r.stateMismatch ? 'The plate reads as a different state to the one you chose — please check it.' : 'Plate filled in — check it against the car.', r.stateMismatch ? 'bad' : 'good');
+  }
+  function addButtons() {
+    const vin = g('bf-vin'); if (vin && !vin.dataset.gpscan) { vin.dataset.gpscan = '1'; vin.parentNode.appendChild(mkBtn('Scan VIN (barcode or text)', () => scanVinInto(vin))); }
+    const suf = g('bf-plate-suffix'); if (suf && !suf.dataset.gpscan) { suf.dataset.gpscan = '1'; suf.parentNode.parentNode.appendChild(mkBtn('Scan plate', scanPlateBooking)); }
+    const fuel = g('bf-fuel'); if (fuel && !fuel.dataset.gpwatch) { fuel.dataset.gpwatch = '1'; fuel.addEventListener('change', e => { if (e.isTrusted) fuel.dataset.gptouched = '1'; }); }
+    ['qb-plate', 'vf-plate', 'if-vplate'].forEach(id => { const i = g(id); if (i && !i.dataset.gpscan) { i.dataset.gpscan = '1'; i.parentNode.appendChild(mkBtn('Scan plate', () => scanPlateSingle(i))); } });
+  }
+  let sched = false;
+  new MutationObserver(() => { if (sched) return; sched = true; requestAnimationFrame(() => { sched = false; try { addButtons(); } catch (e) { console.warn('[scan buttons]', e); } }); }).observe(document.body, { childList: true, subtree: true });
+
+  // ───────── tab plumbing ─────────
+  const TABS = [];
+  function addTab(id, label, svg, roles, enabled, draw) {
+    try { roles.forEach(r => { if (DEFAULT_ROLE_PERMS[r] && !DEFAULT_ROLE_PERMS[r].includes(id)) DEFAULT_ROLE_PERMS[r].push(id); }); if (!ALL_TABS.some(t => t.id === id)) ALL_TABS.push({ id, label }); TAB_TITLES[id] = label; } catch (e) { console.warn('[tab perms]', e); }
+    const base = window.canSee, can = () => { try { return enabled() && !isChainHQMode() && base(id); } catch (_) { return false; } };
+    window.canSee = function (t) { return t === id ? can() : base.apply(this, arguments); };
+    TABS.push({ id, label, svg, can, draw });
+  }
+  function ensureUi() {
+    TABS.forEach(T => {
+      const nav = document.querySelector(`.snav[data-tab="${T.id}"]`), panel = g('tab-' + T.id);
+      if (!T.can()) { if (nav) nav.remove(); if (panel) panel.remove(); return; }
+      if (!nav) { const after = document.querySelector('.snav[data-tab="inventory"]') || document.querySelector('.snav[data-tab="jobs"]'); if (after) { const b = document.createElement('button'); b.className = 'snav'; b.dataset.tab = T.id; b.onclick = () => switchTab(T.id); b.innerHTML = SVG(T.svg) + esc(T.label) + `<span id="${T.id}Badge" style="margin-left:auto;display:none;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;padding:0 5px"></span>`; after.after(b); } }
+      if (!panel) { const host = g('tab-workload') && g('tab-workload').parentNode; if (host) { const d = document.createElement('div'); d.className = 'tab-panel'; d.id = 'tab-' + T.id; host.appendChild(d); } }
+    });
+  }
+  const _rsv = window.renderSidebarVisibility;
+  if (typeof _rsv === 'function') window.renderSidebarVisibility = function () { const r = _rsv.apply(this, arguments); try { ensureUi(); } catch (e) { console.warn('[tools ui]', e); } return r; };
+  const _st = window.switchTab;
+  if (typeof _st === 'function') window.switchTab = function (tab) { const r = _st.apply(this, arguments); const T = TABS.find(x => x.id === tab); if (T) T.draw(); return r; };
+  const setBadge = (id, n) => { const b = g(id + 'Badge'); if (b) { b.textContent = n; b.style.display = n ? 'inline-flex' : 'none'; } };
+
+  // ───────── tools & equipment ─────────
+  const CATS = { 'Diagnostic scanner / equipment': { calib: 365 }, 'Torque wrench': { calib: 365 }, 'Vehicle lift': { service: 180 }, 'Air compressor': { service: 90 }, 'Wheel balancer / aligner': { calib: 365, service: 180 }, 'Power tool': {}, 'Hand tool': {}, 'Other': {} };
+  let TS = { loaded: false, list: [], filter: 'all', q: '' };
+  async function loadTools() { if (TS.loaded) return; TS.list = (await wsLoad('tool_log')) || []; TS.loaded = true; }
+  const saveTools = () => wsSave('tool_log', TS.list);
+  const dueOf = (last, days) => (last && Number(days) > 0) ? addDays(last, Number(days)) : '';
+  const info = t => {
+    const out = [], chk = (kind, d) => { if (!d) return; const n = Math.round((new Date(d + 'T12:00:00') - new Date(today() + 'T12:00:00')) / 86400000); if (n < 0) out.push({ kind, state: 'overdue', n, d }); else if (n <= 14) out.push({ kind, state: 'soon', n, d }); else out.push({ kind, state: 'ok', n, d }); };
+    chk('Calibration', dueOf(t.calib_last, t.calib_days)); chk('Service', dueOf(t.service_last, t.service_days)); return out;
+  };
+  const attention = t => t.status === 'repair' || info(t).some(x => x.state !== 'ok') || (t.status === 'out' && t.due_back && t.due_back < today());
+  const log = (t, action, extra) => { t.history = (t.history || []).concat([Object.assign({ at: nowStr(), action, by: (currentWorker && currentWorker.name) || '' }, extra || {})]).slice(-60); };
+  addTab('tools', 'Tools & equipment', '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.1-.5-.5-2.1z"/>', ['manager', 'floor_manager'], () => TL().enabled, async () => { await loadTools(); drawTools(); });
+
+  function drawTools() {
+    const p = g('tab-tools'); if (!p) return;
+    const all = TS.list, att = all.filter(attention), q = TS.q.toLowerCase();
+    setBadge('tools', att.length);
+    let list = all.filter(t => TS.filter === 'all' ? t.status !== 'retired' : TS.filter === 'out' ? t.status === 'out' : TS.filter === 'att' ? attention(t) && t.status !== 'retired' : TS.filter === 'retired' ? t.status === 'retired' : t.status === 'available');
+    if (q) list = list.filter(t => [t.name, t.tag, t.serial, t.holder, t.location, t.category].join(' ').toLowerCase().includes(q));
+    p.innerHTML = `<div class="page-head"><div><h2>Tools &amp; equipment</h2><div class="dash-meta"><span class="live-dot"></span><span>${all.filter(t => t.status === 'out').length} checked out · ${att.length} need attention · ${all.filter(t => t.status !== 'retired').length} items</span></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="add-btn" type="button" onclick="tlEdit()">+ Add tool</button><button class="refresh-btn" type="button" onclick="tlScan()">📷 Scan a tool</button><button class="refresh-btn" type="button" onclick="tlLabels()">Print QR labels</button></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px"><input id="tlQ" type="search" placeholder="Search name, tag, who has it…" value="${esc(TS.q)}" oninput="tlSearch(this.value)" style="flex:1;min-width:200px">
+        ${[['all', 'All'], ['out', 'Checked out'], ['att', 'Needs attention (' + att.filter(t => t.status !== 'retired').length + ')'], ['avail', 'Available'], ['retired', 'Retired']].map(([k, l]) => `<button type="button" onclick="tlFilter('${k}')" style="border:1px solid ${TS.filter === k ? 'var(--acc)' : 'var(--brd2)'};background:${TS.filter === k ? 'rgba(var(--tint-rgb),.12)' : 'transparent'};color:var(--txt);border-radius:100px;padding:6px 13px;font-size:12.5px;font-weight:600;cursor:pointer">${l}</button>`).join('')}</div>
+      ${list.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">${list.map(tCard).join('')}</div>` : `<div class="placeholder"><h3>${all.length ? 'Nothing matches' : 'No tools yet'}</h3><p>${all.length ? 'Try another filter.' : 'Add your diagnostic gear, lifts, compressors and shared tools. Give each a calibration or service interval and Garage Pro will flag it before it is due.'}</p></div>`}`;
+  }
+  function tCard(t) {
+    const col = t.status === 'out' ? 'var(--acc2)' : t.status === 'repair' ? 'var(--red)' : t.status === 'retired' ? 'var(--faint)' : 'var(--teal)';
+    const lbl = t.status === 'out' ? 'With ' + esc(t.holder || '—') : t.status === 'repair' ? 'In repair' : t.status === 'retired' ? 'Retired' : 'Available';
+    const dues = info(t), late = t.status === 'out' && t.due_back && t.due_back < today();
+    return `<div class="card" style="padding:13px 15px;border-left:4px solid ${attention(t) && t.status !== 'retired' ? 'var(--red)' : col}">
+      <div style="display:flex;justify-content:space-between;gap:8px"><div style="min-width:0"><div style="font-weight:700">${esc(t.name)}</div><div style="font-size:12px;color:var(--faint)">${esc(t.category || '')}${t.tag ? ' · ' + esc(t.tag) : ''}${t.location ? ' · ' + esc(t.location) : ''}</div></div><span style="height:fit-content;font-size:11px;font-weight:700;padding:3px 10px;border-radius:100px;background:var(--bg2);color:${col};white-space:nowrap">${lbl}</span></div>
+      ${t.status === 'out' ? `<div style="font-size:12.5px;margin-top:6px;color:${late ? 'var(--red)' : 'var(--dim)'}">Out since ${esc(dmy((t.out_at || '').slice(0, 10)))}${t.due_back ? ' · due back ' + esc(dmy(t.due_back)) + (late ? ' — OVERDUE' : '') : ''}</div>` : ''}
+      ${dues.map(x => `<div style="font-size:12.5px;margin-top:5px;color:${x.state === 'overdue' ? 'var(--red)' : x.state === 'soon' ? 'var(--acc2)' : 'var(--faint)'};font-weight:${x.state === 'ok' ? 500 : 700}">${x.kind} ${x.state === 'overdue' ? 'OVERDUE by ' + Math.abs(x.n) + ' day' + (Math.abs(x.n) === 1 ? '' : 's') : x.state === 'soon' ? 'due in ' + x.n + ' day' + (x.n === 1 ? '' : 's') : 'due ' + esc(dmy(x.d))}</div>`).join('')}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+        ${t.status === 'available' ? `<button class="add-btn" type="button" onclick="tlOut('${esc(t.id)}')">Check out</button>` : ''}${t.status === 'out' ? `<button class="add-btn" type="button" onclick="tlBack('${esc(t.id)}')">Return</button>` : ''}${t.status === 'repair' ? `<button class="add-btn" type="button" onclick="tlFixed('${esc(t.id)}')">Back in service</button>` : ''}
+        ${t.calib_days ? `<button class="mini-btn" type="button" onclick="tlDone('${esc(t.id)}','calib')">Calibrated</button>` : ''}${t.service_days ? `<button class="mini-btn" type="button" onclick="tlDone('${esc(t.id)}','service')">Serviced</button>` : ''}
+        <button class="mini-btn" type="button" onclick="tlHist('${esc(t.id)}')">History</button><button class="mini-btn" type="button" onclick="tlEdit('${esc(t.id)}')">Edit</button></div></div>`;
+  }
+  window.tlFilter = k => { TS.filter = k; drawTools(); };
+  window.tlSearch = v => { TS.q = v; drawTools(); const i = g('tlQ'); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } };
+  const byId = id => TS.list.find(t => t.id === id);
+
+  window.tlEdit = function (id) {
+    const t = id ? byId(id) : null;
+    openModal({ title: t ? 'Edit tool' : 'Add tool', saveLabel: 'Save', wide: true, body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="f-grp"><label>Name *</label><input id="tlN" value="${esc(t ? t.name : '')}" placeholder="Launch X431 scanner"></div>
+      <div class="f-grp"><label>Type</label><select id="tlC" onchange="tlCat()">${Object.keys(CATS).map(c => `<option ${t && t.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
+      <div class="f-grp"><label>Tag / asset no.</label><input id="tlT" value="${esc(t ? t.tag || '' : '')}" placeholder="T-014"></div><div class="f-grp"><label>Serial no.</label><input id="tlS" value="${esc(t ? t.serial || '' : '')}"></div>
+      <div class="f-grp"><label>Where it lives</label><input id="tlL" value="${esc(t ? t.location || '' : '')}" placeholder="Tool crib, Bay 3…"></div><div class="f-grp"><label>Status</label><select id="tlSt">${[['available', 'Available'], ['repair', 'In repair'], ['retired', 'Retired']].map(([v, l]) => `<option value="${v}" ${t && (t.status === v || (t.status === 'out' && v === 'available')) ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="f-grp"><label>Calibrate every (days, 0 = never)</label><input id="tlCD" type="number" min="0" value="${esc(t ? t.calib_days || 0 : 0)}"></div><div class="f-grp"><label>Last calibrated</label><input id="tlCL" type="date" value="${esc(t ? t.calib_last || '' : '')}"></div>
+      <div class="f-grp"><label>Service every (days, 0 = never)</label><input id="tlSD" type="number" min="0" value="${esc(t ? t.service_days || 0 : 0)}"></div><div class="f-grp"><label>Last serviced</label><input id="tlSL" type="date" value="${esc(t ? t.service_last || '' : '')}"></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Notes</label><input id="tlNo" value="${esc(t ? t.notes || '' : '')}"></div></div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>
+      <div style="font-size:12px;color:var(--faint);margin-top:8px">Intervals are your own — follow the maker's manual and any legal inspection rules for lifts and pressure vessels in your country.</div>`,
+      danger: t ? { label: 'Delete', handler: new Function('tlDelete(' + JSON.stringify(t.id) + ')') } : null,
+      onSave: async () => {
+        const name = val('tlN').trim(); if (!name) throw new Error('Give the tool a name');
+        const tag = val('tlT').trim(); if (tag && TS.list.some(x => x.id !== (t && t.id) && (x.tag || '').toLowerCase() === tag.toLowerCase())) throw new Error('That tag is already used by another tool');
+        const rec = Object.assign(t || { id: uid('tl'), created_at: nowStr(), status: 'available', history: [] }, { name, category: val('tlC'), tag, serial: val('tlS').trim(), location: val('tlL').trim(), notes: val('tlNo').trim(), calib_days: Math.max(0, +val('tlCD') || 0), calib_last: val('tlCL'), service_days: Math.max(0, +val('tlSD') || 0), service_last: val('tlSL') });
+        const ns = val('tlSt'); if (!(t && t.status === 'out' && ns === 'available')) { if (!t || t.status !== ns) log(rec, ns === 'repair' ? 'Marked in repair' : ns === 'retired' ? 'Retired' : t ? 'Marked available' : 'Added'); rec.status = ns; if (ns !== 'out') { rec.holder = ''; rec.out_at = ''; rec.due_back = ''; } }
+        if (!t) TS.list.push(rec);
+        await saveTools(); closeModal(); drawTools(); showToast('Saved', 'good');
+      } });
+  };
+  window.tlCat = () => { const c = CATS[val('tlC')] || {}; if (!+val('tlCD') && c.calib) g('tlCD').value = c.calib; if (!+val('tlSD') && c.service) g('tlSD').value = c.service; };
+  window.tlDelete = async id => { if (!(await customConfirm('Delete this tool and its history?', { title: 'Delete tool', okLabel: 'Delete' }))) return; TS.list = TS.list.filter(t => t.id !== id); await saveTools(); closeModal(); drawTools(); };
+  window.tlOut = function (id) {
+    const t = byId(id); if (!t) return;
+    const names = (D.mechanics || []).filter(m => m.active !== false).map(m => m.name).filter(Boolean);
+    openModal({ title: `Check out · ${t.name}`, saveLabel: 'Check out', body: `<div style="display:grid;gap:12px"><div class="f-grp"><label>Who is taking it? *</label><input id="toWho" list="toList" value="${esc((currentWorker && currentWorker.name) || '')}"><datalist id="toList">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
+      <div class="f-grp"><label>Back by (optional)</label><input id="toDue" type="date" min="${today()}"></div><div class="f-grp"><label>Note (optional)</label><input id="toNote" placeholder="Condition, job it is for…"></div></div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>`,
+      onSave: async () => { const who = val('toWho').trim(); if (!who) throw new Error('Enter who is taking it'); if (t.status !== 'available') throw new Error('It is no longer available'); Object.assign(t, { status: 'out', holder: who, out_at: nowStr(), due_back: val('toDue') }); log(t, 'Checked out', { to: who, note: val('toNote').trim() }); await saveTools(); closeModal(); drawTools(); showToast(`${t.name} → ${who}`, 'good'); } });
+  };
+  window.tlBack = function (id) {
+    const t = byId(id); if (!t) return;
+    openModal({ title: `Return · ${t.name}`, saveLabel: 'Return', body: `<div style="font-size:13px;color:var(--dim);margin-bottom:10px">With <b>${esc(t.holder)}</b> since ${esc(dmy((t.out_at || '').slice(0, 10)))}</div><div style="display:grid;gap:12px"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tbBad" style="width:16px;height:16px"> It is damaged or needs repair</label><div class="f-grp"><label>Note (optional)</label><input id="tbNote"></div></div>`,
+      onSave: async () => { const bad = g('tbBad').checked; log(t, bad ? 'Returned — needs repair' : 'Returned', { from: t.holder, note: val('tbNote').trim() }); Object.assign(t, { status: bad ? 'repair' : 'available', holder: '', out_at: '', due_back: '' }); await saveTools(); closeModal(); drawTools(); showToast(bad ? 'Returned and flagged for repair' : 'Returned', bad ? 'bad' : 'good'); } });
+  };
+  window.tlFixed = async id => { const t = byId(id); if (!t) return; t.status = 'available'; log(t, 'Back in service'); await saveTools(); drawTools(); };
+  window.tlDone = function (id, kind) {
+    const t = byId(id); if (!t) return; const lbl = kind === 'calib' ? 'Calibration' : 'Service';
+    openModal({ title: `${lbl} done · ${t.name}`, saveLabel: 'Record', body: `<div style="display:grid;gap:12px"><div class="f-grp"><label>Date done</label><input id="tdD" type="date" value="${today()}" max="${today()}"></div><div class="f-grp"><label>Note / certificate no. (optional)</label><input id="tdN"></div></div>`,
+      onSave: async () => { const d = val('tdD') || today(); t[kind === 'calib' ? 'calib_last' : 'service_last'] = d; log(t, lbl + ' done', { date: d, note: val('tdN').trim() }); await saveTools(); closeModal(); drawTools(); showToast(lbl + ' recorded — next due ' + dmy(dueOf(d, t[kind === 'calib' ? 'calib_days' : 'service_days'])), 'good'); } });
+  };
+  window.tlHist = function (id) { const t = byId(id); if (!t) return; _openSubModal({ title: 'History · ' + t.name, bodyHtml: (t.history || []).length ? (t.history || []).slice().reverse().map(h => `<div style="padding:8px 0;border-top:1px solid var(--brd);font-size:13px"><b>${esc(h.action)}</b>${h.to ? ' → ' + esc(h.to) : ''}${h.from ? ' ← ' + esc(h.from) : ''}${h.date ? ' · ' + esc(dmy(h.date)) : ''}<div style="font-size:12px;color:var(--faint)">${esc(h.at)} · ${esc(h.by || '')}${h.note ? ' · ' + esc(h.note) : ''}</div></div>`).join('') : '<div style="color:var(--faint)">Nothing recorded yet.</div>', footHtml: '<div style="flex:1"></div><button class="fbtn fbtn-save" onclick="closeSubModal()">Close</button>' }); };
+  // scanning a tool's QR label (or typing its tag)
+  window.tlScan = function () {
+    const open = code => { const c = String(code || '').trim(), t = TS.list.find(x => 'GPT-' + x.id === c || x.id === c || (x.tag && x.tag.toLowerCase() === c.toLowerCase())); if (!t) return showToast('No tool matches “' + c + '”', 'bad'); if (t.status === 'available') tlOut(t.id); else if (t.status === 'out') tlBack(t.id); else tlHist(t.id); };
+    if (typeof openScanner === 'function') openScanner('tool', open, 'Scan a tool’s QR label'); else customPrompt('Tool tag', { title: 'Find a tool' }).then(v => v && open(v));
+  };
+  window.tlLabels = async function () {
+    const items = TS.list.filter(t => t.status !== 'retired'); if (!items.length) return showToast('Add some tools first', 'bad');
+    try { await ensureQR(); } catch (e) { return showToast('QR library did not load', 'bad'); }
+    const w = window.open('', '_blank'); if (!w) return showToast('Allow pop-ups to print labels', 'bad');
+    const cells = items.map(t => { const d = document.createElement('div'); new QRCode(d, { text: 'GPT-' + t.id, width: 150, height: 150, correctLevel: QRCode.CorrectLevel.M }); const c = d.querySelector('canvas'), src = c ? c.toDataURL('image/png') : ((d.querySelector('img') || {}).src || ''); return `<div class="l"><img src="${src}" alt="QR code for ${esc(t.name)}"><div><b>${esc(t.name)}</b><br>${esc(t.tag || '')}<br><small>${esc(S().workshop_name || '')}</small></div></div>`; }).join('');
+    _openDocInWindow(w, `<!doctype html><meta charset="utf-8"><title>Tool labels</title><style>body{font:12px system-ui,sans-serif;margin:10mm}.g{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm}.l{border:1px dashed #999;border-radius:6px;padding:6px;display:flex;gap:8px;align-items:center;break-inside:avoid}.l img{width:26mm;height:26mm}small{color:#555}</style><div class="g">${cells}</div><script>setTimeout(()=>print(),400)<\/script>`);
+  };
+  // morning nudge: how many items need attention
+  setInterval(() => { try { if (TL().enabled && TS.loaded) setBadge('tools', TS.list.filter(attention).length); } catch (_) {} }, 60000);
+  setTimeout(() => { try { if (TL().enabled && currentWorker && TABS[0].can()) loadTools().then(() => setBadge('tools', TS.list.filter(attention).length)); } catch (_) {} }, 5200);
+
+  // ───────── Settings → More features: two more switches ─────────
+  function addSettings() {
+    const host = g('moreCardHost'); if (!host || g('mt-on') || !isAdminRole()) return;
+    const holder = host.querySelector('.card > div[style*="display:grid"]'); if (!holder) return;
+    const d = document.createElement('div'); d.style.cssText = 'background:var(--bg2);border-radius:12px;padding:14px';
+    d.innerHTML = `<label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="mt-on" ${TL().enabled ? 'checked' : ''} style="width:16px;height:16px"> Tools &amp; equipment log</label><div style="font-size:12.5px;color:var(--faint);margin:6px 0 10px">Who has which tool, calibration due dates for diagnostic gear and torque wrenches, service reminders for lifts and compressors, QR labels. Optional — adds a Tools &amp; equipment tab you can give to roles.</div>
+      <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="mv-on" ${SC().decode ? 'checked' : ''} style="width:16px;height:16px"> Decode VINs after scanning</label><div style="font-size:12.5px;color:var(--faint);margin-top:6px">Scanning a VIN (barcode or text) always works on the device. With this on, the VIN — and nothing else — is also sent to the free US NHTSA database to fill in make, model and year. It decodes US-market cars well and many others only partly; when it can’t, only the VIN is filled in.</div>`;
+    holder.appendChild(d);
+  }
+  const _rs = window.renderSettings;
+  if (typeof _rs === 'function') window.renderSettings = async function () { const r = await _rs.apply(this, arguments); setTimeout(() => { try { addSettings(); } catch (e) { console.warn('[tools card]', e); } }, 0); return r; };
+  const _ms = window.moreSave;
+  window.moreSave = async function () { if (g('mt-on')) { const s = S(); s.tools = { enabled: g('mt-on').checked }; s.scan = { decode: g('mv-on').checked }; } const r = await _ms.apply(this, arguments); try { renderSidebarVisibility(); } catch (_) {} return r; };
 })();
 </script>
 
