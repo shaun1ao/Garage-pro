@@ -150,6 +150,7 @@
   }
   // ---- 2. candidate glyph sets ----
   function candidateSets(gl) {
+    gl.comps.forEach(function (o) { delete o._row; });
     var cs = mergeFragments(gl.comps).sort(function (a, b) { return b.h - a.h; }); if (cs.length < 1) return [];
     var clusters = []; cs.forEach(function (o) { var cl = clusters[clusters.length - 1]; if (cl && o.h >= cl.hmax * 0.74) { cl.items.push(o); cl.hmin = Math.min(cl.hmin, o.h); } else clusters.push({ items: [o], hmax: o.h, hmin: o.h }); });
     clusters = clusters.filter(function (c) { return c.items.length >= 1; });
@@ -158,12 +159,34 @@
     // keep only glyphs that sit in one text band (vertical overlap with the group's median line), then order for reading
     return sets.filter(function (s) { return s.length >= 2; }).map(function (s) { if (s.length > 12) s = s.slice().sort(function (a, b) { return b.h - a.h; }).slice(0, 12); return readingOrder(s); });
   }
+  // Many plates (current Dubai, Sharjah, Abu Dhabi…) print the CODE smaller than the NUMBER, above or beside it, with the
+  // emirate name and Arabic nearby. So: take the tallest run as the number, then look for a small, isolated group of 1–2 glyphs
+  // (1–2 because a name like DUBAI or SHARJAH is a long run of glyphs) placed left of or above the number.
+  function codeTierSets(gl) {
+    var all = mergeFragments(gl.comps).sort(function (a, b) { return b.h - a.h; }); if (all.length < 3) return [];
+    var top = all[0], num = all.filter(function (o) { return o.h >= top.h * 0.78; }); if (num.length < 1 || num.length > 8) return [];
+    var N = readingOrder(num), hN = N.slice().sort(function (a, b) { return a.h - b.h; })[(N.length / 2) | 0].h, nx0 = Math.min.apply(null, N.map(function (o) { return o.x0; })), nx1 = Math.max.apply(null, N.map(function (o) { return o.x1; })), ny0 = Math.min.apply(null, N.map(function (o) { return o.y0; })), ny1 = Math.max.apply(null, N.map(function (o) { return o.y1; }));
+    var small = all.filter(function (o) { return num.indexOf(o) < 0 && o.h >= hN * 0.36 && o.h <= hN * 1.1 && o.w / o.h < 1.3; });
+    // group small glyphs that sit side by side at the same height
+    var groups = []; small.slice().sort(function (a, b) { return a.x0 - b.x0; }).forEach(function (o) { var g = groups.filter(function (g) { var l = g[g.length - 1]; return Math.abs((l.y0 + l.y1) / 2 - (o.y0 + o.y1) / 2) < Math.max(l.h, o.h) * 0.45 && o.x0 - l.x1 < Math.max(l.h, o.h) * 0.7 && Math.abs(l.h - o.h) < Math.max(l.h, o.h) * 0.3; })[0]; if (g) g.push(o); else groups.push([o]); });
+    var cands = [];
+    groups.forEach(function (g) {
+      if (g.length > 2) return;
+      var gx0 = g[0].x0, gx1 = g[g.length - 1].x1, gy0 = Math.min.apply(null, g.map(function (o) { return o.y0; })), gy1 = Math.max.apply(null, g.map(function (o) { return o.y1; })), cx = (gx0 + gx1) / 2, cy = (gy0 + gy1) / 2;
+      var left = gx1 <= nx0 + hN * 0.15 && gy1 > ny0 - hN * 0.5, above = gy1 <= ny0 + hN * 0.3 && cx >= nx0 - hN * 0.6 && cx <= nx1 + hN * 0.6;
+      if (!left && !above) return;
+      var dx = Math.max(0, Math.max(nx0 - gx1, gx0 - nx1)), dy = Math.max(0, Math.max(ny0 - gy1, gy0 - ny1)), dist = Math.sqrt(dx * dx + dy * dy) / hN; if (dist > 3) return;
+      g.forEach(function (o) { o._row = 0; }); N.forEach(function (o) { o._row = 1; });
+      var seq = g.slice().sort(function (a, b) { return a.x0 - b.x0; }).concat(N); seq._forced = g.length; seq._dist = dist; seq._tier = true; cands.push(seq);
+    });
+    return cands.sort(function (a, b) { return a._dist - b._dist; }).slice(0, 3);
+  }
   // a glyph broken into pieces (a blurred 9, a bevelled 8) is merged back: pieces that sit on top of each other horizontally
   function mergeFragments(list) {
-    var items = list.map(function (o) { return Object.assign({}, o, { parts: [{ pol: o.pol, id: o.id }] }); }), changed = true;
+    var items = list.map(function (o) { return Object.assign({}, o, { parts: [{ pol: o.pol, id: o.id }] }); }), changed = true, tallest0 = list.reduce(function (m, o) { return Math.max(m, o.h); }, 1);
     while (changed) { changed = false; outer: for (var i = 0; i < items.length; i++) for (var j = i + 1; j < items.length; j++) { var a = items[i], b = items[j]; if (a.pol !== b.pol) continue;
         var ov = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) + 1, narrow = Math.min(a.w, b.w), nh = Math.max(a.y1, b.y1) - Math.min(a.y0, b.y0) + 1, tallest = Math.max(a.h, b.h);
-        if (ov >= narrow * 0.6 && nh <= tallest * 1.9 && nh <= Math.max(a.h, b.h) * 1.9 && Math.min(a.h, b.h) < tallest * 0.9 && (Math.max(a.y0, b.y0) - Math.min(a.y1, b.y1) < tallest * 0.25)) {
+        if (ov >= narrow * 0.6 && nh <= tallest0 * 1.12 && Math.min(a.h, b.h) < tallest * 0.9 && (Math.max(a.y0, b.y0) - Math.min(a.y1, b.y1) < tallest * 0.25)) {
           var m = { pol: a.pol, id: a.id, parts: a.parts.concat(b.parts), x0: Math.min(a.x0, b.x0), x1: Math.max(a.x1, b.x1), y0: Math.min(a.y0, b.y0), y1: Math.max(a.y1, b.y1), area: a.area + b.area }; m.w = m.x1 - m.x0 + 1; m.h = m.y1 - m.y0 + 1; items.splice(j, 1); items[i] = m; changed = true; break outer; } } }
     return items;
   }
@@ -203,11 +226,21 @@
   }
   // read one ROW of glyphs as a line (the recogniser is far better with context than with isolated characters). Glyphs are
   // re-drawn alone on a clean white line, keeping their spacing; one symbol back per glyph is mapped 1:1.
+  // morphological closing (grow then shrink by r pixels): seals the thin cut in a slashed zero or a bevel crack without filling a
+  // letter's real holes, and smooths jagged edges
+  function closeMask(a, w, h, r) {
+    function pass(src, grow) { var out = new Uint8Array(w * h), x, y, k, tmp = new Uint8Array(w * h);
+      for (y = 0; y < h; y++) for (x = 0; x < w; x++) { var v = grow ? 0 : 1; for (k = -r; k <= r; k++) { var xx = x + k; if (xx < 0 || xx >= w) { if (!grow) v = 0; continue; } var s2 = src[y * w + xx]; if (grow ? s2 : !s2) { v = grow ? 1 : 0; break; } } tmp[y * w + x] = v; }
+      for (y = 0; y < h; y++) for (x = 0; x < w; x++) { var v2 = grow ? 0 : 1; for (k = -r; k <= r; k++) { var yy = y + k; if (yy < 0 || yy >= h) { if (!grow) v2 = 0; continue; } var s3 = tmp[yy * w + x]; if (grow ? s3 : !s3) { v2 = grow ? 1 : 0; break; } } out[y * w + x] = v2; }
+      return out; }
+    return pass(pass(a, true), false);
+  }
   function rowCanvas(gl, row) {
     var x0 = 1e9, y0 = 1e9, x1 = 0, y1 = 0; row.forEach(function (o) { x0 = Math.min(x0, o.x0); y0 = Math.min(y0, o.y0); x1 = Math.max(x1, o.x1); y1 = Math.max(y1, o.y1); });
     var ref = row.slice().sort(function (a, b) { return a.h - b.h; })[(row.length / 2) | 0].h, pad = Math.round(ref * 0.3), gw = x1 - x0 + 1 + pad * 2, gh = y1 - y0 + 1 + pad * 2, c = document.createElement('canvas'); c.width = gw; c.height = gh;
     var g = c.getContext('2d'), im = g.createImageData(gw, gh), dd = im.data, i; for (i = 0; i < dd.length; i += 4) { dd[i] = dd[i + 1] = dd[i + 2] = 255; dd[i + 3] = 255; }
-    row.forEach(function (o) { var parts = o.parts || [{ pol: o.pol, id: o.id }]; for (var y = o.y0; y <= o.y1; y++) for (var x = o.x0; x <= o.x1; x++) if (parts.some(function (pp) { return gl.labs[pp.pol][y * gl.w + x] === pp.id; })) { var k = ((y - y0 + pad) * gw + (x - x0 + pad)) * 4; dd[k] = dd[k + 1] = dd[k + 2] = 0; } });
+    var m = new Uint8Array(gw * gh); row.forEach(function (o) { var parts = o.parts || [{ pol: o.pol, id: o.id }]; for (var y = o.y0; y <= o.y1; y++) for (var x = o.x0; x <= o.x1; x++) if (parts.some(function (pp) { return gl.labs[pp.pol][y * gl.w + x] === pp.id; })) m[(y - y0 + pad) * gw + (x - x0 + pad)] = 1; });
+    var rr = Math.max(1, Math.round(ref * 0.045)); m = closeMask(m, gw, gh, rr); for (i = 0; i < m.length; i++) if (m[i]) { dd[i * 4] = dd[i * 4 + 1] = dd[i * 4 + 2] = 0; }
     g.putImageData(im, 0, 0); var sc = Math.min(2, 90 / ref), out = document.createElement('canvas'); out.width = Math.round(gw * sc); out.height = Math.round(gh * sc); var og = out.getContext('2d'); og.imageSmoothingEnabled = true; og.drawImage(c, 0, 0, out.width, out.height); return out;
   }
   function readRows(gl, seq) {   // → array of {t,c} aligned with seq (null where the reader's symbol count doesn't match the glyph count)
@@ -264,13 +297,13 @@
       return run(0, null).then(function (best) { return best && best.score > 25 ? best : tryBox(i + 1).then(function (b2) { return b2 || best; }); });
     }
     function tryMode(i, mode) {
-      var gl = findGlyphs(canvas, boxes[i], mode), sets = candidateSets(gl).slice(0, 4);
+      var gl = findGlyphs(canvas, boxes[i], mode), sets = codeTierSets(gl).concat(candidateSets(gl).slice(0, 4));
       if (!sets.length) return Promise.resolve(null);
       var chain = Promise.resolve(null);
       sets.forEach(function (seq) {
         chain = chain.then(function (best) {
           var reads = new Array(seq.length), p = readRows(gl, seq).then(function (rr) { rr.forEach(function (r, k) { reads[k] = r; }); }); seq.forEach(function (o, k) { p = p.then(function () { return reads[k] ? null : readGlyph(gl, o).then(function (r) { reads[k] = r; }); }).then(function () { if (reads[k] && /[0-9]/.test(reads[k].t) === false && (o.w / o.h < 0.3) && (o.area / (o.w * o.h) > 0.7) && reads[k].c < 85) reads[k] = { t: '1', c: 72 }; }); });
-          return p.then(function () { var gaps = gapsOf(seq); specs.forEach(function (sp) { var f = fitSpec(seq, reads, gaps, sp); if (f && (!best || f.score > best.score)) best = f; }); return best; });
+          return p.then(function () { var gaps = gapsOf(seq); if (seq._forced) gaps[seq._forced - 1] = 9; specs.forEach(function (sp) { var f = fitSpec(seq, reads, gaps, sp); if (f && seq._tier) f.score -= 6; if (f && (!best || f.score > best.score)) best = f; }); return best; });
         });
       });
       return chain;
@@ -452,5 +485,5 @@
     });
   }
 
-  window.GPScan = { scanVin: scanVin, scanPlate: scanPlate, decodeVin: decodeVin, _t: { readPlateImage: readPlateImage, glyphCanvas: glyphCanvas, readRows: readRows, rowCanvas: rowCanvas, grayGlyphCanvas: grayGlyphCanvas, readGlyph: readGlyph, findGlyphs: findGlyphs, candidateSets: candidateSets, specsFor: specsFor, fitSpec: fitSpec, extractVin: extractVin, checkDigitOk: checkDigitOk, parsePlate: parsePlate, fixVinChars: fixVinChars, prep: prep, ocrText: ocrText, VIN_WL: VIN_WL, PLATE_WL: PLATE_WL } };
+  window.GPScan = { scanVin: scanVin, scanPlate: scanPlate, decodeVin: decodeVin, _t: { readPlateImage: readPlateImage, codeTierSets: codeTierSets, readRows2: null, glyphCanvas: glyphCanvas, readRows: readRows, rowCanvas: rowCanvas, grayGlyphCanvas: grayGlyphCanvas, readGlyph: readGlyph, findGlyphs: findGlyphs, candidateSets: candidateSets, specsFor: specsFor, fitSpec: fitSpec, extractVin: extractVin, checkDigitOk: checkDigitOk, parsePlate: parsePlate, fixVinChars: fixVinChars, prep: prep, ocrText: ocrText, VIN_WL: VIN_WL, PLATE_WL: PLATE_WL } };
 })();
