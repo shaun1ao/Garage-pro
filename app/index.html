@@ -12,9 +12,7 @@
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
 <meta name="theme-color" content="#0a0e14" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="../fonts/fonts.css" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -10191,7 +10189,7 @@ window.openJobForm = function(id) {
         return `<div style="margin:14px 0;padding:12px 14px;background:rgba(var(--tint-rgb),.05);border:1px solid rgba(var(--tint-rgb),.30);border-radius:9px">
           <div style="font-family:var(--fd);font-weight:700;font-size:12.5px;color:var(--teal,var(--ink-soft));letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Customer concerns from appointment</div>
           <ul style="margin:0;padding-left:20px;color:var(--txt);font-size:13px;line-height:1.6">
-            ${list.map(c => `<li>${escapeHtml(c.text || c)}</li>`).join('')}
+            ${list.map((c, ci) => { const t = String(c.text || c).trim().toLowerCase(); const its = []; (D.parts_requests || []).filter(r => r.job_id === j.id).forEach(r => _prRequestItems(r).forEach(it => { if (it.concern_id === 'cmp:' + ci || (t && String(it.concern_title || '').trim().toLowerCase() === t)) its.push(it); })); return `<li>${escapeHtml(c.text || c)}${its.length ? `<div style="font-size:12px;color:var(--dim)">Parts: ${its.map(it => escapeHtml(it.name) + ' × ' + it.qty).join(' · ')}</div>` : ''}</li>`; }).join('')}
           </ul>
         </div>`;
       })()}
@@ -10838,6 +10836,18 @@ window._concernAssignAllMechanic = function() {
   showToast(added ? `${name} added to ${added} concern${added===1?'':'s'}` : `${name} already on every concern`, 'good');
 };
 
+// Parts that have been requested for a concern (from the Request Parts / Manage Requests pages), shown under that concern.
+function _concernRequestedParts(c) {
+  try {
+    const jid = _editingJob && _editingJob.id, t = String(c.title || '').trim().toLowerCase();
+    const its = [];
+    (D.parts_requests || []).filter(r => r.job_id === jid).forEach(r => _prRequestItems(r).forEach(it => {
+      if ((it.concern_id && it.concern_id === c.id) || (t && String(it.concern_title || '').trim().toLowerCase() === t)) its.push(it);
+    }));
+    if (!its.length) return '';
+    return `<div style="margin-top:8px;padding:8px 10px;border:1px dashed var(--brd2);border-radius:8px;font-size:12px;color:var(--dim)"><b style="color:var(--txt)">Parts requested for this concern:</b> ${its.map(it => `${escapeHtml(it.name)} × ${it.qty} <span style="color:var(--faint)">(${escapeHtml(it.status || 'Pending')})</span>`).join(' · ')}</div>`;
+  } catch (_) { return ''; }
+}
 function _drawConcerns() {
   const wrap = document.getElementById('jf-concerns');
   if (!wrap) return;
@@ -10877,6 +10887,7 @@ function _drawConcerns() {
       ${_concernAssigneeChips(c, ci, ro)}
       ${ro ? '' : `<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button type="button" class="mini-btn" onclick="_concernAddItem(${ci})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>Add item</button></div>`}
       ${rowsHtml}
+      ${_concernRequestedParts(c)}
       ${decHtml}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:10px">
         <div style="font-size:12.5px;color:var(--dim)">Subtotal <b style="color:var(--txt);font-family:'Courier New',monospace">${cur}${total.toLocaleString('en-IN')}</b> <span style="color:var(--faint);font-size:11px">+ GST on taxable items</span></div>
@@ -12164,7 +12175,7 @@ window._printVehicleQR = function(plate, qrText) {
     <style>@page{size:auto;margin:0mm}body{font-family:system-ui,sans-serif;text-align:center;padding:30px}
     img{width:280px;height:280px;border:1px solid #eee;padding:14px;background:#fff}
     h1{font-size:22px;margin:18px 0 4px}.code{font-family:Courier New,monospace;color:#666;font-size:13px}
-    </style></head><body><img src="${dataUrl}"><h1>${plate}</h1><div class="code">${qrText}</div>
+    </style></head><body><img src="${dataUrl}" alt="QR code for vehicle ${plate}"><h1>${plate}</h1><div class="code">${qrText}</div>
     <script>setTimeout(()=>{window.print();},350)<\/script></body></html>`;
   _openDocInWindow(w, html);
 };
@@ -13816,7 +13827,7 @@ async function renderParts(force = false) {
           ${r.notes ? `<div style="font-size:11.5px;color:var(--faint);margin-top:3px">${escapeHtml(r.notes)}</div>` : ''}
           ${breakdown ? `<div style="margin-top:6px">${breakdown}</div>` : ''}
         </td>
-        <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>${r.vin ? `<div style="font-size:10.5px;color:var(--faint);margin-top:2px">VIN ${escapeHtml(r.vin)}</div>` : ''}` : '—'}</td>
+        <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>${r.vin ? `<div style="font-size:10.5px;color:var(--faint);margin-top:2px">VIN ${escapeHtml(r.vin)}</div>` : ''}${(r.job_id && canSee('jobs') && (D.jobs || []).some(x => x.id === r.job_id)) ? `<div style="margin-top:5px"><button type="button" class="mini-btn" onclick="openJobFromPartReq('${escapeHtml(r.id)}')">Open job card</button></div>` : ''}` : '—'}</td>
         <td>${escapeHtml(r.urgency || 'Normal')}</td>
         <td>${statusPill(rollup)}</td>
         <td><div class="row-act">
@@ -13907,6 +13918,7 @@ function _openPartReqDetail(reqId) {
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;color:var(--txt);font-size:13.5px">${escapeHtml(it.name)} <span style="font-weight:500;color:var(--faint);font-size:12px">× ${it.qty}</span></div>
           <div style="margin-top:3px;display:flex;gap:5px;flex-wrap:wrap"><span style="display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:100px;background:${tint.bg};color:${tint.fg}">${(it.status || 'PENDING').toUpperCase()}</span>${_prCustomerApprovalPill(it.customer_approval)}</div>
+          ${_prConcernBlock(r, it)}
           ${priceBlock}
           ${it.location ? `<div style="font-size:11.5px;color:var(--dim);margin-top:2px">📍 ${escapeHtml(it.location)}</div>` : ''}
           ${estimateBox}
@@ -13929,6 +13941,7 @@ function _openPartReqDetail(reqId) {
         <div><span style="color:var(--faint)">At</span> <b style="color:var(--txt)">${escapeHtml((r.requested_at || '').slice(0,16))}</b></div>
         <div><span style="color:var(--faint)">Urgency</span> <b style="color:var(--txt)">${escapeHtml(r.urgency || 'Normal')}</b></div>
         <div><span style="color:var(--faint)">Overall</span> ${statusPill(rollup)}</div>
+        ${(r.job_id && linkedJob && canSee('jobs')) ? `<div style="grid-column:span 2"><button type="button" class="mini-btn good" onclick="openJobFromPartReq('${escapeHtml(r.id)}')">Open this job card</button></div>` : ''}
         ${vin ? `<div style="grid-column:span 2"><span style="color:var(--faint)">VIN / Chassis</span> <b style="color:var(--txt)">${escapeHtml(vin)}</b></div>` : ''}
         ${r.notes ? `<div style="grid-column:span 2;color:var(--dim);font-style:italic">"${escapeHtml(r.notes)}"</div>` : ''}
       </div>
@@ -13947,6 +13960,43 @@ function _openPartReqDetail(reqId) {
   });
 }
 window._openPartReqDetail = _openPartReqDetail;
+
+// Concern tag on each part in a request — which customer concern on the job card it is for. Editable by the parts
+// department, the service advisor / owner / manager, and whoever raised the request.
+function _prConcernBlock(r, it) {
+  const job = r.job_id ? (D.jobs || []).find(x => x.id === r.job_id) : null;
+  if (!job) return it.concern_title ? `<div style="font-size:11.5px;color:var(--dim);margin-top:4px">For: <b style="color:var(--txt)">${escapeHtml(it.concern_title)}</b></div>` : '';
+  const can = canApproveParts() || isServiceAdvisorRole() || r.requested_by_id === (currentWorker?.id || '___');
+  const opts = _prConcernsForJob(job);
+  const cur = it.concern_id || '';
+  const known = opts.some(c => c.id === cur);
+  const sel = `<select ${can ? '' : 'disabled'} onchange="_prSetItemConcern('${escapeHtml(r.id)}','${escapeHtml(it.id)}',this.value)" style="max-width:240px;padding:4px 6px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);font-size:12px">
+      <option value="">Other findings</option>
+      ${(!known && cur && it.concern_title) ? `<option value="${escapeHtml(cur)}" selected>${escapeHtml(it.concern_title)}</option>` : ''}
+      ${opts.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === cur ? 'selected' : ''}>${escapeHtml(c.title)}</option>`).join('')}
+      ${can ? '<option value="__new">＋ New concern…</option>' : ''}</select>`;
+  return `<div style="font-size:11.5px;color:var(--faint);margin-top:5px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">Customer concern ${sel}</div>`;
+}
+window._prSetItemConcern = async function (reqId, itemId, value) {
+  const r = D.parts_requests.find(x => x.id === reqId); if (!r) return;
+  const items = _prRequestItems(r), it = items.find(x => x.id === itemId); if (!it) return;
+  let c = null;
+  if (value === '__new') { c = await _prCreateConcern(r.job_id); if (!c) return _openPartReqDetail(reqId); }
+  else if (value) c = _prConcernsForJob((D.jobs || []).find(x => x.id === r.job_id)).find(x => x.id === value) || null;
+  it.concern_id = c ? c.id : ''; it.concern_title = c ? c.title : '';
+  r.items = items; r.updated_at = nowStr();
+  try { await wsSave('parts_requests', D.parts_requests); showToast(c ? 'Linked to “' + c.title + '”' : 'Marked as other findings', 'good'); } catch (e) { showToast('Could not save: ' + (e.message || e), 'bad'); }
+  _openPartReqDetail(reqId);
+  if (typeof renderParts === 'function' && currentTab === 'parts') renderParts();
+};
+// Jump from a parts request to its job card.
+window.openJobFromPartReq = function (reqId) {
+  const r = D.parts_requests.find(x => x.id === reqId); if (!r || !r.job_id) return showToast('This request is not linked to a job card', 'bad');
+  const j = (D.jobs || []).find(x => x.id === r.job_id); if (!j) return showToast('That job card no longer exists', 'bad');
+  if (!canSee('jobs')) return showToast('Your role cannot open job cards', 'bad');
+  try { closeSubModal(); } catch (_) {}
+  openJobForm(j.id);
+};
 
 // Manually add a brand-new item to an ALREADY-SAVED request (Manage requests
 // detail view) — for parts found mid-job after the original request was sent,
@@ -14151,7 +14201,7 @@ async function renderRequestParts(force = false) {
         <td style="color:var(--faint);font-size:12.5px;white-space:nowrap">${escapeHtml((r.requested_at||'').slice(0,16))}</td>
         <td class="k">${_prItemsCell(r)}${r.notes ? `<br><span style="font-size:11.5px;color:var(--faint)">${escapeHtml(r.notes)}</span>` : ''}</td>
         <td>${escapeHtml(String(r.qty || 1))}</td>
-        <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>${r.vin ? `<div style="font-size:10.5px;color:var(--faint);margin-top:2px">VIN ${escapeHtml(r.vin)}</div>` : ''}` : '—'}</td>
+        <td>${r.plate ? `<span class="plate">${escapeHtml(r.plate)}</span>${r.vin ? `<div style="font-size:10.5px;color:var(--faint);margin-top:2px">VIN ${escapeHtml(r.vin)}</div>` : ''}${(r.job_id && canSee('jobs') && (D.jobs || []).some(x => x.id === r.job_id)) ? `<div style="margin-top:5px"><button type="button" class="mini-btn" onclick="openJobFromPartReq('${escapeHtml(r.id)}')">Open job card</button></div>` : ''}` : '—'}</td>
         <td>${escapeHtml(r.urgency || 'Normal')}</td>
         <td>${anyPriced ? `<b style="color:var(--teal)">${cur}${estTotal.toLocaleString('en-IN')}</b>` : '<span style="color:var(--faint);font-size:12px">—</span>'}</td>
         <td>${statusPill(s)}</td>
@@ -14219,11 +14269,31 @@ window.openPartRequestForm = function(prefill) {
 // Concerns of the job currently selected in the "For job" picker — used to
 // populate each item row's concern dropdown. Empty array (just "Other
 // findings") when no job is picked or that job has no concerns yet.
+function _prConcernsForJob(job) {
+  if (!job) return [];
+  const out = (job.concerns || []).filter(c => (c.title || '').trim()).map(c => ({ id: c.id, title: c.title }));
+  const seen = new Set(out.map(c => c.title.trim().toLowerCase()));
+  const b = (D.bookings || []).find(x => x.id === job.booking_id);
+  const comp = (b && Array.isArray(b.complaints) && b.complaints.length) ? b.complaints : (Array.isArray(job.complaints) ? job.complaints : []);
+  comp.forEach((c, i) => { const t = String((c && c.text) || c || '').trim(); if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); out.push({ id: 'cmp:' + i, title: t, complaint: true }); } });
+  return out;
+}
+window._prConcernsForJob = _prConcernsForJob;
 function _prJobConcerns() {
   const jobId = document.getElementById('pf-job')?.value || '';
-  const job = jobId ? D.jobs.find(j => j.id === jobId) : null;
-  return (job?.concerns || []).filter(c => (c.title || '').trim());
+  return _prConcernsForJob(jobId ? D.jobs.find(j => j.id === jobId) : null);
 }
+// "+ New concern" from a parts request: adds it to the job card's concern list so it shows there too.
+async function _prCreateConcern(jobId) {
+  const job = D.jobs.find(j => j.id === jobId); if (!job) return null;
+  const t = await customPrompt('Name the concern this part is for (e.g. "AC not cooling")', { title: 'New concern', okLabel: 'Add', required: true });
+  if (!t || !String(t).trim()) return null;
+  const c = { id: uid('concern'), title: String(t).trim().slice(0, 120), assignees: [], items: [], approval_token: '', sent_at: '', status: 'draft', decision: null };
+  job.concerns = (job.concerns || []).concat([c]); job.updated_at = nowStr();
+  try { await wsSave('jobs', D.jobs); } catch (e) { showToast('Could not save the concern: ' + (e.message || e), 'bad'); }
+  return c;
+}
+window._prCreateConcern = _prCreateConcern;
 
 // Scan a vehicle QR (or type its plate) from inside the Request Parts form to
 // pick that vehicle's job — same GPV-/registry resolution as everywhere else.
@@ -14262,7 +14332,8 @@ function _prDrawItems() {
   }
   const concerns = _prJobConcerns();
   const concernOpts = (selId) => `<option value="" ${!selId ? 'selected' : ''}>Other findings</option>` +
-    concerns.map(c => `<option value="${escapeHtml(c.id)}" ${selId === c.id ? 'selected' : ''}>${escapeHtml(c.title)}</option>`).join('');
+    concerns.map(c => `<option value="${escapeHtml(c.id)}" ${selId === c.id ? 'selected' : ''}>${escapeHtml(c.title)}</option>`).join('') +
+    (document.getElementById('pf-job')?.value ? `<option value="__new">＋ New concern…</option>` : '');
   wrap.innerHTML = `<div style="overflow:auto"><table class="list-tbl" style="min-width:640px">
     <thead><tr><th>Part name</th><th style="width:80px">Qty</th><th style="width:180px">Customer concern</th><th style="width:40px"></th></tr></thead>
     <tbody>${_editingPartReq.items.map((it, i) => `<tr>
@@ -14275,8 +14346,13 @@ function _prDrawItems() {
     const i = Number(ev.target.dataset.pri), f = ev.target.dataset.f;
     _editingPartReq.items[i][f] = f === 'name' ? ev.target.value : (Number(ev.target.value) || 0);
   }));
-  wrap.querySelectorAll('select[data-pri]').forEach(sel => sel.addEventListener('change', (ev) => {
+  wrap.querySelectorAll('select[data-pri]').forEach(sel => sel.addEventListener('change', async (ev) => {
     const i = Number(ev.target.dataset.pri);
+    if (ev.target.value === '__new') {
+      const nc = await _prCreateConcern(document.getElementById('pf-job')?.value || '');
+      if (nc) { _editingPartReq.items[i].concern_id = nc.id; _editingPartReq.items[i].concern_title = nc.title; } else { _editingPartReq.items[i].concern_id = ''; _editingPartReq.items[i].concern_title = ''; }
+      return _prDrawItems();
+    }
     const c = concerns.find(x => x.id === ev.target.value);
     _editingPartReq.items[i].concern_id = c ? c.id : '';
     _editingPartReq.items[i].concern_title = c ? c.title : '';
@@ -14587,7 +14663,10 @@ function _prRequestItems(r) {
       location: it.location || '', supplier: it.supplier || '', barcode: it.barcode || '',
       // Pending/Approved/Declined once this item is priced into a job estimate
       // and the customer responds — see _prAutoAddToJobEstimate / _syncPartsRequestApprovals.
-      customer_approval: it.customer_approval || ''
+      customer_approval: it.customer_approval || '',
+      // Which customer concern on the job card this part is for. This was being dropped on every normalise pass
+      // (setPartStatus re-runs it on each status change), so the link vanished as soon as a part was ordered.
+      concern_id: it.concern_id || '', concern_title: it.concern_title || ''
     }));
   }
   if (r.part_name) {
@@ -14597,7 +14676,8 @@ function _prRequestItems(r) {
       price:      (r.price == null || r.price === '') ? null : Number(r.price),
       cost_price: (r.cost_price == null || r.cost_price === '') ? null : Number(r.cost_price),
       location: r.location || '', supplier: r.supplier || '', barcode: r.barcode || '',
-      customer_approval: r.customer_approval || ''
+      customer_approval: r.customer_approval || '',
+      concern_id: r.concern_id || '', concern_title: r.concern_title || ''
     }];
   }
   return [];
@@ -18735,6 +18815,43 @@ async function _enqueueMail({ to, subject, html, fromName, logo, kind, event }) 
   } catch (e) { console.warn('[enqueueMail]', e); return null; }
 }
 
+// ── Unsubscribe links: every automatic customer email carries a one-click "Unsubscribe" link ──
+// The token lives on the customer's record (or, for someone with no record, in a small map in settings). When the person opens
+// garagepro.me/unsubscribe.html it writes users/{uid}/email_optouts/{token}; a listener below turns that into customer.email_optout.
+function _unsubFor(email) {
+  const em = String(email || '').trim().toLowerCase(); if (!em) return { token: '', optedOut: false };
+  const mk = () => 'u' + Array.from(crypto.getRandomValues(new Uint8Array(18)), b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
+  const c = (D.customers || []).find(x => String(x.email || '').trim().toLowerCase() === em);
+  if (c) { if (!c.unsub_token) { c.unsub_token = mk(); wsSave('customers', D.customers).catch(() => {}); } return { token: c.unsub_token, optedOut: !!c.email_optout }; }
+  const s = D.settings || (D.settings = {}), m = s.unsub_tokens || (s.unsub_tokens = {});
+  if (!m[em]) { m[em] = { t: mk(), out: false }; const ks = Object.keys(m); if (ks.length > 800) delete m[ks[0]]; try { wsSaveSettings(); } catch (_) {} }
+  return { token: m[em].t, optedOut: !!m[em].out };
+}
+function _withUnsubscribe(html, token) {
+  if (!token) return html;
+  const link = `https://garagepro.me/unsubscribe.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(token)}`;
+  const foot = `<div style="font-family:Arial,sans-serif;font-size:12px;color:#889;text-align:center;margin:18px auto 6px;max-width:520px;line-height:1.5">You are getting this email because of your visit to ${escapeHtml(_wsName())}. <a href="${link}" style="color:#667">Unsubscribe</a> — one click, no login.</div>`;
+  return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, foot + '</body>') : html + foot;
+}
+(function unsubSync() {
+  let started = false;
+  function start() {
+    if (started || !currentWorker || typeof wsCol !== 'function') return; started = true;
+    try {
+      wsCol('email_optouts').onSnapshot(snap => {
+        let ch = false, sch = false; const s = D.settings || {};
+        snap.docs.forEach(d => {
+          const tok = d.id, c = (D.customers || []).find(x => x.unsub_token === tok);
+          if (c && !c.email_optout) { c.email_optout = true; c.email_optout_at = nowStr(); ch = true; }
+          const m = s.unsub_tokens && Object.values(s.unsub_tokens).find(v => v.t === tok); if (m && !m.out) { m.out = true; sch = true; }
+        });
+        if (ch) wsSave('customers', D.customers).catch(() => {}); if (sch) try { wsSaveSettings(); } catch (_) {}
+      }, e => console.warn('[optouts]', e.code || e));
+    } catch (e) { console.warn('[optouts]', e); }
+  }
+  const _ea = window.enterApp; if (typeof _ea === 'function') window.enterApp = function () { const r = _ea.apply(this, arguments); setTimeout(start, 3200); return r; };
+  setTimeout(() => { try { start(); } catch (_) {} }, 4200);
+})();
 async function sendCustomerNotification(eventId, opts = {}) {
   const s = D.settings || {};
   // opts.force = a message the customer is waiting for (online-booking confirmations) — sent even if
@@ -18765,7 +18882,11 @@ async function sendCustomerNotification(eventId, opts = {}) {
   }
   const data = _buildEmailData({ ...opts, event: eventId, headline: evt.headline, invoice_view_link: invoiceViewLink });
   if (!data.customer_email) return { ok: false, skipped: 'no-recipient' };
-  const { subject, html } = _renderEmailTemplate(s.email_template || 'classic', data);
+  // Customers who unsubscribed get no automatic emails (things the staff send on purpose — opts.force — still go).
+  const _un = _unsubFor(data.customer_email);
+  if (_un.optedOut && !opts.force) return { ok: false, skipped: 'unsubscribed' };
+  let { subject, html } = _renderEmailTemplate(s.email_template || 'classic', data);
+  html = _withUnsubscribe(html, _un.token);
   const mailArgs = { to: data.customer_email, subject, html, fromName: data.workshop_name, logo: data.workshop_logo };
   // Queue FIRST (durable) — see _enqueueMail's comment for why.
   if (opts.job && ['work_started', 'qc_started', 'work_complete', 'pickup_scheduled', 'ready_for_pickup'].includes(eventId)) {
@@ -20304,6 +20425,9 @@ async function renderWorkload(force = false) {
       const sub = prof.subscription || {};
       const ws = Object.assign({ lastSeenMs: Date.now(), name: prof.workshop_name || prof.name || '', plan: sub.planName || sub.plan || '',
                                  daysActive: FV.arrayUnion(today()) }, base);
+      // Active seconds per paid period (purchase / renewal), so the admin's Refunds tab can apply the “no refund after 1 hour of use” rule.
+      try { const tms = v => v ? (v.toMillis ? v.toMillis() : (v.toDate ? v.toDate().getTime() : new Date(v).getTime())) : 0, ps = tms(sub.periodStart) || tms(sub.activatedAt);
+            if (ps && b.secs) ws.periods = { [new Date(ps).toISOString().slice(0, 10)]: n(b.secs) }; } catch (_) {}
       fbDb.collection('usage_daily').doc(today()).set(daily, { merge: true }).catch(e => console.warn('[usage]', e.code || e));
       fbDb.collection('usage_workshops').doc(wsUid()).set(ws, { merge: true }).catch(e => console.warn('[usage]', e.code || e));
       lastFlush = Date.now();
@@ -22802,7 +22926,7 @@ async function renderWorkload(force = false) {
     'a4':    { name: 'A4 sheet of labels (3 × 8)', sheet: true, w: 63.5, h: 33.9, qr: 24, row: true }
   };
   function labelHtml(sz, plate, ws, img, qrText) {
-    const q = `<img src="${img}" style="width:${sz.qr}mm;height:${sz.qr}mm;display:block">`;
+    const q = `<img src="${img}" alt="QR code" style="width:${sz.qr}mm;height:${sz.qr}mm;display:block">`;
     const t = `<div class="pl" style="font-size:${sz.big ? 11 : sz.row ? 4.4 : 5}mm">${esc(plate)}</div>${ws ? `<div class="ws" style="font-size:${sz.big ? 5 : 2.6}mm">${esc(ws)}</div>` : ''}<div class="sc" style="font-size:${sz.big ? 4.2 : 2.3}mm">Scan for service history</div>`;
     return sz.row ? `<div class="lb row">${q}<div class="tx">${t}</div></div>` : `<div class="lb col">${q}<div class="tx" style="text-align:center">${t}</div></div>`;
   }
@@ -23492,7 +23616,7 @@ async function renderWorkload(force = false) {
   const S = () => (D.settings || (D.settings = {}));
   const DEF_TERMS = 'The borrower holds a valid driving licence, will return the car on the agreed date with the fuel level recorded, is responsible for fines, tolls and any damage not recorded at hand-out (up to the insurance excess), will not let anyone else drive it, and will not take it out of the country.';
   const FEED = () => Object.assign({ enabled: false, video: true }, S().live_feed || {});
-  const LOAN = () => Object.assign({ enabled: false, offer_online: false, daily_rate: 0, deposit: 0, terms: DEF_TERMS }, S().loaners || {});
+  const LOAN = () => Object.assign({ enabled: false, offer_online: false, daily_rate: 0, rate_kind: 'day', auto_invoice: false, deposit: 0, terms: DEF_TERMS }, S().loaners || {});
   const INST = () => Object.assign({ enabled: false, plans: '3,6', partner_name: '', partner_link: '' }, S().instalments || {});
   const today = () => new Date().toISOString().slice(0, 10);
   const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
@@ -23585,7 +23709,7 @@ async function renderWorkload(force = false) {
         <div id="gfMsg" style="font-size:12.5px;color:var(--faint);min-height:16px">${FS.busy ? 'Uploading…' : ''}</div>
       </div>
       <div style="display:grid;gap:10px">${FS.items.length ? FS.items.slice().sort((a, b) => String(b.at).localeCompare(String(a.at))).map(it => `<div style="display:flex;gap:10px;align-items:flex-start;border:1px solid var(--brd);border-radius:12px;padding:8px;${it.hidden ? 'opacity:.55' : ''}">
-          <a href="${esc(it.url)}" target="_blank" rel="noopener" style="flex:0 0 96px;height:72px;border-radius:8px;overflow:hidden;background:var(--bg2);display:block;position:relative"><img src="${esc(it.thumb || it.url)}" style="width:100%;height:100%;object-fit:cover" alt="">${it.type === 'video' ? '<span style="position:absolute;inset:auto 4px 4px auto;background:rgba(0,0,0,.7);color:#fff;font-size:10px;padding:1px 5px;border-radius:4px">▶ clip</span>' : ''}</a>
+          <a href="${esc(it.url)}" target="_blank" rel="noopener" style="flex:0 0 96px;height:72px;border-radius:8px;overflow:hidden;background:var(--bg2);display:block;position:relative"><img src="${esc(it.thumb || it.url)}" style="width:100%;height:100%;object-fit:cover" alt="${esc(it.caption || (it.type === 'video' ? 'Video clip from the workshop' : 'Photo from the workshop'))}">${it.type === 'video' ? '<span style="position:absolute;inset:auto 4px 4px auto;background:rgba(0,0,0,.7);color:#fff;font-size:10px;padding:1px 5px;border-radius:4px">▶ clip</span>' : ''}</a>
           <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:600;word-break:break-word">${esc(it.caption || '(no caption)')}</div>
             <div style="font-size:11.5px;color:var(--faint);margin-top:2px">${esc(it.by || '')} · ${esc(it.at || '')}${it.flag ? ' · <b style="color:var(--red)">needs decision</b>' : ''}${it.hidden ? ' · hidden from customer' : ''}</div>
             <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button type="button" class="mini-btn" onclick="g_feedToggle('${esc(it.id)}','hidden')">${it.hidden ? 'Show to customer' : 'Hide'}</button><button type="button" class="mini-btn" onclick="g_feedToggle('${esc(it.id)}','flag')">${it.flag ? 'Unflag' : 'Flag for decision'}</button><button type="button" class="mini-btn danger" onclick="g_feedDel('${esc(it.id)}')">Delete</button></div></div></div>`).join('') : '<div style="color:var(--faint);font-size:13px;text-align:center;padding:14px">Nothing posted yet.</div>'}</div>`;
@@ -23649,6 +23773,14 @@ async function renderWorkload(force = false) {
   }
   const carOf = id => (D.loaner_cars || []).find(c => c.id === id);
   const openLoanOf = carId => (D.loaner_loans || []).find(l => l.car_id === carId && l.status === 'out');
+  const loanFee = (l, days) => l.rate_kind === 'flat' ? Number(l.daily_rate || 0) : days * Number(l.daily_rate || 0);
+  const rateTxt = l => Number(l.daily_rate) > 0 ? money(l.daily_rate) + (l.rate_kind === 'flat' ? ' flat fee' : ' per day') : 'No charge';
+  const last10 = x => String(x || '').replace(/\D/g, '').slice(-10);
+  function openInvoicesFor(l) {
+    const pn = plateNorm(l.customer_plate);
+    return (D.invoices || []).filter(i => !i.is_estimate && i.status !== 'Cancelled' && i.payment_status !== 'Paid' && ((last10(l.phone) && last10(i.customer && i.customer.phone) === last10(l.phone)) || (pn && plateNorm(i.vehicle && i.vehicle.plate) === pn)))
+      .sort((a, b) => String(b.created_at || b.issue_date || '').localeCompare(String(a.created_at || a.issue_date || '')));
+  }
   const daysBetween = (aIso, bIso) => Math.max(1, Math.ceil((new Date(bIso) - new Date(aIso)) / 86400000) || 1);
 
   addTab('loaners', 'Loaner cars', '<path d="M5 17h14M3 13l2-6h14l2 6v4H3z"/><circle cx="7.5" cy="17" r="1.5"/><circle cx="16.5" cy="17" r="1.5"/>',
@@ -23685,7 +23817,7 @@ async function renderWorkload(force = false) {
   function histHtml(list) {
     if (!list.length) return `<div class="placeholder"><h3>No returns yet</h3></div>`;
     return `<div class="card" style="padding:0;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:var(--faint);font-size:12px"><th style="padding:10px 14px">Customer</th><th>Car</th><th>Out</th><th>Back</th><th>Km</th><th>Charge</th></tr></thead><tbody>${list.sort((a, b) => String(b.ret_at).localeCompare(String(a.ret_at))).map(l => { const c = carOf(l.car_id) || {};
-      return `<tr style="border-top:1px solid var(--brd)"><td style="padding:10px 14px"><b>${esc(l.customer_name)}</b></td><td>${esc(c.plate || '')}</td><td>${esc(dmy((l.out_at || '').slice(0, 10)))}</td><td>${esc(dmy((l.ret_at || '').slice(0, 10)))}</td><td>${Math.max(0, Number(l.ret_odo || 0) - Number(l.out_odo || 0)).toLocaleString('en-IN')}</td><td>${Number(l.fee) > 0 ? money(l.fee) : 'Free'}</td></tr>`; }).join('')}</tbody></table></div>`;
+      return `<tr style="border-top:1px solid var(--brd)"><td style="padding:10px 14px"><b>${esc(l.customer_name)}</b></td><td>${esc(c.plate || '')}</td><td>${esc(dmy((l.out_at || '').slice(0, 10)))}</td><td>${esc(dmy((l.ret_at || '').slice(0, 10)))}</td><td>${Math.max(0, Number(l.ret_odo || 0) - Number(l.out_odo || 0)).toLocaleString('en-IN')}</td><td>${Number(l.fee) + Number(l.extra || 0) > 0 ? money(Number(l.fee) + Number(l.extra || 0)) + (l.invoice_no ? ' · on ' + esc(l.invoice_no) : '') : 'Free'}</td></tr>`; }).join('')}</tbody></table></div>`;
   }
   window.lnTab = k => { LS.tab = k; drawLoaners(); };
 
@@ -23726,7 +23858,7 @@ async function renderWorkload(force = false) {
       <div class="f-grp"><label>Their own car (plate)</label><input id="lhPlate" placeholder="So they see this on Track"></div><div class="f-grp"><label>Driving licence no. *</label><input id="lhLic"></div>
       <div class="f-grp"><label>Licence expiry</label><input id="lhLicExp" type="date"></div><div class="f-grp"><label>Return by *</label><input id="lhDue" type="date" min="${today()}" value="${addDays(today(), 2)}"></div>
       <div class="f-grp"><label>Odometer out (km)</label><input id="lhOdo" type="number" min="0" value="${esc(pick.odometer || 0)}"></div><div class="f-grp"><label>Fuel out</label><select id="lhFuel">${FUEL.map(f => `<option>${f}</option>`).join('')}</select></div>
-      <div class="f-grp"><label>Daily rate (0 = free)</label><input id="lhRate" type="number" min="0" step="0.01" value="${esc(pick.daily_rate != null ? pick.daily_rate : L.daily_rate)}"></div><div class="f-grp"><label>Deposit taken</label><input id="lhDep" type="number" min="0" step="0.01" value="${esc(L.deposit || 0)}"></div>
+      <div class="f-grp"><label>Price (0 = free)</label><div style="display:flex;gap:6px"><input id="lhRate" type="number" min="0" step="0.01" value="${esc(pick.daily_rate != null ? pick.daily_rate : L.daily_rate)}"><select id="lhKind" style="max-width:130px"><option value="day" ${L.rate_kind !== 'flat' ? 'selected' : ''}>per day</option><option value="flat" ${L.rate_kind === 'flat' ? 'selected' : ''}>flat fee</option></select></div></div><div class="f-grp"><label>Deposit taken</label><input id="lhDep" type="number" min="0" step="0.01" value="${esc(L.deposit || 0)}"></div>
       <div class="f-grp" style="grid-column:span 2"><label>Condition at hand-out (scratches, dents, warning lights)</label><textarea id="lhCond" rows="2">${esc(pick.notes || '')}</textarea></div>
       <label style="grid-column:span 2;display:flex;gap:8px;align-items:flex-start;font-size:13px"><input type="checkbox" id="lhOk" style="width:16px;height:16px;margin-top:2px"> I checked the customer's original licence and they have read and accepted the loaner terms (print the agreement after saving).</label></div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>`,
       onSave: async () => {
@@ -23737,7 +23869,7 @@ async function renderWorkload(force = false) {
         if (openLoanOf(car.id)) throw new Error('That car was just handed out on another device');
         if (car.insurance_expiry && car.insurance_expiry < today() && !(await customConfirm('This car’s insurance has expired. Hand it out anyway?', { title: 'Insurance expired', okLabel: 'Hand out anyway' }))) return;
         const loan = { id: uid('ln'), car_id: car.id, booking_id: val('lhBk'), customer_name: name, phone, customer_plate: val('lhPlate').trim().toUpperCase(), licence_no: lic, licence_expiry: val('lhLicExp'),
-          out_at: nowStr(), due_at: due, out_odo: Number(val('lhOdo')) || 0, out_fuel: val('lhFuel'), daily_rate: Math.max(0, Number(val('lhRate')) || 0), deposit: Math.max(0, Number(val('lhDep')) || 0), out_notes: val('lhCond').trim(), status: 'out', by: (currentWorker && currentWorker.name) || '' };
+          out_at: nowStr(), due_at: due, out_odo: Number(val('lhOdo')) || 0, out_fuel: val('lhFuel'), daily_rate: Math.max(0, Number(val('lhRate')) || 0), rate_kind: val('lhKind') === 'flat' ? 'flat' : 'day', deposit: Math.max(0, Number(val('lhDep')) || 0), out_notes: val('lhCond').trim(), status: 'out', by: (currentWorker && currentWorker.name) || '' };
         D.loaner_loans.push(loan); car.status = 'out'; car.odometer = loan.out_odo;
         await Promise.all([wsSave('loaner_loans', D.loaner_loans), wsSave('loaner_cars', D.loaner_cars)]);
         publishLoan(loan, car); audit('loaner-out', `${car.plate} → ${name}`, { loan_id: loan.id }); closeModal(); LS.tab = 'out'; drawLoaners();
@@ -23750,19 +23882,27 @@ async function renderWorkload(force = false) {
 
   window.lnReturn = function (loanId) {
     const l = (D.loaner_loans || []).find(x => x.id === loanId), c = l && carOf(l.car_id); if (!l || !c) return;
-    const days = daysBetween(l.out_at.replace(' ', 'T') + 'Z', new Date().toISOString()), fee = days * Number(l.daily_rate || 0);
+    const days = daysBetween(l.out_at.replace(' ', 'T') + 'Z', new Date().toISOString()), fee = loanFee(l, days), invs = openInvoicesFor(l), auto = LOAN().auto_invoice;
     openModal({ title: `Return · ${c.plate}`, saveLabel: 'Check back in', body: `<div style="font-size:13px;color:var(--dim);margin-bottom:12px">${esc(l.customer_name)} · out ${esc(dmy(l.out_at.slice(0, 10)))} (${days} day${days === 1 ? '' : 's'}) · left with ${Number(l.out_odo || 0).toLocaleString('en-IN')} km, fuel ${esc(l.out_fuel)}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="f-grp"><label>Odometer back (km) *</label><input id="lrOdo" type="number" min="${esc(l.out_odo || 0)}" value="${esc(l.out_odo || 0)}"></div><div class="f-grp"><label>Fuel back</label><select id="lrFuel">${FUEL.map(f => `<option ${f === l.out_fuel ? 'selected' : ''}>${f}</option>`).join('')}</select></div>
-      <div class="f-grp"><label>Loan charge (${days} × ${money(l.daily_rate)})</label><input id="lrFee" type="number" min="0" step="0.01" value="${fee}"></div><div class="f-grp"><label>Extra charges (fuel, damage, fines)</label><input id="lrExtra" type="number" min="0" step="0.01" value="0"></div>
+      <div class="f-grp"><label>Loan charge (${l.rate_kind === 'flat' ? 'flat ' + money(l.daily_rate) : days + ' × ' + money(l.daily_rate)})</label><input id="lrFee" type="number" min="0" step="0.01" value="${fee}"></div><div class="f-grp"><label>Extra charges (fuel, damage, fines)</label><input id="lrExtra" type="number" min="0" step="0.01" value="0"></div>
       <div class="f-grp" style="grid-column:span 2"><label>Condition on return — new damage?</label><textarea id="lrCond" rows="2" placeholder="None"></textarea></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Add the charge to an invoice</label><select id="lrInv"><option value="">Don't add — I'll handle it myself</option>${invs.map((i, ix) => `<option value="${esc(i.id)}" ${auto && ix === 0 ? 'selected' : ''}>${esc(i.number || '—')} · ${esc((i.customer && i.customer.name) || '')}${i.vehicle && i.vehicle.plate ? ' · ' + esc(i.vehicle.plate) : ''} · ${esc(i.payment_status || 'Outstanding')}</option>`).join('')}</select>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:500;margin-top:6px"><input type="checkbox" id="lrTax" style="width:16px;height:16px"> Charge tax on this item</label>
+        <div style="font-size:12px;color:var(--faint);margin-top:2px">${invs.length ? 'Adds a “Courtesy car” line to the chosen unpaid invoice.' : 'No unpaid invoice found for this customer yet — create the invoice first, or add the amount to it later.'}</div></div>
       ${Number(l.deposit) > 0 ? `<label style="grid-column:span 2;display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="lrDep" checked style="width:16px;height:16px"> Deposit of ${money(l.deposit)} refunded in full (untick if any was kept)</label>` : ''}</div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>`,
       onSave: async () => {
         const odo = Number(val('lrOdo')); if (!(odo >= Number(l.out_odo || 0))) throw new Error('Odometer can’t be lower than when it left (' + (l.out_odo || 0) + ' km)');
         Object.assign(l, { status: 'returned', ret_at: nowStr(), ret_odo: odo, ret_fuel: val('lrFuel'), ret_notes: val('lrCond').trim(), fee: Math.max(0, Number(val('lrFee')) || 0), extra: Math.max(0, Number(val('lrExtra')) || 0), deposit_refunded: g('lrDep') ? g('lrDep').checked : null });
         c.status = 'available'; c.odometer = odo; if (l.ret_notes) c.notes = l.ret_notes;
         await Promise.all([wsSave('loaner_loans', D.loaner_loans), wsSave('loaner_cars', D.loaner_cars)]);
+        const invId = val('lrInv'), tot0 = l.fee + l.extra;
+        if (invId && tot0 > 0 && !l.invoice_id) {
+          const inv = invOf(invId);
+          if (inv) { inv.charges = (inv.charges || []).concat([{ name: 'Courtesy car' + (c.plate ? ' (' + c.plate + ')' : '') + (l.rate_kind !== 'flat' && l.fee > 0 ? ` · ${days} day${days === 1 ? '' : 's'}` : ''), amount: Math.round(tot0 * 100) / 100, taxable: !!(g('lrTax') && g('lrTax').checked) }]); inv.updated_at = nowStr(); l.invoice_id = inv.id; l.invoice_no = inv.number || ''; await Promise.all([wsSave('invoices', D.invoices), wsSave('loaner_loans', D.loaner_loans)]); try { renderInvoices(); } catch (_) {} }
+        }
         publishLoan(l, c, true); audit('loaner-back', `${c.plate} ← ${l.customer_name}`, { loan_id: l.id });
-        closeModal(); drawLoaners(); const tot = l.fee + l.extra; showToast(tot > 0 ? `Checked in — charge ${money(tot)} (add it to their invoice)` : 'Checked in', 'good');
+        closeModal(); drawLoaners(); const tot = l.fee + l.extra; showToast(tot > 0 ? (l.invoice_id ? `Checked in — ${money(tot)} added to ${l.invoice_no || 'the invoice'}` : `Checked in — charge ${money(tot)}, not added to an invoice`) : 'Checked in', 'good');
       } });
   };
   async function publishLoan(l, c, cleared) {
@@ -23780,7 +23920,7 @@ async function renderWorkload(force = false) {
       <h1>${esc(_wsName())}</h1><div>Courtesy / loaner vehicle agreement</div><table>
       <tr><td>Borrower</td><td>${esc(l.customer_name)} · ${esc(l.phone)}</td></tr><tr><td>Driving licence</td><td>${esc(l.licence_no)}${l.licence_expiry ? ' · valid to ' + esc(dmy(l.licence_expiry)) : ''}</td></tr>
       <tr><td>Loaner car</td><td>${esc(c.plate)} · ${esc(c.model)}</td></tr><tr><td>Out</td><td>${esc(l.out_at)} UTC · ${Number(l.out_odo || 0).toLocaleString('en-IN')} km · fuel ${esc(l.out_fuel)}</td></tr>
-      <tr><td>Return by</td><td>${esc(dmy(l.due_at))}</td></tr><tr><td>Charge</td><td>${Number(l.daily_rate) > 0 ? esc(money(l.daily_rate)) + ' per day' : 'No charge'}${Number(l.deposit) > 0 ? ' · deposit ' + esc(money(l.deposit)) : ''}</td></tr>
+      <tr><td>Return by</td><td>${esc(dmy(l.due_at))}</td></tr><tr><td>Charge</td><td>${esc(rateTxt(l))}${Number(l.deposit) > 0 ? ' · deposit ' + esc(money(l.deposit)) : ''}</td></tr>
       <tr><td>Condition at hand-out</td><td>${esc(l.out_notes || 'No marks recorded')}</td></tr></table>
       <p><b>Terms.</b> ${esc(LOAN().terms || DEF_TERMS)}</p><div class="sig"><div>Borrower signature &amp; date</div><div>${esc(_wsName())} representative</div></div><script>setTimeout(()=>print(),300)<\/script>`);
     w.document.close();
@@ -23938,9 +24078,10 @@ async function renderWorkload(force = false) {
       <div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="xf-on" ${f.enabled ? 'checked' : ''} style="width:16px;height:16px"> Live repair feed</label>
         <div style="font-size:12.5px;color:var(--faint);margin:6px 0 8px">Mechanics post photos and short clips from the job card; the customer sees them on the Track page. Anyone who knows the number plate can open the Track page, so don't post anything you wouldn't show them — you can hide any item.</div>
         <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="xf-video" ${f.video ? 'checked' : ''} style="width:16px;height:16px"> Allow short video clips (uses your Cloudinary upload preset)</label></div>
-      <div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="xl-on" ${l.enabled ? 'checked' : ''} style="width:16px;height:16px"> Loaner car management</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px"><div class="f-grp"><label>Default daily rate (0 = free)</label><input id="xl-rate" type="number" min="0" step="0.01" value="${esc(l.daily_rate)}"></div><div class="f-grp"><label>Default deposit</label><input id="xl-dep" type="number" min="0" step="0.01" value="${esc(l.deposit)}"></div>
+      <div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="xl-on" ${l.enabled ? 'checked' : ''} style="width:16px;height:16px"> Loaner car management</label><div style="font-size:12.5px;color:var(--faint);margin-top:4px">Optional — leave this off if you don't lend courtesy cars. Nothing loaner-related appears in the app, on the booking page or on the Track page until you switch it on.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px"><div class="f-grp"><label>Default price (0 = free)</label><div style="display:flex;gap:6px"><input id="xl-rate" type="number" min="0" step="0.01" value="${esc(l.daily_rate)}"><select id="xl-kind" style="max-width:130px"><option value="day" ${l.rate_kind !== 'flat' ? 'selected' : ''}>per day</option><option value="flat" ${l.rate_kind === 'flat' ? 'selected' : ''}>flat fee</option></select></div></div><div class="f-grp"><label>Default deposit</label><input id="xl-dep" type="number" min="0" step="0.01" value="${esc(l.deposit)}"></div>
         <div class="f-grp" style="grid-column:span 2"><label>Loaner terms (printed on the agreement)</label><textarea id="xl-terms" rows="3">${esc(l.terms || DEF_TERMS)}</textarea></div>
+        <label style="grid-column:span 2;display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="xl-inv" ${l.auto_invoice ? 'checked' : ''} style="width:16px;height:16px"> Pre-select the customer's open invoice when a loaner is returned, so the charge is added to it (you can still choose not to)</label>
         <label style="grid-column:span 2;display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="xl-online" ${l.offer_online ? 'checked' : ''} style="width:16px;height:16px"> Let customers tick “I'd like a courtesy car if one is available” on the online booking page</label></div></div>
       <div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="xi-on" ${i.enabled ? 'checked' : ''} style="width:16px;height:16px"> Pay in instalments</label>
         <div style="font-size:12.5px;color:var(--faint);margin:6px 0 8px">Split a bill into payments you track yourself. To be paid upfront, connect a financing partner (Tabby/Tamara, Razorpay EMI, Affirm/Klarna, a bank…): sign up with them, paste their customer checkout link below, and send it from the invoice list. Garage Pro doesn't lend money or run credit checks — the partner does, under their own terms. Check consumer-credit rules in your country before charging any fee.</div>
@@ -23952,7 +24093,7 @@ async function renderWorkload(force = false) {
     const s = S(), link = val('xi-plink').trim();
     if (link && !/^https:\/\//i.test(link)) return showToast('The partner link must start with https://', 'bad');
     s.live_feed = { enabled: g('xf-on').checked, video: g('xf-video').checked };
-    s.loaners = { enabled: g('xl-on').checked, offer_online: g('xl-on').checked && g('xl-online').checked, daily_rate: Math.max(0, Number(val('xl-rate')) || 0), deposit: Math.max(0, Number(val('xl-dep')) || 0), terms: val('xl-terms').trim().slice(0, 1200) || DEF_TERMS };
+    s.loaners = { enabled: g('xl-on').checked, offer_online: g('xl-on').checked && g('xl-online').checked, daily_rate: Math.max(0, Number(val('xl-rate')) || 0), rate_kind: val('xl-kind') === 'flat' ? 'flat' : 'day', auto_invoice: g('xl-inv').checked, deposit: Math.max(0, Number(val('xl-dep')) || 0), terms: val('xl-terms').trim().slice(0, 1200) || DEF_TERMS };
     s.instalments = { enabled: g('xi-on').checked, plans: val('xi-plans').trim() || '3,6', partner_name: val('xi-pname').trim().slice(0, 40), partner_link: link };
     try { await wsSaveSettings(); if (typeof obPublish === 'function') obPublish().catch(() => {}); } catch (e) { return showToast('Save failed: ' + (e.message || e), 'bad'); }
     try { renderSidebarVisibility(); } catch (_) {} showToast('Saved', 'good');
@@ -23961,6 +24102,648 @@ async function renderWorkload(force = false) {
   if (typeof _rs === 'function') window.renderSettings = async function () { const r = await _rs.apply(this, arguments); try { renderCard(); } catch (e) { console.warn('[extras card]', e); } return r; };
   // the page asked for a courtesy car → tag the booking so the loaner tab can flag it
   setInterval(() => { try { if (loanOn() && currentTab === 'loaners' && !document.hidden) drawLoaners(); if (instOn() && currentTab === 'instalments' && !document.hidden) drawPlans(); } catch (_) {} }, 60000);
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  JOB CARD PRINT — prints EVERYTHING recorded on the job (customer concerns and the parts asked for against each, intake,
+//  existing damage, inspection, estimate by concern, estimate lines, parts used, labour, parts requests, insurance, photos),
+//  with blank lines left for hand-written notes.
+//  • Prices follow the person printing: the workshop floor (mechanics and any role without finance access) gets parts and
+//    quantities ONLY; owner / manager / floor manager / service advisor / parts department get prices and totals as well.
+//  • Layout: A4 normally, or a booklet (A5 pages, padded to a multiple of 4 so a folded sheet works) — picked automatically
+//    when the job has a lot on it, switchable in the print window.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const showPrices = () => { try { return isAdminRole() || canApproveParts() || isServiceAdvisorRole() || currentRole() === 'floor_manager' || canSee('invoices'); } catch (_) { return false; } };
+
+  window.printJobCard = async function (jobId) {
+    const j = (D.jobs || []).find(x => x.id === jobId);
+    if (!j) return showToast('Job not found', 'bad');
+    const w = window.open('', '_blank');            // open inside the click so the pop-up blocker allows it
+    if (!w) return customAlert('Browser blocked the new tab. Allow pop-ups for this site to print job cards.', { title: 'Pop-up blocked' });
+    try { w.document.write('<title>Job card</title><body style="font:15px system-ui;padding:30px;color:#444">Preparing the job card…</body>'); } catch (_) {}
+    let photos = [];
+    try { photos = await loadJobPhotos(j.id); } catch (_) {}
+    const prices = showPrices();
+    const html = build(j, photos, prices);
+    try { _openDocInWindow(w, html); } catch (e) { w.document.open(); w.document.write(html); w.document.close(); }
+    audit('job-card-print', `${j.plate || j.id}${prices ? '' : ' (no prices)'}`, { job_id: j.id });
+  };
+
+  function build(j, photos, prices) {
+    const b = (D.bookings || []).find(x => x.id === j.booking_id) || {};
+    const s = D.settings || {};
+    const cur = _cur(), m = n => cur + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    const phone = (typeof _bookingPhone === 'function' ? _bookingPhone(j.booking_id) : '') || j.cust_phone || b.cust_phone || '';
+    const mechs = (j.mechanics && j.mechanics.length) ? j.mechanics : (j.mechanic ? [j.mechanic] : []);
+    const complaints = (Array.isArray(b.complaints) && b.complaints.length ? b.complaints : (Array.isArray(j.complaints) ? j.complaints : [])).map(c => String((c && c.text) || c || '').trim()).filter(Boolean);
+    const reqItems = [];
+    (D.parts_requests || []).filter(r => r.job_id === j.id).forEach(r => _prRequestItems(r).forEach(it => { if ((it.status || 'Pending') !== 'Cancelled') reqItems.push(Object.assign({ urgency: r.urgency, by: r.requested_by }, it)); }));
+    const forConcern = (id, title, ci) => reqItems.filter(it => (id && it.concern_id === id) || (ci != null && it.concern_id === 'cmp:' + ci) || (title && String(it.concern_title || '').trim().toLowerCase() === String(title).trim().toLowerCase()));
+    let volume = 0;
+    const tbl = (head, rows, foot) => { volume += rows.length; return `<table class="t"><thead><tr>${head.map(h => `<th${h.r ? ' class="r"' : ''}${h.w ? ` style="width:${h.w}"` : ''}>${esc(h.t)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td${head[i] && head[i].r ? ' class="r"' : ''}>${c}</td>`).join('')}</tr>`).join('')}</tbody>${foot ? `<tfoot>${foot}</tfoot>` : ''}</table>`; };
+    const sec = (title, body) => body ? `<section><h3>${esc(title)}</h3>${body}</section>` : '';
+    const kv = (l, v) => `<tr><td class="l">${esc(l)}</td><td class="v">${esc(v || '—')}</td></tr>`;
+    const lines = n => Array.from({ length: n }, () => '<div class="rule"></div>').join('');
+    const partHead = (extra) => [{ t: 'Item' }, { t: 'Qty', r: true, w: '44px' }].concat(prices ? [{ t: 'Price', r: true, w: '78px' }, { t: 'Total', r: true, w: '84px' }] : []).concat(extra || []);
+    const partRow = (name, qty, price, extraCells) => [esc(name), esc(qty)].concat(prices ? [m(price), m(Number(qty || 1) * Number(price || 0))] : []).concat(extraCells || []);
+
+    // ── customer concerns, each with the parts requested for it ──
+    const concernsHtml = (() => {
+      const jc = (j.concerns || []).filter(c => (c.title || '').trim());
+      if (!complaints.length && !jc.length) return '';
+      let h = '';
+      if (complaints.length) h += `<ol class="cl">${complaints.map((c, i) => { const its = forConcern('', c, i); return `<li>${esc(c)}${its.length ? `<div class="sub">Parts: ${its.map(it => esc(it.name) + ' × ' + esc(it.qty) + ' <i>(' + esc(it.status || 'Pending') + ')</i>').join(' · ')}</div>` : ''}</li>`; }).join('')}</ol>`;
+      return h;
+    })();
+
+    // ── estimate by concern ──
+    const concernEst = (j.concerns || []).filter(c => (c.items || []).length || (c.title || '').trim()).map(c => {
+      const its = c.items || [], total = its.reduce((a, it) => a + Number(it.qty || 1) * Number(it.price || 0), 0), asked = forConcern(c.id, c.title);
+      return `<div class="blk"><div class="bh">${esc(c.title || 'Concern')}${c.status ? ` <span class="pill">${esc(c.status)}</span>` : ''}${(c.assignees || []).length ? ` <span class="muted">· ${esc(c.assignees.join(', '))}</span>` : ''}</div>
+        ${its.length ? tbl(partHead([{ t: 'Type', w: '56px' }]), its.map(it => partRow(it.name, it.qty, it.price, [esc(it.kind === 'service' ? 'Service' : 'Part')])), prices ? `<tr><td colspan="4" class="r"><b>Concern total</b></td><td colspan="2" class="r"><b>${m(total)}</b></td></tr>` : '') : '<div class="muted">No items yet.</div>'}
+        ${asked.length ? `<div class="sub" style="margin-top:4px">Parts requested for this concern: ${asked.map(it => esc(it.name) + ' × ' + esc(it.qty) + ' <i>(' + esc(it.status || 'Pending') + ')</i>').join(' · ')}</div>` : ''}</div>`;
+    }).join('');
+
+    // ── intake ──
+    const intake = j.intake || null, pins = (intake && Array.isArray(intake.damage_pins)) ? intake.damage_pins : [];
+    const intakeHtml = intake ? (() => {
+      const present = INTAKE_DEFAULT_ITEMS.filter(i => intake.items && intake.items[i.key]).map(i => i.label), missing = INTAKE_DEFAULT_ITEMS.filter(i => !(intake.items && intake.items[i.key])).map(i => i.label);
+      return `<div class="two"><div><b>Present:</b> <span class="muted">${esc(present.join(', ') || '—')}</span></div><div><b>Not present:</b> <span class="muted">${esc(missing.join(', ') || '—')}</span></div></div>
+        <div style="margin-top:4px"><b>Fuel:</b> <span class="muted">${esc(intake.fuel_level || '—')}</span>${intake.notes ? ` · <b>Notes:</b> <span class="muted">${esc(intake.notes)}</span>` : ''}</div>`;
+    })() : '';
+    const damageHtml = pins.length ? `<div class="dmg"><div class="dmgmap">${_intakeDamageSVG()}${pins.map((p, i) => `<div class="pin" style="left:${p.x}%;top:${p.y}%">${i + 1}</div>`).join('')}</div><ol class="cl" style="flex:1">${pins.map(p => `<li>${esc(p.type)}${p.note ? ' — ' + esc(p.note) : ''}</li>`).join('')}</ol></div>` : '';
+
+    // ── inspection (only what has been recorded) ──
+    const dviDone = ((j.dvi && j.dvi.items) || []).filter(it => it.condition || it.notes);
+    const dviHtml = dviDone.length ? tbl([{ t: 'Area', w: '100px' }, { t: 'Component' }, { t: 'Condition', w: '70px' }, { t: 'Notes' }], dviDone.map(it => [esc(it.category), esc(it.component), `<b>${esc(it.condition || '')}</b>`, esc(it.notes || '')])) : '';
+
+    // ── estimate lines, parts used, labour ──
+    const estParts = j.est_parts || [], estSvc = j.est_services || [];
+    const estTotal = estParts.reduce((a, p) => a + Number(p.qty || 1) * Number(p.price || 0), 0) + estSvc.reduce((a, x) => a + Number(x.price || 0), 0);
+    const estHtml = (estParts.length || estSvc.length) ? (estParts.length ? tbl(partHead(), estParts.map(p => partRow(p.name, p.qty, p.price))) : '') + (estSvc.length ? tbl([{ t: 'Service / labour' }].concat(prices ? [{ t: 'Price', r: true, w: '90px' }] : []), estSvc.map(x => [esc(x.name)].concat(prices ? [m(x.price)] : []))) : '') + (prices ? `<div class="tot">Estimate total <b>${m(estTotal)}</b></div>` : '') : '';
+    const used = j.parts || [];
+    const usedTotal = used.reduce((a, p) => a + Number(p.qty || 1) * Number(p.unit_price || 0) * (1 - Number(p.disc_pct || 0) / 100), 0);
+    const usedHtml = used.length ? tbl(partHead(), used.map(p => partRow(p.name, p.qty, p.unit_price)), prices ? `<tr><td colspan="2" class="r"><b>Parts total</b></td><td colspan="2" class="r"><b>${m(usedTotal)}</b></td></tr>` : '') : '';
+    const charges = j.service_charges || [];
+    const chargesHtml = charges.length ? tbl([{ t: 'Labour / service charged' }].concat(prices ? [{ t: 'Amount', r: true, w: '90px' }] : []), charges.map(c => [esc(c.name)].concat(prices ? [m(c.amount)] : [])), prices ? `<tr><td class="r"><b>Total</b></td><td class="r"><b>${m(charges.reduce((a, c) => a + Number(c.amount || 0), 0))}</b></td></tr>` : '') : '';
+
+    // ── parts requests ──
+    const reqHtml = reqItems.length ? tbl([{ t: 'Part' }, { t: 'Qty', r: true, w: '44px' }, { t: 'For concern' }, { t: 'Status', w: '80px' }].concat(prices ? [{ t: 'Est. price', r: true, w: '80px' }] : []), reqItems.map(it => [esc(it.name), esc(it.qty), esc(it.concern_title || 'Other findings'), esc(it.status || 'Pending')].concat(prices ? [it.price != null ? m(it.price) : '—'] : []))) : '';
+
+    // ── insurance ──
+    const insHtml = j.is_insurance ? `<table class="kv">${kv('Insurer', j.insurer_name)}${kv('Claim no.', j.claim_number)}${kv('Policy no.', j.policy_number)}${kv('Surveyor', j.surveyor_name)}${kv('Approval', j.insurance_approval)}${prices && j.approved_amount ? kv('Approved amount', m(j.approved_amount)) : ''}${j.insurance_notes ? kv('Notes', j.insurance_notes) : ''}</table>` : '';
+
+    // ── photos ──
+    const ph = (photos || []).filter(p => p && p.data && /^(https:|data:image)/.test(p.data)).slice(0, 30);
+    volume += ph.length * 3;
+    const photoHtml = ph.length ? `<div class="pg">${ph.map(p => `<figure><img src="${esc(p.data)}" alt="${esc((p.label || 'Job photo') + (p.caption ? ' — ' + p.caption : ''))}"><figcaption>${esc(p.label || '')}${p.caption ? ' · ' + esc(p.caption) : ''}</figcaption></figure>`).join('')}</div>` : '';
+
+    const body = [
+      sec('Customer concerns', concernsHtml || '<div class="muted">None recorded.</div>'),
+      sec('Vehicle intake — items received', intakeHtml || '<div class="muted">No intake checklist recorded for this job.</div>'),
+      sec('Existing damage at drop-off', damageHtml),
+      sec('Inspection findings', dviHtml),
+      sec('Estimate by concern', concernEst),
+      sec('Estimate — parts and services', estHtml),
+      sec('Parts requested', reqHtml),
+      sec('Parts used', usedHtml),
+      sec('Labour / services', chargesHtml),
+      sec('Insurance claim', insHtml),
+      sec('Photos', photoHtml),
+      sec('Findings / work carried out (handwritten)', lines(5)),
+      sec('Technician notes', lines(3))
+    ].join('');
+    const jobNo = j.id ? 'JOB-' + j.id.slice(-7).toUpperCase() : '';
+    const long = volume > 42;
+    const veh = [b.veh_make, b.veh_model, b.veh_year].filter(Boolean).join(' ') || b.vehicle || '';
+    const details = `<div class="grid"><table class="kv">${kv('Customer', j.cust_name || b.cust_name)}${kv('Phone', phone)}${kv('Vehicle', veh)}${kv('VIN', j.vin || b.vin)}${kv('Odometer in', b.odometer_in ? b.odometer_in + ' km' : '')}</table>
+      <table class="kv">${kv('Service', j.type || b.service)}${kv('Department', j.department || (typeof _jobDeptFromBooking === 'function' ? _jobDeptFromBooking(j) : '') || 'Mechanical')}${kv('Technician', mechs.join(', '))}${kv('Status', j.status)}${kv('Bay', b.bay_name)}</table></div>`;
+
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Job card ${esc(j.plate || '')}</title>
+<style id="pgsize">@page{size:A4;margin:12mm}</style>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#000;background:#fff;font-size:12px;line-height:1.45}
+  #doc{padding:0}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #000;padding-bottom:8px;margin-bottom:10px}
+  .ws{font-size:17px;font-weight:800;text-transform:uppercase}.ws .sub{font-size:11px;font-weight:400;color:#444;margin-top:2px;text-transform:none}
+  .tag{text-align:right;font-size:11px;color:#444}.tag b{display:block;font-size:15px;color:#000;letter-spacing:.04em}
+  .plate{display:inline-block;border:2px solid #000;border-radius:5px;padding:5px 14px;font-family:'Courier New',monospace;font-weight:800;font-size:21px;letter-spacing:2px;margin-bottom:8px}
+  .grid,.two{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;margin-bottom:8px}
+  table.kv{width:100%;border-collapse:collapse}table.kv td{padding:3px 0;vertical-align:top;border-bottom:1px solid #e3e3e3}table.kv td.l{color:#555;width:42%;font-size:11px}table.kv td.v{font-weight:600}
+  section{margin-bottom:6px;break-inside:auto}h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1.5px solid #000;padding-bottom:3px;margin:12px 0 6px;break-after:avoid}
+  ol.cl{margin-left:18px}ol.cl li{margin:3px 0}.sub{font-size:11px;color:#444}.muted{color:#666;font-size:11px}i{color:#555}
+  table.t{width:100%;border-collapse:collapse;margin:3px 0 6px;font-size:11.5px}table.t th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1.5px solid #000;padding:3px 5px}
+  table.t td{border-bottom:1px solid #ddd;padding:3px 5px;vertical-align:top}.r{text-align:right}tr{break-inside:avoid}
+  .blk{margin-bottom:8px;break-inside:avoid}.bh{font-weight:700;font-size:12px;margin-top:4px}.pill{font-size:10px;border:1px solid #777;border-radius:99px;padding:0 6px;font-weight:600;margin-left:4px}
+  .tot{text-align:right;font-size:12.5px;margin:2px 5px}.rule{border-bottom:1px solid #bbb;height:20px}
+  .dmg{display:flex;gap:14px;align-items:flex-start}.dmgmap{position:relative;width:96px;height:192px;flex:none;color:#999}.pin{position:absolute;transform:translate(-50%,-50%);width:15px;height:15px;border-radius:50%;background:#000;color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center}
+  .pg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.pg figure{break-inside:avoid}.pg img{width:100%;aspect-ratio:4/3;object-fit:cover;border:1px solid #ccc}.pg figcaption{font-size:10px;color:#444}
+  .sig{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:26px;break-inside:avoid}.sig div{border-top:1px solid #000;padding-top:4px;font-size:10.5px;color:#444;text-align:center}
+  .foot{margin-top:12px;font-size:10px;color:#777;border-top:1px solid #ddd;padding-top:4px}
+  .cover{display:none}.padpage{display:none}
+  .bar{position:fixed;top:0;left:0;right:0;background:#111;color:#fff;padding:8px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;z-index:9}
+  .bar select,.bar button{font:inherit;padding:6px 10px;border-radius:6px;border:0}.bar button{background:#fff;color:#111;font-weight:700;cursor:pointer}.bar span{opacity:.85}
+  body{padding-top:48px}
+  body.booklet{font-size:10.5px}body.booklet #doc{width:128mm;margin:0 auto}body.booklet .cover{display:block;min-height:180mm;break-after:page;text-align:left;padding-top:20mm}
+  body.booklet .cover h1{font-size:26px;margin:10px 0 4px}body.booklet .top{display:none}body.booklet .pg{grid-template-columns:repeat(2,1fr)}
+  body.booklet .nobk{display:none}body.booklet .padpage{display:block;break-before:page;height:178mm}body.booklet .grid,body.booklet .two{grid-template-columns:1fr}
+  @media print{.bar{display:none}body{padding-top:0}}
+</style></head><body class="${long ? 'booklet' : ''}">
+  <div class="bar"><b>Job card</b><label>Layout <select id="lay" onchange="setLay(this.value)"><option value="a4">Single sheets (A4)</option><option value="bk">Booklet (A5 pages)</option></select></label>
+    <button onclick="window.print()">Print</button>
+    <span>${prices ? 'Prices included.' : 'Workshop copy — prices hidden, parts and quantities only.'}${long ? ' Lots of detail on this job, so the booklet layout is selected.' : ''}</span>
+    <span id="bkhelp" style="display:none">Booklet: in the print dialog choose <b>2 pages per sheet</b>, double-sided, flip on short edge — or your printer's “booklet” option — then fold.</span></div>
+  <div id="doc">
+    <div class="cover"><div class="ws">${esc(s.workshop_name || 'Workshop')}<div class="sub">${esc([s.address, s.phone].filter(Boolean).join(' · '))}</div></div>
+      <h1>Job card</h1><div class="plate">${esc(j.plate || '—')}</div><div class="sub" style="font-size:12px">${esc(jobNo)} · ${esc((j.created_at || '').slice(0, 16))}</div>${details}</div>
+    <div class="top"><div class="ws">${esc(s.workshop_name || 'Workshop')}<div class="sub">${esc([s.address, s.phone].filter(Boolean).join(' · '))}</div></div><div class="tag"><b>JOB CARD</b>${esc(jobNo)}<br>${esc((j.created_at || '').slice(0, 16))}</div></div>
+    <div class="nobk"><div class="plate">${esc(j.plate || '—')}</div>${details}</div>
+    ${body}
+    <div class="sig"><div>Technician</div><div>Floor manager / QC</div><div>Customer on delivery</div></div>
+    <div class="foot">${esc(s.workshop_name || '')} · printed ${esc(new Date().toLocaleString())} by ${esc((currentWorker && currentWorker.name) || '')}${prices ? '' : ' · workshop copy (no prices)'}</div>
+  </div>
+<script>
+  function setLay(v){ var bk=v==='bk'; document.body.classList.toggle('booklet',bk); document.getElementById('pgsize').textContent=bk?'@page{size:A5;margin:10mm}':'@page{size:A4;margin:12mm}';
+    document.getElementById('bkhelp').style.display=bk?'inline':'none'; document.querySelectorAll('.nobk').forEach(function(e){e.style.display=bk?'none':''}); pad(bk); }
+  function pad(bk){ document.querySelectorAll('.padpage').forEach(function(e){e.remove()}); if(!bk) return;
+    var doc=document.getElementById('doc'), mm=3.7795, pageH=190*mm, cover=doc.querySelector('.cover'), n=1;
+    var rest=doc.scrollHeight-(cover?cover.offsetHeight:0); n+=Math.max(1,Math.ceil(rest/pageH)); var add=(4-(n%4))%4;
+    for(var i=0;i<add;i++){ var d=document.createElement('div'); d.className='padpage'; d.innerHTML='<h3>Notes</h3>'+new Array(14).join('<div class="rule"></div>'); doc.appendChild(d); } }
+  window.addEventListener('beforeprint',function(){ pad(document.body.classList.contains('booklet')); });
+  ${long ? "document.getElementById('lay').value='bk'; setLay('bk');" : ''}
+<\/script></body></html>`;
+  }
+})();
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  MORE CUSTOMER FEATURES (all optional, Settings → More features)
+//   1. ACCOUNTING EXPORT  — Invoices → "Export for accounting": CSV, Tally (XML), Zoho Books, QuickBooks, payments CSV.
+//   2. CONDITION REPORT   — on a customer's vehicle history: a shareable "verified by <workshop>" report (link + PDF).
+//   3. PICKUP SCHEDULING  — when a car is Ready for Pickup the customer picks a collection slot on the Track page.
+//   4. GIFT VOUCHERS      — customers order a voucher from a public page; the workshop confirms payment, then the voucher is live.
+//   5. PHOTO → ESTIMATE   — photograph a worn part or warning light; AI suggests likely parts + labour lines (needs the relay).
+//  The Pickups and Vouchers tabs are role permissions too (Settings → Role permissions).
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const cur = () => { try { return _cur(); } catch (_) { return ''; } };
+  const money = n => cur() + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const S = () => (D.settings || (D.settings = {}));
+  const g = id => document.getElementById(id);
+  const val = id => (g(id) ? g(id).value : '');
+  const today = () => new Date().toISOString().slice(0, 10);
+  const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const dmy = iso => { try { return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return iso || ''; } };
+  const plateNorm = p => { try { return _plateNorm(p); } catch (_) { return String(p || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase(); } };
+  const SVG = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const SITE = 'https://garagepro.me';
+  const AC = () => Object.assign({ sales_ledger: 'Sales', tax_ledger: 'Output Tax', round_ledger: 'Round Off', company: '' }, S().acct_export || {});
+  const PK = () => Object.assign({ enabled: false, open: '09:00', close: '18:00', slotMins: 30, capacity: 3, days: 3, closedSun: true }, S().pickup || {});
+  const GF = () => Object.assign({ enabled: false, amounts: '1000,2500,5000', min: 500, months: 12, pay_note: '', pay_link: '', terms: 'Valid for the services and parts at this workshop until the expiry date. Not refundable or exchangeable for cash. Lost or stolen vouchers cannot be replaced.' }, S().gifts || {});
+  const AI = () => Object.assign({ enabled: false }, S().ai_suggest || {});
+  const CR = () => Object.assign({ enabled: true }, S().cond_report || {});
+  const wsSlug = () => { const ob = S().online_booking || {}; return ob.slug || (typeof _wsSlug === 'function' ? _wsSlug(S().workshop_name || '') : ''); };
+
+  // ───────── tab plumbing (same as the Customer extras block) ─────────
+  const TABS = [];
+  function addTab(id, label, svg, roles, enabled, draw) {
+    try {
+      roles.forEach(r => { if (DEFAULT_ROLE_PERMS[r] && !DEFAULT_ROLE_PERMS[r].includes(id)) DEFAULT_ROLE_PERMS[r].push(id); });
+      if (!ALL_TABS.some(t => t.id === id)) ALL_TABS.push({ id, label });
+      TAB_TITLES[id] = label;
+    } catch (e) { console.warn('[tab perms]', id, e); }
+    const base = window.canSee;
+    const can = () => { try { return enabled() && !isChainHQMode() && base(id); } catch (_) { return false; } };
+    window.canSee = function (t) { return t === id ? can() : base.apply(this, arguments); };
+    TABS.push({ id, label, svg, can, draw });
+  }
+  function ensureUi() {
+    TABS.forEach(T => {
+      const nav = document.querySelector(`.snav[data-tab="${T.id}"]`), panel = g('tab-' + T.id);
+      if (!T.can()) { if (nav) nav.remove(); if (panel) panel.remove(); return; }
+      if (!nav) {
+        const after = document.querySelector('.snav[data-tab="invoices"]') || document.querySelector('.snav[data-tab="jobs"]');
+        if (after) { const b = document.createElement('button'); b.className = 'snav'; b.dataset.tab = T.id; b.onclick = () => switchTab(T.id); b.innerHTML = SVG(T.svg) + esc(T.label) + `<span id="${T.id}Badge" style="margin-left:auto;display:none;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;padding:0 5px"></span>`; after.after(b); }
+      }
+      if (!panel) { const host = g('tab-workload') && g('tab-workload').parentNode; if (host) { const d = document.createElement('div'); d.className = 'tab-panel'; d.id = 'tab-' + T.id; host.appendChild(d); } }
+      T.start && T.start();
+    });
+  }
+  const _rsv = window.renderSidebarVisibility;
+  if (typeof _rsv === 'function') window.renderSidebarVisibility = function () { const r = _rsv.apply(this, arguments); try { ensureUi(); } catch (e) { console.warn('[more ui]', e); } return r; };
+  const _st = window.switchTab;
+  if (typeof _st === 'function') window.switchTab = function (tab) { const r = _st.apply(this, arguments); const T = TABS.find(x => x.id === tab); if (T) T.draw(); return r; };
+  function setBadge(id, n) { const b = g(id + 'Badge'); if (b) { b.textContent = n; b.style.display = n ? 'inline-flex' : 'none'; } }
+  const csvCell = v => { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const csv = rows => '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+  function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  1 · ACCOUNTING EXPORT
+  // ══════════════════════════════════════════════════════════════════════════
+  function invLines(inv) {
+    const v = _exemptView(inv), taxPct = _invTaxPct(v), filt = !!v.client_decision_at, keep = it => !filt || (it.approval || 'pending') !== 'rejected';
+    const rows = [];
+    (v.lines || []).forEach(l => {
+      if (!keep(l)) return;
+      const qty = Math.max(1, Number(l.qty || 1)), unit = Number(l.unit_price || 0), gross = unit * qty, da = +(gross * Number(l.disc_pct || 0) / 100).toFixed(2), net = +(gross - da).toFixed(2);
+      const rate = l.taxable === false ? 0 : Number(_lineRate(l, taxPct) || 0), tax = +(net * rate / 100).toFixed(2);
+      rows.push({ name: l.name || 'Part', desc: l.hsn ? 'HSN/SAC ' + l.hsn : '', qty, rate: unit, disc: da, net, taxPct: rate, tax, hsn: l.hsn || '', kind: 'Parts' });
+    });
+    (v.charges || []).forEach(c => {
+      if (!keep(c)) return;
+      const amt = Number(c.amount || 0), rate = Number(_chRate(c, v, taxPct) || 0), tax = +(amt * rate / 100).toFixed(2);
+      rows.push({ name: c.name || 'Service', desc: '', qty: 1, rate: amt, disc: 0, net: amt, taxPct: rate, tax, hsn: c.hsn || c.sac || '', kind: 'Services' });
+    });
+    const t = _invoiceTotals(inv), sumNet = rows.reduce((a, r) => a + r.net, 0), sumTax = rows.reduce((a, r) => a + r.tax, 0);
+    return { rows, total: t.roundOff, net: +sumNet.toFixed(2), tax: +sumTax.toFixed(2), round: +(t.roundOff - sumNet - sumTax).toFixed(2) };
+  }
+  const invDate = i => i.issue_date || (i.created_at || '').slice(0, 10);
+  const invCurrency = i => (i.workshop_snapshot && i.workshop_snapshot.currency_code) || (S().currency_code) || '';
+  const custName = i => (i.customer && i.customer.name) || 'Walk-in customer';
+  function pickInvoices(from, to, drafts) {
+    return (D.invoices || []).filter(i => !i.is_estimate && i.status !== 'Cancelled' && (drafts || i.status !== 'Draft') && invDate(i) >= from && invDate(i) <= to).sort((a, b) => invDate(a).localeCompare(invDate(b)) || String(a.number).localeCompare(String(b.number)));
+  }
+  const xmlEsc = s => String(s == null ? '' : s).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+
+  function buildExport(fmt, list, ac) {
+    const stamp = today();
+    if (fmt === 'csv') {
+      const rows = [['Invoice no', 'Date', 'Customer', 'Phone', 'Tax ID', 'Plate', 'Type', 'Item', 'HSN/SAC', 'Qty', 'Unit price', 'Discount', 'Net', 'Tax %', 'Tax', 'Invoice total', 'Payment status', 'Amount paid', 'Currency']];
+      list.forEach(i => { const L = invLines(i); L.rows.forEach((r, ix) => rows.push([i.number, invDate(i), custName(i), (i.customer && i.customer.phone) || '', (i.customer && i.customer.gstin) || '', (i.vehicle && i.vehicle.plate) || '', r.kind, r.name, r.hsn, r.qty, r.rate, r.disc, r.net, r.taxPct, r.tax, ix === 0 ? L.total : '', ix === 0 ? (i.payment_status || 'Outstanding') : '', ix === 0 ? Number(i.amount_paid || 0) : '', invCurrency(i)])); });
+      return { name: `invoices-${stamp}.csv`, text: csv(rows), type: 'text/csv;charset=utf-8' };
+    }
+    if (fmt === 'zoho') {
+      const rows = [['Invoice Date', 'Invoice Number', 'Invoice Status', 'Customer Name', 'Customer Email', 'Currency Code', 'Item Name', 'Item Desc', 'Quantity', 'Item Price', 'Discount', 'Item Tax %', 'Item Tax', 'Item Total', 'Notes']];
+      list.forEach(i => { const L = invLines(i); L.rows.forEach(r => rows.push([invDate(i), i.number, i.payment_status === 'Paid' ? 'Paid' : 'Sent', custName(i), (i.customer && i.customer.email) || '', invCurrency(i), r.name, r.desc, r.qty, r.rate, r.disc, r.taxPct, r.tax, +(r.net + r.tax).toFixed(2), (i.vehicle && i.vehicle.plate) ? 'Vehicle ' + i.vehicle.plate : ''])); });
+      return { name: `zoho-invoices-${stamp}.csv`, text: csv(rows), type: 'text/csv;charset=utf-8' };
+    }
+    if (fmt === 'qbo') {
+      const rows = [['*InvoiceNo', '*Customer', '*InvoiceDate', '*DueDate', 'Terms', 'Location', 'Memo', 'Item(Product/Service)', 'ItemDescription', 'ItemQuantity', 'ItemRate', '*ItemAmount', '*ItemTaxCode', 'ItemTaxAmount', 'Currency']];
+      list.forEach(i => { const L = invLines(i); L.rows.forEach(r => rows.push([i.number, custName(i), invDate(i), i.due_date || invDate(i), '', '', (i.vehicle && i.vehicle.plate) ? 'Vehicle ' + i.vehicle.plate : '', r.kind, r.name, r.qty, r.rate, r.net, r.taxPct > 0 ? 'Taxable' : 'Non', r.tax, invCurrency(i)])); });
+      return { name: `quickbooks-invoices-${stamp}.csv`, text: csv(rows), type: 'text/csv;charset=utf-8' };
+    }
+    if (fmt === 'pay') {
+      const rows = [['Date', 'Invoice no', 'Customer', 'Amount received', 'Method', 'Status', 'Invoice total', 'Currency']];
+      list.filter(i => Number(i.amount_paid || 0) > 0 || i.payment_status === 'Paid').forEach(i => rows.push([(i.paid_at || '').slice(0, 10) || invDate(i), i.number, custName(i), i.payment_status === 'Paid' ? invLines(i).total : Number(i.amount_paid || 0), i.payment_method || '', i.payment_status || '', invLines(i).total, invCurrency(i)]));
+      return { name: `payments-${stamp}.csv`, text: csv(rows), type: 'text/csv;charset=utf-8' };
+    }
+    // Tally (XML): one Sales voucher per invoice + the ledger masters it needs
+    const ymd = iso => String(iso).replace(/-/g, '');
+    const customers = [...new Set(list.map(custName))];
+    const masters = [['Sales Accounts', ac.sales_ledger], ['Duties & Taxes', ac.tax_ledger], ['Indirect Expenses', ac.round_ledger]].map(([parent, name]) => `<TALLYMESSAGE xmlns:UDF="TallyUDF"><LEDGER NAME="${xmlEsc(name)}" ACTION="Create"><NAME>${xmlEsc(name)}</NAME><PARENT>${xmlEsc(parent)}</PARENT></LEDGER></TALLYMESSAGE>`)
+      .concat(customers.map(n => `<TALLYMESSAGE xmlns:UDF="TallyUDF"><LEDGER NAME="${xmlEsc(n)}" ACTION="Create"><NAME>${xmlEsc(n)}</NAME><PARENT>Sundry Debtors</PARENT></LEDGER></TALLYMESSAGE>`)).join('\n');
+    const vouchers = list.map(i => {
+      const L = invLines(i), party = xmlEsc(custName(i)), sales = L.net, tax = L.tax, round = L.round, total = L.total;
+      const ent = (name, amt, debit, party_) => `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${xmlEsc(name)}</LEDGERNAME><ISDEEMEDPOSITIVE>${debit ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE>${party_ ? '<ISPARTYLEDGER>Yes</ISPARTYLEDGER>' : ''}<AMOUNT>${(debit ? -amt : amt).toFixed(2)}</AMOUNT></ALLLEDGERENTRIES.LIST>`;
+      return `<TALLYMESSAGE xmlns:UDF="TallyUDF"><VOUCHER VCHTYPE="Sales" ACTION="Create" OBJVIEW="Accounting Voucher View"><DATE>${ymd(invDate(i))}</DATE><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><VOUCHERNUMBER>${xmlEsc(i.number)}</VOUCHERNUMBER><PARTYLEDGERNAME>${party}</PARTYLEDGERNAME><NARRATION>${xmlEsc((i.vehicle && i.vehicle.plate) ? 'Vehicle ' + i.vehicle.plate : 'Garage Pro invoice')}</NARRATION>
+${ent(custName(i), total, true, true)}
+${ent(ac.sales_ledger, sales, false)}
+${tax ? ent(ac.tax_ledger, tax, false) : ''}
+${round > 0.004 ? ent(ac.round_ledger, round, false) : round < -0.004 ? ent(ac.round_ledger, -round, true) : ''}
+</VOUCHER></TALLYMESSAGE>`;
+    }).join('\n');
+    const co = ac.company ? `<STATICVARIABLES><SVCURRENTCOMPANY>${xmlEsc(ac.company)}</SVCURRENTCOMPANY></STATICVARIABLES>` : '';
+    const wrap = (report, body) => `<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>${report}</REPORTNAME>${co}</REQUESTDESC><REQUESTDATA>\n${body}\n</REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>`;
+    // Tally imports masters and vouchers as separate requests — put both envelopes in one file, masters first
+    return { name: `tally-sales-${stamp}.xml`, text: '<?xml version="1.0" encoding="UTF-8"?>\n' + wrap('All Masters', masters) + '\n<!-- If Tally rejects a file with two envelopes, split at this line: import the first envelope, then the second. -->\n' + wrap('Vouchers', vouchers), type: 'application/xml;charset=utf-8' };
+  }
+  window.gpExportOpen = function () {
+    const first = today().slice(0, 8) + '01', ac = AC();
+    openModal({ title: 'Export for accounting', saveLabel: 'Download', body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="f-grp"><label>From</label><input id="axFrom" type="date" value="${first}" onchange="gpExportCount()"></div><div class="f-grp"><label>To</label><input id="axTo" type="date" value="${today()}" onchange="gpExportCount()"></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Format</label><select id="axFmt" onchange="gpExportFmt()"><option value="csv">CSV — one row per invoice line (works with anything)</option><option value="tally">Tally — XML sales vouchers</option><option value="zoho">Zoho Books — invoice import CSV</option><option value="qbo">QuickBooks Online — invoice import CSV</option><option value="pay">Payments received — CSV</option></select></div>
+      <div id="axTally" style="grid-column:span 2;display:none;grid-template-columns:1fr 1fr;gap:10px"><div class="f-grp"><label>Sales ledger</label><input id="axSales" value="${esc(ac.sales_ledger)}"></div><div class="f-grp"><label>Tax ledger</label><input id="axTax" value="${esc(ac.tax_ledger)}"></div><div class="f-grp"><label>Round-off ledger</label><input id="axRound" value="${esc(ac.round_ledger)}"></div><div class="f-grp"><label>Tally company (optional)</label><input id="axCo" value="${esc(ac.company)}" placeholder="Exactly as in Tally"></div>
+        <div style="grid-column:span 2;font-size:12px;color:var(--faint)">Customer ledgers are created under Sundry Debtors. Ledger names are used as given — match them to your Tally, and try a few invoices first.</div></div>
+      <label style="grid-column:span 2;display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="axDraft" style="width:16px;height:16px" onchange="gpExportCount()"> Include draft invoices</label>
+      <div id="axCount" style="grid-column:span 2;font-size:13px;color:var(--dim)"></div></div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>
+      <div style="font-size:12px;color:var(--faint);margin-top:10px;line-height:1.55">Estimates and cancelled invoices are left out. Amounts, tax and round-off are exactly those on the invoice. Always let your accountant check the first import — tax treatment differs by country.</div>`,
+      onSave: async () => {
+        const list = pickInvoices(val('axFrom'), val('axTo'), g('axDraft').checked); if (!list.length) throw new Error('No invoices in that date range');
+        const fmt = val('axFmt'); let ac2 = AC();
+        if (fmt === 'tally') { ac2 = { sales_ledger: val('axSales').trim() || 'Sales', tax_ledger: val('axTax').trim() || 'Output Tax', round_ledger: val('axRound').trim() || 'Round Off', company: val('axCo').trim() }; S().acct_export = ac2; try { await wsSaveSettings(); } catch (_) {} }
+        const f = buildExport(fmt, list, ac2); download(f.name, f.text, f.type); audit('accounting-export', `${fmt} · ${list.length} invoices`, {}); closeModal(); showToast(`Exported ${list.length} invoice${list.length === 1 ? '' : 's'}`, 'good');
+      } });
+    setTimeout(gpExportCount, 0);
+  };
+  window.gpExportFmt = () => { const t = g('axTally'); if (t) t.style.display = val('axFmt') === 'tally' ? 'grid' : 'none'; };
+  window.gpExportCount = () => { const el = g('axCount'); if (el) { const n = pickInvoices(val('axFrom'), val('axTo'), g('axDraft') && g('axDraft').checked).length; el.textContent = n + ' invoice' + (n === 1 ? '' : 's') + ' in this range'; } };
+  const _ri = window.renderInvoices;
+  if (typeof _ri === 'function') window.renderInvoices = function () {
+    const r = _ri.apply(this, arguments);
+    try { const bar = document.querySelector('#tab-invoices .page-head > div:last-child'); if (bar && !g('axBtn') && isServiceAdvisorRole()) { const b = document.createElement('button'); b.id = 'axBtn'; b.type = 'button'; b.className = 'refresh-btn'; b.textContent = 'Export for accounting'; b.onclick = gpExportOpen; bar.insertBefore(b, bar.firstChild); } } catch (e) { console.warn('[export btn]', e); }
+    return r;
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  2 · CONDITION REPORT  (shareable, "verified by <workshop>")
+  // ══════════════════════════════════════════════════════════════════════════
+  const rtoken = () => { const c = 'abcdefghijkmnpqrstuvwxyz23456789'; return Array.from(crypto.getRandomValues(new Uint8Array(24)), b => c[b % c.length]).join(''); };
+  const reportUrl = t => `${SITE}/report.html?w=${wsUid()}&t=${t}`;
+  async function reportLog() { if (!Array.isArray(D.cond_reports)) D.cond_reports = (await wsLoad('cond_reports')) || []; return D.cond_reports; }
+  window.gpCondReport = async function (plate) {
+    if (!plate) return showToast('Pick a vehicle first', 'bad');
+    const log = await reportLog(), pn = plateNorm(plate), mine = log.filter(x => x.pn === pn).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    openModal({ title: `Condition report · ${plate}`, saveLabel: 'Create report link', body: `<div style="font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:12px">A page the owner can share with a buyer: this vehicle's service history from your job cards, the latest inspection and photos, marked “verified by ${esc(S().workshop_name || 'your workshop')}”. The owner's name and phone are never included.</div>
+      <div style="display:grid;gap:8px"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="crHist" checked style="width:16px;height:16px"> Service history</label><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="crInsp" checked style="width:16px;height:16px"> Latest inspection findings</label><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="crPhotos" checked style="width:16px;height:16px"> Photos (up to 8)</label><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="crAmt" style="width:16px;height:16px"> Show what each visit cost</label>
+      <div class="f-grp"><label>Note from the workshop (optional)</label><textarea id="crNote" rows="2" maxlength="300" placeholder="e.g. Regularly serviced here since 2021"></textarea></div></div>
+      ${mine.length ? `<div style="margin-top:14px"><b style="font-size:13px">Links already created</b>${mine.map(x => `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:12.5px"><span style="flex:1;min-width:140px">${esc(dmy(x.created_at.slice(0, 10)))}</span><a class="mini-btn" style="text-decoration:none" target="_blank" rel="noopener" href="${esc(reportUrl(x.token))}">Open</a><button type="button" class="mini-btn" onclick="gpReportCopy('${esc(x.token)}')">Copy link</button><button type="button" class="mini-btn danger" onclick="gpReportRevoke('${esc(x.token)}','${esc(plate)}')">Revoke</button></div>`).join('')}</div>` : ''}
+      <div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>`,
+      onSave: async () => {
+        const doc = await buildReport(plate, { hist: g('crHist').checked, insp: g('crInsp').checked, photos: g('crPhotos').checked, amt: g('crAmt').checked, note: val('crNote').trim().slice(0, 300) });
+        const token = rtoken(); doc.token = token;
+        await fbDb.collection('users').doc(wsUid()).collection('vehicle_reports').doc(token).set(doc);
+        log.push({ token, pn, plate, created_at: nowStr(), by: (currentWorker && currentWorker.name) || '' }); await wsSave('cond_reports', log);
+        audit('condition-report', plate, { token: token.slice(0, 6) }); closeModal(); showReportShare(token, plate);
+      } });
+  };
+  async function buildReport(plate, o) {
+    const pn = plateNorm(plate), bks = (D.bookings || []).filter(b => plateNorm(b.plate) === pn && b.status !== 'Cancelled').sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    if (!bks.length) throw new Error('No visits on record for this vehicle yet');
+    const latest = bks[0], reg = (typeof _registryFind === 'function' ? _registryFind(plate) : null) || {};
+    const jobsOf = b => (D.jobs || []).filter(j => j.booking_id === b.id);
+    const doc = { uid: wsUid(), plate, created_at: nowStr(), currency: cur(), show_amounts: !!o.amt, note: o.note || '',
+      vehicle: { make: latest.veh_make || reg.make || '', model: latest.veh_model || reg.model || '', year: latest.veh_year || reg.year || '', colour: latest.colour || reg.colour || '', fuel: latest.fuel_type || reg.fuel_type || '', vin_tail: String(latest.vin || reg.vin || '').slice(-6) },
+      workshop: { name: S().workshop_name || '', phone: S().phone || '', city: S().city || '', address: (S().address || '').split('\n')[0] || '' }, history: [], inspection: null, photos: [] };
+    if (o.hist) doc.history = bks.filter(b => ['Delivered', 'Completed', 'Ready for Pickup'].includes(b.status) || jobsOf(b).some(j => j.status === 'Delivered')).slice(0, 40).map(b => {
+      const js = jobsOf(b), names = []; js.forEach(j => { (j.parts || []).forEach(p => p.name && names.push(p.name)); (j.service_charges || []).forEach(c => c.name && names.push(c.name)); });
+      const inv = (D.invoices || []).find(i => i.booking_id === b.id && !i.is_estimate && i.status !== 'Cancelled');
+      return { date: b.date || '', service: b.service || '', km: Number(b.odometer_in || 0) || null, work: [...new Set(names)].slice(0, 14), amount: (o.amt && inv) ? _invoiceTotals(inv).roundOff : null };
+    });
+    if (o.insp) {
+      const jobs = bks.flatMap(jobsOf).filter(j => j.dvi && (j.dvi.items || []).some(it => it.condition)).sort((a, b) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')));
+      if (jobs[0]) doc.inspection = { date: (jobs[0].updated_at || jobs[0].created_at || '').slice(0, 10), items: jobs[0].dvi.items.filter(it => it.condition).slice(0, 60).map(it => ({ area: it.category || '', part: it.component || '', cond: it.condition, note: (it.notes || '').slice(0, 120) })) };
+    }
+    if (o.photos) {
+      for (const j of bks.flatMap(jobsOf).slice(0, 3)) { try { (await loadJobPhotos(j.id)).forEach(p => { if (doc.photos.length < 8 && p.data && /^https:\/\//.test(p.data) && !['Insurance'].includes(p.label)) doc.photos.push({ url: p.data, label: (p.label || '').slice(0, 30) }); }); } catch (_) {} if (doc.photos.length >= 8) break; }
+    }
+    return doc;
+  }
+  function showReportShare(token, plate) {
+    const url = reportUrl(token);
+    _openSubModal({ title: 'Report ready', bodyHtml: `<div style="font-size:13.5px;line-height:1.6">Share this link with the owner or the buyer. They can open it on any device and save it as a PDF.</div><input readonly id="crUrl" value="${esc(url)}" onclick="this.select()" style="width:100%;margin:10px 0;padding:10px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:12.5px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="add-btn" type="button" onclick="gpReportCopy('${esc(token)}')">Copy link</button><a class="mini-btn" style="text-decoration:none" target="_blank" rel="noopener" href="${esc(url)}">Open / save as PDF</a><a class="mini-btn" style="text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Condition report for ' + plate + ' — verified by ' + (S().workshop_name || 'our workshop') + ': ' + url)}">Share on WhatsApp</a></div>`, footHtml: '<div style="flex:1"></div><button class="fbtn fbtn-save" onclick="closeSubModal()">Done</button>' });
+  }
+  window.gpReportCopy = t => { navigator.clipboard.writeText(reportUrl(t)).then(() => showToast('Link copied', 'good')).catch(() => showToast(reportUrl(t), 'good')); };
+  window.gpReportRevoke = async (t, plate) => {
+    if (!(await customConfirm('Revoke this link? Anyone who has it will no longer be able to open the report.', { title: 'Revoke', okLabel: 'Revoke' }))) return;
+    try { await fbDb.collection('users').doc(wsUid()).collection('vehicle_reports').doc(t).delete(); } catch (e) { return showToast('Could not revoke: ' + (e.message || e), 'bad'); }
+    D.cond_reports = (D.cond_reports || []).filter(x => x.token !== t); await wsSave('cond_reports', D.cond_reports); showToast('Link revoked', 'good'); gpCondReport(plate);
+  };
+  const _osh = window.openServiceHistory;
+  if (typeof _osh === 'function') window.openServiceHistory = function () {
+    const r = _osh.apply(this, arguments);
+    try {
+      const put = () => {
+        if (!CR().enabled || !g('vhBody')) return;
+        let b = g('vhReportBtn');
+        if (!b) { b = document.createElement('button'); b.id = 'vhReportBtn'; b.type = 'button'; b.className = 'mini-btn good'; b.style.margin = '0 0 12px'; b.textContent = 'Condition report for this car'; g('vhBody').parentNode.insertBefore(b, g('vhBody')); }
+        const on = [...document.querySelectorAll('#vhBody button[onclick^="_vhSelect"]')].find(x => /var\(--acc\)/.test(x.getAttribute('style') || ''));
+        const pl = on && on.querySelector('.plate'); b.onclick = () => gpCondReport(pl ? pl.textContent.trim() : '');
+      };
+      put(); const d0 = window._vhDraw; if (typeof d0 === 'function') window._vhDraw = function () { const x = d0.apply(this, arguments); put(); return x; };
+      const s0 = window._vhSelect; if (typeof s0 === 'function') window._vhSelect = function () { const x = s0.apply(this, arguments); put(); return x; };
+    } catch (e) { console.warn('[report btn]', e); }
+    return r;
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  3 · PICKUP SCHEDULING
+  // ══════════════════════════════════════════════════════════════════════════
+  const pkOn = () => PK().enabled;
+  let PS = { reqs: [], unsub: null, loaded: false };
+  addTab('pickups', 'Pickups', '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 12l9-5M12 12v9M12 12L3 7"/>', ['manager', 'service_advisor', 'floor_manager', 'receptionist'], pkOn, () => drawPickups());
+  TABS[TABS.length - 1].start = () => startPickups();
+  async function publishPickupCfg() {
+    try { const p = PK(); await fbDb.collection('public_workshops').doc(wsUid()).set({ pickup: p.enabled ? { enabled: true, open: p.open, close: p.close, slotMins: +p.slotMins || 30, capacity: +p.capacity || 1, days: +p.days || 3, closedSun: !!p.closedSun } : { enabled: false } }, { merge: true }); } catch (e) { console.warn('[pickup cfg]', e); }
+  }
+  function startPickups() {
+    if (PS.unsub || !currentWorker) return;
+    try {
+      PS.unsub = wsCol('pickup_requests').onSnapshot(snap => {
+        const before = new Map(PS.reqs.map(r => [r.id, r.date + r.time]));
+        PS.reqs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        PS.reqs.forEach(r => { if (r.prev_hold_id) wsCol('pickup_holds').doc(r.prev_hold_id).delete().then(() => wsCol('pickup_requests').doc(r.id).update({ prev_hold_id: '' })).catch(() => {}); });
+        if (PS.loaded) PS.reqs.filter(r => before.get(r.id) !== r.date + r.time).forEach(r => showToast(`📦 ${r.plate} — pickup ${dmy(r.date)} at ${r.time}`, 'good'));
+        PS.loaded = true; setBadge('pickups', PS.reqs.filter(r => r.date === today()).length); if (currentTab === 'pickups') drawPickups();
+      }, e => console.warn('[pickup listener]', e.code || e));
+    } catch (e) { console.warn('[pickup listener]', e); }
+  }
+  function drawPickups() {
+    const p = g('tab-pickups'); if (!p) return;
+    const list = PS.reqs.slice().sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)), t = today();
+    const jobOf = r => (D.jobs || []).find(j => plateNorm(j.plate) === plateNorm(r.plate) && !['Delivered', 'Cancelled'].includes(j.status));
+    p.innerHTML = `<div class="page-head"><div><h2>Pickups</h2><div class="dash-meta"><span class="live-dot"></span><span>${list.filter(r => r.date === t).length} today · ${list.length} booked · customers choose a time once their car is Ready for Pickup</span></div></div></div>
+      ${list.length ? list.map(r => { const j = jobOf(r); return `<div class="card" style="padding:12px 16px;margin-bottom:10px;border-left:4px solid ${r.date < t ? 'var(--red)' : r.date === t ? 'var(--acc2)' : 'var(--teal)'}"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><div><b style="font-size:15px">${esc(dmy(r.date))} · ${esc(r.time)}</b>${r.date === t ? ' <span style="color:var(--acc2);font-weight:700;font-size:12px">TODAY</span>' : r.date < t ? ' <span style="color:var(--red);font-weight:700;font-size:12px">PAST</span>' : ''}<div style="margin-top:4px"><span class="plate">${esc(r.plate)}</span> ${j ? esc(j.cust_name || '') + ' · ' + esc(j.status || '') : ''}</div>${r.name ? `<div style="font-size:12.5px;color:var(--dim)">Collected by: ${esc(r.name)}</div>` : ''}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${j && canSee('jobs') ? `<button class="mini-btn" type="button" onclick="openJobForm('${esc(j.id)}')">Job card</button>` : ''}<button class="add-btn" type="button" onclick="pkDone('${esc(r.id)}')">Collected</button></div></div></div>`; }).join('') : `<div class="placeholder"><h3>No pickups booked</h3><p>When you mark a job “Ready for Pickup”, the customer sees a “Choose a pickup time” card on their Track page. Their choice appears here instantly.</p></div>`}`;
+  }
+  window.pkDone = async id => { const r = PS.reqs.find(x => x.id === id); if (!r) return; try { if (r.hold_id) await wsCol('pickup_holds').doc(r.hold_id).delete().catch(() => {}); await wsCol('pickup_requests').doc(id).delete(); audit('pickup-done', r.plate, {}); } catch (e) { showToast('Could not update: ' + (e.message || e), 'bad'); } };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  4 · GIFT VOUCHERS
+  // ══════════════════════════════════════════════════════════════════════════
+  const gfOn = () => GF().enabled;
+  let GS = { items: [], unsub: null, loaded: false, tab: 'open' };
+  addTab('vouchers', 'Gift vouchers', '<rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18M12 8c-2-4-6-3-5 0 .6 1.5 5 0 5 0zM12 8c2-4 6-3 5 0-.6 1.5-5 0-5 0z"/>', ['manager', 'service_advisor', 'receptionist'], gfOn, () => drawVouchers());
+  TABS[TABS.length - 1].start = () => startVouchers();
+  async function publishGiftCfg() {
+    try {
+      const gc = GF(), slug = wsSlug(); if (!slug) return;
+      const amounts = String(gc.amounts || '').split(',').map(x => Number(x.trim())).filter(x => x > 0).slice(0, 8);
+      await fbDb.collection('public_gift').doc(slug).set({ uid: wsUid(), enabled: !!gc.enabled, name: S().workshop_name || '', city: S().city || '', phone: S().phone || '', country: (typeof ctry === 'function' ? ctry().code : ''), currency: cur(), amounts, min: Number(gc.min) || 0, months: Number(gc.months) || 12, pay_note: String(gc.pay_note || '').slice(0, 400), pay_link: /^https:\/\//.test(gc.pay_link || '') ? gc.pay_link : '', terms: String(gc.terms || '').slice(0, 600), brand: await (window.obBrand ? window.obBrand() : Promise.resolve({})), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } catch (e) { console.warn('[gift cfg]', e); }
+  }
+  const vcode = () => { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = () => Array.from(crypto.getRandomValues(new Uint8Array(4)), x => c[x % c.length]).join(''); return `GV-${b()}-${b()}`; };
+  function startVouchers() {
+    if (GS.unsub || !currentWorker) return;
+    try {
+      GS.unsub = wsCol('gift_vouchers').onSnapshot(snap => {
+        const before = new Set(GS.items.map(x => x.id));
+        GS.items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (GS.loaded) GS.items.filter(x => x.status === 'pending' && !before.has(x.id)).forEach(x => showToast(`🎁 New gift voucher order — ${money(x.amount)} from ${x.buyer_name}`, 'good'));
+        GS.loaded = true; setBadge('vouchers', GS.items.filter(x => x.status === 'pending').length); if (currentTab === 'vouchers') drawVouchers();
+      }, e => console.warn('[voucher listener]', e.code || e));
+    } catch (e) { console.warn('[voucher listener]', e); }
+  }
+  const expired = v => v.expires_at && v.expires_at < today();
+  function drawVouchers() {
+    const p = g('tab-vouchers'); if (!p) return;
+    const pend = GS.items.filter(x => x.status === 'pending'), act = GS.items.filter(x => x.status === 'active' && !expired(x) && Number(x.balance) > 0), done = GS.items.filter(x => !pend.includes(x) && !act.includes(x));
+    const list = GS.tab === 'open' ? pend.concat(act) : done, liab = act.reduce((a, x) => a + Number(x.balance || 0), 0);
+    p.innerHTML = `<div class="page-head"><div><h2>Gift vouchers</h2><div class="dash-meta"><span class="live-dot"></span><span>${pend.length} awaiting payment · ${act.length} active · ${money(liab)} unredeemed</span></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="add-btn" type="button" onclick="gfSell()">Sell a voucher</button><button class="refresh-btn" type="button" onclick="gfRedeemOpen()">Redeem a code</button><button class="refresh-btn" type="button" onclick="gfCopyLink()">Copy order link</button></div></div>
+      <div style="display:flex;gap:4px;border-bottom:1px solid var(--brd);margin-bottom:14px">${[['open', 'Open (' + (pend.length + act.length) + ')'], ['closed', 'Used / expired / cancelled']].map(([k, l]) => `<button type="button" onclick="gfTab('${k}')" style="border:0;background:none;color:${GS.tab === k ? 'var(--txt)' : 'var(--dim)'};font-weight:700;padding:8px 14px;border-bottom:2px solid ${GS.tab === k ? 'var(--acc)' : 'transparent'};cursor:pointer">${l}</button>`).join('')}</div>
+      ${list.length ? list.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).map(vCard).join('') : `<div class="placeholder"><h3>${GS.tab === 'open' ? 'No open vouchers' : 'Nothing here yet'}</h3><p>${GS.tab === 'open' ? 'Share your order link — customers pick an amount and the order lands here. Or sell one at the counter.' : ''}</p></div>`}`;
+  }
+  function vCard(v) {
+    const st = v.status === 'pending' ? 'Awaiting payment' : v.status === 'cancelled' ? 'Cancelled' : expired(v) ? 'Expired' : Number(v.balance) <= 0 ? 'Fully used' : 'Active';
+    const col = v.status === 'pending' ? 'var(--acc2)' : st === 'Active' ? 'var(--teal)' : 'var(--faint)';
+    return `<div class="card" style="padding:12px 16px;margin-bottom:10px;border-left:4px solid ${col}"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div style="min-width:230px;flex:1"><b style="font-size:15px">${money(v.amount)}</b>${v.item ? ' · ' + esc(v.item) : ''} <span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:100px;background:var(--bg2);color:${col}">${st}</span>
+      ${v.code ? `<div style="margin-top:4px"><code style="font-size:14px;font-weight:700;letter-spacing:.05em">${esc(v.code)}</code>${v.status === 'active' ? ` · balance <b>${money(v.balance)}</b>${v.expires_at ? ' · expires ' + esc(dmy(v.expires_at)) : ''}` : ''}</div>` : ''}
+      <div style="font-size:12.5px;color:var(--dim);margin-top:3px">Bought by <b>${esc(v.buyer_name || '—')}</b>${v.buyer_phone ? ' · ' + esc(v.buyer_phone) : ''}${v.buyer_email ? ' · ' + esc(v.buyer_email) : ''}${v.to_name ? ` · for <b>${esc(v.to_name)}</b>` : ''}</div>${v.message ? `<div style="font-size:12.5px;color:var(--faint);margin-top:2px">“${esc(v.message)}”</div>` : ''}${(v.uses || []).length ? `<div style="font-size:12px;color:var(--faint);margin-top:3px">Used: ${v.uses.map(u => money(u.amount) + ' on ' + esc(u.invoice_no || dmy(u.at.slice(0, 10)))).join(' · ')}</div>` : ''}</div>
+      <div style="display:flex;flex-direction:column;gap:6px;min-width:150px">${v.status === 'pending' ? `<button class="add-btn" type="button" onclick="gfConfirm('${esc(v.id)}')">Payment received</button><button class="mini-btn danger" type="button" onclick="gfCancel('${esc(v.id)}')">Cancel order</button>` : v.status === 'active' && st === 'Active' ? `<button class="add-btn" type="button" onclick="gfRedeemOpen('${esc(v.id)}')">Redeem</button><button class="mini-btn" type="button" onclick="gfSend('${esc(v.id)}')">💬 Send to buyer</button><button class="mini-btn" type="button" onclick="gfPrint('${esc(v.id)}')">🖨 Print</button>` : ''}</div></div></div>`;
+  }
+  window.gfTab = k => { GS.tab = k; drawVouchers(); };
+  window.gfCopyLink = () => { const u = `${SITE}/gift.html?w=${wsSlug()}`; navigator.clipboard.writeText(u).then(() => showToast('Order link copied', 'good')).catch(() => showToast(u, 'good')); };
+  const patchV = (id, d) => wsCol('gift_vouchers').doc(id).update(Object.assign({ updated_at: nowStr() }, d));
+  window.gfConfirm = async id => {
+    const v = GS.items.find(x => x.id === id); if (!v) return;
+    if (!(await customConfirm(`Confirm you have received ${money(v.amount)} from ${v.buyer_name}? The voucher goes live and gets a code.`, { title: 'Payment received', okLabel: 'Activate voucher', danger: false }))) return;
+    const gc = GF(), code = vcode(), exp = (() => { const d = new Date(); d.setMonth(d.getMonth() + (Number(gc.months) || 12)); return d.toISOString().slice(0, 10); })();
+    try { await patchV(id, { status: 'active', code, balance: Number(v.amount), expires_at: exp, activated_at: nowStr(), uses: [] }); audit('voucher-activated', code, {}); showToast('Voucher active — send it to the buyer', 'good'); setTimeout(() => gfSend(id, Object.assign({}, v, { code, expires_at: exp })), 400); } catch (e) { showToast('Could not activate: ' + (e.message || e), 'bad'); }
+  };
+  window.gfCancel = async id => { if (!(await customConfirm('Cancel this order? Nothing has been charged by Garage Pro.', { title: 'Cancel order', okLabel: 'Cancel order' }))) return; try { await patchV(id, { status: 'cancelled' }); } catch (e) { showToast('Could not cancel: ' + (e.message || e), 'bad'); } };
+  const voucherText = v => `🎁 Gift voucher from ${S().workshop_name || 'our workshop'}\n${money(v.amount)}${v.to_name ? ' for ' + v.to_name : ''}\nCode: ${v.code}${v.expires_at ? '\nValid until ' + dmy(v.expires_at) : ''}\nShow this code when you visit${S().phone ? ' or call ' + S().phone : ''}.`;
+  window.gfSend = (id, vv) => { const v = vv || GS.items.find(x => x.id === id); if (!v || !v.code) return; if (v.buyer_phone) _waOpen(v.buyer_phone, voucherText(v)); else if (v.buyer_email) window.open('mailto:' + encodeURIComponent(v.buyer_email) + '?subject=' + encodeURIComponent('Your gift voucher') + '&body=' + encodeURIComponent(voucherText(v)), '_blank'); else navigator.clipboard.writeText(voucherText(v)).then(() => showToast('Voucher text copied', 'good')); };
+  window.gfPrint = id => {
+    const v = GS.items.find(x => x.id === id); if (!v) return; const w = window.open('', '_blank'); if (!w) return showToast('Allow pop-ups to print', 'bad');
+    w.document.write(`<!doctype html><meta charset="utf-8"><title>Gift voucher</title><style>body{font:15px system-ui,sans-serif;margin:0;padding:40px;color:#111}.card{max-width:560px;margin:0 auto;border:2px solid #111;border-radius:14px;padding:34px;text-align:center}h1{font-size:15px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 14px}.amt{font-size:44px;font-weight:800;margin:6px 0}.code{font:700 22px 'Courier New',monospace;letter-spacing:.12em;border:1.5px dashed #111;display:inline-block;padding:8px 16px;margin:12px 0}small{color:#555;display:block;margin-top:10px;line-height:1.5}</style><div class="card"><h1>${esc(S().workshop_name || 'Gift voucher')}</h1><div>Gift voucher${v.to_name ? ' for <b>' + esc(v.to_name) + '</b>' : ''}</div><div class="amt">${esc(money(v.amount))}</div>${v.message ? `<div style="font-style:italic">“${esc(v.message)}”</div>` : ''}<div class="code">${esc(v.code)}</div><div>${v.expires_at ? 'Valid until ' + esc(dmy(v.expires_at)) : ''}</div><small>${esc(GF().terms)}<br>${esc([S().address, S().phone].filter(Boolean).join(' · '))}</small></div><script>setTimeout(()=>print(),300)<\/script>`); w.document.close();
+  };
+  window.gfSell = function () {
+    openModal({ title: 'Sell a voucher at the counter', saveLabel: 'Create voucher', body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="f-grp"><label>Amount *</label><input id="gsAmt" type="number" min="1" step="0.01"></div><div class="f-grp"><label>Buyer name *</label><input id="gsName"></div><div class="f-grp"><label>Buyer phone</label><input id="gsPhone" type="tel"></div><div class="f-grp"><label>Buyer email</label><input id="gsEmail" type="email"></div><div class="f-grp"><label>For (recipient)</label><input id="gsTo"></div><div class="f-grp"><label>Message</label><input id="gsMsg" maxlength="160"></div>
+      <label style="grid-column:span 2;display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="gsPaid" checked style="width:16px;height:16px"> Payment received now (voucher goes live immediately)</label></div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>`,
+      onSave: async () => {
+        const amt = Number(val('gsAmt')); if (!(amt > 0)) throw new Error('Enter the amount'); if (!val('gsName').trim()) throw new Error('Enter the buyer\'s name');
+        const paid = g('gsPaid').checked, exp = (() => { const d = new Date(); d.setMonth(d.getMonth() + (Number(GF().months) || 12)); return d.toISOString().slice(0, 10); })(), id = uid('gv');
+        const v = { slug: wsSlug(), buyer_name: val('gsName').trim(), buyer_phone: val('gsPhone').trim(), buyer_email: val('gsEmail').trim(), to_name: val('gsTo').trim(), message: val('gsMsg').trim(), amount: amt, item: '', status: paid ? 'active' : 'pending', created_at: nowStr(), source: 'counter' };
+        if (paid) Object.assign(v, { code: vcode(), balance: amt, expires_at: exp, activated_at: nowStr(), uses: [] });
+        await wsCol('gift_vouchers').doc(id).set(v); audit('voucher-sold', money(amt), {}); closeModal(); if (paid) setTimeout(() => gfPrint(id), 600);
+      } });
+  };
+  window.gfRedeemOpen = function (id) {
+    const v0 = id && GS.items.find(x => x.id === id);
+    const inv = (D.invoices || []).filter(i => !i.is_estimate && i.status !== 'Cancelled' && i.payment_status !== 'Paid').sort((a, b) => String(invDate(b)).localeCompare(String(invDate(a)))).slice(0, 80);
+    const bal = i => Math.max(0, _invoiceTotals(i).roundOff - Number(i.amount_paid || 0));
+    openModal({ title: 'Redeem a gift voucher', saveLabel: 'Apply voucher', body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="f-grp" style="grid-column:span 2"><label>Voucher code</label><input id="grCode" value="${esc(v0 ? v0.code : '')}" placeholder="GV-XXXX-XXXX" style="text-transform:uppercase" oninput="gfRedeemLook()"></div><div id="grInfo" style="grid-column:span 2;font-size:13px;color:var(--dim);min-height:18px"></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Apply to invoice</label><select id="grInv" onchange="gfRedeemLook()"><option value="">Don't attach to an invoice — just reduce the balance</option>${inv.map(i => `<option value="${esc(i.id)}">${esc(i.number || '—')} · ${esc(custName(i))} · ${esc(money(bal(i)))} due</option>`).join('')}</select></div>
+      <div class="f-grp"><label>Amount to use</label><input id="grAmt" type="number" min="0" step="0.01"></div></div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>
+      <div style="font-size:12px;color:var(--faint);margin-top:10px;line-height:1.55">The amount is recorded as a payment on the invoice (method: gift voucher), so the invoice's tax is unchanged. How voucher sales and redemptions are taxed depends on your country — check with your accountant.</div>`,
+      onSave: async () => {
+        const v = GS.items.find(x => x.code === val('grCode').trim().toUpperCase()); if (!v) throw new Error('No voucher with that code'); if (v.status !== 'active') throw new Error('That voucher is not active'); if (expired(v)) throw new Error('That voucher expired on ' + dmy(v.expires_at));
+        const amt = Math.round(Number(val('grAmt')) * 100) / 100; if (!(amt > 0)) throw new Error('Enter the amount to use'); if (amt > Number(v.balance) + 0.001) throw new Error('That is more than the balance (' + money(v.balance) + ')');
+        const invc = (D.invoices || []).find(i => i.id === val('grInv')); const uses = (v.uses || []).concat([{ amount: amt, at: nowStr(), invoice_id: invc ? invc.id : '', invoice_no: invc ? invc.number || '' : '', by: (currentWorker && currentWorker.name) || '' }]);
+        if (invc) { if (amt > bal(invc) + 0.001) throw new Error('That is more than the invoice balance (' + money(bal(invc)) + ')'); const paid = Math.round((Number(invc.amount_paid || 0) + amt) * 100) / 100, full = paid >= _invoiceTotals(invc).roundOff - 0.005; _normaliseInvoicePayment(invc, { payment_status: full ? 'Paid' : 'Partial', amount_paid: paid }); invc.payment_method = full ? 'Gift voucher ' + v.code : (invc.payment_method || ''); invc.updated_at = nowStr(); await wsSave('invoices', D.invoices); try { renderInvoices(); } catch (_) {} }
+        await patchV(v.id, { balance: Math.round((Number(v.balance) - amt) * 100) / 100, uses }); audit('voucher-redeemed', `${v.code} · ${money(amt)}`, {}); closeModal(); showToast(`Applied ${money(amt)} — ${money(Number(v.balance) - amt)} left on the voucher`, 'good');
+      } });
+    setTimeout(gfRedeemLook, 0);
+  };
+  window.gfRedeemLook = () => {
+    const v = GS.items.find(x => x.code === val('grCode').trim().toUpperCase()), el = g('grInfo'); if (!el) return;
+    if (!val('grCode').trim()) { el.textContent = ''; return; }
+    if (!v) { el.innerHTML = '<span style="color:var(--red)">No voucher with that code.</span>'; return; }
+    el.innerHTML = v.status !== 'active' ? `<span style="color:var(--red)">This voucher is ${esc(v.status)}.</span>` : expired(v) ? '<span style="color:var(--red)">Expired ' + esc(dmy(v.expires_at)) + '.</span>' : `<span style="color:var(--teal)">✓ ${esc(money(v.balance))} available</span> · expires ${esc(dmy(v.expires_at))}`;
+    const invc = (D.invoices || []).find(i => i.id === val('grInv')), balI = invc ? Math.max(0, _invoiceTotals(invc).roundOff - Number(invc.amount_paid || 0)) : null;
+    if (v.status === 'active' && g('grAmt') && !g('grAmt').dataset.touched) g('grAmt').value = Math.min(Number(v.balance), balI != null ? balI : Number(v.balance));
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  5 · PHOTO → ESTIMATE
+  // ══════════════════════════════════════════════════════════════════════════
+  const aiOn = () => AI().enabled;
+  const aiUrl = () => { try { return EMAIL_RELAY_URL.replace(/\/api\/send\/?$/, '/api/suggest'); } catch (_) { return ''; } };
+  let AS = { job: null, res: null, busy: false, photo: null };
+  window.gpAiOpen = function (jobId) {
+    const j = (D.jobs || []).find(x => x.id === jobId); if (!j) return showToast('Save the job card first', 'bad');
+    AS = { job: j, res: null, busy: false, photo: null };
+    const concerns = _prConcernsForJob ? _prConcernsForJob(j) : [];
+    _openSubModal({ title: 'Photo → suggested parts', bodyHtml: `<div style="font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:10px">Photograph the worn part, leak or warning light. The AI suggests likely parts and labour lines <b>for you to check</b> — it can be wrong, it never gives prices, and nothing is added until you tick it. The photo is sent to an AI service to analyse it.</div>
+      <div style="display:grid;gap:8px"><select id="aiConcern" style="padding:8px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)"><option value="">Which concern is this about? (optional)</option>${concerns.map(c => `<option value="${esc(c.title)}">${esc(c.title)}</option>`).join('')}</select>
+      <input id="aiNote" type="text" maxlength="200" placeholder="What did you notice? e.g. squealing when braking" style="padding:9px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)">
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="add-btn" onclick="gpAiPick(true)">📷 Take photo</button><button type="button" class="mini-btn" onclick="gpAiPick(false)">Choose from gallery</button></div><input id="aiFile" type="file" accept="image/*" style="display:none"></div><div id="aiOut" style="margin-top:12px"></div>`,
+      footHtml: '<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>' });
+    setTimeout(() => { const f = g('aiFile'); if (f) f.onchange = () => f.files && f.files[0] && gpAiRun(f.files[0]); }, 0);
+  };
+  window.gpAiPick = cam => { const f = g('aiFile'); if (!f) return; if (cam) f.setAttribute('capture', 'environment'); else f.removeAttribute('capture'); f.value = ''; f.click(); };
+  async function gpAiRun(file) {
+    const out = g('aiOut'); out.innerHTML = '<div style="color:var(--faint)">Analysing the photo…</div>';
+    try {
+      const dataUrl = await _resizePhoto(file, 1024); AS.photo = file;
+      const j = AS.job, b = (D.bookings || []).find(x => x.id === j.booking_id) || {};
+      const tok = await fbAuth.currentUser.getIdToken();
+      const r = await fetch(aiUrl(), { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-relay-key': EMAIL_RELAY_KEY, Authorization: 'Bearer ' + tok }, body: JSON.stringify({ image: dataUrl, vehicle: [b.veh_make, b.veh_model, b.veh_year].filter(Boolean).join(' ') || b.vehicle || '', concern: val('aiConcern'), note: val('aiNote'), country: (typeof ctry === 'function' ? ctry().code : ''), department: j.department || '' }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) throw new Error(d.error || ('The suggestion service is unavailable (' + r.status + ')'));
+      AS.res = d; renderAi();
+    } catch (e) { out.innerHTML = `<div style="color:var(--red);font-size:13px">${esc(e.message || e)}</div>`; }
+  }
+  function renderAi() {
+    const d = AS.res, out = g('aiOut'); if (!d || !out) return;
+    const rows = [].concat((d.parts || []).map(p => ({ kind: 'part', name: p.name, qty: p.qty || 1, why: p.reason })), (d.services || []).map(s => ({ kind: 'service', name: s.name, qty: 1, why: s.reason })));
+    AS.rows = rows;
+    const adv = isServiceAdvisorRole();
+    out.innerHTML = `<div style="padding:10px 12px;background:var(--bg2);border-radius:10px;font-size:13px;line-height:1.55"><b>${esc(d.summary || 'No clear fault visible')}</b>${d.confidence ? ` <span style="color:var(--faint)">· confidence ${esc(d.confidence)}</span>` : ''}${d.needs_inspection ? '<div style="color:var(--acc2);margin-top:4px">Needs a hands-on inspection before quoting.</div>' : ''}</div>
+      ${rows.length ? `<div style="margin-top:10px;display:grid;gap:6px">${rows.map((r, i) => `<label style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--brd);border-radius:9px"><input type="checkbox" class="aiPick" data-i="${i}" checked style="width:16px;height:16px;margin-top:2px"><span style="flex:1"><b>${esc(r.name)}</b> <span style="color:var(--faint);font-size:12px">${r.kind === 'service' ? 'labour / service' : 'part × ' + esc(r.qty)}</span>${r.why ? `<div style="font-size:12px;color:var(--dim)">${esc(r.why)}</div>` : ''}</span></label>`).join('')}</div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-top:10px"><input type="checkbox" id="aiSave" checked style="width:16px;height:16px"> Also save the photo on the job card</label>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">${adv ? '<button type="button" class="add-btn" onclick="gpAiAdd()">Add ticked items to the estimate</button>' : ''}<button type="button" class="mini-btn" onclick="gpAiRequest()">Request the ticked parts</button></div>` : ''}`;
+  }
+  const ticked = () => [...document.querySelectorAll('.aiPick:checked')].map(c => AS.rows[Number(c.dataset.i)]).filter(Boolean);
+  async function savePhotoToo() { if (g('aiSave') && g('aiSave').checked && AS.photo && AS.job) { try { await uploadJobPhoto(AS.job.id, AS.photo, 'Damage'); } catch (e) { showToast('Photo not saved: ' + (e.message || e), 'bad'); } } }
+  window.gpAiAdd = async function () {
+    const pick = ticked(); if (!pick.length) return showToast('Tick something first', 'bad');
+    if (typeof _editingJob === 'undefined' || !_editingJob || _editingJob.id !== AS.job.id) return showToast('Open the job card first', 'bad');
+    const concernTitle = val('aiConcern'), ci = (_editingJob.concerns || []).findIndex(c => (c.title || '').trim() === concernTitle && concernTitle);
+    const priceOf = n => { const it = (D.inventory || []).find(i => (i.name || '').toLowerCase() === String(n).toLowerCase()); return it && Number(it.sell_price) > 0 ? Number(it.sell_price) : 0; };
+    pick.forEach(r => {
+      if (ci >= 0) _editingJob.concerns[ci].items.push({ id: uid('ci'), name: r.name, qty: r.qty, price: r.kind === 'part' ? priceOf(r.name) : 0, taxable: true, kind: r.kind === 'service' ? 'service' : 'part' });
+      else if (r.kind === 'part') _editingJob.est_parts.push({ name: r.name, qty: r.qty, price: priceOf(r.name), source: 'ai', taxable: true, concern_id: '', concern_title: '' });
+      else _editingJob.est_services.push({ name: r.name, type: '', price: 0, taxable: true });
+    });
+    try { _drawEstRows(); _drawConcerns(); } catch (_) {}
+    await savePhotoToo(); closeSubModal(); showToast(`${pick.length} line${pick.length === 1 ? '' : 's'} added — set the prices, then save the job card`, 'good');
+  };
+  window.gpAiRequest = async function () {
+    const pick = ticked().filter(r => r.kind === 'part'); if (!pick.length) return showToast('Tick at least one part', 'bad');
+    if (!(await customConfirm('This opens the parts request form and closes the job card — save any changes to the job card first. Continue?', { title: 'Request parts', okLabel: 'Continue', danger: false }))) return;
+    const ct = val('aiConcern'), c = ct ? (_prConcernsForJob(AS.job).find(x => x.title === ct) || null) : null; await savePhotoToo(); closeSubModal();
+    openPartRequestForm({ job_id: AS.job.id, items: pick.map(r => ({ name: r.name, qty: r.qty, concern_id: c ? c.id : '', concern_title: c ? c.title : '' })) });
+  };
+  const _oj = window.openJobForm;
+  if (typeof _oj === 'function') window.openJobForm = async function (id) {
+    const r = await _oj.apply(this, arguments);
+    try { const sec = g('jf-sec-photos'); if (aiOn() && sec && !g('jfAiBtn')) { const d = document.createElement('div'); d.id = 'jfAiBtn'; d.style.cssText = 'margin:0 0 10px'; d.innerHTML = `<button type="button" class="add-btn" style="width:100%;justify-content:center" onclick="gpAiOpen('${esc(id)}')">📷 Photo → suggested parts &amp; labour</button>`; sec.parentNode.insertBefore(d, sec); } } catch (e) { console.warn('[ai button]', e); }
+    return r;
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  SETTINGS CARD
+  // ══════════════════════════════════════════════════════════════════════════
+  function renderCard() {
+    const body = g('settingsBody'); if (!body || !isAdminRole()) return;
+    let host = g('moreCardHost');
+    if (!host) { host = document.createElement('div'); host.id = 'moreCardHost'; const grid = body.firstElementChild; if (!grid) return; const after = g('extrasCardHost') || g('pkgCardHost') || g('obCardHost'); grid.insertBefore(host, after ? after.nextSibling : (grid.children[2] || null)); }
+    const p = PK(), gf = GF(), a = AI(), c = CR(), box = (id, on, title, desc, inner) => `<div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="width:16px;height:16px"> ${title}</label><div style="font-size:12.5px;color:var(--faint);margin:6px 0 ${inner ? 10 : 0}px">${desc}</div>${inner}</div>`;
+    host.innerHTML = `<div class="card" style="padding:18px"><h3 style="margin:0 0 4px">More features</h3><div style="color:var(--faint);font-size:13px;margin-bottom:14px;max-width:640px">Optional extras — each appears only when switched on. Pickups and Gift vouchers can be given to specific roles under Role permissions. Accounting export lives on the Invoices page.</div><div style="display:grid;gap:14px">
+      ${box('mc-cr', c.enabled, 'Condition report', 'A “Condition report” button on a customer’s vehicle history makes a shareable, workshop-verified page (service history, inspection, photos) the owner can send to a buyer. Revocable any time; the owner’s name and phone are never shown.', '')}
+      ${box('mp-on', p.enabled, 'Pickup scheduling', 'When a job is “Ready for Pickup”, the customer chooses a collection time on the Track page. Set your collection hours and how many cars you can hand over per slot.', `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px"><div class="f-grp"><label>From</label><input id="mp-open" type="time" value="${esc(p.open)}"></div><div class="f-grp"><label>Until</label><input id="mp-close" type="time" value="${esc(p.close)}"></div><div class="f-grp"><label>Slot (min)</label><input id="mp-mins" type="number" min="10" max="120" value="${esc(p.slotMins)}"></div><div class="f-grp"><label>Cars per slot</label><input id="mp-cap" type="number" min="1" max="20" value="${esc(p.capacity)}"></div><div class="f-grp"><label>Days ahead</label><input id="mp-days" type="number" min="1" max="14" value="${esc(p.days)}"></div></div><label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-top:8px"><input type="checkbox" id="mp-sun" ${p.closedSun ? 'checked' : ''} style="width:16px;height:16px"> Closed on Sundays</label>`)}
+      ${box('mg-on', gf.enabled, 'Gift vouchers', `Customers order a voucher at <code>garagepro.me/gift.html?w=${esc(wsSlug() || 'your-name')}</code>. Garage Pro doesn’t take the payment: they see your payment instructions, you confirm you’ve been paid, and only then does the voucher get a code.`, `<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px"><div class="f-grp"><label>Suggested amounts</label><input id="mg-amts" value="${esc(gf.amounts)}" placeholder="1000,2500,5000"></div><div class="f-grp"><label>Minimum</label><input id="mg-min" type="number" min="0" value="${esc(gf.min)}"></div><div class="f-grp"><label>Valid (months)</label><input id="mg-months" type="number" min="1" max="60" value="${esc(gf.months)}"></div><div class="f-grp" style="grid-column:span 3"><label>How buyers pay you (shown after they order)</label><textarea id="mg-pay" rows="2" placeholder="UPI: name@bank · or bank transfer details · or call us">${esc(gf.pay_note)}</textarea></div><div class="f-grp" style="grid-column:span 3"><label>Payment link (optional, https://)</label><input id="mg-link" value="${esc(gf.pay_link)}" placeholder="https://"></div><div class="f-grp" style="grid-column:span 3"><label>Voucher terms</label><textarea id="mg-terms" rows="2">${esc(gf.terms)}</textarea></div></div>`)}
+      ${box('ma-on', a.enabled, 'Photo → suggested parts (AI)', 'On a job card, photograph a worn part or warning light and an AI suggests likely parts and labour lines to quote. It needs the email relay to have an Anthropic key, costs a small amount per photo, and sends the photo to an AI service — switch on only if you’re happy with that. Suggestions are never added without you ticking them.', '')}
+      ${box('mu-on', !(() => { try { return localStorage.getItem('gp_notrack') === '1'; } catch (_) { return false; } })(), 'Share anonymous usage statistics', 'Counts which screens are used and for how long (never names, plates, amounts or any customer data) so Garage Pro can improve the app, and so refund requests can be checked fairly. Untick to stop sending them from this browser.', '')}
+      <div style="background:var(--bg2);border-radius:12px;padding:14px"><b>Subscription</b><div style="font-size:12.5px;color:var(--faint);margin:6px 0 10px">Cancel any time — you keep access until the end of the period you have paid for. <a href="https://garagepro.me/refund.html" target="_blank" rel="noopener">Refund policy</a> · <a href="https://garagepro.me/privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="https://garagepro.me/cookies.html" target="_blank" rel="noopener">Cookies</a></div><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="mini-btn" style="text-decoration:none" href="https://garagepro.lemonsqueezy.com/billing" target="_blank" rel="noopener">Manage or cancel subscription</a><a class="mini-btn" style="text-decoration:none" href="mailto:support@garagepro.me?subject=Please%20cancel%20my%20subscription">Cancel by email</a></div></div>
+      </div><div style="margin-top:14px"><button class="add-btn" type="button" onclick="moreSave()">Save</button></div></div>`;
+  }
+  window.moreSave = async function () {
+    const s = S(), link = val('mg-link').trim(); if (link && !/^https:\/\//i.test(link)) return showToast('The payment link must start with https://', 'bad');
+    s.cond_report = { enabled: g('mc-cr').checked };
+    s.pickup = { enabled: g('mp-on').checked, open: val('mp-open') || '09:00', close: val('mp-close') || '18:00', slotMins: Math.min(120, Math.max(10, +val('mp-mins') || 30)), capacity: Math.min(20, Math.max(1, +val('mp-cap') || 3)), days: Math.min(14, Math.max(1, +val('mp-days') || 3)), closedSun: g('mp-sun').checked };
+    s.gifts = { enabled: g('mg-on').checked, amounts: val('mg-amts').trim() || '1000,2500,5000', min: Math.max(0, +val('mg-min') || 0), months: Math.min(60, Math.max(1, +val('mg-months') || 12)), pay_note: val('mg-pay').trim().slice(0, 400), pay_link: link, terms: val('mg-terms').trim().slice(0, 600) };
+    s.ai_suggest = { enabled: g('ma-on').checked };
+    try { if (g('mu-on').checked) localStorage.removeItem('gp_notrack'); else localStorage.setItem('gp_notrack', '1'); } catch (_) {}
+    if (s.gifts.enabled && !wsSlug()) return showToast('Set a workshop name first so your gift voucher link can be created', 'bad');
+    try { await wsSaveSettings(); } catch (e) { return showToast('Save failed: ' + (e.message || e), 'bad'); }
+    publishPickupCfg(); publishGiftCfg(); try { renderSidebarVisibility(); } catch (_) {} showToast('Saved', 'good');
+  };
+  const _rs = window.renderSettings;
+  if (typeof _rs === 'function') window.renderSettings = async function () { const r = await _rs.apply(this, arguments); try { renderCard(); } catch (e) { console.warn('[more card]', e); } return r; };
+  const _ea = window.enterApp;
+  if (typeof _ea === 'function') window.enterApp = function () { const r = _ea.apply(this, arguments); setTimeout(() => { try { if (pkOn()) publishPickupCfg(); if (gfOn()) publishGiftCfg(); } catch (_) {} }, 3000); return r; };
+  setInterval(() => { try { if (currentTab === 'pickups' && !document.hidden) drawPickups(); } catch (_) {} }, 60000);
 })();
 </script>
 
