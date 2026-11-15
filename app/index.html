@@ -24467,7 +24467,7 @@ ${round > 0.004 ? ent(ac.round_ledger, round, false) : round < -0.004 ? ent(ac.r
   async function buildReport(plate, o) {
     const pn = plateNorm(plate), bks = (D.bookings || []).filter(b => plateNorm(b.plate) === pn && b.status !== 'Cancelled').sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
     if (!bks.length) throw new Error('No visits on record for this vehicle yet');
-    const latest = bks[0], reg = (typeof _registryFind === 'function' ? _registryFind(plate) : null) || {};
+    const latest = bks[0], reg = {};   // vehicle details come only from this workshop's own bookings (never the shared registry)
     const jobsOf = b => (D.jobs || []).filter(j => j.booking_id === b.id);
     const doc = { uid: wsUid(), plate, created_at: nowStr(), currency: cur(), show_amounts: !!o.amt, note: o.note || '',
       vehicle: { make: latest.veh_make || reg.make || '', model: latest.veh_model || reg.model || '', year: latest.veh_year || reg.year || '', colour: latest.colour || reg.colour || '', fuel: latest.fuel_type || reg.fuel_type || '', vin_tail: String(latest.vin || reg.vin || '').slice(-6) },
