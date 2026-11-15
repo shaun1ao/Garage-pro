@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Privacy Policy · Garage Pro</title>
 <meta name="description" content="Garage Pro privacy policy — how we collect, use, and protect your data." />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="fonts/fonts.css" rel="stylesheet">
 <style>
   :root {
     --bg:#0a0e14; --bg2:#0e131c; --surf:#141b26; --surf2:#1a2330;
@@ -101,6 +100,8 @@
     <a href="#your-rights">7. Your rights &amp; choices</a>
     <a href="#customer-data">8. End-customer data (your customers)</a>
     <a href="#cookies">9. Cookies &amp; tracking</a>
+    <a href="#features-data">9a. Optional features &amp; data</a>
+    <a href="#consent-controls">9b. Consent &amp; your controls</a>
     <a href="#children">10. Children's data</a>
     <a href="#changes">11. Changes to this policy</a>
     <a href="#contact">12. Contact us</a>
@@ -144,7 +145,10 @@
       <tbody>
         <tr><td>Google Firebase</td><td>Authentication, database (Firestore), and hosting</td></tr>
         <tr><td>Cloudinary</td><td>Photo hosting for vehicle intake/inspection images</td></tr>
-        <tr><td>EmailJS / Google Apps Script</td><td>Transactional email delivery</td></tr>
+        <tr><td>Resend (email) and Vercel (hosting of the email service)</td><td>Sending the emails your workshop and its customers receive</td></tr>
+        <tr><td>Cloudflare Workers</td><td>Activating a subscription after payment (receives Lemon Squeezy's payment notice)</td></tr>
+        <tr><td>Google Analytics and ipapi.co / geojs.io</td><td>Website analytics and coarse visitor location — <b>only if you accept analytics</b> on the marketing site</td></tr>
+        <tr><td>Anthropic</td><td>Analysing a photo to suggest parts — <b>only if a workshop switches on “Photo → suggested parts”</b> and takes the photo; sent for that one request</td></tr>
         <tr><td>WhatsApp (via wa.me links)</td><td>Optional customer status-update messages, sent from your own device/number</td></tr>
         <tr><td>Lemon Squeezy (payment processor &amp; merchant of record)</td><td>Subscription billing, card payments, tax and invoices</td></tr>
       </tbody>
@@ -182,7 +186,7 @@
 
   <div class="card">
     <h2 id="cookies"><span class="num">9.</span>Cookies &amp; tracking</h2>
-    <p>The marketing site and web app use essential cookies/local storage to keep you signed in and remember preferences (e.g. theme, language). We don't use third-party advertising trackers. Browser local storage / IndexedDB is used by the app for offline-friendly performance, not for tracking.</p>
+    <p>The marketing site and web app use only essential cookies and local storage until you say otherwise: to keep you signed in and remember preferences (theme, language, your cookie choice). <b>Analytics is off unless you accept it</b>, and you can change that any time under “Cookie settings”. We don't use advertising trackers. Full details, with every cookie listed, are in our <a href="cookies.html" style="color:var(--acc2)">Cookie Policy</a>. We also host our fonts ourselves, so your browser does not contact Google to display text. Browser local storage / IndexedDB is used by the app for offline-friendly performance, not for tracking.</p>
     <p><strong>Language &amp; translation.</strong> Garage Pro can be viewed in English, Hindi, Marathi, Tamil, Kannada, Telugu, Bengali, Gujarati, Malayalam, Punjabi, Odia and Urdu. Emails and WhatsApp messages to customers use hand-written translations in the language saved on the customer's record. When you switch a page into another language, the text shown on that page is translated by Google Translate, which means Google receives the text on your screen; inside the workshop app we ask for your consent first, because that text can include customer names and vehicle numbers. Garage Pro does not store the translated text. The English version of this policy and of our terms is the version that governs.</p>
     <p><strong>Online booking &amp; customer portal.</strong> If a workshop switches on online booking or shares a customer-portal link, the details a customer enters (name, phone, vehicle number, service, preferred time) and the status, photos and invoices shown on their portal page are stored for that workshop, which is the data controller. Booking and portal pages carry the workshop's branding and say "Powered by Garage Pro". Portal links are unguessable and are only shared by the workshop.</p>
     <p><strong>Parts Exchange.</strong> Parts Exchange is optional and off by default. If a workshop switches it on, other workshops that have also switched it on can see that workshop's name, city, state or emirate, phone number and email, plus the parts it lists or requests, and can send it enquiries. Customer, job, invoice and the rest of the workshop's inventory data are never shared through it. Switching it off hides the workshop's listings and closes its open requests.</p>
@@ -190,7 +194,34 @@
     <p><strong>Booking links and reminders.</strong> The link in a booking email contains an unguessable reference to that booking; anyone who holds the link can view that booking (name, vehicle, service, date and time) and, if the workshop allows it, change or cancel it. We send the customer one reminder email about a day before the appointment, using the email address given at booking, and we email the workshop and the customer when a booking is changed or cancelled through that link.</p>
     <p><strong>Car-owner page &amp; service reminders.</strong> The QR sticker on a vehicle opens a page, behind an unguessable link, showing that vehicle's plate, make/model, and the service history kept by the workshop (dates, services, work done and mileage — never prices, the owner's name or phone number). Anyone who holds the sticker or link can open it. If a person asks for a reminder on that page, we store the email address, mileage and interval they enter, together with the vehicle and workshop, solely to send one reminder email around the due date; after it is sent no further emails are sent. They can ignore the reminder at any time or ask the workshop or us (support@garagepro.me) to delete it.</p>
     <p><strong>Invoices and tax records.</strong> Invoices, estimates and credit notes are created and kept by the workshop, which is responsible for their content and for how long it must retain them. Garage Pro stores them on the workshop's behalf and does not submit them to any tax authority.</p>
-    <p><strong>Usage analytics.</strong> To understand how Garage Pro is used and improve it, we collect first-party analytics. On the marketing site this is a random anonymous visitor ID (stored in your browser), your approximate location (country, region and city, derived from your IP address at the moment of the visit — the IP address itself is not stored), device, browser, language, how you arrived, and which sections and buttons you used. In the web app we record anonymous counters: which pages and features are used, how often, and for how long, per workshop. We never record the content of job cards, customer details, vehicle numbers, amounts or messages in these analytics. We don't sell this data or share it with advertisers. You can opt out by enabling your browser's "Do Not Track" setting, or by emailing us to have your workshop excluded.</p>
+    <p><strong>Usage analytics (consent).</strong> On the marketing site, none of what follows happens unless you accept analytics; if you decline or later withdraw, we stop and delete the visitor ID.  To understand how Garage Pro is used and improve it, we collect first-party analytics. On the marketing site this is a random anonymous visitor ID (stored in your browser), your approximate location (country, region and city, derived from your IP address at the moment of the visit — the IP address itself is not stored), device, browser, language, how you arrived, and which sections and buttons you used. In the web app we record anonymous counters: which pages and features are used, how often, and for how long, per workshop. We never record the content of job cards, customer details, vehicle numbers, amounts or messages in these analytics. We don't sell this data or share it with advertisers. You can opt out by enabling your browser's "Do Not Track" setting, or by emailing us to have your workshop excluded.</p>
+  </div>
+
+
+  <div class="card">
+    <h2 id="features-data"><span class="num">9a.</span>Optional features and the data they use</h2>
+    <p>Each of these is off until a workshop switches it on. We list them so you know exactly what is collected.</p>
+    <ul>
+      <li><b>Live repair feed.</b> Photos and short clips a mechanic posts to a job. They appear on that vehicle's Track page, which anyone who knows the number plate can open; the workshop can hide or delete any item.</li>
+      <li><b>Loaner cars.</b> The workshop records the borrower's name, phone, driving-licence number and expiry, and the car's condition. This stays in the workshop's records; it is not shown to anyone else and the customer's Track page shows only the car and return date.</li>
+      <li><b>Instalments.</b> The payment plan (amounts and dates) for an invoice. Garage Pro does not take payments or run credit checks; any financing partner a workshop uses handles that under its own terms and privacy policy.</li>
+      <li><b>Condition report.</b> A page the vehicle owner shares: service history, inspection findings and photos for that vehicle, never the owner's name or phone, behind an unguessable link the workshop can revoke at any time.</li>
+      <li><b>Pickup scheduling.</b> The plate, chosen day and time, and an optional collector name. The booked time slots are visible to other customers only as “taken”, with no plate or name.</li>
+      <li><b>Gift vouchers.</b> The buyer's name, email, optional phone, optional recipient name and message, and the amount. Garage Pro does not process the payment; the workshop confirms it.</li>
+      <li><b>Photo → suggested parts.</b> The photo, the vehicle make/model, and the concern text are sent to Anthropic to produce suggestions. The photo is not stored by our email service, and we send nothing else about your customers.</li>
+      <li><b>Accounting export.</b> Creates a file on your own device. The data goes nowhere else.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2 id="consent-controls"><span class="num">9b.</span>Consent, minimal data and your controls</h2>
+    <ul>
+      <li><b>We ask for what we need.</b> To create an account we need your name, garage name, email and a password. Phone number and “how did you find us” are optional.</li>
+      <li><b>Consent is a clear action.</b> Forms that collect personal data have an unticked box you must tick (booking, breakdown help, service reminders, gift vouchers). Marketing email is a separate, optional, unticked box. We keep the date you agreed.</li>
+      <li><b>Withdrawing is as easy as agreeing.</b> Cookie settings (footer of the website) change your analytics choice instantly. Every automatic email to a customer has a one-click Unsubscribe link, with no login and no questions. You can cancel your subscription in two clicks (<a href="refund.html" style="color:var(--acc2)">Refund Policy</a>).</li>
+      <li><b>No tricks.</b> Buttons that accept and decline are the same size and weight; nothing is pre-ticked; there are no countdown timers, hidden fees or hard-to-find cancellation steps.</li>
+      <li><b>Your rights.</b> Email <a href="mailto:support@garagepro.me" style="color:var(--acc2)">support@garagepro.me</a> to see, correct, export or delete your data, or to object to how it is used. If you are a workshop's customer, you can also ask the workshop directly — it is the controller of your data.</li>
+    </ul>
   </div>
 
   <div class="card">
@@ -213,8 +244,9 @@
 
 <script>
   document.getElementById('year').textContent = new Date().getFullYear();
-  document.getElementById('lastUpdated').textContent = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  document.getElementById('lastUpdated').textContent = '15 November 2026';
 </script>
+<script src="consent.js"></script>
 <script src="i18n/gp-lang.js"></script>
 </body>
 </html>

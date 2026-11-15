@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Unsubscribe · Garage Pro</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+  :root{--bg:#f4f6f7;--bg2:#eaeef0;--surf:#fff;--border:#dce3e6;--brd:#dce3e6;--brd2:#c4cdd2;--text:#1b2a31;--txt:#1b2a31;--dim:#46575f;--faint:#6d7d85;--acc:#2563b8;--acc2:#2563b8;--onacc:#fff;--teal:#157a5b;--red:#bf3a2e;--fb:'Plus Jakarta Sans','Segoe UI',system-ui,sans-serif;--fd:var(--fb);--fm:'IBM Plex Mono',ui-monospace,monospace}
+  *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--fb);-webkit-font-smoothing:antialiased;line-height:1.55}
+  .wrap{max-width:620px;margin:0 auto;padding:22px 16px 60px}.brand{display:flex;align-items:center;gap:10px;padding:10px 0 16px;border-bottom:1px solid var(--brd);margin-bottom:18px}
+  .logo{width:34px;height:34px;border-radius:9px;background:var(--acc);color:var(--onacc);display:grid;place-items:center;font-weight:800}
+  .ws{font-weight:700}.sub{font-size:12.5px;color:var(--faint)}h1{font-size:24px;margin:4px 0 8px;line-height:1.2}h2{font-size:17px;margin:0 0 10px}
+  .card{background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px}.muted{color:var(--dim)}
+  label{display:block;font-size:13.5px;font-weight:600;color:var(--dim);margin:12px 0 5px}input,textarea,select{width:100%;font:inherit;padding:12px 13px;border-radius:10px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt)}
+  input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--acc) 40%,transparent);outline-offset:2px}
+  .btn{display:inline-block;width:100%;margin-top:14px;padding:13px;border-radius:10px;border:0;background:var(--acc);color:var(--onacc);font:700 16px var(--fb);cursor:pointer;text-align:center;text-decoration:none}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--brd2)}.btn:disabled{opacity:.5}.err{color:var(--red);font-size:13.5px;min-height:18px;margin-top:8px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}.chip{border:1px solid var(--brd2);background:var(--surf);color:var(--txt);border-radius:10px;padding:10px 16px;font:600 15px var(--fb);cursor:pointer}.chip.on{background:color-mix(in srgb,var(--acc) 12%,var(--surf));border-color:var(--acc);color:var(--acc)}
+  a{color:var(--acc)}.chk{display:flex;gap:10px;align-items:flex-start;font-weight:500;margin-top:12px}.chk input{width:18px;height:18px;margin-top:2px;flex:none}.chk small{display:block;color:var(--faint);font-size:12.5px;font-weight:400}
+  @media (prefers-color-scheme:dark){:root{--bg:#13181b;--bg2:#1c2327;--surf:#192024;--border:#2a343a;--brd:#2a343a;--brd2:#3a464d;--text:#e6edef;--txt:#e6edef;--dim:#b2bfc4;--faint:#84949a;--acc:#7db0f5;--acc2:#7db0f5;--onacc:#0b1d36;--teal:#52c7a0;--red:#f08d83}}
+
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body><div class="wrap"><div class="brand"><span class="logo" aria-hidden="true">G</span><div><div class="ws" id="ws">Garage Pro</div><div class="sub" id="wsSub"></div></div></div>
+<main id="root"><div class="card muted">Loading…</div></main>
+<p class="sub" style="text-align:center;margin-top:24px">Powered by Garage Pro · <a href="https://garagepro.me/privacy.html">Privacy</a></p></div>
+<script>
+const FB_CONFIG={apiKey:"AIzaSyA1PzbhboU9Qdlpqs5cbLR3hsvFpWXCI54",authDomain:"garagepro26.firebaseapp.com",projectId:"garagepro26",storageBucket:"garagepro26.firebasestorage.app",messagingSenderId:"605094681607",appId:"1:605094681607:web:095fbfb8ff0446faaedea2"};
+const $=id=>document.getElementById(id),root=$('root'),qs=new URLSearchParams(location.search);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+firebase.initializeApp(FB_CONFIG);const db=firebase.firestore();
+
+const W=qs.get('w')||'',T=qs.get('t')||'';
+if(!W||!T||T.length<16){root.innerHTML='<div class="card"><h1>This link is incomplete</h1><p class="muted">Please use the Unsubscribe link from the email itself, or write to the workshop.</p></div>';}
+else{
+  root.innerHTML='<div class="card"><h1>Unsubscribe from these emails?</h1><p class="muted">You will stop getting reminders and updates by email from this workshop. Anything you ask for yourself — like an invoice you request — can still be sent.</p><button class="btn" id="go">Yes, unsubscribe me</button><div class="err" id="err" role="alert"></div></div>';
+  $('go').onclick=async()=>{ $('go').disabled=true; try{ await db.collection('users').doc(W).collection('email_optouts').doc(T).set({at:new Date().toISOString(),source:'link'});
+    root.innerHTML='<div class="card"><h1>You are unsubscribed</h1><p class="muted">We have recorded your choice. It can take up to a day to reach every message. If you change your mind, just tell the workshop.</p></div>'; }
+    catch(e){ $('go').disabled=false; $('err').textContent='Sorry, that did not work. Please try again, or reply to the email and ask the workshop to remove you.'; } };
+}
+</script></body></html>

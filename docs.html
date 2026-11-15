@@ -7,8 +7,7 @@
 <meta name="description" content="Garage Pro documentation — learn how the software works." />
 <link rel="icon" type="image/png" href="garage-pro-logo.png" />
 <link rel="apple-touch-icon" href="garage-pro-logo.png" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="fonts/fonts.css" rel="stylesheet">
 <!-- Theme: applied before first paint so there's no flash of the wrong mode.
      Stored choice wins; otherwise falls back to the OS-level preference.
      Mirrors index.html / app/index.html exactly, so a choice made on one
@@ -192,6 +191,9 @@
       <a href="#fleet">Fleet accounts</a>
       <a href="#breakdown">Breakdown / tow requests</a>
       <a href="#extras">Live feed, loaner cars &amp; instalments</a>
+      <a href="#more">Reports, pickups, vouchers &amp; export</a>
+      <a href="#printing">Printing job cards</a>
+      <a href="#privacy-controls">Privacy, unsubscribe &amp; cancelling</a>
       <a href="#parts-exchange">Parts Exchange</a>
       <a href="#scan-packages">Barcode scan &amp; job packages</a>
     </div>
@@ -645,6 +647,39 @@
       </div>
     </section>
 
+    <section id="more" class="section-card">
+      <h2>Condition reports, pickups, gift vouchers, photo suggestions &amp; accounting export</h2>
+      <p class="desc">Optional features, switched on at <b>Settings → More features</b> (off by default). Pickups and Gift vouchers are tabs you can give to specific roles under <b>Role permissions</b>.</p>
+      <ul class="doc-list">
+        <li><b>Condition report.</b> On a customer's service history, <b>Condition report for this car</b> makes a shareable page — service history, latest inspection and photos — marked “verified by your workshop”. Choose what to include (amounts are off by default), then copy the link or share it on WhatsApp; the owner can save it as a PDF. Revoke any link at any time. The owner's name and phone are never included.</li>
+        <li><b>Pickup scheduling.</b> Set your collection hours, slot length and cars per slot. When a job is <b>Ready for Pickup</b>, the customer's Track page shows “choose a pickup time”. Their choice appears in the <b>Pickups</b> tab with a sound; mark it <b>Collected</b> when they arrive.</li>
+        <li><b>Gift vouchers.</b> Share your order link (<code>garagepro.me/gift.html?w=your-name</code>). The buyer picks an amount and sees your payment instructions; you receive the order in the <b>Gift vouchers</b> tab, tick <b>Payment received</b> and the voucher gets a code (sent by WhatsApp or printed). To redeem, enter the code; the amount is recorded as a payment on the invoice (method: gift voucher) and the balance goes down. You can also sell a voucher at the counter.</li>
+        <li><b>Photo → suggested parts.</b> On a job card, photograph a worn part or warning light; an AI suggests likely parts and labour lines. Tick what you want, then <b>Add to the estimate</b> (advisors) or <b>Request the parts</b>. It never gives prices and can be wrong — always check. Needs the Anthropic key on the email relay, costs a little per photo, and sends the photo for analysis, so it is off by default.</li>
+        <li><b>Accounting export.</b> On the <b>Invoices</b> page, <b>Export for accounting</b> downloads invoices for a date range as CSV, Tally XML, Zoho Books CSV or QuickBooks Online CSV, or a payments-received CSV. Estimates and cancelled invoices are left out. Try a few invoices first and have your accountant check the first import.</li>
+        <li><b>Parts requests and concerns.</b> Every part on a parts request can be tied to the customer concern it is for (including concerns from the booking), or a new concern can be created on the spot. The link stays after the part is ordered or received, shows on the job card under that concern, and <b>Open job card</b> jumps from a request straight to its job.</li>
+      </ul>
+    </section>
+
+    <section id="printing" class="section-card">
+      <h2>Printing job cards</h2>
+      <p class="desc">One button prints everything recorded on the job.</p>
+      <ul class="doc-list">
+        <li>Customer concerns and the parts requested for each, intake and existing damage, inspection findings, estimate by concern, estimate lines, parts used, labour, parts requests, insurance details and photos — plus blank lines for handwritten findings.</li>
+        <li><b>Prices follow who prints.</b> A mechanic (or any role without finance access) gets a workshop copy with <b>parts and quantities only — no prices</b>. Owner, manager, floor manager, service advisor and the parts department get prices and totals too.</li>
+        <li><b>Booklet.</b> If the job has a lot on it, the print window switches to a booklet layout (A5 pages, padded to a multiple of 4). Choose <b>2 pages per sheet</b>, double-sided, flip on short edge in the print dialog, then fold. You can switch between single sheets and booklet at the top of the print window.</li>
+      </ul>
+    </section>
+
+    <section id="privacy-controls" class="section-card">
+      <h2>Privacy, unsubscribe &amp; cancelling</h2>
+      <ul class="doc-list">
+        <li><b>Consent boxes.</b> Booking, breakdown-help, service-reminder and gift-voucher forms have an unticked consent box the customer must tick; the booking page only remembers their details on that device if they tick “Remember my details”.</li>
+        <li><b>Unsubscribe.</b> Every automatic email to a customer carries a one-click Unsubscribe link. Once used, the customer is marked as opted out and automatic emails stop (emails you send on purpose, like an invoice you choose to email, still go).</li>
+        <li><b>Usage statistics.</b> Settings → More features has a switch for the anonymous usage statistics the app sends to Garage Pro.</li>
+        <li><b>Cancel and refunds.</b> Cancel any time from Settings → Subscription (billing portal, or email). See the <a href="refund.html">Refund Policy</a>, <a href="cookies.html">Cookie Policy</a> and <a href="privacy.html">Privacy Policy</a>.</li>
+      </ul>
+    </section>
+
     <section id="breakdown" class="section-card">
       <h2><span class="ic"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span>Breakdown / tow requests</h2>
       <p class="desc">For workshops that send out a tow or recovery truck.</p>
@@ -733,6 +768,7 @@
   window.addEventListener('scroll', updateActive, { passive: true });
   updateActive();
 </script>
+<script src="consent.js"></script>
 <script src="i18n/gp-lang.js"></script>
 </body>
 </html>

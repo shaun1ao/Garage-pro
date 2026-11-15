@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Terms &amp; Conditions · Garage Pro</title>
 <meta name="description" content="Garage Pro terms and conditions — the rules for using our software." />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="fonts/fonts.css" rel="stylesheet">
 <style>
   :root {
     --bg:#0a0e14; --bg2:#0e131c; --surf:#141b26; --surf2:#1a2330;
@@ -182,6 +181,7 @@
     <h2 id="optional-features"><span class="num">9.</span>Optional features: Parts Exchange, reminders &amp; automations</h2>
     <ul>
       <li><b>Parts Exchange</b> is optional and off unless you switch it on. It only lets workshops find each other. We are not a party to any listing, request, sale, loan or exchange, we do not hold stock or money, and we do not check the quality, condition, authenticity, price, safety, legality or fitness of any part or the identity or reliability of any workshop. You deal with other workshops at your own risk and are responsible for the terms, payment, collection and any warranty you agree between yourselves. We may remove listings or members at any time.</li>
+      <li><b>Condition reports, pickup scheduling, gift vouchers, photo suggestions and accounting export</b> are optional and off unless you switch them on. A condition report reflects only the records in your own job cards, is not an inspection certificate, valuation or warranty, and you must only include what you are entitled to share. Gift vouchers are sold and honoured by <b>you</b>, not Garage Pro: you decide the terms, confirm payment, honour the voucher, and are responsible for any law on voucher expiry, unredeemed balances and tax. Photo suggestions are produced by an AI service, can be wrong, never include prices, and are only a starting point that you must check before quoting a customer. The accounting export is provided as a convenience: check the first import with your accountant, because tax treatment and file formats differ by country and software.</li>
       <li><b>Live repair feed, loaner cars and instalments</b> are optional and off unless you switch them on. You are responsible for what you post to customers, for the insurance, licence checks, agreements and condition records for any vehicle you lend, and for the terms you agree with customers on paying in instalments. We do not lend money, run credit checks, hold or transfer funds, or provide the financing: any financing partner you use does so under its own terms, and you must follow the consumer-credit, fee and disclosure rules that apply in your country. Photos and clips you post can be opened by anyone who knows the vehicle's number plate.</li>
       <li><b>Breakdown / tow requests</b> are optional and off unless you switch them on. They are a request-and-dispatch tool, not an emergency service. We do not provide, supervise or guarantee any recovery, towing or repair, any response time or arrival time, or the safety of any driver, vehicle or customer. The call-back time shown to customers is your own promise. The page tells customers to contact the emergency services first when anyone is at risk, and you must not rely on it for emergencies. You are responsible for your drivers, vehicles, insurance, licences and the way you handle customers' locations, which are personal data.</li>
       <li><b>Self-service changes and reminders.</b> If you switch on customer reschedule / cancel links, a customer holding the link can change or cancel that one booking within the limits you set; you remain responsible for your cancellation policy, for any fees you charge, and for checking the appointment list. Appointment reminders are a convenience, are sent in English only, and may fail to arrive; you remain responsible for honouring your appointments.</li>
@@ -223,7 +223,8 @@
   </div>
 
   <div class="card">
-    <h2 id="termination"><span class="num">16.</span>Termination</h2>
+    <h2 id="termination"><span class="num">16.</span>Termination, cancellation &amp; refunds</h2>
+    <p><b>Cancel any time</b> from Settings → Subscription or the billing portal; cancelling stops future renewals and you keep access until the paid period ends. <b>Refunds</b> are governed by our <a href="refund.html" style="color:var(--acc2);font-weight:600">Refund Policy</a>: a refund can be requested within 14 days of purchase or renewal, and is not available once the account has been used for more than 1 hour in that period. Nothing in these Terms limits any refund or cancellation right you have under the law where you live.</p>
     <p>You may stop using the Service and request account closure at any time by contacting support. We may suspend or terminate your access if you breach these Terms, fail to pay applicable fees, or if required by law. On termination, your right to use the Service ends immediately; data handling on termination follows the Retention section of our <a href="privacy.html" style="color:var(--acc2)">Privacy Policy</a>.</p>
   </div>
 
@@ -237,13 +238,14 @@
     <p>Questions about these Terms? Reach us at <a href="mailto:support@garagepro.me" style="color:var(--acc2);font-weight:600">support@garagepro.me</a>.</p>
   </div>
 
-  <p class="foot-note">© <span id="year"></span> Garage Pro. All rights reserved. Garage Pro is a product of Chassys. See also our <a href="privacy.html" style="color:var(--acc2)">Privacy Policy</a>.</p>
+  <p class="foot-note">© <span id="year"></span> Garage Pro. All rights reserved. Garage Pro is a product of Chassys. See also our <a href="privacy.html" style="color:var(--acc2)">Privacy Policy</a>, <a href="cookies.html" style="color:var(--acc2)">Cookie Policy</a> and <a href="refund.html" style="color:var(--acc2)">Refund Policy</a>.</p>
 </div>
 
 <script>
   document.getElementById('year').textContent = new Date().getFullYear();
-  document.getElementById('lastUpdated').textContent = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  document.getElementById('lastUpdated').textContent = '15 November 2026';
 </script>
+<script src="consent.js"></script>
 <script src="i18n/gp-lang.js"></script>
 </body>
 </html>

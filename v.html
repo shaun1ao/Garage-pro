@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Your car's service history · Garage Pro</title>
 <meta name="robots" content="noindex, nofollow" />
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="fonts/fonts.css" rel="stylesheet">
 <style>
   :root{
     --bg:#f4f6f7; --bg2:#eaeef0; --surf:#ffffff; --border:#dce3e6; --brd:#dce3e6; --brd2:#c4cdd2;
@@ -116,6 +115,7 @@ function render() {
       <label>Email</label><input id="rEmail" type="email" autocomplete="email" placeholder="you@example.com">
       <div class="g2"><div><label>Current mileage (km)</label><input id="rKm" type="number" inputmode="numeric" min="0" placeholder="${esc(V.last_km || '')}" value="${esc(V.last_km || '')}"></div>
         <div><label>Service every</label><select id="rInt">${[5000, 7500, 10000, 12000, 15000].map(k => `<option value="${k}" ${k === Number(V.interval_km || 10000) ? 'selected' : ''}>${k.toLocaleString('en-IN')} km</option>`).join('')}</select></div></div>
+      <label style="display:flex;gap:10px;align-items:flex-start;font-weight:500;margin-top:10px"><input type="checkbox" id="rConsent" style="width:18px;height:18px;margin-top:2px;flex:none"> <span>Yes, email me one reminder about this car's service. <span style="display:block;color:var(--faint);font-size:12.5px;font-weight:400;margin-top:2px">Used only for this reminder, then deleted. The email has an unsubscribe link. <a href="https://garagepro.me/privacy.html" target="_blank" rel="noopener">Privacy notice</a></span></span></label>
       <div class="err" id="rErr"></div>
       <button class="cta" id="rBtn" onclick="remind()" style="margin-top:6px">Remind me</button></div>`;
 }
@@ -123,6 +123,7 @@ async function remind() {
   const err = $('rErr'); err.textContent = '';
   const email = $('rEmail').value.trim(), km = Number($('rKm').value), interval = Number($('rInt').value);
   if (!/^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}$/.test(email)) return err.textContent = 'Please enter a valid email address.';
+  if (!$('rConsent').checked) return err.textContent = 'Please tick the box so we know you want this reminder.';
   if (!(km > 0)) return err.textContent = 'Enter the car\'s current mileage in km.';
   const lastKm = Number(V.last_service_km || 0);
   if (lastKm && km < lastKm - 50) return err.textContent = `That's lower than the ${lastKm.toLocaleString('en-IN')} km recorded at the last service — please check it.`;
@@ -140,7 +141,7 @@ async function remind() {
     await db.collection('service_reminders').add({
       token: TOKEN, uid: String(V.uid || ''), plate: String(V.plate || '').slice(0, 20), email: email.slice(0, 254), km_now: Math.round(km), interval_km: interval, avg_km_day: Math.round(avg),
       due_on: iso(due), remind_at: iso(remindAt), workshop_name: String(w.name || '').slice(0, 80), vehicle: [V.vehicle && V.vehicle.make, V.vehicle && V.vehicle.model].filter(Boolean).join(' ').slice(0, 80),
-      book_url: safeUrl(w.book_url).slice(0, 200), created_at: new Date().toISOString(), sent: false
+      book_url: safeUrl(w.book_url).slice(0, 200), created_at: new Date().toISOString(), consent: true, sent: false
     });
     $('rem').innerHTML = `<div class="ok">✓ Done! We'll email <b>${esc(email)}</b> around <b>${fmtDate(iso(remindAt))}</b> — your next service is due about <b>${fmtDate(iso(due))}</b>.</div>`;
   } catch (e) {

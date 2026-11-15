@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Vehicle condition report · Garage Pro</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+  :root{--bg:#f4f6f7;--bg2:#eaeef0;--surf:#fff;--border:#dce3e6;--brd:#dce3e6;--brd2:#c4cdd2;--text:#1b2a31;--txt:#1b2a31;--dim:#46575f;--faint:#6d7d85;--acc:#2563b8;--acc2:#2563b8;--onacc:#fff;--teal:#157a5b;--red:#bf3a2e;--fb:'Plus Jakarta Sans','Segoe UI',system-ui,sans-serif;--fd:var(--fb);--fm:'IBM Plex Mono',ui-monospace,monospace}
+  *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--fb);-webkit-font-smoothing:antialiased;line-height:1.55}
+  .wrap{max-width:620px;margin:0 auto;padding:22px 16px 60px}.brand{display:flex;align-items:center;gap:10px;padding:10px 0 16px;border-bottom:1px solid var(--brd);margin-bottom:18px}
+  .logo{width:34px;height:34px;border-radius:9px;background:var(--acc);color:var(--onacc);display:grid;place-items:center;font-weight:800}
+  .ws{font-weight:700}.sub{font-size:12.5px;color:var(--faint)}h1{font-size:24px;margin:4px 0 8px;line-height:1.2}h2{font-size:17px;margin:0 0 10px}
+  .card{background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px}.muted{color:var(--dim)}
+  label{display:block;font-size:13.5px;font-weight:600;color:var(--dim);margin:12px 0 5px}input,textarea,select{width:100%;font:inherit;padding:12px 13px;border-radius:10px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt)}
+  input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--acc) 40%,transparent);outline-offset:2px}
+  .btn{display:inline-block;width:100%;margin-top:14px;padding:13px;border-radius:10px;border:0;background:var(--acc);color:var(--onacc);font:700 16px var(--fb);cursor:pointer;text-align:center;text-decoration:none}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--brd2)}.btn:disabled{opacity:.5}.err{color:var(--red);font-size:13.5px;min-height:18px;margin-top:8px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}.chip{border:1px solid var(--brd2);background:var(--surf);color:var(--txt);border-radius:10px;padding:10px 16px;font:600 15px var(--fb);cursor:pointer}.chip.on{background:color-mix(in srgb,var(--acc) 12%,var(--surf));border-color:var(--acc);color:var(--acc)}
+  a{color:var(--acc)}.chk{display:flex;gap:10px;align-items:flex-start;font-weight:500;margin-top:12px}.chk input{width:18px;height:18px;margin-top:2px;flex:none}.chk small{display:block;color:var(--faint);font-size:12.5px;font-weight:400}
+  @media (prefers-color-scheme:dark){:root{--bg:#13181b;--bg2:#1c2327;--surf:#192024;--border:#2a343a;--brd:#2a343a;--brd2:#3a464d;--text:#e6edef;--txt:#e6edef;--dim:#b2bfc4;--faint:#84949a;--acc:#7db0f5;--acc2:#7db0f5;--onacc:#0b1d36;--teal:#52c7a0;--red:#f08d83}}
+
+  .wrap{max-width:760px}.tag{display:inline-block;background:color-mix(in srgb,var(--teal) 15%,transparent);color:var(--teal);font-weight:700;font-size:13px;padding:4px 12px;border-radius:99px}
+  .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.kv div{background:var(--bg2);border-radius:10px;padding:10px 12px}.kv b{display:block;font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+  .ev{border-top:1px solid var(--border);padding:10px 0;display:grid;grid-template-columns:110px 1fr;gap:10px}.ev:first-of-type{border-top:0}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}td,th{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left}
+  .c-ok{color:var(--teal);font-weight:700}.c-fair{color:#b7791f;font-weight:700}.c-replace{color:var(--red);font-weight:700}
+  .ph{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.ph img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;border:1px solid var(--border)}.ph figcaption{font-size:12px;color:var(--faint)}figure{margin:0}
+  @media print{.noprint{display:none}body{background:#fff}.card{break-inside:avoid;border-color:#ccc}}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body><div class="wrap"><div class="brand"><span class="logo" aria-hidden="true">G</span><div><div class="ws" id="ws">Garage Pro</div><div class="sub" id="wsSub"></div></div></div>
+<main id="root"><div class="card muted">Loading…</div></main>
+<p class="sub" style="text-align:center;margin-top:24px">Powered by Garage Pro · <a href="https://garagepro.me/privacy.html">Privacy</a></p></div>
+<script>
+const FB_CONFIG={apiKey:"AIzaSyA1PzbhboU9Qdlpqs5cbLR3hsvFpWXCI54",authDomain:"garagepro26.firebaseapp.com",projectId:"garagepro26",storageBucket:"garagepro26.firebasestorage.app",messagingSenderId:"605094681607",appId:"1:605094681607:web:095fbfb8ff0446faaedea2"};
+const $=id=>document.getElementById(id),root=$('root'),qs=new URLSearchParams(location.search);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+firebase.initializeApp(FB_CONFIG);const db=firebase.firestore();
+
+const W=qs.get('w')||'',T=qs.get('t')||'';
+const fmtD=i=>{try{return new Date(i+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}catch(e){return i||''}};
+if(!W||!T){root.innerHTML='<div class="card"><h1>This link is incomplete</h1></div>';}
+else db.collection('users').doc(W).collection('vehicle_reports').doc(T).get().then(s=>{
+  if(!s.exists){root.innerHTML='<div class="card"><h1>This report is no longer available</h1><p class="muted">The workshop may have withdrawn it. Ask the owner for a new link.</p></div>';return;}
+  const d=s.data(),v=d.vehicle||{},w=d.workshop||{},cur=d.currency||'',km=n=>Number(n).toLocaleString('en-IN')+' km';
+  $('ws').textContent=w.name||'Workshop';$('wsSub').textContent=[w.address,w.city,w.phone].filter(Boolean).join(' · ');document.title='Condition report · '+(d.plate||'');
+  const car=[v.year,v.make,v.model].filter(Boolean).join(' ')||'Vehicle';
+  let h='<div class="card"><span class="tag">✓ Verified by '+esc(w.name||'the workshop')+'</span><h1 style="margin-top:12px">'+esc(car)+'</h1><div class="kv"><div><b>Registration</b>'+esc(d.plate||'')+'</div>'+(v.colour?'<div><b>Colour</b>'+esc(v.colour)+'</div>':'')+(v.fuel?'<div><b>Fuel</b>'+esc(v.fuel)+'</div>':'')+(v.vin_tail?'<div><b>VIN ends</b>'+esc(v.vin_tail)+'</div>':'')+'<div><b>Report date</b>'+esc(fmtD((d.created_at||'').slice(0,10)))+'</div></div>'+(d.note?'<p style="margin-top:12px">“'+esc(d.note)+'”</p>':'')+'</div>';
+  if((d.history||[]).length){h+='<div class="card"><h2>Service history ('+d.history.length+' visit'+(d.history.length===1?'':'s')+')</h2>'+d.history.map(x=>'<div class="ev"><div><b>'+esc(fmtD(x.date))+'</b>'+(x.km?'<div class="sub">'+esc(km(x.km))+'</div>':'')+'</div><div>'+esc(x.service||'Service')+((x.work||[]).length?'<div class="sub">'+x.work.map(esc).join(' · ')+'</div>':'')+(d.show_amounts&&x.amount!=null?'<div class="sub">'+esc(cur)+Number(x.amount).toLocaleString('en-IN')+'</div>':'')+'</div></div>').join('')+'</div>';}
+  if(d.inspection&&(d.inspection.items||[]).length){h+='<div class="card"><h2>Latest inspection · '+esc(fmtD(d.inspection.date))+'</h2><table><thead><tr><th>Area</th><th>Part</th><th>Condition</th><th>Note</th></tr></thead><tbody>'+d.inspection.items.map(i=>'<tr><td>'+esc(i.area)+'</td><td>'+esc(i.part)+'</td><td class="c-'+esc(i.cond)+'">'+esc(i.cond)+'</td><td>'+esc(i.note)+'</td></tr>').join('')+'</tbody></table></div>';}
+  if((d.photos||[]).length){h+='<div class="card"><h2>Photos</h2><div class="ph">'+d.photos.filter(p=>/^https:\/\//.test(p.url)).map(p=>'<figure><img loading="lazy" src="'+esc(p.url)+'" alt="'+esc((p.label||'Vehicle photo')+' — '+car)+'"><figcaption>'+esc(p.label||'')+'</figcaption></figure>').join('')+'</div></div>';}
+  h+='<div class="card muted" style="font-size:13px">This report lists work recorded by '+esc(w.name||'this workshop')+' in its own job cards. It does not cover work done elsewhere and is not an inspection certificate, valuation or warranty. The owner’s personal details are not included.</div><button class="btn noprint" onclick="print()">Save as PDF / print</button>';
+  root.innerHTML=h;
+}).catch(()=>{root.innerHTML='<div class="card"><h1>Could not open this report</h1><p class="muted">Check your connection and try again.</p></div>';});
+</script></body></html>

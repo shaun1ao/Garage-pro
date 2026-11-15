@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Gift voucher · Garage Pro</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+  :root{--bg:#f4f6f7;--bg2:#eaeef0;--surf:#fff;--border:#dce3e6;--brd:#dce3e6;--brd2:#c4cdd2;--text:#1b2a31;--txt:#1b2a31;--dim:#46575f;--faint:#6d7d85;--acc:#2563b8;--acc2:#2563b8;--onacc:#fff;--teal:#157a5b;--red:#bf3a2e;--fb:'Plus Jakarta Sans','Segoe UI',system-ui,sans-serif;--fd:var(--fb);--fm:'IBM Plex Mono',ui-monospace,monospace}
+  *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--fb);-webkit-font-smoothing:antialiased;line-height:1.55}
+  .wrap{max-width:620px;margin:0 auto;padding:22px 16px 60px}.brand{display:flex;align-items:center;gap:10px;padding:10px 0 16px;border-bottom:1px solid var(--brd);margin-bottom:18px}
+  .logo{width:34px;height:34px;border-radius:9px;background:var(--acc);color:var(--onacc);display:grid;place-items:center;font-weight:800}
+  .ws{font-weight:700}.sub{font-size:12.5px;color:var(--faint)}h1{font-size:24px;margin:4px 0 8px;line-height:1.2}h2{font-size:17px;margin:0 0 10px}
+  .card{background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px}.muted{color:var(--dim)}
+  label{display:block;font-size:13.5px;font-weight:600;color:var(--dim);margin:12px 0 5px}input,textarea,select{width:100%;font:inherit;padding:12px 13px;border-radius:10px;border:1px solid var(--brd2);background:var(--surf);color:var(--txt)}
+  input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--acc) 40%,transparent);outline-offset:2px}
+  .btn{display:inline-block;width:100%;margin-top:14px;padding:13px;border-radius:10px;border:0;background:var(--acc);color:var(--onacc);font:700 16px var(--fb);cursor:pointer;text-align:center;text-decoration:none}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--brd2)}.btn:disabled{opacity:.5}.err{color:var(--red);font-size:13.5px;min-height:18px;margin-top:8px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}.chip{border:1px solid var(--brd2);background:var(--surf);color:var(--txt);border-radius:10px;padding:10px 16px;font:600 15px var(--fb);cursor:pointer}.chip.on{background:color-mix(in srgb,var(--acc) 12%,var(--surf));border-color:var(--acc);color:var(--acc)}
+  a{color:var(--acc)}.chk{display:flex;gap:10px;align-items:flex-start;font-weight:500;margin-top:12px}.chk input{width:18px;height:18px;margin-top:2px;flex:none}.chk small{display:block;color:var(--faint);font-size:12.5px;font-weight:400}
+  @media (prefers-color-scheme:dark){:root{--bg:#13181b;--bg2:#1c2327;--surf:#192024;--border:#2a343a;--brd:#2a343a;--brd2:#3a464d;--text:#e6edef;--txt:#e6edef;--dim:#b2bfc4;--faint:#84949a;--acc:#7db0f5;--acc2:#7db0f5;--onacc:#0b1d36;--teal:#52c7a0;--red:#f08d83}}
+.amt{font-size:34px;font-weight:800}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body><div class="wrap"><div class="brand"><span class="logo" aria-hidden="true">G</span><div><div class="ws" id="ws">Garage Pro</div><div class="sub" id="wsSub"></div></div></div>
+<main id="root"><div class="card muted">Loading…</div></main>
+<p class="sub" style="text-align:center;margin-top:24px">Powered by Garage Pro · <a href="https://garagepro.me/privacy.html">Privacy</a></p></div>
+<script>
+const FB_CONFIG={apiKey:"AIzaSyA1PzbhboU9Qdlpqs5cbLR3hsvFpWXCI54",authDomain:"garagepro26.firebaseapp.com",projectId:"garagepro26",storageBucket:"garagepro26.firebasestorage.app",messagingSenderId:"605094681607",appId:"1:605094681607:web:095fbfb8ff0446faaedea2"};
+const $=id=>document.getElementById(id),root=$('root'),qs=new URLSearchParams(location.search);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+firebase.initializeApp(FB_CONFIG);const db=firebase.firestore();
+
+const SLUG=(qs.get('w')||'').toLowerCase(),OID=qs.get('o')||'';let G=null,UID='',sel=0;
+const money=n=>(G.currency||'')+Number(n).toLocaleString('en-IN',{maximumFractionDigits:2});
+const fmtD=i=>{try{return new Date(i+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}catch(e){return i||''}};
+async function boot(){
+  if(!SLUG){root.innerHTML='<div class="card"><h1>This link is incomplete</h1></div>';return;}
+  try{const s=await db.collection('public_gift').doc(SLUG).get(); if(!s.exists||!s.data().enabled){root.innerHTML='<div class="card"><h1>Gift vouchers are not available right now</h1><p class="muted">Please contact the workshop directly.</p></div>';return;}
+    G=s.data();UID=G.uid;$('ws').textContent=G.name||'Workshop';$('wsSub').textContent=[G.city,G.phone].filter(Boolean).join(' · ');document.title='Gift voucher · '+(G.name||'');
+    const b=G.brand||{};if(b.color&&/^#[0-9a-f]{6}$/i.test(b.color))document.documentElement.style.setProperty('--acc',b.color);
+    if(OID)return order(); form();}catch(e){root.innerHTML='<div class="card"><h1>Could not load this page</h1><p class="muted">Check your connection and try again.</p></div>';}
+}
+function form(){
+  const am=G.amounts||[];
+  root.innerHTML='<div class="card"><h1>Give the gift of a well-looked-after car</h1><p class="muted">A voucher for '+esc(G.name||'this workshop')+', valid for '+esc(G.months||12)+' months. You order here, pay the workshop as shown on the next page, and the voucher is activated once they have your payment.</p>'+
+  '<label>Amount</label><div class="chips" id="ch">'+am.map(a=>'<button type="button" class="chip" data-a="'+a+'">'+esc(money(a))+'</button>').join('')+'</div><input id="amt" type="number" min="'+esc(G.min||1)+'" step="1" placeholder="Or type your own amount'+(G.min?' (min '+esc(money(G.min))+')':'')+'" style="margin-top:8px">'+
+  '<label>Your name *</label><input id="bn" autocomplete="name" maxlength="80"><label>Your email * <span style="font-weight:400">(your voucher details are sent here)</span></label><input id="be" type="email" autocomplete="email" maxlength="120"><label>Your phone <span style="font-weight:400">(optional)</span></label><input id="bp" type="tel" autocomplete="tel" maxlength="20">'+
+  '<label>Who is it for? <span style="font-weight:400">(optional)</span></label><input id="to" maxlength="80"><label>A short message <span style="font-weight:400">(optional)</span></label><input id="msg" maxlength="160">'+
+  '<label class="chk"><input type="checkbox" id="ok"><span>I agree that '+esc(G.name||'the workshop')+' may use my details to process this order and contact me about it.<small>Vouchers: '+esc(G.terms||'')+' · <a href="https://garagepro.me/privacy.html" target="_blank" rel="noopener">Privacy notice</a></small></span></label>'+
+  '<div class="err" id="err" role="alert"></div><button class="btn" id="go">Place order</button><p class="sub" style="margin-top:8px">You pay '+esc(G.name||'the workshop')+' directly. There are no extra fees added by Garage Pro.</p></div>';
+  document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');$('amt').value=c.dataset.a;});
+  $('go').onclick=submit;
+}
+async function submit(){
+  const err=$('err');err.textContent='';const amt=Number($('amt').value),n=$('bn').value.trim(),e=$('be').value.trim();
+  if(!(amt>0)||amt<(G.min||1))return err.textContent='Please choose an amount'+(G.min?' of at least '+money(G.min):'')+'.';
+  if(n.length<2)return err.textContent='Please enter your name.';
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))return err.textContent='Please enter a valid email address.';
+  if(!$('ok').checked)return err.textContent='Please tick the box to agree to how your details are used.';
+  $('go').disabled=true;$('go').textContent='Placing order…';
+  try{const ref=db.collection('users').doc(UID).collection('gift_vouchers').doc();
+    const d={slug:SLUG,buyer_name:n,buyer_email:e,amount:Math.round(amt*100)/100,status:'pending',consent:true,created_at:new Date().toISOString()};
+    const p=$('bp').value.trim(),t=$('to').value.trim(),m=$('msg').value.trim();if(p)d.buyer_phone=p;if(t)d.to_name=t;if(m)d.message=m;
+    await ref.set(d);location.href='gift.html?w='+encodeURIComponent(SLUG)+'&o='+encodeURIComponent(ref.id);}
+  catch(x){$('go').disabled=false;$('go').textContent='Place order';err.textContent='Sorry, the order could not be placed. Please try again, or contact the workshop.';}
+}
+async function order(){
+  try{const s=await db.collection('users').doc(UID).collection('gift_vouchers').doc(OID).get();
+    if(!s.exists){root.innerHTML='<div class="card"><h1>Order not found</h1></div>';return;}
+    const v=s.data();
+    if(v.status==='active'&&v.code){root.innerHTML='<div class="card" style="text-align:center"><div class="sub">Gift voucher · '+esc(G.name||'')+'</div><div class="amt">'+esc(money(v.amount))+'</div>'+(v.to_name?'<p>For <b>'+esc(v.to_name)+'</b></p>':'')+(v.message?'<p><i>“'+esc(v.message)+'”</i></p>':'')+'<div style="font:700 22px var(--fm);letter-spacing:.1em;border:1.5px dashed var(--brd2);border-radius:10px;padding:10px;margin:12px 0">'+esc(v.code)+'</div><p class="muted">Valid until '+esc(fmtD(v.expires_at))+'. Show this code at the workshop.</p><button class="btn" onclick="print()">Print or save as PDF</button></div><p class="sub">'+esc(G.terms||'')+'</p>';return;}
+    if(v.status==='cancelled'){root.innerHTML='<div class="card"><h1>This order was cancelled</h1><p class="muted">Please contact the workshop if this is unexpected.</p></div>';return;}
+    root.innerHTML='<div class="card"><h1>Thank you — order received</h1><p>Your order for <b>'+esc(money(v.amount))+'</b> is waiting for payment. It becomes a voucher as soon as '+esc(G.name||'the workshop')+' has your payment.</p>'+(G.pay_note?'<div class="card" style="background:var(--bg2)"><b>How to pay</b><p style="white-space:pre-wrap;margin:6px 0 0">'+esc(G.pay_note)+'</p></div>':'')+(G.pay_link?'<a class="btn" href="'+esc(G.pay_link)+'" target="_blank" rel="noopener">Pay now</a>':'')+'<p class="sub" style="margin-top:12px">Keep this page: open it again after you have paid and your voucher code will appear here. Order reference: '+esc(OID.slice(0,8))+'</p><button class="btn ghost" onclick="location.reload()">Check again</button></div>';
+  }catch(e){root.innerHTML='<div class="card"><h1>Could not open this order</h1><p class="muted">Check your connection and try again.</p></div>';}
+}
+boot();
+</script></body></html>

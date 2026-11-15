@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Breakdown help · Garage Pro</title>
 <meta name="robots" content="noindex, nofollow" />
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="fonts/fonts.css" rel="stylesheet">
 <style>
   :root{
     --bg:#f4f6f7; --bg2:#eaeef0; --surf:#ffffff; --border:#dce3e6; --brd:#dce3e6; --brd2:#c4cdd2;
@@ -105,6 +104,7 @@ function form() {
       <div class="loc" id="locBox"><span>📍</span><span id="locTxt">We need your location so the driver can find you.</span></div>
       <button class="btn ghost" id="locBtn" type="button" style="margin-top:8px">Share my location</button>
       <input id="fPlace" placeholder="Landmark or address (helps if the GPS is off)" style="margin-top:8px" autocomplete="off">
+      <label style="display:flex;gap:10px;align-items:flex-start;font-weight:500;margin-top:14px"><input type="checkbox" id="fConsent" style="width:18px;height:18px;margin-top:2px;flex:none"> <span>I agree that this workshop may use my name, phone number and location to send help and contact me about this request. <span style="display:block;color:var(--faint);font-size:12.5px;font-weight:400;margin-top:2px">Your location is used only for this request. <a href="https://garagepro.me/privacy.html" target="_blank" rel="noopener">Privacy notice</a></span></span></label>
       <label>Anything else? <span style="font-weight:400;color:var(--faint)">(optional)</span></label><textarea id="fNotes" rows="2" maxlength="500" placeholder="Hazard lights on, on the hard shoulder…"></textarea>
       <input class="hp" id="fHp" tabindex="-1" autocomplete="off" aria-hidden="true">
       <div class="err" id="err"></div>
@@ -125,6 +125,7 @@ async function send() {
   if ($('fHp').value) return;
   const issue = $('fIssue').value, name = $('fName').value.trim(), phone = $('fPhone').value.replace(/[^\d+]/g, ''), place = $('fPlace').value.trim();
   if (!issue) return err.textContent = 'Please tell us what has happened.';
+  if (!$('fConsent').checked) return err.textContent = 'Please tick the box to agree to how your details are used.';
   if (name.length < 2) return err.textContent = 'Please enter your name.';
   if (phone.replace(/\D/g, '').length < (H.country === 'AE' ? 9 : H.country === 'QA' ? 8 : 10)) return err.textContent = 'Please enter a mobile number we can call.';
   if (!loc && place.length < 4) return err.textContent = 'Please share your location or type where you are.';
@@ -133,7 +134,7 @@ async function send() {
   const b = $('go'); b.disabled = true; b.textContent = 'Sending…';
   try {
     const ref = db.collection('users').doc(H.uid).collection('breakdown_requests').doc();
-    const d = { slug: SLUG, name: name.slice(0, 80), phone: phone.slice(0, 20), issue: issue.slice(0, 100), status: 'new', created_at: new Date().toISOString() };
+    const d = { slug: SLUG, name: name.slice(0, 80), phone: phone.slice(0, 20), issue: issue.slice(0, 100), status: 'new', consent: true, created_at: new Date().toISOString() };
     const plate = $('fPlate').value.toUpperCase().trim(), car = $('fCar').value.trim(), notes = $('fNotes').value.trim();
     if (plate) d.plate = plate.slice(0, 20); if (car) d.vehicle = car.slice(0, 100); if (notes) d.notes = notes.slice(0, 500); if (place) d.place = place.slice(0, 200);
     if (loc) { d.lat = loc.lat; d.lon = loc.lon; d.acc = loc.acc; }

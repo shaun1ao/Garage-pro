@@ -8,3 +8,15 @@ Allow: /
 Disallow: /app/
 
 Sitemap: https://garagepro.me/sitemap.xml
+
+# private, per-customer pages
+User-agent: *
+Disallow: /portal
+Disallow: /portal.html
+Disallow: /v/
+Disallow: /help/
+Disallow: /manage/
+Disallow: /manage.html
+Disallow: /help.html
+Disallow: /v.html
+Disallow: /403.html
