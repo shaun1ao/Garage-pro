@@ -82,6 +82,7 @@
     return { suffix: sq, full: sq, ok: sq.length >= 4 && sq.length <= 8 };   // US and anything else
   }
 
+  function lev(a, b) { var m = a.length, n = b.length, d = [], i, j; for (i = 0; i <= m; i++) { d[i] = [i]; } for (j = 1; j <= n; j++) d[0][j] = j; for (i = 1; i <= m; i++) for (j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[m][n]; }
   // ═════════ PLATE READING ═════════
   // Every region (state / emirate / province / municipality) has one or more PLATE SPECS: the plate is a sequence of parts, each
   // either letters (L), digits (D) or either (A), with a min–max length, or a fixed literal (like the state code on an Indian
@@ -107,7 +108,14 @@
     },
     QA: function () { return [{ label: 'Qatar', parts: [Dg(2, 6, 'num')] }]; },
     PK: function () { return [{ label: 'Standard', parts: [L(2, 3, 'pre'), Dg(3, 4, 'num')] }, { label: 'With year', parts: [L(2, 3, 'pre'), Dg(2, 2, 'yr'), Dg(3, 4, 'num')] }]; },
-    US: function (r) { var o = []; if (r === 'CA') o.push({ label: 'California · 1ABC234', parts: [Dg(1, 1, 'a'), L(3, 3, 'b'), Dg(3, 3, 'c')] }); if (['NY', 'TX', 'PA', 'OH', 'GA', 'WA', 'MI'].indexOf(r) >= 0) o.push({ label: '3 letters + 4 digits', parts: [L(3, 3, 'pre'), Dg(4, 4, 'num')] }); o.push({ label: 'Standard (letters and digits)', parts: [Any(5, 8, 'num')] }); return o; }
+    US: function (r) {
+      var o = [], P = 30, three4 = { NY: 1, TX: 1, PA: 1, OH: 1, GA: 1, WA: 1, MI: 1, VA: 1, NC: 1, AZ: 1 };
+      if (r === 'CA') o.push({ label: 'California · 1ABC234', prior: P, parts: [Dg(1, 1, 'a'), L(3, 3, 'b'), Dg(3, 3, 'c')] });
+      if (three4[r]) o.push({ label: '3 letters + 4 digits', prior: P, parts: [L(3, 3, 'pre'), Dg(4, 4, 'num')] });
+      if (r === 'IL') o.push({ label: 'Illinois · AB 12345', prior: P, parts: [L(2, 2, 'pre'), Dg(5, 5, 'num')] });
+      if (r === 'NJ') o.push({ label: 'New Jersey · A12 BCD', prior: P, parts: [L(1, 1, 'a'), Dg(2, 2, 'b'), L(3, 3, 'c')] });
+      o.push({ label: 'Standard (letters and digits)', parts: [Any(2, 8, 'num')] }); return o;
+    }
   };
   var specsFor = function (country, region) { return (SPECS[country] || function () { return [{ label: 'Standard', parts: [Any(4, 9, 'num')] }]; })(region); };
 
@@ -140,7 +148,7 @@
       cc.comps.forEach(function (o) {
         var fill = o.area / (o.w * o.h), asp = o.w / o.h;
         if (o.h < h * 0.07 || o.h > h * 0.95 || o.w > w * 0.4 || asp > 1.35) return;            // specks, frames, long rules, wide logos
-        if (fill < 0.14 || (fill > 0.86 && asp > 0.55)) return;                                  // noise / solid boxes (a '1' is tall, so it passes)
+        if (fill < 0.14 || (fill > 0.86 && asp > 0.55) || asp < 0.1) return;   // also: hair-thin vertical bars are plate edges, not characters                                  // noise / solid boxes (a '1' is tall, so it passes)
         if (o.x0 <= 1 || o.y0 <= 1 || o.x1 >= w - 2 || o.y1 >= h - 2) { if (o.h > h * 0.5 || o.area < 30) return; }
         for (var q = 0; q < out.comps.length; q++) { var e = out.comps[q], ix = Math.min(e.x1, o.x1) - Math.max(e.x0, o.x0) + 1, iy = Math.min(e.y1, o.y1) - Math.max(e.y0, o.y0) + 1; if (ix > 0 && iy > 0 && ix * iy > 0.5 * Math.min(e.w * e.h, o.w * o.h)) return; }   // already found by another pass
         out.comps.push(o);
@@ -152,7 +160,7 @@
   function candidateSets(gl) {
     gl.comps.forEach(function (o) { delete o._row; });
     var cs = mergeFragments(gl.comps).sort(function (a, b) { return b.h - a.h; }); if (cs.length < 1) return [];
-    var clusters = []; cs.forEach(function (o) { var cl = clusters[clusters.length - 1]; if (cl && o.h >= cl.hmax * 0.74) { cl.items.push(o); cl.hmin = Math.min(cl.hmin, o.h); } else clusters.push({ items: [o], hmax: o.h, hmin: o.h }); });
+    var clusters = []; cs.forEach(function (o) { var cl = clusters[clusters.length - 1]; if (cl && o.h >= cl.hmax * 0.68) { cl.items.push(o); cl.hmin = Math.min(cl.hmin, o.h); } else clusters.push({ items: [o], hmax: o.h, hmin: o.h }); });
     clusters = clusters.filter(function (c) { return c.items.length >= 1; });
     var sets = [];
     clusters.slice(0, 4).forEach(function (c, i) { if (c.items.length >= 2 || i === 0) sets.push(c.items); if (i > 0 && c.hmax >= clusters[0].hmax * 0.6 && c.items.length >= 1) sets.push(clusters[0].items.concat(c.items)); });
@@ -202,6 +210,12 @@
     return g;
   }
   // ---- 3. read one glyph, twice ----
+  // how much of the glyph's width is inked in its top slice: a 7 or T has a wide top bar, a 1 does not
+  function glyphFeatures(gl, o) {
+    var parts = o.parts || [{ pol: o.pol, id: o.id }], band = Math.max(2, Math.round(o.h * 0.14)), y0 = o.y0, y1 = Math.min(o.y1, o.y0 + band), cols = 0;
+    for (var x = o.x0; x <= o.x1; x++) { var hit = false; for (var y = y0; y <= y1 && !hit; y++) hit = parts.some(function (pp) { return gl.labs[pp.pol][y * gl.w + x] === pp.id; }); if (hit) cols++; }
+    return { tw: cols / o.w };
+  }
   function glyphCanvas(gl, o) {
     var pad = Math.max(3, Math.round(o.h * 0.22)), gw = o.w + pad * 2, gh = o.h + pad * 2, c = document.createElement('canvas'); c.width = gw; c.height = gh;
     var g = c.getContext('2d'), im = g.createImageData(gw, gh), dd = im.data, i, x, y; for (i = 0; i < dd.length; i += 4) { dd[i] = dd[i + 1] = dd[i + 2] = 255; dd[i + 3] = 255; }
@@ -220,7 +234,7 @@
     if (o._r) return Promise.resolve(o._r);
     var cv = glyphCanvas(gl, o), tall = o.w / o.h < 0.3 && o.area / (o.w * o.h) > 0.7;      // a plain upright bar is a "1" (Dubai-style) or an "I"
     return getOcr().then(function (w) {
-      function one(psm) { return w.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: psm, user_defined_dpi: '300' }).then(function () { return w.recognize(cv); }).then(function (r) { var t = ((r.data.text || '').replace(/[^A-Za-z0-9]/g, '')[0] || '').toUpperCase(); return { t: t, c: t ? (r.data.confidence || 0) : 0 }; }); }
+      function one(psm) { return w.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: psm, lstm_choice_mode: '2', user_defined_dpi: '300' }).then(function () { return w.recognize(cv, {}, { blocks: true }); }).then(function (r) { var t = ((r.data.text || '').replace(/[^A-Za-z0-9]/g, '')[0] || '').toUpperCase(), ch = []; ((r.data.blocks) || []).forEach(function (b) { (b.paragraphs || []).forEach(function (pg) { (pg.lines || []).forEach(function (ln) { (ln.words || []).forEach(function (wd) { (wd.symbols || []).slice(0, 1).forEach(function (sy) { ch = choicesOf(sy); }); }); }); }); }); return { t: t, c: t ? (r.data.confidence || 0) : 0, ch: ch }; }); }
       return one('8').then(function (a) { if (a.t && a.c >= 70) return a; return one('13').then(function (b) { return b.c > a.c ? b : a; }); }).then(function (r) { if (tall && (!r.t || r.c < 85 || !/[0-9IL]/.test(r.t))) r = { t: '1', c: Math.max(r.c, 72) }; o._r = r; return r; });
     });
   }
@@ -243,18 +257,19 @@
     var rr = Math.max(1, Math.round(ref * 0.045)); m = closeMask(m, gw, gh, rr); for (i = 0; i < m.length; i++) if (m[i]) { dd[i * 4] = dd[i * 4 + 1] = dd[i * 4 + 2] = 0; }
     g.putImageData(im, 0, 0); var sc = Math.min(2, 90 / ref), out = document.createElement('canvas'); out.width = Math.round(gw * sc); out.height = Math.round(gh * sc); var og = out.getContext('2d'); og.imageSmoothingEnabled = true; og.drawImage(c, 0, 0, out.width, out.height); return out;
   }
+  function choicesOf(sy) { return (sy.choices || []).map(function (x) { var t = (x.text || '').replace(/[^A-Za-z0-9]/g, ''); return t ? { t: t[0].toUpperCase(), c: x.confidence || 0 } : null; }).filter(Boolean); }
   function readRows(gl, seq) {   // → array of {t,c} aligned with seq (null where the reader's symbol count doesn't match the glyph count)
     var rows = []; seq.forEach(function (o) { (rows[o._row || 0] = rows[o._row || 0] || []).push(o); });
     var out = [], p = Promise.resolve();
     function symbolsOf(r) {
       var syms = [];
-      ((r.data && r.data.blocks) || []).forEach(function (b) { (b.paragraphs || []).forEach(function (pg) { (pg.lines || []).forEach(function (ln) { (ln.words || []).forEach(function (wd) { (wd.symbols || []).forEach(function (sy) { var t = (sy.text || '').replace(/[^A-Za-z0-9]/g, ''); if (t) syms.push({ t: t[0].toUpperCase(), c: sy.confidence || 0 }); }); }); }); }); });
+      ((r.data && r.data.blocks) || []).forEach(function (b) { (b.paragraphs || []).forEach(function (pg) { (pg.lines || []).forEach(function (ln) { (ln.words || []).forEach(function (wd) { (wd.symbols || []).forEach(function (sy) { var t = (sy.text || '').replace(/[^A-Za-z0-9]/g, ''); if (t) syms.push({ t: t[0].toUpperCase(), c: sy.confidence || 0, ch: choicesOf(sy) }); }); }); }); }); });
       return syms;
     }
     rows.forEach(function (row) {
       p = p.then(function () {
         return getOcr().then(function (w) {
-          return w.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: '7', user_defined_dpi: '300' }).then(function () { return w.recognize(rowCanvas(gl, row), {}, { blocks: true }); });
+          return w.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: '7', lstm_choice_mode: '2', user_defined_dpi: '300' }).then(function () { return w.recognize(rowCanvas(gl, row), {}, { blocks: true }); });
         }).then(function (r) {
           var syms = symbolsOf(r);
           if (syms.length === row.length) syms.forEach(function (sy) { out.push(sy); }); else row.forEach(function () { out.push(null); });
@@ -263,13 +278,33 @@
     });
     return p.then(function () { return out; });
   }
-  // what a read character becomes when the template demands a digit or a letter (0/O, 1/I, 2/Z, 5/S, 8/B, 6/G, 4/A, 3/E)
-  var LD = { O: '0', Q: '0', D: '0', I: '1', L: '1', T: '1', Z: '2', S: '5', B: '8', G: '6', A: '4', E: '3', U: '0', H: '4' }, DL = { '0': 'O', '1': 'I', '2': 'Z', '5': 'S', '8': 'B', '6': 'G', '4': 'A', '3': 'E' };
+  // What a read character becomes when the template demands a digit or a letter. Several candidates are weighed together:
+  //   • the recogniser's own runner-up guesses of the right kind,
+  //   • look-alike conversions (0/O/D, 1/I/L, 7/T/Z, 5/S, 8/B, 6/G, 4/A, 3/E),
+  // and each is checked against the glyph's SHAPE (a narrow upright bar can be a 1 or I but not a 7 or T; a wide glyph can't be a 1).
+  var TO_D = { O: ['0'], Q: ['0'], D: ['0'], I: ['1', '7'], L: ['1'], T: ['7', '1'], V: ['7'], Y: ['7', '4'], Z: ['2', '7'], S: ['5'], B: ['8'], G: ['6'], A: ['4'], E: ['3'], U: ['0'], H: ['4'], C: ['0', '6'] },
+      TO_L = { '0': ['O', 'D'], '1': ['I', 'L'], '2': ['Z'], '5': ['S'], '8': ['B'], '6': ['G'], '4': ['A'], '3': ['E'], '7': ['T', 'Z'] };
+  var SAME = { '1': ['7'], '7': ['1'], I: ['T', 'L'], T: ['I'], '0': ['8', 'O'], '8': ['0', '6'], '6': ['8', '5'], '5': ['6'], '3': ['8'], '9': ['4'] };
+  function aspPen(ch, asp, tw) {   // glyph width ÷ height (and top-bar width) against what that character looks like
+    if (!asp) return 0;
+    if (tw != null) { if ((ch === '7' || ch === 'T') && tw < 0.5) return 34; if ((ch === '1' || ch === 'I') && tw > 0.82) return 34; }
+    if (ch === '1') return asp > 0.62 ? 42 : 0; if (ch === 'I') return asp > 0.42 ? 42 : 0;
+    if (ch === '7') return asp < 0.36 ? 28 : 0; if (ch === 'T') return asp < 0.42 ? 28 : 0; if (ch === 'L') return asp < 0.3 ? 20 : 0;
+    if (ch === 'M' || ch === 'W') return asp < 0.68 ? 28 : 0;
+    if ('0OQDUHN'.indexOf(ch) >= 0) return asp < 0.28 ? 26 : 0;
+    return 0;
+  }
   function classView(r, cls) {
-    var t = r.t, dig = /\d/.test(t);
-    if (cls === 'A') return { ch: t, cf: r.c };
-    if (cls === 'D') return dig ? { ch: t, cf: r.c } : (LD[t] ? { ch: LD[t], cf: r.c * 0.35 - 20 } : { ch: '?', cf: -120 });
-    return !dig ? { ch: t, cf: r.c } : (DL[t] ? { ch: DL[t], cf: r.c * 0.35 - 20 } : { ch: '?', cf: -120 });
+    var asp = r.asp || 0;
+    if (cls === 'A') return { ch: r.t, cf: r.c - aspPen(r.t, asp, r.tw) };
+    var want = cls === 'D' ? /\d/ : /[A-Z]/, table = cls === 'D' ? TO_D : TO_L, cands = [];
+    if (want.test(r.t)) { cands.push({ ch: r.t, cf: r.c - aspPen(r.t, asp, r.tw) });
+      if (aspPen(r.t, asp, r.tw) > 0) (SAME[r.t] || []).forEach(function (a) { if (want.test(a)) cands.push({ ch: a, cf: r.c * 0.62 - aspPen(a, asp, r.tw) }); }); }   // the look-alike that fits the shape (1↔7, I↔T…)
+    (r.ch || []).forEach(function (x) { if (x.t !== r.t && want.test(x.t) && x.c > 3) cands.push({ ch: x.t, cf: Math.max(x.c * 0.85, r.c * 0.5) - aspPen(x.t, asp, r.tw) }); });
+    var sources = [{ t: r.t, c: r.c }].concat((r.ch || []).filter(function (x) { return x.t !== r.t && !want.test(x.t) && x.c > 20; }));
+    sources.forEach(function (sr) { if (want.test(sr.t)) return; (table[sr.t] || []).forEach(function (cv, k) { cands.push({ ch: cv, cf: sr.c * 0.35 - 20 - 3 * k - aspPen(cv, asp, r.tw) }); }); });
+    if (!cands.length) return { ch: '?', cf: -120 };
+    return cands.sort(function (a, b) { return b.cf - a.cf; })[0];
   }
   // ---- 4. fit to a spec ----
   function fitSpec(seq, reads, gaps, spec) {
@@ -289,6 +324,9 @@
     var out = [], pos = 0; best.picks.forEach(function (end, pi) { var p = parts[pi], txt = ''; for (var i = pos; i < end; i++) { var r = reads[i]; txt += p.lit ? p.lit[i - pos] : (r && r.t ? classView(r, p.cls).ch : '?'); } out.push({ id: p.id, text: txt, lit: !!p.lit }); pos = end; });
     best.parts = out; return best;
   }
+  // text that is just the state's own name or a stock slogan is never the plate number
+  var SLOGANS = ['USA', 'UNITEDSTATES', 'LONESTAR', 'THELONESTARSTATE', 'SUNSHINESTATE', 'EMPIRESTATE', 'GOLDENSTATE', 'DMVCAGOV', 'ILLINOIS', 'LANDOFLINCOLN', 'GREATLAKES', 'PEACHSTATE', 'KEYSTONESTATE', 'BUCKEYE', 'EVERGREENSTATE', 'GARDENSTATE', 'DEMOCRACY', 'INGODWETRUST', 'ENDOFTHEWORLD'];
+  function nameLike(txt, ctx) { var t = squash(txt); if (t.length < 4) return false; var names = SLOGANS.concat(ctx && ctx.regionName ? [squash(ctx.regionName)] : []); for (var i = 0; i < names.length; i++) { var n = names[i]; if (!n) continue; if (t === n || (n.length >= 5 && t.length >= 4 && n.indexOf(t) >= 0) || lev(t, n) <= Math.floor(n.length / 6)) return true; } return false; }
   function readPlateImage(canvas, boxes, ctx) {
     var country = ctx.country, region = ctx.region, specs = specsFor(country, region);
     function tryBox(i) {
@@ -297,13 +335,16 @@
       return run(0, null).then(function (best) { return best && best.score > 25 ? best : tryBox(i + 1).then(function (b2) { return b2 || best; }); });
     }
     function tryMode(i, mode) {
-      var gl = findGlyphs(canvas, boxes[i], mode), sets = codeTierSets(gl).concat(candidateSets(gl).slice(0, 4));
+      var gl = findGlyphs(canvas, boxes[i], mode), plain = candidateSets(gl).slice(0, 4); plain.forEach(function (sq, ix) { sq._rank = ix; });
+      var variants = []; plain.forEach(function (sq) { var rows = {}; sq.forEach(function (o) { (rows[o._row || 0] = rows[o._row || 0] || []).push(o); }); var ks = Object.keys(rows).map(Number).sort(function (a, b) { return a - b; });
+        if (ks.length > 1) { ks.forEach(function (k, ki) { var one = rows[k].slice(); if (one.length >= 3) { one._rank = (sq._rank || 0) + 1; variants.push(one); } if (ki > 0) { var rest = []; ks.slice(ki).forEach(function (kk) { rest = rest.concat(rows[kk]); }); if (rest.length >= 3) { rest._rank = (sq._rank || 0) + 1; variants.push(rest); } } }); } });   // a bilingual or two-line plate: also try each line, and the lines below the first, on their own
+      var sets = codeTierSets(gl).concat(plain, variants);
       if (!sets.length) return Promise.resolve(null);
       var chain = Promise.resolve(null);
       sets.forEach(function (seq) {
         chain = chain.then(function (best) {
-          var reads = new Array(seq.length), p = readRows(gl, seq).then(function (rr) { rr.forEach(function (r, k) { reads[k] = r; }); }); seq.forEach(function (o, k) { p = p.then(function () { return reads[k] ? null : readGlyph(gl, o).then(function (r) { reads[k] = r; }); }).then(function () { if (reads[k] && /[0-9]/.test(reads[k].t) === false && (o.w / o.h < 0.3) && (o.area / (o.w * o.h) > 0.7) && reads[k].c < 85) reads[k] = { t: '1', c: 72 }; }); });
-          return p.then(function () { var gaps = gapsOf(seq); if (seq._forced) gaps[seq._forced - 1] = 9; specs.forEach(function (sp) { var f = fitSpec(seq, reads, gaps, sp); if (f && seq._tier) f.score -= 6; if (f && (!best || f.score > best.score)) best = f; }); return best; });
+          var reads = new Array(seq.length), p = readRows(gl, seq).then(function (rr) { rr.forEach(function (r, k) { reads[k] = r; }); }); seq.forEach(function (o, k) { p = p.then(function () { return reads[k] ? null : readGlyph(gl, o).then(function (r) { reads[k] = r; }); }).then(function () { if (reads[k]) { var ft = glyphFeatures(gl, o); reads[k] = Object.assign({}, reads[k], { asp: o.w / o.h, tw: ft.tw }); } }).then(function () { if (reads[k] && /[0-9]/.test(reads[k].t) === false && (o.w / o.h < 0.3) && (o.area / (o.w * o.h) > 0.7) && reads[k].c < 85) reads[k] = { t: '1', c: 72 }; }); });
+          return p.then(function () { var gaps = gapsOf(seq); if (seq._forced) gaps[seq._forced - 1] = 9; specs.forEach(function (sp) { var f = fitSpec(seq, reads, gaps, sp); if (f) { f.score += (sp.prior || 0); if (seq._tier) f.score -= 6; if (nameLike(f.parts.map(function (x) { return x.text; }).join(''), ctx)) f.score -= 200; if (seq._rank) f.score -= 10 * seq._rank; } if (f && (!best || f.score > best.score)) best = f; }); return best; });
         });
       });
       return chain;
