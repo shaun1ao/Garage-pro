@@ -1,18 +1,15 @@
-/* Garage Pro — camera scanner for VINs and number plates.
+/* Garage Pro — camera scanner for VINs.
  *
- *  GPScan.scanVin()                  → Promise<{ vin, how: 'barcode'|'text'|'photo', verified: bool } | null>
- *  GPScan.scanPlate({ regions, country, allowBH }) → Promise<{ region, plate, suffix, bh } | null>
- *  GPScan.decodeVin(vin)             → Promise<{ ok, make, model, year, trim, fuel, body, engine } >
+ *  GPScan.scanVin()      → Promise<{ vin, how: 'barcode'|'text', verified: bool } | null>
+ *  GPScan.decodeVin(vin) → Promise<{ ok, make, model, year, trim, fuel, body, engine } >
  *
  * HOW IT WORKS
  *  • One camera view reads BOTH barcodes (Code 39 / Code 128 / DataMatrix / QR — ZXing) and printed or etched text
  *    (OCR — Tesseract) at the same time, so a VIN sticker barcode and a VIN stamped on the windscreen use the same button.
  *  • Everything runs on the device. The photo never leaves the phone. Both libraries are hosted on our own site (vendor/),
  *    not on a third-party CDN. The text-recognition files (~7 MB) are fetched only the first time someone scans text.
- *  • VIN: a VIN with a valid check digit is accepted straight away; a text read that can't be verified is shown for the user
+ *  • A VIN with a valid check digit is accepted straight away; a text read that can't be verified is shown for the user
  *    to confirm or correct before it is used.
- *  • Plate: the user picks the state / emirate FIRST; the text read is then fitted to that region's plate layout, and shown
- *    for confirmation (plate OCR is never trusted blindly).
  *  • Decoding a VIN to make / model / year uses the free US NHTSA vPIC service (the VIN — and nothing else — is sent).
  *    It is strong for US-market vehicles and patchy elsewhere; when it can't decode, only the VIN is filled in.
  */
@@ -55,310 +52,6 @@
     return best;
   }
 
-  // ───────── plate logic (pure) ─────────
-  var D2L = { '0': 'O', '1': 'I', '2': 'Z', '5': 'S', '8': 'B', '6': 'G', '4': 'A' }, L2D = { O: '0', Q: '0', D: '0', I: '1', L: '1', T: '1', Z: '2', S: '5', B: '8', G: '6', A: '4' };
-  var toL = function (s) { return s.replace(/\d/g, function (d) { return D2L[d] || d; }); }, toD = function (s) { return s.replace(/[A-Z]/g, function (c) { return L2D[c] || c; }); };
-  function squash(t) { return String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
-  // returns { suffix, full, bh, ok } for the region the user picked
-  function parsePlate(text, region, country) {
-    var sq = squash(text); if (!sq) return null;
-    if (country === 'IN') {
-      var bh = /(\d{2})\s*B\s*H\s*(\d{4})\s*([A-Z]{1,2})/.exec(String(text).toUpperCase().replace(/[^A-Z0-9 ]/g, ' '));
-      if (region === 'BH' || bh) { var m2 = /^(\d{2})BH(\d{4})([A-Z]{1,2})$/.exec(toD(sq.slice(0, 2)) + 'BH' + (sq.indexOf('BH') >= 0 ? toD(sq.slice(sq.indexOf('BH') + 2, sq.indexOf('BH') + 6)) + toL(sq.slice(sq.indexOf('BH') + 6)) : '')); if (m2) return { bh: true, year: m2[1], suffix: m2[2] + ' ' + m2[3], full: m2[1] + 'BH' + m2[2] + m2[3], ok: true }; if (region === 'BH') return { bh: true, suffix: sq, full: sq, ok: false }; }
-      // SS DD [LLL] NNNN : the state letters may be missing if the user's chosen state was read as part of the plate
-      var s = sq; if (region && region !== 'BH' && s.indexOf(region) !== 0 && s.length >= 9 && region === toL(s.slice(0, 2))) s = region + s.slice(2);
-      if (s.length >= 9 && s.length <= 11) {
-        var st = toL(s.slice(0, 2)), dist = toD(s.slice(2, 4)), num = toD(s.slice(-4)), ser = toL(s.slice(4, -4));
-        if (/^[A-Z]{2}$/.test(st) && /^\d{2}$/.test(dist) && /^\d{4}$/.test(num) && /^[A-Z]{0,3}$/.test(ser)) {
-          var good = !region || st === region || region === 'BH';
-          return { state: st, suffix: [dist, ser, num].filter(Boolean).join(' '), full: st + dist + ser + num, ok: good, stateMismatch: !good };
-        }
-      }
-      return { suffix: sq, full: sq, ok: false };
-    }
-    if (country === 'AE') { var toks = String(text).toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean).filter(function (t) { return /^[0-9]+$/.test(t) || t.length <= 2; }); var cd = toks.length > 1 ? toks[0] : '', nb = toks.length > 1 ? toks.slice(1).join('') : (toks[0] || ''); var su = (cd ? cd + ' ' : '') + nb; return { suffix: su, full: su, ok: !!nb && nb.length <= 5 }; }
-    if (country === 'QA') { var d = toD(sq).replace(/[^0-9]/g, ''); return { suffix: d, full: d, ok: d.length >= 3 && d.length <= 6 }; }
-    if (country === 'PK') { var pm = /^([A-Z]{2,3})(\d{2})?(\d{3,4})$/.exec(toL(sq.replace(/\d+$/, '')) + (sq.match(/\d+$/) || [''])[0]); if (pm) { var ps = pm[1] + ' ' + (pm[2] ? pm[2] + ' ' : '') + pm[3]; return { suffix: ps, full: ps, ok: true }; } return { suffix: sq, full: sq, ok: false }; }
-    return { suffix: sq, full: sq, ok: sq.length >= 4 && sq.length <= 8 };   // US and anything else
-  }
-
-  function lev(a, b) { var m = a.length, n = b.length, d = [], i, j; for (i = 0; i <= m; i++) { d[i] = [i]; } for (j = 1; j <= n; j++) d[0][j] = j; for (i = 1; i <= m; i++) for (j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[m][n]; }
-  // ═════════ PLATE READING ═════════
-  // Every region (state / emirate / province / municipality) has one or more PLATE SPECS: the plate is a sequence of parts, each
-  // either letters (L), digits (D) or either (A), with a min–max length, or a fixed literal (like the state code on an Indian
-  // plate). Reading a plate is then:
-  //   1. find every glyph in the picture (adaptive threshold, both dark-on-light and light-on-dark text, ignoring frames, bolts,
-  //      logos and stickers by shape);
-  //   2. group glyphs by height — the plate's number is its biggest text; the emirate name, Arabic, month stickers and slogans
-  //      are smaller — and try each group (and the two biggest together) as the candidate "plate text";
-  //   3. read each glyph twice, once allowed only letters and once only digits, so 0/O, 1/I, 5/S, 8/B can't be confused;
-  //   4. fit the glyph sequence to each spec for the chosen region (using the gap between code and number as a hint), picking the
-  //      class (letter or digit) the spec demands at each position, and keep the best fit.
-  // Nothing is accepted blindly: the result is always shown for the user to confirm.
-  var L = function (min, max, id) { return { cls: 'L', min: min, max: max, id: id }; }, Dg = function (min, max, id) { return { cls: 'D', min: min, max: max, id: id }; }, Any = function (min, max, id) { return { cls: 'A', min: min, max: max, id: id }; }, Lit = function (txt, id) { return { lit: txt, min: txt.length, max: txt.length, id: id }; };
-  var SPECS = {
-    IN: function (r) { return r === 'BH' ? [{ label: 'BH series', parts: [Dg(2, 2, 'year'), Lit('BH', 'bh'), Dg(4, 4, 'num'), L(1, 2, 'ser')] }] : [{ label: 'Standard', parts: [Lit(r, 'state'), Dg(1, 2, 'dist'), L(0, 3, 'ser'), Dg(1, 4, 'num')] }]; },
-    AE: function (r) {
-      var codeD = [Dg(1, 2, 'code'), Dg(1, 5, 'num')], codeL = [L(1, 2, 'code'), Dg(1, 5, 'num')];
-      var names = { DXB: 'Dubai', AUH: 'Abu Dhabi', SHJ: 'Sharjah', AJM: 'Ajman', UAQ: 'Umm Al Quwain', RAK: 'Ras Al Khaimah', FUJ: 'Fujairah' }, nm = names[r] || 'UAE';
-      if (r === 'AUH') return [{ label: nm + ' · number code', parts: codeD, sep: true }];
-      if (r === 'SHJ') return [{ label: nm + ' · 1 digit + number', parts: [Dg(1, 1, 'code'), Dg(1, 5, 'num')], sep: true }];
-      if (r === 'DXB') return [{ label: nm + ' · letter code', parts: codeL, sep: true }, { label: nm + ' · number code (motorcycle)', parts: codeD, sep: true }];
-      return [{ label: nm + ' · letter code', parts: codeL, sep: true }, { label: nm + ' · number code', parts: codeD, sep: true }];
-    },
-    QA: function () { return [{ label: 'Qatar', parts: [Dg(2, 6, 'num')] }]; },
-    PK: function () { return [{ label: 'Standard', parts: [L(2, 3, 'pre'), Dg(3, 4, 'num')] }, { label: 'With year', parts: [L(2, 3, 'pre'), Dg(2, 2, 'yr'), Dg(3, 4, 'num')] }]; },
-    US: function (r) {
-      var o = [], P = 30, three4 = { NY: 1, TX: 1, PA: 1, OH: 1, GA: 1, WA: 1, MI: 1, VA: 1, NC: 1, AZ: 1 };
-      if (r === 'CA') o.push({ label: 'California · 1ABC234', prior: P, parts: [Dg(1, 1, 'a'), L(3, 3, 'b'), Dg(3, 3, 'c')] });
-      if (three4[r]) o.push({ label: '3 letters + 4 digits', prior: P, parts: [L(3, 3, 'pre'), Dg(4, 4, 'num')] });
-      if (r === 'IL') o.push({ label: 'Illinois · AB 12345', prior: P, parts: [L(2, 2, 'pre'), Dg(5, 5, 'num')] });
-      if (r === 'NJ') o.push({ label: 'New Jersey · A12 BCD', prior: P, parts: [L(1, 1, 'a'), Dg(2, 2, 'b'), L(3, 3, 'c')] });
-      o.push({ label: 'Standard (letters and digits)', parts: [Any(2, 8, 'num')] }); return o;
-    }
-  };
-  var specsFor = function (country, region) { return (SPECS[country] || function () { return [{ label: 'Standard', parts: [Any(4, 9, 'num')] }]; })(region); };
-
-  // ---- 1. glyphs ----
-  function adaptive(gray, w, h, bright, frac) {   // local-mean threshold via an integral image: copes with shadows and glare
-    var win = Math.max(15, Math.round(Math.min(w, h) * (frac || 0.9))) | 1, half = win >> 1, I = new Float64Array((w + 1) * (h + 1)), x, y, ink = new Uint8Array(w * h);
-    for (y = 0; y < h; y++) { var row = 0; for (x = 0; x < w; x++) { row += gray[y * w + x]; I[(y + 1) * (w + 1) + x + 1] = I[y * (w + 1) + x + 1] + row; } }
-    for (y = 0; y < h; y++) { var y0 = Math.max(0, y - half), y1 = Math.min(h, y + half + 1); for (x = 0; x < w; x++) { var x0 = Math.max(0, x - half), x1 = Math.min(w, x + half + 1), area = (x1 - x0) * (y1 - y0), sum = I[y1 * (w + 1) + x1] - I[y0 * (w + 1) + x1] - I[y1 * (w + 1) + x0] + I[y0 * (w + 1) + x0], mean = sum / area, v = gray[y * w + x]; ink[y * w + x] = bright ? (v > mean + 18 ? 1 : 0) : (v < mean - 18 ? 1 : 0); } }
-    return ink;
-  }
-  function components(ink, w, h, pol) {
-    var N = w * h, lab = new Int32Array(N), comps = [], stack = new Int32Array(N), id = 0, p;
-    for (p = 0; p < N; p++) { if (!ink[p] || lab[p]) continue; id++; var sp = 0; stack[sp++] = p; lab[p] = id; var c = { id: id, pol: pol, x0: w, y0: h, x1: 0, y1: 0, area: 0 };
-      while (sp) { var q = stack[--sp], cx = q % w, cy = (q / w) | 0; c.area++; if (cx < c.x0) c.x0 = cx; if (cx > c.x1) c.x1 = cx; if (cy < c.y0) c.y0 = cy; if (cy > c.y1) c.y1 = cy;
-        for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; var nx = cx + dx, ny = cy + dy; if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue; var np = ny * w + nx; if (ink[np] && !lab[np]) { lab[np] = id; stack[sp++] = np; } } }
-      c.w = c.x1 - c.x0 + 1; c.h = c.y1 - c.y0 + 1; comps.push(c); }
-    return { lab: lab, comps: comps };
-  }
-  function otsu(g) { var h = new Array(256).fill(0), i, tot = g.length, sum = 0; for (i = 0; i < tot; i++) { h[g[i]]++; sum += g[i]; } var sB = 0, wB = 0, best = 0, th = 127; for (i = 0; i < 256; i++) { wB += h[i]; if (!wB) continue; var wF = tot - wB; if (!wF) break; sB += i * h[i]; var mB = sB / wB, mF = (sum - sB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; th = i; } } return th; }
-  function globalInk(gray, N, bright) { var t = otsu(gray), ink = new Uint8Array(N), n = 0, i; for (i = 0; i < N; i++) { ink[i] = gray[i] < t ? 1 : 0; n += ink[i]; } var darkIsText = n <= N * 0.5; for (i = 0; i < N; i++) ink[i] = (bright ? !darkIsText : darkIsText) ? (gray[i] < t ? 1 : 0) : (gray[i] >= t ? 1 : 0); return ink; }
-  function findGlyphs(canvas, box, mode) {   // mode: 'adaptive' (big + small window together, handles shadows) or 'otsu'
-    var sw = canvas.width, sh = canvas.height, bx = Math.round(sw * box.x), by = Math.round(sh * box.y), bw = Math.max(16, Math.round(sw * box.w)), bh = Math.max(16, Math.round(sh * box.h));
-    var sc = Math.min(1, 800 / Math.max(bw, bh)), w = Math.max(16, Math.round(bw * sc)), h = Math.max(16, Math.round(bh * sc)), c = document.createElement('canvas'); c.width = w; c.height = h;
-    var g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(canvas, bx, by, bw, bh, 0, 0, w, h);
-    var d = g.getImageData(0, 0, w, h).data, N = w * h, gray = new Uint8Array(N), i; for (i = 0; i < N; i++) gray[i] = (299 * d[i * 4] + 587 * d[i * 4 + 1] + 114 * d[i * 4 + 2]) / 1000;
-    var out = { w: w, h: h, comps: [], labs: {}, gray: gray };
-    var passes = mode === 'otsu' ? [['otsu', 0]] : mode === 'multi' ? [['adaptive', 0.9], ['local', 0.32]] : [['adaptive', 0.9]];
-    passes.forEach(function (ps) { [false, true].forEach(function (bright) {
-      var pol = ps[0] + (bright ? '_light' : '_dark'), cc = components(ps[0] === 'otsu' ? globalInk(gray, N, bright) : adaptive(gray, w, h, bright, ps[1]), w, h, pol); out.labs[pol] = cc.lab;
-      cc.comps.forEach(function (o) {
-        var fill = o.area / (o.w * o.h), asp = o.w / o.h;
-        if (o.h < h * 0.07 || o.h > h * 0.95 || o.w > w * 0.4 || asp > 1.35) return;            // specks, frames, long rules, wide logos
-        if (fill < 0.14 || (fill > 0.86 && asp > 0.55) || asp < 0.1) return;   // also: hair-thin vertical bars are plate edges, not characters                                  // noise / solid boxes (a '1' is tall, so it passes)
-        if (o.x0 <= 1 || o.y0 <= 1 || o.x1 >= w - 2 || o.y1 >= h - 2) { if (o.h > h * 0.5 || o.area < 30) return; }
-        for (var q = 0; q < out.comps.length; q++) { var e = out.comps[q], ix = Math.min(e.x1, o.x1) - Math.max(e.x0, o.x0) + 1, iy = Math.min(e.y1, o.y1) - Math.max(e.y0, o.y0) + 1; if (ix > 0 && iy > 0 && ix * iy > 0.5 * Math.min(e.w * e.h, o.w * o.h)) return; }   // already found by another pass
-        out.comps.push(o);
-      });
-    }); });
-    return out;
-  }
-  // ---- 2. candidate glyph sets ----
-  function candidateSets(gl) {
-    gl.comps.forEach(function (o) { delete o._row; });
-    var cs = mergeFragments(gl.comps).sort(function (a, b) { return b.h - a.h; }); if (cs.length < 1) return [];
-    var clusters = []; cs.forEach(function (o) { var cl = clusters[clusters.length - 1]; if (cl && o.h >= cl.hmax * 0.68) { cl.items.push(o); cl.hmin = Math.min(cl.hmin, o.h); } else clusters.push({ items: [o], hmax: o.h, hmin: o.h }); });
-    clusters = clusters.filter(function (c) { return c.items.length >= 1; });
-    var sets = [];
-    clusters.slice(0, 4).forEach(function (c, i) { if (c.items.length >= 2 || i === 0) sets.push(c.items); if (i > 0 && c.hmax >= clusters[0].hmax * 0.6 && c.items.length >= 1) sets.push(clusters[0].items.concat(c.items)); });
-    // keep only glyphs that sit in one text band (vertical overlap with the group's median line), then order for reading
-    return sets.filter(function (s) { return s.length >= 2; }).map(function (s) { if (s.length > 12) s = s.slice().sort(function (a, b) { return b.h - a.h; }).slice(0, 12); return readingOrder(s); });
-  }
-  // Many plates (current Dubai, Sharjah, Abu Dhabi…) print the CODE smaller than the NUMBER, above or beside it, with the
-  // emirate name and Arabic nearby. So: take the tallest run as the number, then look for a small, isolated group of 1–2 glyphs
-  // (1–2 because a name like DUBAI or SHARJAH is a long run of glyphs) placed left of or above the number.
-  function codeTierSets(gl) {
-    var all = mergeFragments(gl.comps).sort(function (a, b) { return b.h - a.h; }); if (all.length < 3) return [];
-    var top = all[0], num = all.filter(function (o) { return o.h >= top.h * 0.78; }); if (num.length < 1 || num.length > 8) return [];
-    var N = readingOrder(num), hN = N.slice().sort(function (a, b) { return a.h - b.h; })[(N.length / 2) | 0].h, nx0 = Math.min.apply(null, N.map(function (o) { return o.x0; })), nx1 = Math.max.apply(null, N.map(function (o) { return o.x1; })), ny0 = Math.min.apply(null, N.map(function (o) { return o.y0; })), ny1 = Math.max.apply(null, N.map(function (o) { return o.y1; }));
-    var small = all.filter(function (o) { return num.indexOf(o) < 0 && o.h >= hN * 0.36 && o.h <= hN * 1.1 && o.w / o.h < 1.3; });
-    // group small glyphs that sit side by side at the same height
-    var groups = []; small.slice().sort(function (a, b) { return a.x0 - b.x0; }).forEach(function (o) { var g = groups.filter(function (g) { var l = g[g.length - 1]; return Math.abs((l.y0 + l.y1) / 2 - (o.y0 + o.y1) / 2) < Math.max(l.h, o.h) * 0.45 && o.x0 - l.x1 < Math.max(l.h, o.h) * 0.7 && Math.abs(l.h - o.h) < Math.max(l.h, o.h) * 0.3; })[0]; if (g) g.push(o); else groups.push([o]); });
-    var cands = [];
-    groups.forEach(function (g) {
-      if (g.length > 2) return;
-      var gx0 = g[0].x0, gx1 = g[g.length - 1].x1, gy0 = Math.min.apply(null, g.map(function (o) { return o.y0; })), gy1 = Math.max.apply(null, g.map(function (o) { return o.y1; })), cx = (gx0 + gx1) / 2, cy = (gy0 + gy1) / 2;
-      var left = gx1 <= nx0 + hN * 0.15 && gy1 > ny0 - hN * 0.5, above = gy1 <= ny0 + hN * 0.3 && cx >= nx0 - hN * 0.6 && cx <= nx1 + hN * 0.6;
-      if (!left && !above) return;
-      var dx = Math.max(0, Math.max(nx0 - gx1, gx0 - nx1)), dy = Math.max(0, Math.max(ny0 - gy1, gy0 - ny1)), dist = Math.sqrt(dx * dx + dy * dy) / hN; if (dist > 3) return;
-      g.forEach(function (o) { o._row = 0; }); N.forEach(function (o) { o._row = 1; });
-      var seq = g.slice().sort(function (a, b) { return a.x0 - b.x0; }).concat(N); seq._forced = g.length; seq._dist = dist; seq._tier = true; cands.push(seq);
-    });
-    return cands.sort(function (a, b) { return a._dist - b._dist; }).slice(0, 3);
-  }
-  // a glyph broken into pieces (a blurred 9, a bevelled 8) is merged back: pieces that sit on top of each other horizontally
-  function mergeFragments(list) {
-    var items = list.map(function (o) { return Object.assign({}, o, { parts: [{ pol: o.pol, id: o.id }] }); }), changed = true, tallest0 = list.reduce(function (m, o) { return Math.max(m, o.h); }, 1);
-    while (changed) { changed = false; outer: for (var i = 0; i < items.length; i++) for (var j = i + 1; j < items.length; j++) { var a = items[i], b = items[j]; if (a.pol !== b.pol) continue;
-        var ov = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) + 1, narrow = Math.min(a.w, b.w), nh = Math.max(a.y1, b.y1) - Math.min(a.y0, b.y0) + 1, tallest = Math.max(a.h, b.h);
-        if (ov >= narrow * 0.6 && nh <= tallest0 * 1.12 && Math.min(a.h, b.h) < tallest * 0.9 && (Math.max(a.y0, b.y0) - Math.min(a.y1, b.y1) < tallest * 0.25)) {
-          var m = { pol: a.pol, id: a.id, parts: a.parts.concat(b.parts), x0: Math.min(a.x0, b.x0), x1: Math.max(a.x1, b.x1), y0: Math.min(a.y0, b.y0), y1: Math.max(a.y1, b.y1), area: a.area + b.area }; m.w = m.x1 - m.x0 + 1; m.h = m.y1 - m.y0 + 1; items.splice(j, 1); items[i] = m; changed = true; break outer; } } }
-    return items;
-  }
-  function readingOrder(items) {   // rows top→bottom, each row left→right; a "row" is glyphs whose vertical centres are within half a glyph
-    var ref = items.slice().sort(function (a, b) { return a.h - b.h; })[(items.length / 2) | 0].h, rows = [];
-    items.slice().sort(function (a, b) { return (a.y0 + a.y1) - (b.y0 + b.y1); }).forEach(function (o) { var cy = (o.y0 + o.y1) / 2, r = rows.filter(function (r) { return Math.abs(r.cy - cy) < ref * 0.55; })[0]; if (r) { r.items.push(o); r.cy = r.items.reduce(function (a, b) { return a + (b.y0 + b.y1) / 2; }, 0) / r.items.length; } else rows.push({ cy: cy, items: [o] }); });
-    var seq = []; rows.sort(function (a, b) { return a.cy - b.cy; }).forEach(function (r, ri) { r.items.sort(function (a, b) { return a.x0 - b.x0; }).forEach(function (o, k) { o._row = ri; seq.push(o); }); });
-    return seq;
-  }
-  function gapsOf(seq) {   // normalised space between neighbours (neg = start of a new row)
-    var ref = seq.slice().sort(function (a, b) { return a.h - b.h; })[(seq.length / 2) | 0].h, g = [];
-    for (var i = 1; i < seq.length; i++) { var a = seq[i - 1], b = seq[i]; g.push((b.y0 > a.y1 - ref * 0.3 && b.x0 < a.x0 + ref * 0.5) ? 9 : (b.x0 - a.x1) / ref); }
-    return g;
-  }
-  // ---- 3. read one glyph, twice ----
-  // how much of the glyph's width is inked in its top slice: a 7 or T has a wide top bar, a 1 does not
-  function glyphFeatures(gl, o) {
-    var parts = o.parts || [{ pol: o.pol, id: o.id }], band = Math.max(2, Math.round(o.h * 0.14)), y0 = o.y0, y1 = Math.min(o.y1, o.y0 + band), cols = 0;
-    for (var x = o.x0; x <= o.x1; x++) { var hit = false; for (var y = y0; y <= y1 && !hit; y++) hit = parts.some(function (pp) { return gl.labs[pp.pol][y * gl.w + x] === pp.id; }); if (hit) cols++; }
-    return { tw: cols / o.w };
-  }
-  function glyphCanvas(gl, o) {
-    var pad = Math.max(3, Math.round(o.h * 0.22)), gw = o.w + pad * 2, gh = o.h + pad * 2, c = document.createElement('canvas'); c.width = gw; c.height = gh;
-    var g = c.getContext('2d'), im = g.createImageData(gw, gh), dd = im.data, i, x, y; for (i = 0; i < dd.length; i += 4) { dd[i] = dd[i + 1] = dd[i + 2] = 255; dd[i + 3] = 255; }
-    var parts = o.parts || [{ pol: o.pol, id: o.id }]; for (y = o.y0; y <= o.y1; y++) for (x = o.x0; x <= o.x1; x++) if (parts.some(function (pp) { return gl.labs[pp.pol][y * gl.w + x] === pp.id; })) { var k = ((y - o.y0 + pad) * gw + (x - o.x0 + pad)) * 4; dd[k] = dd[k + 1] = dd[k + 2] = 0; }
-    g.putImageData(im, 0, 0); var sc = 72 / gh, out = document.createElement('canvas'); out.width = Math.max(8, Math.round(gw * sc)); out.height = 72; var og = out.getContext('2d'); og.imageSmoothingEnabled = true; og.fillStyle = '#fff'; og.fillRect(0, 0, out.width, 72); og.drawImage(c, 0, 0, out.width, 72); return out;
-  }
-  function grayGlyphCanvas(gl, o) {   // the glyph's own grey pixels (not the thresholded mask): keeps edges the mask loses on embossed plates
-    var pad = Math.max(3, Math.round(o.h * 0.22)), x0 = Math.max(0, o.x0 - pad), y0 = Math.max(0, o.y0 - pad), x1 = Math.min(gl.w - 1, o.x1 + pad), y1 = Math.min(gl.h - 1, o.y1 + pad), gw = x1 - x0 + 1, gh = y1 - y0 + 1;
-    var c = document.createElement('canvas'); c.width = gw; c.height = gh; var g = c.getContext('2d'), im = g.createImageData(gw, gh), dd = im.data, vals = [], x, y;
-    for (y = 0; y < gh; y++) for (x = 0; x < gw; x++) vals.push(gl.gray[(y0 + y) * gl.w + x0 + x]);
-    var sorted = vals.slice().sort(function (a, b) { return a - b; }), lo = sorted[(sorted.length * 0.03) | 0], hi = sorted[(sorted.length * 0.97) | 0], span = Math.max(30, hi - lo), inv = o.pol === 'light';
-    for (var i = 0; i < vals.length; i++) { var v = Math.max(0, Math.min(255, (vals[i] - lo) * 255 / span)); if (inv) v = 255 - v; dd[i * 4] = dd[i * 4 + 1] = dd[i * 4 + 2] = v; dd[i * 4 + 3] = 255; }
-    g.putImageData(im, 0, 0); var sc = 72 / gh, out = document.createElement('canvas'); out.width = Math.max(8, Math.round(gw * sc)); out.height = 72; var og = out.getContext('2d'); og.imageSmoothingEnabled = true; og.drawImage(c, 0, 0, out.width, 72); return out;
-  }
-  function readGlyph(gl, o) {
-    if (o._r) return Promise.resolve(o._r);
-    var cv = glyphCanvas(gl, o), tall = o.w / o.h < 0.3 && o.area / (o.w * o.h) > 0.7;      // a plain upright bar is a "1" (Dubai-style) or an "I"
-    return getOcr().then(function (w) {
-      function one(psm) { return w.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: psm, lstm_choice_mode: '2', user_defined_dpi: '300' }).then(function () { return w.recognize(cv, {}, { blocks: true }); }).then(function (r) { var t = ((r.data.text || '').replace(/[^A-Za-z0-9]/g, '')[0] || '').toUpperCase(), ch = []; ((r.data.blocks) || []).forEach(function (b) { (b.paragraphs || []).forEach(function (pg) { (pg.lines || []).forEach(function (ln) { (ln.words || []).forEach(function (wd) { (wd.symbols || []).slice(0, 1).forEach(function (sy) { ch = choicesOf(sy); }); }); }); }); }); return { t: t, c: t ? (r.data.confidence || 0) : 0, ch: ch }; }); }
-      return one('8').then(function (a) { if (a.t && a.c >= 70) return a; return one('13').then(function (b) { return b.c > a.c ? b : a; }); }).then(function (r) { if (tall && (!r.t || r.c < 85 || !/[0-9IL]/.test(r.t))) r = { t: '1', c: Math.max(r.c, 72) }; o._r = r; return r; });
-    });
-  }
-  // read one ROW of glyphs as a line (the recogniser is far better with context than with isolated characters). Glyphs are
-  // re-drawn alone on a clean white line, keeping their spacing; one symbol back per glyph is mapped 1:1.
-  // morphological closing (grow then shrink by r pixels): seals the thin cut in a slashed zero or a bevel crack without filling a
-  // letter's real holes, and smooths jagged edges
-  function closeMask(a, w, h, r) {
-    function pass(src, grow) { var out = new Uint8Array(w * h), x, y, k, tmp = new Uint8Array(w * h);
-      for (y = 0; y < h; y++) for (x = 0; x < w; x++) { var v = grow ? 0 : 1; for (k = -r; k <= r; k++) { var xx = x + k; if (xx < 0 || xx >= w) { if (!grow) v = 0; continue; } var s2 = src[y * w + xx]; if (grow ? s2 : !s2) { v = grow ? 1 : 0; break; } } tmp[y * w + x] = v; }
-      for (y = 0; y < h; y++) for (x = 0; x < w; x++) { var v2 = grow ? 0 : 1; for (k = -r; k <= r; k++) { var yy = y + k; if (yy < 0 || yy >= h) { if (!grow) v2 = 0; continue; } var s3 = tmp[yy * w + x]; if (grow ? s3 : !s3) { v2 = grow ? 1 : 0; break; } } out[y * w + x] = v2; }
-      return out; }
-    return pass(pass(a, true), false);
-  }
-  function rowCanvas(gl, row) {
-    var x0 = 1e9, y0 = 1e9, x1 = 0, y1 = 0; row.forEach(function (o) { x0 = Math.min(x0, o.x0); y0 = Math.min(y0, o.y0); x1 = Math.max(x1, o.x1); y1 = Math.max(y1, o.y1); });
-    var ref = row.slice().sort(function (a, b) { return a.h - b.h; })[(row.length / 2) | 0].h, pad = Math.round(ref * 0.3), gw = x1 - x0 + 1 + pad * 2, gh = y1 - y0 + 1 + pad * 2, c = document.createElement('canvas'); c.width = gw; c.height = gh;
-    var g = c.getContext('2d'), im = g.createImageData(gw, gh), dd = im.data, i; for (i = 0; i < dd.length; i += 4) { dd[i] = dd[i + 1] = dd[i + 2] = 255; dd[i + 3] = 255; }
-    var m = new Uint8Array(gw * gh); row.forEach(function (o) { var parts = o.parts || [{ pol: o.pol, id: o.id }]; for (var y = o.y0; y <= o.y1; y++) for (var x = o.x0; x <= o.x1; x++) if (parts.some(function (pp) { return gl.labs[pp.pol][y * gl.w + x] === pp.id; })) m[(y - y0 + pad) * gw + (x - x0 + pad)] = 1; });
-    var rr = Math.max(1, Math.round(ref * 0.045)); m = closeMask(m, gw, gh, rr); for (i = 0; i < m.length; i++) if (m[i]) { dd[i * 4] = dd[i * 4 + 1] = dd[i * 4 + 2] = 0; }
-    g.putImageData(im, 0, 0); var sc = Math.min(2, 90 / ref), out = document.createElement('canvas'); out.width = Math.round(gw * sc); out.height = Math.round(gh * sc); var og = out.getContext('2d'); og.imageSmoothingEnabled = true; og.drawImage(c, 0, 0, out.width, out.height); return out;
-  }
-  function choicesOf(sy) { return (sy.choices || []).map(function (x) { var t = (x.text || '').replace(/[^A-Za-z0-9]/g, ''); return t ? { t: t[0].toUpperCase(), c: x.confidence || 0 } : null; }).filter(Boolean); }
-  function readRows(gl, seq) {   // → array of {t,c} aligned with seq (null where the reader's symbol count doesn't match the glyph count)
-    var rows = []; seq.forEach(function (o) { (rows[o._row || 0] = rows[o._row || 0] || []).push(o); });
-    var out = [], p = Promise.resolve();
-    function symbolsOf(r) {
-      var syms = [];
-      ((r.data && r.data.blocks) || []).forEach(function (b) { (b.paragraphs || []).forEach(function (pg) { (pg.lines || []).forEach(function (ln) { (ln.words || []).forEach(function (wd) { (wd.symbols || []).forEach(function (sy) { var t = (sy.text || '').replace(/[^A-Za-z0-9]/g, ''); if (t) syms.push({ t: t[0].toUpperCase(), c: sy.confidence || 0, ch: choicesOf(sy) }); }); }); }); }); });
-      return syms;
-    }
-    rows.forEach(function (row) {
-      p = p.then(function () {
-        return getOcr().then(function (w) {
-          return w.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: '7', lstm_choice_mode: '2', user_defined_dpi: '300' }).then(function () { return w.recognize(rowCanvas(gl, row), {}, { blocks: true }); });
-        }).then(function (r) {
-          var syms = symbolsOf(r);
-          if (syms.length === row.length) syms.forEach(function (sy) { out.push(sy); }); else row.forEach(function () { out.push(null); });
-        });
-      });
-    });
-    return p.then(function () { return out; });
-  }
-  // What a read character becomes when the template demands a digit or a letter. Several candidates are weighed together:
-  //   • the recogniser's own runner-up guesses of the right kind,
-  //   • look-alike conversions (0/O/D, 1/I/L, 7/T/Z, 5/S, 8/B, 6/G, 4/A, 3/E),
-  // and each is checked against the glyph's SHAPE (a narrow upright bar can be a 1 or I but not a 7 or T; a wide glyph can't be a 1).
-  var TO_D = { O: ['0'], Q: ['0'], D: ['0'], I: ['1', '7'], L: ['1'], T: ['7', '1'], V: ['7'], Y: ['7', '4'], Z: ['2', '7'], S: ['5'], B: ['8'], G: ['6'], A: ['4'], E: ['3'], U: ['0'], H: ['4'], C: ['0', '6'] },
-      TO_L = { '0': ['O', 'D'], '1': ['I', 'L'], '2': ['Z'], '5': ['S'], '8': ['B'], '6': ['G'], '4': ['A'], '3': ['E'], '7': ['T', 'Z'] };
-  var SAME = { '1': ['7'], '7': ['1'], I: ['T', 'L'], T: ['I'], '0': ['8', 'O'], '8': ['0', '6'], '6': ['8', '5'], '5': ['6'], '3': ['8'], '9': ['4'] };
-  function aspPen(ch, asp, tw) {   // glyph width ÷ height (and top-bar width) against what that character looks like
-    if (!asp) return 0;
-    if (tw != null) { if ((ch === '7' || ch === 'T') && tw < 0.5) return 34; if ((ch === '1' || ch === 'I') && tw > 0.82) return 34; }
-    if (ch === '1') return asp > 0.62 ? 42 : 0; if (ch === 'I') return asp > 0.42 ? 42 : 0;
-    if (ch === '7') return asp < 0.36 ? 28 : 0; if (ch === 'T') return asp < 0.42 ? 28 : 0; if (ch === 'L') return asp < 0.3 ? 20 : 0;
-    if (ch === 'M' || ch === 'W') return asp < 0.68 ? 28 : 0;
-    if ('0OQDUHN'.indexOf(ch) >= 0) return asp < 0.28 ? 26 : 0;
-    return 0;
-  }
-  function classView(r, cls) {
-    var asp = r.asp || 0;
-    if (cls === 'A') return { ch: r.t, cf: r.c - aspPen(r.t, asp, r.tw) };
-    var want = cls === 'D' ? /\d/ : /[A-Z]/, table = cls === 'D' ? TO_D : TO_L, cands = [];
-    if (want.test(r.t)) { cands.push({ ch: r.t, cf: r.c - aspPen(r.t, asp, r.tw) });
-      if (aspPen(r.t, asp, r.tw) > 0) (SAME[r.t] || []).forEach(function (a) { if (want.test(a)) cands.push({ ch: a, cf: r.c * 0.62 - aspPen(a, asp, r.tw) }); }); }   // the look-alike that fits the shape (1↔7, I↔T…)
-    (r.ch || []).forEach(function (x) { if (x.t !== r.t && want.test(x.t) && x.c > 3) cands.push({ ch: x.t, cf: Math.max(x.c * 0.85, r.c * 0.5) - aspPen(x.t, asp, r.tw) }); });
-    var sources = [{ t: r.t, c: r.c }].concat((r.ch || []).filter(function (x) { return x.t !== r.t && !want.test(x.t) && x.c > 20; }));
-    sources.forEach(function (sr) { if (want.test(sr.t)) return; (table[sr.t] || []).forEach(function (cv, k) { cands.push({ ch: cv, cf: sr.c * 0.35 - 20 - 3 * k - aspPen(cv, asp, r.tw) }); }); });
-    if (!cands.length) return { ch: '?', cf: -120 };
-    return cands.sort(function (a, b) { return b.cf - a.cf; })[0];
-  }
-  // ---- 4. fit to a spec ----
-  function fitSpec(seq, reads, gaps, spec) {
-    var best = null;
-    for (var dl = 0; dl <= 2; dl++) for (var dr = 0; dr <= 2; dr++) { if (seq.length - dl - dr < 2) continue; var f = fitSlice(seq.slice(dl, seq.length - dr), reads.slice(dl, reads.length - dr), gaps.slice(dl, Math.max(dl, gaps.length - dr)), spec); if (f) { f.score -= 14 * (dl + dr); if (!best || f.score > best.score) best = f; } }
-    return best;
-  }
-  function fitSlice(seq, reads, gaps, spec) {
-    var n = seq.length, parts = spec.parts, best = null;
-    function cost(cls, k, lit, i) { var r = reads[i]; if (!r || !r.t) return -50; if (lit) { var m = classView(r, /\d/.test(lit[k]) ? 'D' : 'L'); return m.ch === lit[k] ? 60 : -40; } return classView(r, cls).cf; }
-    (function rec(pi, pos, total, picks) {
-      if (pi === parts.length) { if (pos !== n) return; var sc = total / n; if (spec.sep && parts.length >= 2) { var b = picks[0]; var gi = b - 1, gp = gi >= 0 && gi < gaps.length ? gaps[gi] : 0, med = gaps.slice().sort(function (a, c) { return a - c; })[(gaps.length / 2) | 0] || 0; sc += (gp > Math.max(0.45, med * 1.8)) ? 25 : -25; }
-        if (!best || sc > best.score) best = { score: sc, picks: picks.slice(), spec: spec }; return; }
-      var p = parts[pi]; for (var len = p.min; len <= p.max && pos + len <= n; len++) { var t = total, ok = true; for (var k = 0; k < len; k++) { t += cost(p.cls, k, p.lit, pos + k); } picks.push(pos + len); rec(pi + 1, pos + len, t, picks); picks.pop(); }
-    })(0, 0, 0, []);
-    if (!best) return null;
-    var out = [], pos = 0; best.picks.forEach(function (end, pi) { var p = parts[pi], txt = ''; for (var i = pos; i < end; i++) { var r = reads[i]; txt += p.lit ? p.lit[i - pos] : (r && r.t ? classView(r, p.cls).ch : '?'); } out.push({ id: p.id, text: txt, lit: !!p.lit }); pos = end; });
-    best.parts = out; return best;
-  }
-  // text that is just the state's own name or a stock slogan is never the plate number
-  var SLOGANS = ['USA', 'UNITEDSTATES', 'LONESTAR', 'THELONESTARSTATE', 'SUNSHINESTATE', 'EMPIRESTATE', 'GOLDENSTATE', 'DMVCAGOV', 'ILLINOIS', 'LANDOFLINCOLN', 'GREATLAKES', 'PEACHSTATE', 'KEYSTONESTATE', 'BUCKEYE', 'EVERGREENSTATE', 'GARDENSTATE', 'DEMOCRACY', 'INGODWETRUST', 'ENDOFTHEWORLD'];
-  function nameLike(txt, ctx) { var t = squash(txt); if (t.length < 4) return false; var names = SLOGANS.concat(ctx && ctx.regionName ? [squash(ctx.regionName)] : []); for (var i = 0; i < names.length; i++) { var n = names[i]; if (!n) continue; if (t === n || (n.length >= 5 && t.length >= 4 && n.indexOf(t) >= 0) || lev(t, n) <= Math.floor(n.length / 6)) return true; } return false; }
-  function readPlateImage(canvas, boxes, ctx) {
-    var country = ctx.country, region = ctx.region, specs = specsFor(country, region);
-    function tryBox(i) {
-      if (i >= boxes.length) return Promise.resolve(null);
-      var order = ['adaptive', 'otsu', 'multi'], run = function (k, best) { if (k >= order.length || (best && best.score >= 95)) return Promise.resolve(best); return tryMode(i, order[k]).then(function (b) { return run(k + 1, (b && (!best || b.score > best.score)) ? b : best); }); };
-      return run(0, null).then(function (best) { return best && best.score > 25 ? best : tryBox(i + 1).then(function (b2) { return b2 || best; }); });
-    }
-    function tryMode(i, mode) {
-      var gl = findGlyphs(canvas, boxes[i], mode), plain = candidateSets(gl).slice(0, 4); plain.forEach(function (sq, ix) { sq._rank = ix; });
-      var variants = []; plain.forEach(function (sq) { var rows = {}; sq.forEach(function (o) { (rows[o._row || 0] = rows[o._row || 0] || []).push(o); }); var ks = Object.keys(rows).map(Number).sort(function (a, b) { return a - b; });
-        if (ks.length > 1) { ks.forEach(function (k, ki) { var one = rows[k].slice(); if (one.length >= 3) { one._rank = (sq._rank || 0) + 1; variants.push(one); } if (ki > 0) { var rest = []; ks.slice(ki).forEach(function (kk) { rest = rest.concat(rows[kk]); }); if (rest.length >= 3) { rest._rank = (sq._rank || 0) + 1; variants.push(rest); } } }); } });   // a bilingual or two-line plate: also try each line, and the lines below the first, on their own
-      var sets = codeTierSets(gl).concat(plain, variants);
-      if (!sets.length) return Promise.resolve(null);
-      var chain = Promise.resolve(null);
-      sets.forEach(function (seq) {
-        chain = chain.then(function (best) {
-          var reads = new Array(seq.length), p = readRows(gl, seq).then(function (rr) { rr.forEach(function (r, k) { reads[k] = r; }); }); seq.forEach(function (o, k) { p = p.then(function () { return reads[k] ? null : readGlyph(gl, o).then(function (r) { reads[k] = r; }); }).then(function () { if (reads[k]) { var ft = glyphFeatures(gl, o); reads[k] = Object.assign({}, reads[k], { asp: o.w / o.h, tw: ft.tw }); } }).then(function () { if (reads[k] && /[0-9]/.test(reads[k].t) === false && (o.w / o.h < 0.3) && (o.area / (o.w * o.h) > 0.7) && reads[k].c < 85) reads[k] = { t: '1', c: 72 }; }); });
-          return p.then(function () { var gaps = gapsOf(seq); if (seq._forced) gaps[seq._forced - 1] = 9; specs.forEach(function (sp) { var f = fitSpec(seq, reads, gaps, sp); if (f) { f.score += (sp.prior || 0); if (seq._tier) f.score -= 6; if (nameLike(f.parts.map(function (x) { return x.text; }).join(''), ctx)) f.score -= 200; if (seq._rank) f.score -= 10 * seq._rank; } if (f && (!best || f.score > best.score)) best = f; }); return best; });
-        });
-      });
-      return chain;
-    }
-    return tryBox(0).then(function (best) {
-      if (!best) return null;
-      var parts = best.parts, pick = function (id) { var p = parts.filter(function (x) { return x.id === id; })[0]; return p ? p.text : ''; };
-      var all = parts.filter(function (p) { return !(p.lit && country === 'IN' && p.id === 'state'); }).map(function (p) { return p.text; });
-      var res = { label: best.spec.label, score: best.score, parts: parts, region: region };
-      if (country === 'IN') { res.state = region === 'BH' ? '' : region; res.bh = region === 'BH'; res.year = pick('year'); res.suffix = region === 'BH' ? pick('num') + ' ' + pick('ser') : [pick('dist'), pick('ser'), pick('num')].filter(Boolean).join(' '); res.full = region === 'BH' ? pick('year') + 'BH' + pick('num') + pick('ser') : region + [pick('dist'), pick('ser'), pick('num')].join(''); }
-      else { res.suffix = all.join(' '); res.full = res.suffix; res.code = pick('code') || pick('pre') || ''; res.number = pick('num'); }
-      res.ok = best.score > 40 && res.suffix.indexOf('?') < 0; return res;
-    });
-  }
 
   // ───────── VIN decode (NHTSA vPIC) ─────────
   var titleCase = function (s) { return String(s || '').toLowerCase().replace(/(^|[\s\-\/])([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); }); };
@@ -379,7 +72,7 @@
   function getZXing() { return typeof ZXingBrowser !== 'undefined' ? Promise.resolve() : loadScript(ROOT + 'vendor/zxing-browser.min.js'); }
   // Text reader: ~3.5 MB over the wire the FIRST time (the language data is then kept in the browser's IndexedDB, the script
   // files in its normal cache), so every later scan starts in well under a second. It is started early — while the camera
-  // opens, or while the plate's state is being chosen — never at page load, and is shut down after 3 idle minutes to free memory.
+  // opens, never at page load, and is shut down after 3 idle minutes to free memory.
   var ocrWorker = null, ocrPromise = null, idleTimer = null, onProgress = null;
   function getOcr() {
     clearTimeout(idleTimer); idleTimer = setTimeout(function () { try { ocrWorker && ocrWorker.terminate(); } catch (e) {} ocrWorker = null; ocrPromise = null; }, 180000);
@@ -405,72 +98,69 @@
   function ocrText(canvas, mode, whitelist) {
     return getOcr().then(function (w) { return w.setParameters({ tessedit_char_whitelist: whitelist, tessedit_pageseg_mode: mode === 'line' ? '7' : mode === 'block' ? '6' : '11', user_defined_dpi: '300' }).then(function () { return w.recognize(canvas); }); }).then(function (r) { return (r && r.data && r.data.text) || ''; });
   }
-  var VIN_WL = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789IOQ ', PLATE_WL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -';
+  var VIN_WL = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789IOQ ';
 
   // ───────── camera dialog ─────────
   var CSS = '#gpsc{position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:12px;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff}' +
     '#gpsc .bx{width:100%;max-width:560px;background:#11181c;border:1px solid #2a343a;border-radius:16px;overflow:hidden}#gpsc .hd{padding:12px 16px;font-weight:700;display:flex;justify-content:space-between;align-items:center}' +
     '#gpsc .vw{position:relative;background:#000;aspect-ratio:4/3}#gpsc video{width:100%;height:100%;object-fit:cover;display:block}' +
     '#gpsc .gd{position:absolute;left:5%;right:5%;top:36%;height:28%;border:3px solid #7db0f5;border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}' +
-    '#gpsc .gd.pl{top:22%;height:56%}#gpsc .st{padding:10px 16px;min-height:44px;color:#b2bfc4}#gpsc .bt{display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 16px}' +
+    '#gpsc .st{padding:10px 16px;min-height:44px;color:#b2bfc4}#gpsc .bt{display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 16px}' +
     '#gpsc button,#gpsc .fb{font:600 14px system-ui,sans-serif;padding:10px 14px;border-radius:10px;border:1.5px solid #7db0f5;background:transparent;color:#fff;cursor:pointer}#gpsc button.pr{background:#7db0f5;color:#0b1d36}' +
     '#gpsc input[type=text],#gpsc select{width:100%;padding:11px;border-radius:10px;border:1px solid #3a464d;background:#192024;color:#fff;font:16px system-ui}#gpsc input[type=file]{display:none}' +
     '#gpsc .rs{padding:4px 16px 8px}#gpsc .ok{color:#52c7a0}#gpsc .wn{color:#f0b35a}#gpsc button:focus-visible,#gpsc input:focus-visible,#gpsc select:focus-visible{outline:3px solid #fff;outline-offset:2px}';
   function el(tag, attrs, html) { var e = document.createElement(tag); for (var k in (attrs || {})) e.setAttribute(k, attrs[k]); if (html != null) e.innerHTML = html; return e; }
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
 
-  // kind: 'vin' | 'plate'. Resolves with the confirmed raw text + how it was read, or null if cancelled.
-  function cameraDialog(kind, title, hint, ctx) {
+  // Resolves with the confirmed raw text + how it was read, or null if cancelled.
+  function cameraDialog(title, hint) {
     return new Promise(function (resolve) {
       var root = el('div', { id: 'gpsc', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }), stream = null, reader = null, ctl = null, timer = null, busy = false, done = false, ocrReady = false, torchOn = false;
       var style = el('style'); style.textContent = CSS; root.appendChild(style);
       var box = el('div', { 'class': 'bx' }); root.appendChild(box);
-      box.innerHTML = '<div class="hd"><span>' + esc(title) + '</span><button type="button" id="gpX" aria-label="Close">✕</button></div><div class="vw"><video playsinline muted autoplay></video><div class="gd' + (kind === 'plate' ? ' pl' : '') + '"></div></div><div class="st" id="gpSt" aria-live="polite"></div><div class="rs" id="gpRs"></div><div class="bt"><button type="button" class="pr" id="gpGo">Read now</button><label class="fb">📷 Use a photo<input type="file" accept="image/*" capture="environment" id="gpFile"></label><button type="button" id="gpTorch" style="display:none">🔦 Light</button><button type="button" id="gpType">Type it instead</button></div>';
+      box.innerHTML = '<div class="hd"><span>' + esc(title) + '</span><button type="button" id="gpX" aria-label="Close">✕</button></div><div class="vw"><video playsinline muted autoplay></video><div class="gd' + '' + '"></div></div><div class="st" id="gpSt" aria-live="polite"></div><div class="rs" id="gpRs"></div><div class="bt"><button type="button" class="pr" id="gpGo">Read now</button><label class="fb">📷 Use a photo<input type="file" accept="image/*" capture="environment" id="gpFile"></label><button type="button" id="gpTorch" style="display:none">🔦 Light</button><button type="button" id="gpType">Type it instead</button></div>';
       document.body.appendChild(root);
       var video = box.querySelector('video'), st = box.querySelector('#gpSt'), rs = box.querySelector('#gpRs');
       function status(t, cls) { st.className = 'st ' + (cls || ''); st.textContent = t; }
       function finish(v) { if (done) return; done = true; clearInterval(timer); try { ctl && ctl.stop && ctl.stop(); } catch (e) {} try { reader && reader.reset && reader.reset(); } catch (e) {} try { stream && stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} try { video.srcObject = null; } catch (e) {} root.remove(); resolve(v); }
       box.querySelector('#gpX').onclick = box.querySelector('#gpType').onclick = function () { finish(null); };
       root.addEventListener('keydown', function (e) { if (e.key === 'Escape') finish(null); });
-      function accept(text, how, verified, plateRes) { if (done) return; clearInterval(timer); try { ctl && ctl.stop && ctl.stop(); } catch (e) {} showConfirm(text, how, verified, plateRes); }
+      function accept(text, how, verified) { if (done) return; clearInterval(timer); try { ctl && ctl.stop && ctl.stop(); } catch (e) {} showConfirm(text, how, verified); }
       // confirmation card (editable)
-      function showConfirm(text, how, verified, plateRes) {
-        var reading = kind === 'vin';
-        rs.innerHTML = '<label style="display:block;font-weight:600;margin:6px 0 4px">' + (reading ? 'VIN read' : 'Plate read') + ' — check it, fix it if needed</label><input type="text" id="gpTx" value="' + esc(text) + '" maxlength="' + (reading ? 17 : 14) + '" style="text-transform:uppercase;letter-spacing:.06em;font-family:ui-monospace,Menlo,monospace" autocomplete="off" autocapitalize="characters" spellcheck="false">' +
-          '<div id="gpHint" class="' + (verified ? 'ok' : 'wn') + '" style="margin-top:6px">' + (reading ? (verified ? '✓ Valid VIN (check digit matches)' : 'Could not verify this VIN automatically — please compare it with the car.') : (plateRes ? esc(plateRes.label) + ' — ' + plateRes.parts.filter(function (x) { return !x.lit; }).map(function (x) { return esc(x.id === 'code' || x.id === 'pre' || x.id === 'state' ? 'code' : x.id === 'num' ? 'number' : x.id) + ' ' + esc(x.text); }).join(' · ') + (verified ? '' : '<br>Not sure about this one — please check each character against the plate.') : 'Plate text is read from the picture and can be wrong — please check it.')) + '</div>';
+      function showConfirm(text, how, verified) {
+        var reading = true;
+        rs.innerHTML = '<label style="display:block;font-weight:600;margin:6px 0 4px">' + 'VIN read' + ' — check it, fix it if needed</label><input type="text" id="gpTx" value="' + esc(text) + '" maxlength="17" style="text-transform:uppercase;letter-spacing:.06em;font-family:ui-monospace,Menlo,monospace" autocomplete="off" autocapitalize="characters" spellcheck="false">' +
+          '<div id="gpHint" class="' + (verified ? 'ok' : 'wn') + '" style="margin-top:6px">' + (verified ? '✓ Valid VIN (check digit matches)' : 'Could not verify this VIN automatically — please compare it with the car.')+ '</div>';
         box.querySelector('.bt').innerHTML = '<button type="button" class="pr" id="gpUse">Use this</button><button type="button" id="gpAgain">Scan again</button>';
         status(how === 'barcode' ? 'Barcode read.' : 'Text read.', 'ok');
         var tx = box.querySelector('#gpTx'); tx.focus(); tx.select();
         if (reading) tx.oninput = function () { var v = fixVinChars(tx.value.toUpperCase().replace(/[^A-Z0-9]/g, '')); var h = box.querySelector('#gpHint'); if (v.length === 17) { var ok = VIN_OK.test(v) && checkDigitOk(v); h.className = ok ? 'ok' : 'wn'; h.textContent = ok ? '✓ Valid VIN (check digit matches)' : 'Check digit does not match — VINs made outside North America often do not use it, so compare with the car.'; } else { h.className = 'wn'; h.textContent = v.length + ' of 17 characters'; } };
-        box.querySelector('#gpUse').onclick = function () { var v = tx.value.toUpperCase().trim(); if (reading) { v = fixVinChars(v.replace(/[^A-Z0-9]/g, '')); if (!VIN_OK.test(v)) { var h = box.querySelector('#gpHint'); h.className = 'wn'; h.textContent = 'A VIN has exactly 17 letters and digits (no I, O or Q).'; return; } } finish({ text: v, how: how, verified: reading ? checkDigitOk(v) : false, plate: (!reading && plateRes && v === text) ? plateRes : null }); };
+        box.querySelector('#gpUse').onclick = function () { var v = tx.value.toUpperCase().trim(); if (reading) { v = fixVinChars(v.replace(/[^A-Z0-9]/g, '')); if (!VIN_OK.test(v)) { var h = box.querySelector('#gpHint'); h.className = 'wn'; h.textContent = 'A VIN has exactly 17 letters and digits (no I, O or Q).'; return; } } finish({ text: v, how: how, verified: checkDigitOk(v) }); };
         box.querySelector('#gpAgain').onclick = function () { finish({ again: true }); };
       }
       // handle a candidate string from either reader
       function consider(text, how) {
-        if (kind === 'vin') { var f = extractVin(text); if (f && (how === 'barcode' || f.verified)) return accept(f.vin, how, f.verified); return f; }
-        return null;
+        var f = extractVin(text); if (f && (how === 'barcode' || f.verified)) return accept(f.vin, how, f.verified); return f;
       }
-      var lastGuess = null, lastPlate = null;
+      var lastGuess = null;
       function ocrFrame(canvas, full) {
         if (busy || done) return Promise.resolve();
         busy = true; status(ocrReady ? 'Reading text…' : 'Getting the text reader ready (first time only, a few MB)…');
         var box1 = full ? { x: 0, y: 0, w: 1, h: 1 } : { x: 0.05, y: 0.36, w: 0.9, h: 0.28 };
-        if (kind === 'plate') { status('Reading the plate…'); return readPlateImage(canvas, full ? [{ x: 0, y: 0, w: 1, h: 1 }] : [{ x: 0.05, y: 0.22, w: 0.9, h: 0.56 }, { x: 0, y: 0, w: 1, h: 1 }], ctx || { country: 'IN', region: '' }).then(function (r) { busy = false; if (done) return; if (r && r.suffix) { if (full || (r.ok && r.score >= 85)) return accept(r.suffix, 'text', r.ok, r); lastPlate = r; status('Found something — hold steady, or press Read now to use it.', 'wn'); } else status(full ? 'No plate text found — try again, closer and level, or type it.' : 'Looking for the plate… fit it inside the box.'); }).catch(function (e) { busy = false; status('The plate reader could not start (' + (e && e.message || e) + '). You can type it instead.', 'wn'); }); }
-        return Promise.resolve().then(function () { ocrReady = true; var pc = prep(canvas, box1); return kind === 'vin' ? ocrText(pc, 'sparse', VIN_WL).then(function (t) { var f = extractVin(t); if (!f) return ocrText(pc, 'block', VIN_WL).then(extractVin); return f; }) : ocrText(pc, 'line', PLATE_WL).then(function (t) { return squash(t).length >= 4 ? t : ocrText(pc, 'block', PLATE_WL); }); })
+        return Promise.resolve().then(function () { ocrReady = true; var pc = prep(canvas, box1); return ocrText(pc, 'sparse', VIN_WL).then(function (t) { var f = extractVin(t); if (!f) return ocrText(pc, 'block', VIN_WL).then(extractVin); return f; }); })
           .then(function (r) {
             busy = false; if (done) return;
-            if (kind === 'vin') { if (r && r.verified) return accept(r.vin, 'text', true); if (r) { lastGuess = r; status('Found something that looks like a VIN but could not verify it. Hold steady, or press Read now to use it.', 'wn'); if (full) return accept(r.vin, 'text', false); } else status(full ? 'No VIN found in that photo — try again closer, or type it.' : 'Looking for a barcode or text…'); }
-            else { if (r && r.suffix) { if (full || (r.ok && r.score >= 85)) return accept(r.suffix, 'text', r.ok, r); lastPlate = r; status('Found something — hold steady, or press Read now to use it.', 'wn'); } else status(full ? 'No plate text found — try again, closer and level, or type it.' : 'Looking for the plate… fit it inside the box.'); }
+            if (r && r.verified) return accept(r.vin, 'text', true); if (r) { lastGuess = r; status('Found something that looks like a VIN but could not verify it. Hold steady, or press Read now to use it.', 'wn'); if (full) return accept(r.vin, 'text', false); } else status(full ? 'No VIN found in that photo — try again closer, or type it.' : 'Looking for a barcode or text…');
           }).catch(function (e) { busy = false; status('The text reader could not start (' + (e && e.message || e) + '). You can still scan barcodes or type it.', 'wn'); });
       }
       function snapshot() { var c = document.createElement('canvas'); c.width = video.videoWidth || 1280; c.height = video.videoHeight || 720; c.getContext('2d').drawImage(video, 0, 0, c.width, c.height); return c; }
-      box.querySelector('#gpGo').onclick = function () { if (video.videoWidth) { if (kind === 'vin' && lastGuess && !busy) return accept(lastGuess.vin, 'text', lastGuess.verified); if (kind === 'plate' && lastPlate && !busy) return accept(lastPlate.suffix, 'text', lastPlate.ok, lastPlate); ocrFrame(snapshot(), false); } else status('The camera is not ready yet.'); };
+      box.querySelector('#gpGo').onclick = function () { if (video.videoWidth) { if (lastGuess && !busy) return accept(lastGuess.vin, 'text', lastGuess.verified); ocrFrame(snapshot(), false); } else status('The camera is not ready yet.'); };
       box.querySelector('#gpFile').onchange = function (e) {
         var f = e.target.files && e.target.files[0]; if (!f) return; status('Reading the photo…');
         var img = new Image(), url = URL.createObjectURL(f);
         img.onload = function () {
           var c = document.createElement('canvas'), sc = Math.min(1, 2200 / Math.max(img.width, img.height)); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
-          var pre = kind === 'vin' ? getZXing().then(function () { var rd = new ZXingBrowser.BrowserMultiFormatReader(hints()); return rd.decodeFromCanvas ? rd.decodeFromCanvas(c) : Promise.reject(); }).then(function (r) { return r && r.getText ? r.getText() : ''; }).catch(function () { return ''; }) : Promise.resolve('');
+          var pre = getZXing().then(function () { var rd = new ZXingBrowser.BrowserMultiFormatReader(hints()); return rd.decodeFromCanvas ? rd.decodeFromCanvas(c) : Promise.reject(); }).then(function (r) { return r && r.getText ? r.getText() : ''; }).catch(function () { return ''; });
           pre.then(function (txt) { if (txt) { var f2 = extractVin(txt); if (f2) return accept(f2.vin, 'barcode', f2.verified); } return ocrFrame(c, true); });
         };
         img.onerror = function () { status('That file could not be opened as a picture.', 'wn'); }; img.src = url;
@@ -483,48 +173,21 @@
         if (done) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
         stream = s; video.srcObject = s; video.play().catch(function () {});
         try { var tr = s.getVideoTracks()[0], cap = tr.getCapabilities && tr.getCapabilities(); if (cap && cap.torch) { var tb = box.querySelector('#gpTorch'); tb.style.display = ''; tb.onclick = function () { torchOn = !torchOn; tr.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(function () {}); }; } } catch (e) {}
-        status(kind === 'vin' ? 'Point at the VIN barcode or the printed VIN — it reads both. Hold steady.' : 'Fit the plate inside the box, then press Read now.');
-        if (kind === 'vin') {
+        status('Point at the VIN barcode or the printed VIN — it reads both. Hold steady.');
+        {
           getZXing().then(function () { reader = new ZXingBrowser.BrowserMultiFormatReader(hints()); return reader.decodeFromStream(s, video, function (res) { if (res && !done) consider(res.getText(), 'barcode'); }); }).then(function (c) { ctl = c; }).catch(function () {});
           // text reader: pre-load now, then look every ~2.5 s while no barcode has been found
           // barcodes need no text reader, so give them a head start; if nothing has scanned after ~1.2 s, start fetching it
           setTimeout(function () { if (!done) getOcr().then(function () { ocrReady = true; if (!busy && !done) status('Point at the VIN barcode or the printed VIN — it reads both. Hold steady.'); }).catch(function () {}); }, 1200);
           timer = setInterval(function () { if (!busy && !done && video.videoWidth && ocrReady) ocrFrame(snapshot(), false); }, 2500);
-        } else { getOcr().then(function () { ocrReady = true; if (!busy && !done) status('Fit the plate inside the box — it reads automatically, or press Read now.'); }).catch(function () {}); timer = setInterval(function () { if (!busy && !done && video.videoWidth && ocrReady) ocrFrame(snapshot(), false); }, 2800); }
+        }
       }).catch(function (e) { status(e && e.name === 'NotAllowedError' ? 'Camera permission was refused. Allow it in the browser, or use “Use a photo”.' : 'Could not open the camera. Use “Use a photo”, or type it.', 'wn'); });
     });
   }
-  function scanLoop(kind, title, hint, ctx) { return cameraDialog(kind, title, hint, ctx).then(function (r) { return r && r.again ? scanLoop(kind, title, hint, ctx) : r; }); }
+  function scanLoop(title, hint) { return cameraDialog(title, hint).then(function (r) { return r && r.again ? scanLoop(title, hint) : r; }); }
 
   // ───────── public: VIN ─────────
-  function scanVin() { return scanLoop('vin', 'Scan VIN', 'Starting the camera…').then(function (r) { return r ? { vin: r.text, how: r.how, verified: r.verified } : null; }); }
+  function scanVin() { return scanLoop('Scan VIN', 'Starting the camera…').then(function (r) { return r ? { vin: r.text, how: r.how, verified: r.verified } : null; }); }
 
-  // ───────── public: plate (region first) ─────────
-  function pickRegion(opts) {
-    return new Promise(function (resolve) {
-      var regions = (opts.regions || []).slice(), root = el('div', { id: 'gpsc', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Choose the plate’s region' }), style = el('style'); style.textContent = CSS; root.appendChild(style);
-      var label = opts.country === 'AE' ? 'emirate' : opts.country === 'PK' ? 'province' : opts.country === 'QA' ? 'municipality' : 'state';
-      var optHtml = regions.map(function (r) { return '<option value="' + esc(r.plate) + '">' + esc(r.name) + ' (' + esc(r.plate) + ')</option>'; }).join('');
-      if (opts.country === 'IN' && opts.allowBH !== false) optHtml += '<option value="BH">BH series (all-India plates)</option>';
-      var box = el('div', { 'class': 'bx' }, '<div class="hd"><span>Scan the number plate</span><button type="button" id="gpX" aria-label="Close">✕</button></div><div class="rs"><label for="gpReg" style="display:block;font-weight:600;margin:8px 0">Which ' + label + ' is the plate from?</label><select id="gpReg"><option value="">Choose the ' + label + '…</option>' + optHtml + '</select><div style="margin-top:8px;color:#b2bfc4">Choosing first means the reader only has to get the rest of the plate right.</div></div><div class="bt"><button type="button" class="pr" id="gpGo" disabled>Open camera</button></div>');
-      root.appendChild(box); document.body.appendChild(root);
-      warmOcr(); var sel = box.querySelector('#gpReg'), go = box.querySelector('#gpGo'); sel.focus();
-      sel.onchange = function () { go.disabled = !sel.value; };
-      var close = function (v) { root.remove(); resolve(v); };
-      box.querySelector('#gpX').onclick = function () { close(null); }; go.onclick = function () { close(sel.value); };
-      root.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(null); });
-    });
-  }
-  function scanPlate(opts) {
-    opts = opts || {};
-    return pickRegion(opts).then(function (region) {
-      if (!region) return null;
-      return scanLoop('plate', 'Scan plate · ' + region, 'Starting the camera…', { country: opts.country || 'IN', region: region }).then(function (r) {
-        if (!r) return null; var pr = r.plate, p = pr ? { suffix: pr.suffix, full: pr.full, bh: pr.bh, year: pr.year, label: pr.label, ok: pr.ok } : (parsePlate(r.text, region, opts.country || 'IN') || { suffix: squash(r.text), full: squash(r.text) });
-        return { region: region, plate: p.full, suffix: p.suffix, bh: !!p.bh, year: p.year, stateMismatch: !!p.stateMismatch, label: p.label || '', raw: r.text };
-      });
-    });
-  }
-
-  window.GPScan = { scanVin: scanVin, scanPlate: scanPlate, decodeVin: decodeVin, _t: { readPlateImage: readPlateImage, codeTierSets: codeTierSets, readRows2: null, glyphCanvas: glyphCanvas, readRows: readRows, rowCanvas: rowCanvas, grayGlyphCanvas: grayGlyphCanvas, readGlyph: readGlyph, findGlyphs: findGlyphs, candidateSets: candidateSets, specsFor: specsFor, fitSpec: fitSpec, extractVin: extractVin, checkDigitOk: checkDigitOk, parsePlate: parsePlate, fixVinChars: fixVinChars, prep: prep, ocrText: ocrText, VIN_WL: VIN_WL, PLATE_WL: PLATE_WL } };
+  window.GPScan = { scanVin: scanVin, decodeVin: decodeVin, _t: { extractVin: extractVin, checkDigitOk: checkDigitOk, fixVinChars: fixVinChars } };
 })();
