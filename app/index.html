@@ -24680,12 +24680,11 @@ ${round > 0.004 ? ent(ac.round_ledger, round, false) : round < -0.004 ? ent(ac.r
 <script src="../scan.js" charset="utf-8"></script>
 <script>
 // ══════════════════════════════════════════════════════════════════════════
-//  1. CAMERA SCAN for VINs and number plates (scan.js does the reading; this wires it into the forms)
+//  1. CAMERA SCAN for VINs (scan.js does the reading; this wires it into the forms)
 //     • "Scan VIN" next to the VIN field: ONE scanner reads a barcode or printed/etched text.
 //         – If the VIN decodes (make / model / year / variant / fuel), those fields are filled in — matched to your vehicle
 //           database where the make/model exists there, and colour/variant taken from your own records when this VIN (or car)
 //           has been here before. If it can't be decoded, ONLY the VIN is filled in.
-//     • "Scan plate" next to plate fields: the user picks the state / emirate FIRST, then the plate is read and fitted to it.
 //     • Optional switch in Settings → More features: whether VINs are decoded online (the VIN alone goes to the US NHTSA database).
 //  2. TOOLS & EQUIPMENT LOG — who has which tool, calibration due dates for diagnostic gear, service reminders for lifts and
 //     compressors, QR labels, history. Optional tab (Settings → More features), with its own role permission.
@@ -24747,31 +24746,9 @@ ${round > 0.004 ? ent(ac.round_ledger, round, false) : round < -0.004 ? ent(ac.r
     inp.value = r.vin; fire(inp);
     await fillFromVin(r.vin);
   }
-  function regions() { return (typeof GP_REGIONS === 'function' ? GP_REGIONS() : []).map(r => ({ name: r.name, plate: r.plate })); }
-  async function scanPlateBooking() {
-    if (!ready()) return showToast('The scanner didn’t load — check your connection and reload.', 'bad');
-    const cc = ctry().code, r = await GPScan.scanPlate({ regions: regions(), country: cc, allowBH: cc === 'IN' }); if (!r) return;
-    const fmt = g('bf-plate-format'), st = g('bf-plate-state'), bh = g('bf-plate-bhyear'), suf = g('bf-plate-suffix');
-    if (cc === 'IN' && fmt) {
-      if (r.bh) { fmt.value = 'bh'; try { _bookingPlateFormatChange(); } catch (_) {} if (bh && r.year && [...bh.options].some(o => o.value === r.year)) bh.value = r.year; }
-      else { fmt.value = 'state'; try { _bookingPlateFormatChange(); } catch (_) {} if (st) st.value = r.region; }
-    } else if (st) st.value = r.region;
-    if (suf) { suf.value = r.suffix; fire(suf); }
-    if (r.stateMismatch) showToast('The plate reads as a different state to the one you chose — please check it.', 'bad');
-    else showToast('Plate filled in — check it against the car.', 'good');
-    try { _bookingFillFromPlate(); } catch (_) {}
-  }
-  async function scanPlateSingle(inp) {
-    if (!ready()) return showToast('The scanner didn’t load — check your connection and reload.', 'bad');
-    const cc = ctry().code, r = await GPScan.scanPlate({ regions: regions(), country: cc, allowBH: cc === 'IN' }); if (!r) return;
-    inp.value = cc === 'IN' ? (r.bh ? `${r.year || ''} BH ${r.suffix}`.trim() : `${r.region} ${r.suffix}`.trim()) : r.suffix; fire(inp);
-    showToast(r.stateMismatch ? 'The plate reads as a different state to the one you chose — please check it.' : 'Plate filled in — check it against the car.', r.stateMismatch ? 'bad' : 'good');
-  }
   function addButtons() {
     const vin = g('bf-vin'); if (vin && !vin.dataset.gpscan) { vin.dataset.gpscan = '1'; vin.parentNode.appendChild(mkBtn('Scan VIN (barcode or text)', () => scanVinInto(vin))); }
-    const suf = g('bf-plate-suffix'); if (suf && !suf.dataset.gpscan) { suf.dataset.gpscan = '1'; suf.parentNode.parentNode.appendChild(mkBtn('Scan plate', scanPlateBooking)); }
     const fuel = g('bf-fuel'); if (fuel && !fuel.dataset.gpwatch) { fuel.dataset.gpwatch = '1'; fuel.addEventListener('change', e => { if (e.isTrusted) fuel.dataset.gptouched = '1'; }); }
-    ['qb-plate', 'vf-plate', 'if-vplate'].forEach(id => { const i = g(id); if (i && !i.dataset.gpscan) { i.dataset.gpscan = '1'; i.parentNode.appendChild(mkBtn('Scan plate', () => scanPlateSingle(i))); } });
   }
   let sched = false;
   new MutationObserver(() => { if (sched) return; sched = true; requestAnimationFrame(() => { sched = false; try { addButtons(); } catch (e) { console.warn('[scan buttons]', e); } }); }).observe(document.body, { childList: true, subtree: true });
