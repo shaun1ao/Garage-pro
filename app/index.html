@@ -18452,6 +18452,7 @@ window.generateInvoice = async function(jobId) {
     // returned-to-advisor car being billed for diagnostics) should revive it.
     if (inv.status === 'Cancelled') inv.status = 'Issued';
   }
+  inv.is_estimate = false;   // this is the real invoice now — an estimate record reused here used to stay flagged as an estimate and drop out of the portal, reports and totals
   inv.updated_at = nowStr();
   const b = D.bookings.find(x => x.id === j.booking_id);
   const writes = [wsSave('invoices', D.invoices)];
@@ -21095,7 +21096,12 @@ async function renderWorkload(force = false) {
     const mine = mineFor(c), s = D.settings || {}, uid = wsUid();
     const myJobs = (D.jobs || []).filter(mine).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
     const plates = new Set((c.vehicles || []).map(v => norm(v.plate)).filter(Boolean));
-    const myInvs = (D.invoices || []).filter(i => i.status !== 'Cancelled' && !i.is_estimate && ((plates.size && plates.has(norm(i.vehicle && i.vehicle.plate))) || ((i.customer && i.customer.name || '').toLowerCase().trim() === (c.name || '').toLowerCase().trim())))
+    const myJobIds = new Set(myJobs.map(j => j.id));
+    const jobStatus = id => ((D.jobs || []).find(j => j.id === id) || {}).status || '';
+    // An invoice is "final" once it's no longer an estimate — or, for records made before that flag was being cleared, once
+    // the job is delivered / ready for pickup or any payment has been recorded against it.
+    const isFinal = i => !i.is_estimate || ['Delivered', 'Ready for Pickup', 'Ready for Delivery'].includes(jobStatus(i.job_id)) || ['Paid', 'Partial'].includes(i.payment_status) || Number(i.amount_paid || 0) > 0;
+    const myInvs = (D.invoices || []).filter(i => i.status !== 'Cancelled' && isFinal(i) && ((i.job_id && myJobIds.has(i.job_id)) || (plates.size && plates.has(norm(i.vehicle && i.vehicle.plate))) || ((i.customer && i.customer.name || '').toLowerCase().trim() === (c.name || '').toLowerCase().trim())))
       .sort((a, b) => (b.issue_date || b.created_at || '').localeCompare(a.issue_date || a.created_at || ''));
     await ensureInvoiceLinks(myInvs);
     const totalOf = i => { try { return _gpRound(Number(_invoiceTotals(i).roundOff || 0)); } catch (_) { return 0; } };
@@ -21106,7 +21112,9 @@ async function renderWorkload(force = false) {
       if (recent && typeof loadJobPhotos === 'function') {
         try { photos = (await loadJobPhotos(j.id)).filter(p => SHOW_LABELS.includes(p.label) && /^https:\/\//.test(p.data || '')).slice(0, 8).map(p => ({ url: p.data, label: p.label })); } catch (_) {}
       }
+      const ji = myInvs.find(i => i.job_id === j.id) || myInvs.find(i => !i.job_id && norm(i.vehicle && i.vehicle.plate) === norm(j.plate));
       jobs.push({ id: j.id, plate: j.plate || '', vehicle: [j.veh_make, j.veh_model].filter(Boolean).join(' '), service: j.type || 'Service', status: st, stage: stageOf(st),
+        invoice: ji ? { no: ji.number || '', total: totalOf(ji), paid: ji.payment_status || 'Unpaid', date: (ji.issue_date || ji.created_at || '').slice(0, 10), url: ji.view_token ? `${siteBase()}/invoice.html?w=${encodeURIComponent(uid)}&t=${encodeURIComponent(ji.view_token)}` : '' } : null,
         created: (j.created_at || '').slice(0, 10), updated: (j.updated_at || '').slice(0, 16), mechanic: (j.mechanic || '').split(' ')[0],
         estimate_url: st === 'Estimate Sent' ? (_latestApprovalLink(j) || '') : '', photos });
     }
