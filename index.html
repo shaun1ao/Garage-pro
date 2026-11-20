@@ -624,30 +624,6 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 .quiz-result-reason{color:var(--dim);font-size:14px;line-height:1.55;margin-bottom:18px}
 .quiz-result .btn{padding:10px 20px;font-size:14px}
 
-/* ── BUILD YOUR OWN PLAN ── */
-.byop-wrap{max-width:900px;margin:48px auto 0;background:var(--surf);border:1px solid var(--brd);border-radius:18px;padding:34px 32px;box-shadow:var(--shad)}
-.byop-head{text-align:center;margin-bottom:28px}
-.byop-head .eyebrow{margin-bottom:8px}
-.byop-head h3{font-family:var(--fd);font-size:22px;margin-bottom:6px}
-.byop-head p{color:var(--dim);font-size:14.5px}
-.byop-body{display:grid;grid-template-columns:1fr 300px;gap:32px}
-@media(max-width:760px){.byop-body{grid-template-columns:1fr}}
-.byop-sliders{display:grid;gap:22px;align-content:start}
-.byop-row label{display:flex;justify-content:space-between;align-items:center;font-family:var(--fd);font-weight:700;font-size:14.5px;color:var(--txt);margin-bottom:10px}
-.byop-val{background:rgba(var(--tint-rgb),.14);color:var(--acc2);padding:3px 11px;border-radius:100px;font-size:13px;font-weight:800;font-family:var(--fb)}
-.byop-row input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:100px;background:var(--surf2);outline:none;cursor:pointer}
-.byop-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--ink);border:3px solid var(--surf);box-shadow:0 1px 4px rgba(0,0,0,.3);cursor:pointer}
-.byop-row input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--ink);border:3px solid var(--surf);box-shadow:0 1px 4px rgba(0,0,0,.3);cursor:pointer;border:none}
-.byop-summary{background:rgba(var(--tint-rgb),.05);border:1px solid var(--brd2);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px}
-.byop-cycle{display:flex;gap:6px;background:var(--surf2);border-radius:10px;padding:4px}
-.byop-cyc-btn{flex:1;background:transparent;border:none;color:var(--dim);font-family:var(--fb);font-weight:700;font-size:12.5px;padding:8px 6px;border-radius:8px;cursor:pointer}
-.byop-cyc-btn.active{background:var(--ink);color:var(--ink-text)}
-.byop-price{text-align:center;padding:6px 0}
-.byop-price span:first-child{font-family:var(--fd);font-size:30px;font-weight:800;color:var(--txt)}
-.byop-price-cycle{font-size:13px;color:var(--faint);margin-left:4px}
-.byop-features{display:grid;gap:8px;font-size:13px;color:var(--dim)}
-.byop-features li{display:flex;align-items:center;gap:8px}
-.byop-features svg{width:15px;height:15px;color:var(--teal);flex-shrink:0}
 
 /* ── PLAN EDITOR (admin) ── */
 .plan-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:18px}
@@ -2297,40 +2273,6 @@ html,body{max-width:100%;overflow-x:hidden}
           </div>
         </div>
         <div class="quiz-result" id="quizResult"></div>
-      </div>
-    </div>
-
-    <!-- ─── Build your own plan ─── -->
-    <div class="byop-wrap reveal" id="byopWrap">
-      <div class="byop-head">
-        <div class="eyebrow">Custom pricing</div>
-        <h3>Build your own plan</h3>
-        <p>Set the sliders to match your workshop — the price updates live, and you can check out immediately.</p>
-      </div>
-      <div class="byop-body">
-        <div class="byop-sliders">
-          <div class="byop-row">
-            <label>Bays / service points <span class="byop-val" id="byopBaysVal">3</span></label>
-            <input type="range" id="byopBays" min="1" max="20" value="3" oninput="updateByopPrice()" />
-          </div>
-          <div class="byop-row">
-            <label>Workers / mechanics <span class="byop-val" id="byopWorkersVal">5</span></label>
-            <input type="range" id="byopWorkers" min="1" max="60" value="5" oninput="updateByopPrice()" />
-          </div>
-          <div class="byop-row">
-            <label>Branches <span class="byop-val" id="byopBranchesVal">0</span></label>
-            <input type="range" id="byopBranches" min="0" max="10" value="0" oninput="updateByopPrice()" />
-          </div>
-        </div>
-        <div class="byop-summary">
-          <div class="byop-cycle">
-            <button class="byop-cyc-btn active" data-cyc="monthly" onclick="setByopCycle('monthly')">Monthly</button>
-            <button class="byop-cyc-btn" data-cyc="yearly" onclick="setByopCycle('yearly')">Yearly</button>
-          </div>
-          <div class="byop-price"><span id="byopPrice">₹0</span><span class="byop-price-cycle" id="byopPriceCycle">/month</span></div>
-          <ul class="byop-features" id="byopFeatures"></ul>
-          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="startByopCheckout()">Get started with this plan</button>
-        </div>
       </div>
     </div>
 
@@ -4623,82 +4565,6 @@ async function submitChainLead() {
   } catch (e) {
     err.textContent = 'Couldn\'t send your enquiry. Please try again or email support@garagepro.me.';
   }
-}
-
-// ══════════════════════════════════════════
-//  BUILD YOUR OWN PLAN
-// ══════════════════════════════════════════
-// Per-unit rates tuned to land near the existing catalogue tiers (see
-// DEFAULT_PLANS above) — a 3-bay/5-worker/0-branch build should price close
-// to Standard, a 6-bay/10-worker build close to Workshop, etc. Yearly = 10x
-// monthly and weekly ≈ 30% of monthly, matching the discount pattern already
-// used across every plan in DEFAULT_PLANS.
-const BYOP_BASE = 399;
-const BYOP_PER_BAY = 300;
-const BYOP_PER_WORKER = 100;
-const BYOP_PER_BRANCH = 1200;
-let byopCycle = 'monthly';
-function computeByopPlan() {
-  const bays     = parseInt(document.getElementById('byopBays').value, 10) || 1;
-  const workers  = parseInt(document.getElementById('byopWorkers').value, 10) || 1;
-  const branches = parseInt(document.getElementById('byopBranches').value, 10) || 0;
-  const monthly = BYOP_BASE + bays * BYOP_PER_BAY + workers * BYOP_PER_WORKER + branches * BYOP_PER_BRANCH;
-  const yearly  = monthly * 10;
-  const weekly  = Math.round(monthly * 0.3);
-  const isChainLike = branches > 0;
-  return {
-    id: `custom_${Date.now()}`,
-    name: 'Custom Plan',
-    tag: 'Built for your workshop',
-    monthly, weekly, yearly,
-    cycles: ['monthly','yearly'],
-    // Unlimited bays/workers when branches are involved unlocks the same
-    // chain-tier features (isChainTier() checks maxBays >= 999) as the Chain plan.
-    maxBays:     isChainLike ? 999 : bays,
-    maxWorkers:  isChainLike ? 999 : workers,
-    maxBookings: 999,
-    features: [
-      `${bays} bay${bays === 1 ? '' : 's'}`,
-      `${workers} worker${workers === 1 ? '' : 's'}`,
-      branches > 0 ? `${branches} branch${branches === 1 ? '' : 'es'}` : 'Single workshop',
-      'GST / VAT invoices · Cloud sync'
-    ],
-    featured: false, active: false, custom: true
-  };
-}
-function setByopCycle(cycle) {
-  byopCycle = cycle;
-  document.querySelectorAll('.byop-cyc-btn').forEach(b => b.classList.toggle('active', b.dataset.cyc === cycle));
-  updateByopPrice();
-}
-function updateByopPrice() {
-  const bays     = document.getElementById('byopBays').value;
-  const workers  = document.getElementById('byopWorkers').value;
-  const branches = document.getElementById('byopBranches').value;
-  document.getElementById('byopBaysVal').textContent = bays;
-  document.getElementById('byopWorkersVal').textContent = workers;
-  document.getElementById('byopBranchesVal').textContent = branches;
-  const plan = computeByopPlan();
-  const price = byopCycle === 'yearly' ? plan.yearly : plan.monthly;
-  document.getElementById('byopPrice').textContent = formatPrice(price);
-  document.getElementById('byopPriceCycle').textContent = byopCycle === 'yearly' ? '/year' : '/month';
-  document.getElementById('byopFeatures').innerHTML = plan.features.map(f =>
-    `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>${f}</li>`
-  ).join('');
-}
-function startByopCheckout() {
-  const plan = computeByopPlan();
-  // Push into the in-memory catalogue only (never synced to Firestore) so the
-  // existing billing/checkout flow — which resolves plans by id — can find it.
-  // The purchased subscription bakes in maxBays/maxWorkers/maxBookings/price
-  // directly, so this ephemeral entry doesn't need to survive a page reload.
-  S.plans.push(plan);
-  S.billingCycle = byopCycle;
-  pendingPlanId = plan.id;
-  pendingPlatform = 'windows';
-  if (!currentUser) { openAuth('win'); return; }
-  if (currentUser.isAdmin) { showToast('Admins cannot buy plans (sign in as a user)', 'bad'); return; }
-  openBilling();
 }
 
 // ══════════════════════════════════════════
@@ -8138,7 +8004,6 @@ populateCurrencySelect();
 renderPlansGrid();
 renderComparisonTable();
 initQuiz();
-updateByopPrice();
 renderDemoCta();
 renderSupportContact();
 detectCountry().then(() => {
