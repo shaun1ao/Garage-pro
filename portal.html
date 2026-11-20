@@ -79,14 +79,14 @@ const safeUrl = u => /^https:\/\//.test(u || '') ? u : '';
 const q = new URLSearchParams(location.search);
 const parts = location.pathname.split('/').filter(Boolean);
 const W = q.get('w') || (parts[0] === 'portal' ? parts[1] : ''), T = q.get('t') || (parts[0] === 'portal' ? parts[2] : '');
-let P = null, tab = 'cars';
+let P = null, tab = 'cars', FQ = '', FF = 'all';
 
 async function load(first) {
   if (!W || !T || !/^[A-Za-z0-9_-]{8,64}$/.test(T)) return location.replace('/403.html?why=link');
   try {
     const snap = await db.collection('users').doc(W).collection('customer_portal').doc(T).get();
     if (!snap.exists) return location.replace('/403.html?why=link');
-    P = snap.data(); CURR = (P.workshop && P.workshop.currency) || '₹'; AEP = !!(P.workshop && ['AE', 'QA', 'US', 'PK'].includes(P.workshop.country)); CTRY = (P.workshop && P.workshop.country) || 'IN'; render();
+    P = snap.data(); if (first && P.fleet) tab = 'fv'; CURR = (P.workshop && P.workshop.currency) || '₹'; AEP = !!(P.workshop && ['AE', 'QA', 'US', 'PK'].includes(P.workshop.country)); CTRY = (P.workshop && P.workshop.country) || 'IN'; render();
   } catch (e) {
     if (first) { if (e && e.code === 'permission-denied') return location.replace('/403.html?why=link'); $('app').innerHTML = `<div class="card empty">Couldn't load your page. ${esc(e.message || e)}<br><br><button class="pill" onclick="location.reload()">Try again</button></div>`; }
   }
@@ -98,11 +98,13 @@ function render() {
   $('upd').textContent = P.updated_at ? 'Updated ' + new Date(P.updated_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
   const approve = jobs.find(j => j.estimate_url);
   $('app').innerHTML = `
-    <h1>Hi ${esc(P.customer.first)} 👋</h1>
-    <p class="sub">${active.length ? `${active.length} car${active.length > 1 ? 's' : ''} currently with ${esc(w.name || 'your workshop')}.` : `Your car history with ${esc(w.name || 'your workshop')}.`}</p>
+    ${P.fleet ? `<h1>${esc(P.fleet.company || P.customer.first)}</h1>
+    <p class="sub">Fleet portal · ${(P.fleet.vehicles || []).length} vehicle${(P.fleet.vehicles || []).length === 1 ? '' : 's'}${active.length ? ` · ${active.length} with ${esc(w.name || 'your workshop')} now` : ''}</p>` : `<h1>Hi ${esc(P.customer.first)} 👋</h1>
+    <p class="sub">${active.length ? `${active.length} car${active.length > 1 ? 's' : ''} currently with ${esc(w.name || 'your workshop')}.` : `Your car history with ${esc(w.name || 'your workshop')}.`}</p>`}
     <div class="ws"><b style="color:var(--text)">${esc(w.name)}</b>${w.city ? `<span>· ${esc(w.city)}</span>` : ''}${w.phone ? `<a class="pill" href="tel:${esc(w.phone)}">Call</a><a class="pill" href="https://wa.me/${esc(String(w.phone).replace(/\D/g, '').replace(/^(\d{10})$/, '91$1'))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</div>
-    ${approve ? `<a class="cta" href="${esc(safeUrl(approve.estimate_url))}" style="margin:0 0 16px">Your estimate is ready — review &amp; approve →</a>` : ''}
-    <div class="tabs">${[['cars', 'My cars'], ['inv', 'Invoices'], ['hist', 'Service history']].map(([k, l]) => `<button class="tab ${tab === k ? 'on' : ''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>
+    ${approve ? `<a class="cta" href="${esc(safeUrl(approve.estimate_url))}" style="margin:0 0 16px">${P.fleet ? `An estimate is ready for ${esc(approve.plate)}` : 'Your estimate is ready'} — review &amp; approve →</a>` : ''}
+    ${P.fleet ? fleetSummary(P.fleet) : ''}
+    <div class="tabs">${(P.fleet ? [['fv', 'Vehicles'], ['cars', 'In the workshop'], ['inv', 'Invoices'], ['stm', 'Statements']] : [['cars', 'My cars'], ['inv', 'Invoices'], ['hist', 'Service history']]).map(([k, l]) => `<button class="tab ${tab === k ? 'on' : ''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>
     <div id="pane"></div>`;
   pane();
 }
@@ -132,11 +134,61 @@ function applyBrand(b, name) {
 }
 
 function setTab(t) { tab = t; render(); }
+function fleetSummary(F) {
+  const k = (l, v, sub, col) => `<div class="card" style="margin:0;padding:12px 14px"><div style="font:800 20px var(--fd);color:${col || 'var(--text)'}">${v}</div><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">${l}</div>${sub ? `<div class="muted" style="font-size:12px;margin-top:2px">${sub}</div>` : ''}</div>`;
+  const vs = F.vehicles || [], due = vs.filter(v => v.due_state === 'overdue' || v.due_state === 'soon').length;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px">
+    ${k('Outstanding', inr(F.outstanding), F.unpaid_count ? `${F.unpaid_count} unpaid invoice${F.unpaid_count === 1 ? '' : 's'}` : 'all paid', F.outstanding ? 'var(--acc2)' : 'var(--teal)')}
+    ${F.overdue ? k('Overdue', inr(F.overdue), 'past payment terms', 'var(--red)') : ''}
+    ${k('Service due', due, due ? 'overdue or within 30 days' : 'all up to date', due ? 'var(--acc2)' : 'var(--teal)')}
+    ${F.credit_limit ? k('Credit used', (F.used_pct == null ? 0 : F.used_pct) + '%', inr(Math.max(0, F.credit_limit - F.outstanding)) + ' left', F.used_pct >= 100 ? 'var(--red)' : 'var(--text)') : ''}
+  </div>`;
+}
+const dmy = s => { try { return new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return s || ''; } };
+function fleetList() {
+  const el = $('flist'); if (!el) return;
+  const q = FQ.trim().toLowerCase().replace(/\s+/g, '');
+  const vs = (P.fleet.vehicles || []).filter(v => (!q || (v.plate + v.model).toLowerCase().replace(/\s+/g, '').includes(q)) && (FF === 'all' || (FF === 'due' && (v.due_state === 'overdue' || v.due_state === 'soon')) || (FF === 'shop' && v.status)));
+  el.innerHTML = vs.length ? vs.map(v => {
+    const chip = v.status ? ['In workshop · ' + v.status, ''] : v.due_state === 'overdue' ? ['Service overdue', 'bad'] : v.due_state === 'soon' ? ['Service due soon', ''] : v.due_state === 'none' ? ['No service on record', ''] : ['Up to date', 'done'];
+    return `<div class="card" style="padding:13px 15px;margin-bottom:10px"><div class="row"><div><span class="plate">${esc(v.plate)}</span> <span class="muted">${esc(v.model)}</span></div><span class="stat ${chip[1]}">${esc(chip[0])}</span></div>
+      <div class="muted" style="margin-top:8px;line-height:1.7">${v.last_service ? `Last service <b style="color:var(--text)">${esc(dmy(v.last_service))}</b>${v.last_type ? ' · ' + esc(v.last_type) : ''}` : 'No completed service yet'}${v.next_due ? ` · Next due <b style="color:${v.due_state === 'overdue' ? 'var(--red)' : 'var(--text)'}">${esc(dmy(v.next_due))}</b>` : ''}${v.visits ? ` · ${v.visits} visit${v.visits === 1 ? '' : 's'}` : ''}${v.service ? `<br>Now: ${esc(v.service)}` : ''}</div>
+      ${v.outstanding > 0 ? `<div style="margin-top:6px;font-weight:700;color:var(--acc2)">Outstanding ${inr(v.outstanding)}</div>` : ''}</div>`;
+  }).join('') : `<div class="card empty">No vehicles match.</div>`;
+}
+function setFq(v) { FQ = v; fleetList(); }
+function setFf(v) { FF = v; fleetList(); }
+function stmtMonthLabel(ym) { try { return new Date(ym + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }); } catch (_) { return ym; } }
+function printStmt(i) {
+  const F = P.fleet, s = (P.fleet.statements || [])[i]; if (!s) return;
+  const w = window.open('', '_blank'); if (!w) return;
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(s.number)}</title><body style="font-family:Arial,sans-serif;max-width:760px;margin:30px auto;color:#111">
+    <h2 style="margin:0">${esc(P.workshop.name || '')}</h2><div style="color:#555;margin-bottom:18px">Statement ${esc(s.number)} · ${esc(stmtMonthLabel(s.ym))}<br>${esc(F.company)}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#eee"><th style="text-align:left;padding:7px">Invoice</th><th style="text-align:left;padding:7px">Date</th><th style="text-align:left;padding:7px">Vehicle</th><th style="text-align:right;padding:7px">Total</th><th style="text-align:right;padding:7px">Balance</th></tr></thead><tbody>
+    ${(s.lines || []).map(l => `<tr><td style="padding:7px;border-top:1px solid #ddd">${esc(l.no)}</td><td style="padding:7px;border-top:1px solid #ddd">${esc(dmy(l.date))}</td><td style="padding:7px;border-top:1px solid #ddd">${esc(l.plate)}</td><td style="padding:7px;border-top:1px solid #ddd;text-align:right">${inr(l.total)}</td><td style="padding:7px;border-top:1px solid #ddd;text-align:right">${l.balance > 0 ? inr(l.balance) : 'Paid'}</td></tr>`).join('')}
+    </tbody></table><p style="text-align:right;font-size:15px"><b>Billed this month ${inr(s.billed)}</b>${s.bf ? `<br>Brought forward ${inr(s.bf)}` : ''}<br><b style="font-size:17px">Balance due ${inr(s.due)}</b><br>Pay by ${esc(dmy(s.due_date))}</p>
+    <script>setTimeout(()=>print(),300)<\/script></body>`);
+  w.document.close();
+}
 function pane() {
   const el = $('pane');
+  if (tab === 'fv' && P.fleet) {
+    el.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><input id="fq" type="search" placeholder="Search a plate or model" value="${esc(FQ)}" oninput="setFq(this.value)" style="flex:1;min-width:160px;padding:10px 12px;border-radius:10px;border:1px solid var(--brd2);background:var(--surf);color:var(--text);font:inherit">
+      <select onchange="setFf(this.value)" style="padding:10px 12px;border-radius:10px;border:1px solid var(--brd2);background:var(--surf);color:var(--text);font:inherit"><option value="all" ${FF === 'all' ? 'selected' : ''}>All vehicles</option><option value="due" ${FF === 'due' ? 'selected' : ''}>Service due / overdue</option><option value="shop" ${FF === 'shop' ? 'selected' : ''}>In the workshop</option></select></div>
+      <div id="flist"></div><div class="muted" style="font-size:12px;margin-top:6px">“Next due” is the last completed service plus ${P.fleet.interval_days || 180} days — the interval your workshop set for this account.</div>`;
+    fleetList(); return;
+  }
+  if (tab === 'stm' && P.fleet) {
+    const st = P.fleet.statements || [];
+    el.innerHTML = st.length ? st.map((s, i) => `<details class="card" ${i === 0 ? 'open' : ''}><summary style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:700"><span>${esc(stmtMonthLabel(s.ym))}${s.current ? ' <span class="muted">(this month so far)</span>' : ''}</span><span>${s.due > 0 ? 'Due ' + inr(s.due) : '<span style="color:var(--teal)">Settled</span>'}</span></summary>
+      <div class="muted" style="margin:8px 0">${esc(s.number)} · ${s.count} invoice${s.count === 1 ? '' : 's'} · billed ${inr(s.billed)}${s.bf ? ' · brought forward ' + inr(s.bf) : ''}${s.due > 0 ? ' · pay by ' + esc(dmy(s.due_date)) : ''}</div>
+      <table><thead><tr><th>Invoice</th><th>Date</th><th>Vehicle</th><th style="text-align:right">Total</th><th style="text-align:right">Balance</th></tr></thead><tbody>${(s.lines || []).map(l => `<tr><td>${esc(l.no)}</td><td>${esc(dmy(l.date))}</td><td>${esc(l.plate)}</td><td style="text-align:right">${inr(l.total)}</td><td style="text-align:right">${l.balance > 0 ? inr(l.balance) : '<span class="muted">Paid</span>'}</td></tr>`).join('')}</tbody></table>
+      <button class="pill" type="button" style="margin-top:10px;cursor:pointer" onclick="printStmt(${i})">🖨 Print / save PDF</button></details>`).join('') : `<div class="card empty">No statements yet.</div>`;
+    return;
+  }
   if (tab === 'cars') {
-    const jobs = P.jobs || [];
-    if (!jobs.length) { el.innerHTML = `<div class="card empty">No jobs yet. When your car comes in, you'll see its progress here.</div>`; return; }
+    const jobs = P.fleet ? (P.jobs || []).filter(j => j.status !== 'Delivered' && j.status !== 'Cancelled') : (P.jobs || []);
+    if (!jobs.length) { el.innerHTML = `<div class="card empty">${P.fleet ? 'None of your vehicles are in the workshop right now.' : `No jobs yet. When your car comes in, you'll see its progress here.`}</div>`; return; }
     el.innerHTML = jobs.map(j => {
       const stages = P.stages || [], cancelled = j.stage < 0, cur = Math.max(0, j.stage);
       return `<div class="card">
