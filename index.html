@@ -53,8 +53,8 @@
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
   script-src 'self' 'unsafe-inline' https://translate.google.com https://translate.googleapis.com https://assets.lemonsqueezy.com https://www.googletagmanager.com https://www.gstatic.com https://www.google.com https://apis.google.com https://accounts.google.com https://*.firebaseapp.com;
-  style-src 'self' 'unsafe-inline' https://www.gstatic.com;
-  font-src 'self' data:;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com https://translate.googleapis.com;
+  font-src 'self' https://fonts.gstatic.com data:;
   img-src 'self' data: blob: https:;
   connect-src 'self' https: wss:;
   frame-src 'self' https://translate.google.com https://*.lemonsqueezy.com https://pay.garagepro.me https://www.google.com https://apis.google.com https://accounts.google.com https://*.firebaseapp.com;
@@ -75,13 +75,22 @@
 })();
 </script>
 
-<!-- Website analytics (Google Analytics) is NOT loaded here: consent.js loads it only after the visitor accepts analytics. -->
-<script src="consent.js"></script>
-<link href="fonts/fonts.css" rel="stylesheet">
+<!-- Google tag (gtag.js) -->
+<script async="async" src="https://www.googletagmanager.com/gtag/js?id=G-PS4YJ8GXWZ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-PS4YJ8GXWZ');
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <!-- Firebase Web SDK (compat) — config is set from Admin → Firebase tab -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
 <style>
 /* ── tokens ──
    Monochrome ink system: --ink / --ink-soft / --tint-rgb / --ink-text swap
@@ -536,6 +545,17 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 .plan-price{font-family:var(--fd);font-weight:800;line-height:1;margin-bottom:8px;display:flex;align-items:baseline;gap:6px}
 .plan-price .pp-amt{font-size:40px;color:var(--txt)}
 .plan-price .pp-cycle{font-size:14px;color:var(--faint);font-weight:600}
+.plan-inr{font-size:12.5px;color:var(--dim);margin:-2px 0 10px;line-height:1.45}.plan-inr b{color:var(--txt)}
+.fx-box{max-width:1080px;margin:28px auto 0;background:var(--surf);border:1px solid var(--brd2);border-radius:14px;padding:20px 22px}
+.fx-box h3{font-family:var(--fd);font-size:18px;margin:0 0 6px}
+.fx-box p{font-size:13.5px;line-height:1.6;color:var(--dim);margin:0 0 10px}
+.fx-warn{font-weight:700;color:var(--txt)}
+.fx-scroll{overflow-x:auto}
+.fx-table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:560px}
+.fx-table th,.fx-table td{padding:9px 12px;text-align:right;border-top:1px solid var(--brd)}
+.fx-table th:first-child,.fx-table td:first-child,.fx-table th:nth-child(2),.fx-table td:nth-child(2){text-align:left}
+.fx-table thead th{border-top:0;font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+.fx-table td.inr{font-weight:800;color:var(--txt)}
 .plan-price-strike{font-size:13px;color:var(--faint);text-decoration:line-through;margin-bottom:4px;min-height:18px}
 .plan-limits{display:grid;gap:10px;padding:18px 0;border-top:1px solid var(--brd);border-bottom:1px solid var(--brd);margin:18px 0}
 .plan-limit{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--dim)}
@@ -604,6 +624,30 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 .quiz-result-reason{color:var(--dim);font-size:14px;line-height:1.55;margin-bottom:18px}
 .quiz-result .btn{padding:10px 20px;font-size:14px}
 
+/* ── BUILD YOUR OWN PLAN ── */
+.byop-wrap{max-width:900px;margin:48px auto 0;background:var(--surf);border:1px solid var(--brd);border-radius:18px;padding:34px 32px;box-shadow:var(--shad)}
+.byop-head{text-align:center;margin-bottom:28px}
+.byop-head .eyebrow{margin-bottom:8px}
+.byop-head h3{font-family:var(--fd);font-size:22px;margin-bottom:6px}
+.byop-head p{color:var(--dim);font-size:14.5px}
+.byop-body{display:grid;grid-template-columns:1fr 300px;gap:32px}
+@media(max-width:760px){.byop-body{grid-template-columns:1fr}}
+.byop-sliders{display:grid;gap:22px;align-content:start}
+.byop-row label{display:flex;justify-content:space-between;align-items:center;font-family:var(--fd);font-weight:700;font-size:14.5px;color:var(--txt);margin-bottom:10px}
+.byop-val{background:rgba(var(--tint-rgb),.14);color:var(--acc2);padding:3px 11px;border-radius:100px;font-size:13px;font-weight:800;font-family:var(--fb)}
+.byop-row input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:100px;background:var(--surf2);outline:none;cursor:pointer}
+.byop-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--ink);border:3px solid var(--surf);box-shadow:0 1px 4px rgba(0,0,0,.3);cursor:pointer}
+.byop-row input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--ink);border:3px solid var(--surf);box-shadow:0 1px 4px rgba(0,0,0,.3);cursor:pointer;border:none}
+.byop-summary{background:rgba(var(--tint-rgb),.05);border:1px solid var(--brd2);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px}
+.byop-cycle{display:flex;gap:6px;background:var(--surf2);border-radius:10px;padding:4px}
+.byop-cyc-btn{flex:1;background:transparent;border:none;color:var(--dim);font-family:var(--fb);font-weight:700;font-size:12.5px;padding:8px 6px;border-radius:8px;cursor:pointer}
+.byop-cyc-btn.active{background:var(--ink);color:var(--ink-text)}
+.byop-price{text-align:center;padding:6px 0}
+.byop-price span:first-child{font-family:var(--fd);font-size:30px;font-weight:800;color:var(--txt)}
+.byop-price-cycle{font-size:13px;color:var(--faint);margin-left:4px}
+.byop-features{display:grid;gap:8px;font-size:13px;color:var(--dim)}
+.byop-features li{display:flex;align-items:center;gap:8px}
+.byop-features svg{width:15px;height:15px;color:var(--teal);flex-shrink:0}
 
 /* ── PLAN EDITOR (admin) ── */
 .plan-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:18px}
@@ -998,12 +1042,10 @@ html,body{max-width:100%;overflow-x:hidden}
       <div><label>Full Name</label><input id="su-name" type="text" placeholder="Rajesh Kumar" required /></div>
       <div><label>Garage / Company Name</label><input id="su-garage" type="text" placeholder="Speed Auto Care" required /></div>
       <div><label>Email</label><input id="su-email" type="email" placeholder="raj@speedauto.in" required /></div>
-      <div><label>Phone number <span style="font-weight:400;opacity:.7">(optional — only so we can reach you about your account)</span></label><input id="su-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel" /></div>
-      <div><label>How did you find out about Garage Pro? <span style="font-weight:400;opacity:.7">(optional)</span></label><select id="su-heard" onchange="document.getElementById('su-heard-other').style.display=this.value==='other'?'block':'none'"><option value="">Select one…</option><option value="google">Google search</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp (shared with me)</option><option value="word_of_mouth">Word of mouth (friend / colleague)</option><option value="workshop_owner">Another workshop owner</option><option value="ai">AI assistant (ChatGPT, Claude, Gemini…)</option><option value="ad">An advertisement</option><option value="event">Trade show / event</option><option value="article">Blog or news article</option><option value="email">Email / newsletter</option><option value="other">Other</option></select><input id="su-heard-other" type="text" maxlength="80" placeholder="Please tell us where (e.g. Facebook group, a podcast…)" style="display:none;margin-top:8px" /></div>
+      <div><label>Phone number</label><input id="su-phone" type="tel" placeholder="+91 98765 43210" required autocomplete="tel" /></div>
+      <div><label>How did you find out about Garage Pro?</label><select id="su-heard" required onchange="document.getElementById('su-heard-other').style.display=this.value==='other'?'block':'none'"><option value="">Select one…</option><option value="google">Google search</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp (shared with me)</option><option value="word_of_mouth">Word of mouth (friend / colleague)</option><option value="workshop_owner">Another workshop owner</option><option value="ai">AI assistant (ChatGPT, Claude, Gemini…)</option><option value="ad">An advertisement</option><option value="event">Trade show / event</option><option value="article">Blog or news article</option><option value="email">Email / newsletter</option><option value="other">Other</option></select><input id="su-heard-other" type="text" maxlength="80" placeholder="Please tell us where (e.g. Facebook group, a podcast…)" style="display:none;margin-top:8px" /></div>
       <div><label>Password</label><input id="su-pass" type="password" placeholder="Min 6 characters" required minlength="6" /></div>
       <div><label>Confirm Password</label><input id="su-conf" type="password" placeholder="Repeat password" required /></div>
-      <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;cursor:pointer;margin-top:4px"><input type="checkbox" id="su-terms" required style="width:18px;height:18px;margin-top:2px;flex:none"> <span>I have read and agree to the <a href="terms.html" target="_blank" rel="noopener">Terms</a>, the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and the <a href="refund.html" target="_blank" rel="noopener">Refund Policy</a>.</span></label>
-      <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;cursor:pointer"><input type="checkbox" id="su-news" style="width:18px;height:18px;margin-top:2px;flex:none"> <span>Email me product tips and offers <span style="opacity:.7">(optional — unticked by default; every email has an unsubscribe link)</span></span></label>
       <div class="modal-err" id="signupErr"></div>
       <button type="submit" class="btn btn-primary">Create Account</button>
     </form>
@@ -1060,9 +1102,6 @@ html,body{max-width:100%;overflow-x:hidden}
       </button>
       <button class="anav" data-tab="licenses" onclick="switchAdminTab('licenses')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Licenses
-      </button>
-      <button class="anav" data-tab="refunds" onclick="switchAdminTab('refunds')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>Refunds
       </button>
       <div class="anav-group">System</div>
       <button class="anav" data-tab="firebase" onclick="switchAdminTab('firebase')">
@@ -1164,20 +1203,6 @@ html,body{max-width:100%;overflow-x:hidden}
     </div>
 
     <!-- CUSTOMERS TAB -->
-    <div class="admin-tab" id="tab-refunds">
-      <div class="atab-title">Refunds</div>
-      <div class="atab-sub">Refund policy: a refund can be considered if it is asked for within <b id="rfDays">14</b> days of the purchase or renewal <u>and</u> the account has been used for no more than <b id="rfMins">60</b> minutes since then. Usage is the active time recorded by the web app for that paid period — shown below so each request can be checked in seconds.</div>
-      <div class="atab-stat-row" id="rfStats"></div>
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-        <input id="rfSearch" type="text" placeholder="Search by name, email or garage…" oninput="renderRefundsTab()" style="flex:1;min-width:240px;background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;padding:10px 13px;color:var(--txt)">
-        <select id="rfFilter" onchange="renderRefundsTab()" style="background:var(--bg2);border:1px solid var(--brd2);border-radius:9px;padding:10px 13px;color:var(--txt)"><option value="">All paying accounts</option><option value="eligible">Eligible now</option><option value="used">Over the usage limit</option><option value="late">Past the request window</option></select>
-      </div>
-      <div id="rfTable"></div>
-      <h3 style="margin:26px 0 8px;font-size:15px">Decisions log</h3>
-      <div id="rfLog"></div>
-      <div style="font-size:12px;color:var(--faint);margin-top:14px;line-height:1.55">Usage counts active time in the Garage Pro web app (idle time and the mobile app are not counted yet). The period starts on the purchase or the latest renewal payment. The actual refund is issued in Lemon Squeezy (Orders → the order → Refund); log the decision here so there is a record.</div>
-    </div>
-
     <div class="admin-tab" id="tab-customers">
       <div class="atab-title">Customers</div>
       <div class="atab-sub">Every signed-up customer — sortable, searchable, exportable.</div>
@@ -1552,6 +1577,7 @@ html,body{max-width:100%;overflow-x:hidden}
         <div class="bsum-item"><span class="lbl">Billing</span><span class="val" id="bsumCycle">Monthly</span></div>
         <div class="bsum-total"><span>Total</span><span class="val" id="bsumTotal">₹0</span></div>
         <div style="font-size:12px;color:var(--faint);margin-top:6px">Taxes (e.g. GST) and any discount code are applied at checkout.</div>
+        <div id="bsumFx" style="display:none;font-size:12px;color:var(--dim);margin-top:8px;line-height:1.55">The price is set in rupees (₹). The amount in your currency is only a <b>rough estimate</b> — it is best to check the price in your local currency on the checkout page before you pay.</div>
         <button class="btn btn-primary" id="lsPayBtn" onclick="startLemonCheckout()" style="width:100%;justify-content:center;margin-top:24px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
           Continue to secure checkout
@@ -1747,11 +1773,6 @@ html,body{max-width:100%;overflow-x:hidden}
       <div role="heading" aria-level="2" class="greet" id="udGreet">Your subscription</div>
       <p class="greet-sub">Sign in to the web app at <a href="app/" target="_blank" rel="noopener" style="color:var(--acc2)">garagepro.me/app</a> with your account email and password.</p>
       <div id="udLicenseArea"></div>
-      <div class="user-card" style="margin-top:14px">
-        <h4>Cancel any time</h4>
-        <p style="color:var(--dim);font-size:14px;line-height:1.6;margin:0 0 12px">Cancelling stops future renewals; you keep access until the end of the period you've paid for. No call, no form, no fee. Refunds follow our <a href="refund.html" style="color:var(--acc2)">Refund Policy</a>.</p>
-        <button class="btn btn-ghost" type="button" onclick="lsCancel()">Cancel subscription</button>
-      </div>
     </div>
     <!-- BILLING PANEL -->
     <div class="user-tab-panel" id="upanel-billing">
@@ -1893,8 +1914,8 @@ html,body{max-width:100%;overflow-x:hidden}
   <div class="wrap hero-grid">
     <div class="hero-copy">
       <span class="badge reveal"><span class="dot"></span>One system for your whole workshop (email support to add your country - 1-2 business days max)</span>
-      <h1 class="reveal d1">The All-in-One Garage Management System</h1>
-      <p class="hero-tagline reveal d1">Every bay. Every job. <span class="grad">Under control.</span></p>
+      <h1 class="reveal d1">The All-in-One Garage Management System </h1>
+      <p class="hero-tagline reveal d1">Every bay<span class="grad">Under Control</span></p>
       <p class="sub reveal d2">Garage Pro is the all-in-one system for running a garage: online booking, digital job cards, estimates your customers approve on their phone, parts and inventory, invoicing with the right tax for your country, fleets, breakdown requests and customer updates — all syncing across every device in real time. No install. It opens straight in your browser.</p>
       <div class="hero-cta reveal d3">
         <button class="btn btn-primary" onclick="openAuth('win')">
@@ -1991,7 +2012,7 @@ html,body{max-width:100%;overflow-x:hidden}
       <div class="pillar reveal">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 3.5a10 10 0 0 0-16.9 9.8L2 22l8.9-1.6a10 10 0 0 0 9.6-16.9z"/><path d="M8.5 9.5c.3 2.5 3.5 5.7 6 6 .8.1 1.5-.1 2-.6"/></svg></div>
         <h3>Customer experience</h3>
-        <p>A branded online booking page, estimates customers approve line by line on their phone, a live Track Repair page, a QR sticker that opens the car's service history with a "remind me" button, and updates by email and WhatsApp at every stage.</p>
+        <p>A branded online booking page (with email-code verification against spam), estimates customers approve line by line on their phone, a live Track Repair page, a QR sticker that opens the car's service history with a "remind me" button, and updates by email and WhatsApp at every stage.</p>
         <ul class="pillar-list">
           <li>Online booking &amp; tap-to-approve estimates</li>
           <li>Live tracking &amp; service-history QR</li>
@@ -2022,28 +2043,6 @@ html,body{max-width:100%;overflow-x:hidden}
       </div>
 
     
-      <div class="pillar reveal">
-        <h3>Customer-facing extras</h3>
-        <p>Show customers what you found with a live photo and video feed, hand over cars at a time they choose, lend courtesy cars with proper paperwork, sell gift vouchers, split big bills into instalments, and give sellers a shareable “verified by your workshop” condition report. Every one is optional and off until you switch it on.</p>
-        <ul class="pillar-list">
-          <li>Live repair feed &amp; pickup scheduling</li>
-          <li>Loaner cars, gift vouchers &amp; instalments</li>
-          <li>Shareable condition report</li>
-        </ul>
-      </div>
-
-      <div class="pillar reveal d1">
-        <h3>Print it, export it</h3>
-        <p>Job cards print everything on the job — as a booklet when there's a lot — with prices hidden on the workshop-floor copy. Export invoices to Tally, Zoho Books, QuickBooks or CSV. Scan a VIN barcode or printed VIN with your phone to fill in the car's details, and keep track of every tool, calibration date and service.</p>
-        <ul class="pillar-list">
-          <li>Role-aware job card printing</li>
-          <li>Accounting export</li>
-          <li>Booklet printing for big jobs</li>
-          <li>VIN &amp; plate camera scan</li>
-          <li>Tools &amp; equipment log</li>
-        </ul>
-      </div>
-
       <div class="pillar reveal">
         <h3>Breakdown &amp; tow requests</h3>
         <p>For workshops that send out recovery trucks: customers share their GPS location and what's wrong, your allowed staff get an instant alert, accept it and assign a driver, and the customer follows the status. Switch it on only if you need it.</p>
@@ -2249,7 +2248,7 @@ html,body{max-width:100%;overflow-x:hidden}
       </div>
     </div>
     <div class="plans-grid reveal" id="plansGrid"></div>
-    <p class="reveal" style="text-align:center;color:var(--dim);font-size:13.5px;margin:14px auto 0;max-width:640px;line-height:1.6">The price shown is the price you pay, plus any tax that applies in your country — shown at checkout before you confirm. No setup, cancellation or hidden fees. Cancel any time; see the <a href="refund.html" style="color:var(--acc2)">Refund Policy</a>.</p>
+    <div class="fx-box reveal" id="fxBox"></div>
     <!-- ─── Side-by-side feature comparison ─── -->
     <div class="compare-wrap reveal" id="compareWrap">
       <div class="compare-head">
@@ -2301,6 +2300,40 @@ html,body{max-width:100%;overflow-x:hidden}
       </div>
     </div>
 
+    <!-- ─── Build your own plan ─── -->
+    <div class="byop-wrap reveal" id="byopWrap">
+      <div class="byop-head">
+        <div class="eyebrow">Custom pricing</div>
+        <h3>Build your own plan</h3>
+        <p>Set the sliders to match your workshop — the price updates live, and you can check out immediately.</p>
+      </div>
+      <div class="byop-body">
+        <div class="byop-sliders">
+          <div class="byop-row">
+            <label>Bays / service points <span class="byop-val" id="byopBaysVal">3</span></label>
+            <input type="range" id="byopBays" min="1" max="20" value="3" oninput="updateByopPrice()" />
+          </div>
+          <div class="byop-row">
+            <label>Workers / mechanics <span class="byop-val" id="byopWorkersVal">5</span></label>
+            <input type="range" id="byopWorkers" min="1" max="60" value="5" oninput="updateByopPrice()" />
+          </div>
+          <div class="byop-row">
+            <label>Branches <span class="byop-val" id="byopBranchesVal">0</span></label>
+            <input type="range" id="byopBranches" min="0" max="10" value="0" oninput="updateByopPrice()" />
+          </div>
+        </div>
+        <div class="byop-summary">
+          <div class="byop-cycle">
+            <button class="byop-cyc-btn active" data-cyc="monthly" onclick="setByopCycle('monthly')">Monthly</button>
+            <button class="byop-cyc-btn" data-cyc="yearly" onclick="setByopCycle('yearly')">Yearly</button>
+          </div>
+          <div class="byop-price"><span id="byopPrice">₹0</span><span class="byop-price-cycle" id="byopPriceCycle">/month</span></div>
+          <ul class="byop-features" id="byopFeatures"></ul>
+          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="startByopCheckout()">Get started with this plan</button>
+        </div>
+      </div>
+    </div>
+
     <div class="reveal" id="demoCta" style="display:none;margin:48px auto 0;max-width:680px;text-align:center;padding:32px 28px;border-radius:18px;background:linear-gradient(135deg,rgba(var(--tint-rgb),.08),rgba(120,140,255,.06));border:1px dashed rgba(var(--tint-rgb),.32)">
       <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--teal);background:rgba(var(--tint-rgb),.16);border:1px solid rgba(var(--tint-rgb),.32);padding:5px 12px;border-radius:100px;margin-bottom:14px;letter-spacing:.06em;text-transform:uppercase">
         <span style="width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 currentColor;animation:pulse 2.2s infinite"></span>Free demo available
@@ -2338,8 +2371,6 @@ html,body{max-width:100%;overflow-x:hidden}
       <div class="faq-item reveal"><button class="faq-q">How quickly can I get started?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Same day. The setup wizard walks you through creating your workshop, adding your bays and workers, and taking your first booking on first launch — most workshops are up and running within an hour, no installation required.</p></div></div>
       <div class="faq-item reveal"><button class="faq-q">How does multi-mechanic tracking work?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Each job card can have multiple mechanics assigned, with parts and labour logged against the work. You always know who did what — accountability is clear and costing is accurate.</p></div></div>
       <div class="faq-item reveal"><button class="faq-q">What does it cost?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Final pricing is being finalised — see the pricing section above. You can start free with no card required and get the full feature set from day one.</p></div></div>
-      <div class="faq-item reveal"><button class="faq-q">Can I cancel, and can I get a refund?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Yes to both, in plain terms. Cancel any time in two clicks from Settings → Subscription; you keep access until the end of the period you paid for and are never charged again. If you ask within 14 days of buying or renewing and have used Garage Pro for no more than 1 hour in that period, we refund your latest payment. See the <a href="refund.html">Refund Policy</a>. There are no hidden fees: the price shown, plus any tax shown at checkout, is what you pay.</p></div></div>
-      <div class="faq-item reveal"><button class="faq-q">What data do you collect about me and my customers?<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><div class="faq-a"><p>Only what is needed. Analytics on this site is off unless you accept it, fonts are hosted by us rather than Google, and every form that collects personal data has an unticked consent box. Customers can unsubscribe from automatic emails with one click. Details: <a href="privacy.html">Privacy Policy</a> and <a href="cookies.html">Cookie Policy</a>.</p></div></div>
     </div>
   </div>
 </section>
@@ -2375,7 +2406,7 @@ html,body{max-width:100%;overflow-x:hidden}
         <a id="footWa" href="#" target="_blank" rel="noopener" class="foot-mail" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 3.5a10 10 0 0 0-16.9 9.8L2 22l8.9-1.6a10 10 0 0 0 9.6-16.9z"/><path d="M8.5 9.5c.3 2.5 3.5 5.7 6 6 .8.1 1.5-.1 2-.6"/></svg>Chat on WhatsApp</a>
       </div>
       <div class="foot-col"><h4>Product</h4><a href="#features">Features</a><a href="#how">How it works</a><a href="#screens">Preview</a><a href="#pricing">Pricing</a></div>
-      <div class="foot-col"><h4>Company</h4><a href="#reviews">Reviews</a><a href="#faq">FAQ</a><a href="mailto:support@garagepro.me">Contact</a><a href="privacy.html">Privacy Policy</a><a href="cookies.html">Cookie Policy</a><a href="refund.html">Refund Policy</a><a href="#" data-cookie-settings>Cookie settings</a><a href="terms.html">Terms &amp; Conditions</a></div>
+      <div class="foot-col"><h4>Company</h4><a href="#reviews">Reviews</a><a href="#faq">FAQ</a><a href="mailto:support@garagepro.me">Contact</a><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms &amp; Conditions</a></div>
       <div class="foot-col"><h4>App</h4><a href="app/" target="_blank" rel="noopener">Open the web app</a><a href="docs.html">Docs</a><a href="track.html">Track repair</a><a href="#faq">Requirements</a></div>
     </div>
     <div class="foot-bottom">
@@ -2964,7 +2995,7 @@ async function doGoogleSignIn() {
     showToast(isNew ? `Welcome, ${update.name.split(' ')[0]}!` : `Welcome back, ${update.name.split(' ')[0]}!`, 'good');
     // Send welcome email to NEW Google users only
     // Google gives us no phone number, but it's mandatory — ask right away.
-    if (!existing.exists || !(existing.data() || {}).consents) requirePhoneNumber(user.uid);   // confirms the policies once; phone + source are optional
+    if (!existing.exists || !(existing.data() || {}).phone) requirePhoneNumber(user.uid);   // also asks how they found us
     if (isNew) {
       sendWelcomeEmail({ name: update.name, email: update.email }, '');
       setTimeout(() => {
@@ -2993,35 +3024,29 @@ async function doGoogleSignIn() {
   }
 }
 
-// One-time prompt for accounts created via Google: confirm the Terms / Privacy / Refund policy (Google sign-up never showed them).
-// Phone and "how did you find us" are OPTIONAL — we only ask for what we need.
+// Blocking phone prompt for accounts created via Google (no phone from Google).
 function requirePhoneNumber(uid) {
   if (document.getElementById('phoneGate')) return;
   const d = document.createElement('div');
-  d.id = 'phoneGate'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-labelledby', 'pg-title');
+  d.id = 'phoneGate';
   d.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px';
-  d.innerHTML = `<form style="background:var(--surf);border:1px solid var(--brd2);border-radius:14px;padding:26px;max-width:400px;width:100%">
-    <div id="pg-title" style="font-family:var(--fd);font-size:18px;font-weight:700;margin-bottom:6px">Almost done</div>
-    <div style="color:var(--dim);font-size:13.5px;line-height:1.5;margin-bottom:14px">Please confirm the policies below. The two optional boxes can be left empty.</div>
-    <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;cursor:pointer;margin-bottom:10px"><input type="checkbox" id="pg-terms" required style="width:18px;height:18px;margin-top:2px;flex:none"> <span>I have read and agree to the <a href="terms.html" target="_blank" rel="noopener">Terms</a>, <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and <a href="refund.html" target="_blank" rel="noopener">Refund Policy</a>.</span></label>
-    <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;cursor:pointer;margin-bottom:14px"><input type="checkbox" id="pg-news" style="width:18px;height:18px;margin-top:2px;flex:none"> <span>Email me product tips and offers <span style="opacity:.7">(optional)</span></span></label>
-    <input id="pg-phone" type="tel" placeholder="Phone (optional) — +91 98765 43210" aria-label="Phone number (optional)" autocomplete="tel" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);margin-bottom:10px">
-    <div id="pg-heard-wrap" style="margin-bottom:12px"><select id="pg-heard" aria-label="How did you find out about Garage Pro? (optional)" onchange="document.getElementById('pg-heard-other').style.display=this.value==='other'?'block':'none'" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)"><option value="">How did you find us? (optional)</option><option value="google">Google search</option><option value="social">Social media</option><option value="friend">A friend or colleague</option><option value="ad">An advert</option><option value="other">Somewhere else</option></select><input id="pg-heard-other" type="text" placeholder="Where?" style="display:none;width:100%;margin-top:8px;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)"></div>
+  d.innerHTML = `<form style="background:var(--surf);border:1px solid var(--brd2);border-radius:14px;padding:26px;max-width:380px;width:100%">
+    <div style="font-family:var(--fd);font-size:18px;font-weight:700;margin-bottom:6px">One last thing</div>
+    <div style="color:var(--dim);font-size:13.5px;line-height:1.5;margin-bottom:14px">Add your phone number to finish setting up your account.</div>
+    <div style="font-size:12.5px;color:var(--dim);margin-bottom:6px">How did you find out about Garage Pro?</div><div id="pg-heard-wrap" style="margin-bottom:12px"><select id="pg-heard" required onchange="document.getElementById('pg-heard-other').style.display=this.value==='other'?'block':'none'"><option value="">Select one…</option><option value="google">Google search</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option><option value="whatsapp">WhatsApp (shared with me)</option><option value="word_of_mouth">Word of mouth (friend / colleague)</option><option value="workshop_owner">Another workshop owner</option><option value="ai">AI assistant (ChatGPT, Claude, Gemini…)</option><option value="ad">An advertisement</option><option value="event">Trade show / event</option><option value="article">Blog or news article</option><option value="email">Email / newsletter</option><option value="other">Other</option></select><input id="pg-heard-other" type="text" maxlength="80" placeholder="Please tell us where (e.g. Facebook group, a podcast…)" style="display:none;margin-top:8px" /></div>
+    <input id="pg-phone" type="tel" placeholder="+91 98765 43210" autocomplete="tel" required style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:14px;margin-bottom:8px" />
     <div id="pg-err" style="color:#ff6b6b;font-size:12.5px;min-height:16px;margin-bottom:8px"></div>
-    <button type="submit" class="btn btn-primary" style="width:100%">Continue</button></form>`;
+    <button type="submit" class="btn btn-primary" style="width:100%">Save &amp; continue</button></form>`;
   document.body.appendChild(d);
   d.querySelector('form').onsubmit = async (ev) => {
     ev.preventDefault();
     const phone = document.getElementById('pg-phone').value.trim();
-    if (phone && !isValidPhone(phone)) { document.getElementById('pg-err').textContent = 'That phone number doesn\'t look right — or leave it empty.'; return; }
-    if (!document.getElementById('pg-terms').checked) { document.getElementById('pg-err').textContent = 'Please tick the box to continue.'; return; }
+    if (!isValidPhone(phone)) { document.getElementById('pg-err').textContent = 'Enter a valid phone number (at least 10 digits).'; return; }
     const heardFrom = document.getElementById('pg-heard').value, heardOther = (document.getElementById('pg-heard-other').value || '').trim();
-    const now = new Date().toISOString();
+    if (!heardFrom) { document.getElementById('pg-err').textContent = 'Please tell us how you found out about Garage Pro.'; return; }
+    if (heardFrom === 'other' && heardOther.length < 2) { document.getElementById('pg-err').textContent = 'Please say where you heard about us.'; return; }
     try {
-      const data = { consents: { terms: { at: now, docs: ['terms', 'privacy', 'refund'] }, marketing: { given: !!document.getElementById('pg-news').checked, at: now } } };
-      if (phone) { data.phone = phone; data.profile = { phone }; }
-      if (heardFrom) { data.heardFrom = heardFrom; data.heardFromOther = heardFrom === 'other' ? heardOther : ''; }
-      await fbDb.collection('users').doc(uid).set(data, { merge: true });
+      await fbDb.collection('users').doc(uid).set({ phone, profile: { phone }, heardFrom, heardFromOther: heardFrom === 'other' ? heardOther : '' }, { merge: true });
       d.remove();
     } catch (e) { document.getElementById('pg-err').textContent = e.message || 'Could not save. Try again.'; }
   };
@@ -3082,8 +3107,9 @@ async function doSignup(e) {
   err.textContent = '';
   if (!name)              { err.textContent = 'Enter your full name.'; return; }
   if (!garageName)        { err.textContent = 'Enter your garage / company name.'; return; }
-  if (phone && !isValidPhone(phone)) { err.textContent = 'That phone number doesn\'t look right (at least 10 digits) — or leave it empty.'; return; }
-  if (!document.getElementById('su-terms').checked) { err.textContent = 'Please tick the box to confirm you agree to the Terms and Privacy Policy.'; return; }
+  if (!isValidPhone(phone)) { err.textContent = 'Enter a valid phone number (at least 10 digits).'; return; }
+  if (!heardFrom)         { err.textContent = 'Please tell us how you found out about Garage Pro.'; return; }
+  if (heardFrom === 'other' && heardOther.length < 2) { err.textContent = 'Please say where you heard about us.'; return; }
   if (pass !== conf)      { err.textContent = 'Passwords do not match.'; return; }
   if (pass.length < 6)    { err.textContent = 'Password must be at least 6 characters.'; return; }
   if (!fbAuth)            { err.textContent = 'Site not connected to Firebase yet. Contact support.'; return; }
@@ -3101,9 +3127,8 @@ async function doSignup(e) {
       email,
       name,
       garageName,                // company / workshop name — used in license keys
-      phone,                     // optional at signup
-      heardFrom,                 // optional — how they found Garage Pro
-      consents: { terms: { at: new Date().toISOString(), docs: ['terms', 'privacy', 'refund'] }, marketing: { given: !!document.getElementById('su-news').checked, at: new Date().toISOString() } },
+      phone,                     // mandatory at signup — shown in the admin panel
+      heardFrom,                 // how they found Garage Pro (mandatory) — admin Customers tab
       heardFromOther: heardFrom === 'other' ? heardOther : '',
       createdAt:  firebase.firestore.FieldValue.serverTimestamp(),
       profile:    { phone, address: '' },
@@ -3216,61 +3241,10 @@ function switchAdminTab(tab) {
   if (tab === 'purchases') renderPurchasesTab();
   if (tab === 'leads')     renderLeadsTab();
   if (tab === 'licenses')  renderLicensesTab();
-  if (tab === 'refunds')   renderRefundsTab(true);
   if (tab === 'customers') { renderCustomersTab(); if (usersListenerError) loadCustomersViaFunction().then(renderCustomersTab); }
   if (tab === 'firebase')  renderFirebaseTab();
   if (tab === 'plans')     renderAdminPlansGrid();
   if (tab === 'audit')     renderAuditTab();
-}
-
-
-// ══════════════════════════════════════════
-//  REFUNDS — applies the refund policy (refund.html): within REFUND_DAYS of purchase/renewal AND ≤ REFUND_MINS of use
-// ══════════════════════════════════════════
-const REFUND_DAYS = 14, REFUND_MINS = 60;
-let RF = { usage: {}, log: [], loadedAt: 0, err: '' };
-function rfMs(v) { return v ? (v.toMillis ? v.toMillis() : (v.toDate ? v.toDate().getTime() : new Date(v).getTime())) : 0; }
-async function renderRefundsTab(reload) {
-  const t = document.getElementById('rfTable'); if (!t) return;
-  document.getElementById('rfDays').textContent = REFUND_DAYS; document.getElementById('rfMins').textContent = REFUND_MINS;
-  if (reload || !RF.loadedAt || Date.now() - RF.loadedAt > 60000) {
-    t.innerHTML = '<div class="empty-state"><p>Loading usage…</p></div>';
-    try { const u = await fbDb.collection('usage_workshops').get(); RF.usage = {}; u.forEach(d => RF.usage[d.id] = d.data() || {}); RF.err = ''; } catch (e) { RF.err = 'Could not load usage: ' + (e.message || e); }
-    try { const l = await fbDb.collection('refund_requests').orderBy('at', 'desc').limit(100).get(); RF.log = l.docs.map(d => ({ id: d.id, ...d.data() })); } catch (e) { RF.log = []; RF.logErr = e && e.code === 'permission-denied' ? 'The decisions log needs a real admin sign-in (Firebase tab) and the latest firestore.rules.' : ''; }
-    RF.loadedAt = Date.now();
-  }
-  const q = (document.getElementById('rfSearch').value || '').toLowerCase().trim(), flt = document.getElementById('rfFilter').value, now = Date.now();
-  const rows = manualCustomers.filter(c => c._sub && c._sub.lastPaymentMethod === 'lemonsqueezy').map(c => {
-    const sub = c._sub, ps = rfMs(sub.periodStart) || rfMs(sub.activatedAt), key = ps ? new Date(ps).toISOString().slice(0, 10) : '';
-    const u = RF.usage[c.uid] || {}, secs = (u.periods && u.periods[key]) || 0, mins = secs / 60, days = ps ? (now - ps) / 86400000 : null;
-    const state = !ps ? 'unknown' : days > REFUND_DAYS ? 'late' : mins > REFUND_MINS ? 'used' : 'eligible';
-    const logged = RF.log.find(x => x.uid === c.uid && x.period === key);
-    return { c, sub, ps, key, mins, days, state, logged, total: (u.activeSecs || 0) / 60, last: u.lastSeenMs || 0 };
-  }).filter(r => (!q || (r.c.name + ' ' + r.c.email + ' ' + r.c.garageName).toLowerCase().includes(q)) && (!flt || r.state === flt)).sort((a, b) => (b.ps || 0) - (a.ps || 0));
-  const all = manualCustomers.filter(c => c._sub && c._sub.lastPaymentMethod === 'lemonsqueezy').length;
-  document.getElementById('rfStats').innerHTML = `<div class="atab-stat"><div class="n">${all}</div><div class="l">Paying accounts</div></div><div class="atab-stat"><div class="n">${rows.filter(r => r.state === 'eligible').length}</div><div class="l">Eligible now</div></div><div class="atab-stat"><div class="n">${rows.filter(r => r.state === 'used').length}</div><div class="l">Over ${REFUND_MINS} min of use</div></div><div class="atab-stat"><div class="n">${RF.log.filter(x => x.decision === 'refunded').length}</div><div class="l">Refunds logged</div></div>`;
-  const chip = (r) => r.state === 'eligible' ? '<span class="lic-status-tag active">● Eligible</span>' : r.state === 'used' ? '<span class="lic-status-tag revoked">● Over the usage limit</span>' : r.state === 'late' ? '<span style="color:var(--faint);font-size:12px">Past the window</span>' : '<span style="color:var(--faint);font-size:12px">No period data</span>';
-  t.innerHTML = (RF.err ? `<div class="empty-state"><p>${escapeHtml(RF.err)}</p></div>` : '') + (rows.length ? `<table class="ptable"><thead><tr><th>Customer</th><th>Plan</th><th>Purchased / renewed</th><th>Days ago</th><th>Used this period</th><th>Used in total</th><th>Policy check</th><th></th></tr></thead><tbody>${rows.map(r => `<tr>
-    <td><b>${escapeHtml(r.c.name)}</b><div style="font-size:12px;color:var(--faint)">${escapeHtml(r.c.email)}${r.c.garageName ? ' · ' + escapeHtml(r.c.garageName) : ''}</div></td>
-    <td>${escapeHtml(r.sub.planName || r.sub.plan || '—')}<div style="font-size:12px;color:var(--faint)">${escapeHtml(r.sub.billingCycle || '')}${r.sub.testMode ? ' · TEST' : ''}</div></td>
-    <td>${r.ps ? escapeHtml(new Date(r.ps).toLocaleString()) : '—'}</td><td>${r.days == null ? '—' : Math.floor(r.days)}</td>
-    <td><b style="color:${r.mins > REFUND_MINS ? 'var(--red,#ff6b6b)' : 'inherit'}">${Math.round(r.mins)} min</b></td><td>${Math.round(r.total)} min${r.last ? '<div style="font-size:12px;color:var(--faint)">last seen ' + escapeHtml(new Date(r.last).toLocaleDateString()) + '</div>' : ''}</td>
-    <td>${chip(r)}${r.logged ? `<div style="font-size:12px;margin-top:3px">Logged: <b>${escapeHtml(r.logged.decision)}</b></div>` : ''}</td>
-    <td><button class="add-rev-btn" type="button" onclick="rfDecide('${escapeHtml(r.c.uid)}','${escapeHtml(r.key)}')">Log decision</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty-state"><p>No paying accounts match.</p></div>');
-  document.getElementById('rfLog').innerHTML = RF.logErr ? `<div style="font-size:13px;color:var(--faint)">${escapeHtml(RF.logErr)}</div>` : RF.log.length ? `<table class="ptable"><thead><tr><th>When</th><th>Customer</th><th>Decision</th><th>Usage then</th><th>Note</th></tr></thead><tbody>${RF.log.map(x => `<tr><td>${escapeHtml((x.at || '').slice(0, 16).replace('T', ' '))}</td><td>${escapeHtml(x.email || '')}</td><td><b>${escapeHtml(x.decision || '')}</b></td><td>${escapeHtml(String(x.mins_used == null ? '' : Math.round(x.mins_used) + ' min · ' + Math.floor(x.days_since || 0) + ' days'))}</td><td>${escapeHtml(x.note || '')}</td></tr>`).join('')}</tbody></table>` : '<div style="font-size:13px;color:var(--faint)">No decisions logged yet.</div>';
-}
-function rfDecide(uid, key) {
-  const c = manualCustomers.find(x => x.uid === uid); if (!c) return;
-  const sub = c._sub || {}, ps = rfMs(sub.periodStart) || rfMs(sub.activatedAt), u = RF.usage[uid] || {}, mins = ((u.periods && u.periods[key]) || 0) / 60, days = ps ? (Date.now() - ps) / 86400000 : null;
-  const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px';
-  d.innerHTML = `<form style="background:var(--surf);border:1px solid var(--brd2);border-radius:14px;padding:22px;max-width:420px;width:100%;color:var(--txt)"><div style="font-weight:700;font-size:16px;margin-bottom:4px">Log refund decision</div><div style="font-size:13px;color:var(--dim);margin-bottom:12px">${escapeHtml(c.email)} · ${Math.round(mins)} min used · ${days == null ? '?' : Math.floor(days)} days since purchase/renewal</div>
-    <select id="rfDec" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);margin-bottom:10px"><option value="refunded">Refunded (done in Lemon Squeezy)</option><option value="declined">Declined</option><option value="exception">Refunded as a goodwill exception</option></select>
-    <textarea id="rfNote" rows="3" placeholder="Note (optional)" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)"></textarea><div id="rfErr" style="color:#ff6b6b;font-size:12.5px;min-height:16px;margin:6px 0"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="rfCancel" style="background:transparent;border:1px solid var(--brd2);color:var(--txt)">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div></form>`;
-  document.body.appendChild(d); d.querySelector('#rfCancel').onclick = () => d.remove();
-  d.querySelector('form').onsubmit = async ev => { ev.preventDefault();
-    try { await fbDb.collection('refund_requests').add({ uid, email: c.email, plan: sub.planName || sub.plan || '', period: key, mins_used: mins, days_since: days, decision: document.getElementById('rfDec').value, note: document.getElementById('rfNote').value.trim().slice(0, 400), at: new Date().toISOString() }); d.remove(); RF.loadedAt = 0; renderRefundsTab(true); showToast('Decision logged', 'good'); }
-    catch (e) { document.getElementById('rfErr').textContent = e.code === 'permission-denied' ? 'Permission denied — sign in as a real admin (Firebase tab) and publish the latest firestore.rules.' : (e.message || 'Could not save'); } };
 }
 
 // ── Chain plan leads ──
@@ -4485,6 +4459,22 @@ function positionCycleSlider(sel) {
 // ══════════════════════════════════════════
 //  PLANS — PUBLIC RENDER
 // ══════════════════════════════════════════
+// ── Rupee price is the real price; other currencies are only a rough estimate of it ──
+const FX_DISCLAIMER = 'Our prices are set in Indian rupees (₹). Amounts shown in other currencies are a <b>rough estimate</b> worked out from the rupee price at approximate exchange rates — they are not exact and are not a separate price. Exchange rates change, and your bank or card provider may use its own rate and add fees. <span class="fx-warn">It is best to check the price in your local currency at checkout before you pay.</span>';
+function fxRough(inr) { return S.currency === 'INR' ? '' : `≈ ${formatPrice(inr)}`; }
+function renderFxTable() {
+  const box = document.getElementById('fxBox'); if (!box) return;
+  const plans = S.plans.filter(p => p.active && !p.contact && ((p.monthly || 0) || (p.yearly || 0)));
+  const cols = Object.values(CURRENCIES).filter(c => c.code !== 'INR');
+  const rows = [];
+  plans.forEach(p => [['monthly', 'Monthly'], ['yearly', 'Yearly']].forEach(([cy, label]) => {
+    if (!planSupportsCycle(p, cy)) return; const v = planCyclePrice(p, cy); if (!v) return;
+    rows.push(`<tr><td>${p.name}</td><td>${label}</td><td class="inr">₹${Number(v).toLocaleString('en-IN')}</td>${cols.map(c => `<td>≈ ${formatPrice(v, c.code)}</td>`).join('')}</tr>`);
+  }));
+  box.innerHTML = `<h3>Prices in rupees, with a rough estimate in other currencies</h3><p>${FX_DISCLAIMER}</p>
+    ${rows.length ? `<div class="fx-scroll"><table class="fx-table"><thead><tr><th>Plan</th><th>Billing</th><th>Price in rupees (₹)</th>${cols.map(c => `<th>Rough estimate (${c.code})</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : ''}`;
+}
+window.renderFxTable = renderFxTable;
 function renderPlansGrid() {
   const g = document.getElementById('plansGrid');
   if (!g) return;
@@ -4533,7 +4523,8 @@ function renderPlansGrid() {
     let priceHtml;
     if (!supportsCycle)   priceHtml = `<span class="pp-amt">—</span><span class="pp-cycle">${cycleSuffix}</span>`;
     else if (isFree)      priceHtml = `<span class="pp-amt">Free</span><span class="pp-cycle">to start</span>`;
-    else                  priceHtml = `<span class="pp-amt">${formatPrice(price)}</span><span class="pp-cycle">${cycleSuffix}</span>`;
+    else                  priceHtml = `<span class="pp-amt">${S.currency === 'INR' ? '' : '≈ '}${formatPrice(price)}</span><span class="pp-cycle">${cycleSuffix}</span>`;
+    const inrLine = (S.currency !== 'INR' && supportsCycle && !isFree && price) ? `<div class="plan-inr">Price: <b>₹${Number(price).toLocaleString('en-IN')}</b>${cycleSuffix} · ${S.currency} amount is a rough estimate</div>` : '';
 
     // Button. Contact-sales plans get a mailto instead of checkout; free tiers say
     // "Start free"; paid tiers "Get started". Existing subscribers still see the
@@ -4567,10 +4558,14 @@ function renderPlansGrid() {
       <div class="plan-tag">${p.tag}</div>
       ${strikeHtml}
       <div class="plan-price">${priceHtml}</div>
+      ${inrLine}
       <ul class="plan-features">${features}</ul>
       ${btn}
     </div>`;
   }).join('');
+  const note = document.getElementById('priceCountryNote');
+  if (note) note.innerHTML = S.currency === 'INR' ? 'Prices are in Indian rupees (₹). Switch the currency to see a rough estimate in your own.' : `Prices are set in Indian rupees (₹). The ${S.currency} amounts below are a <b>rough estimate</b> — please check the price in your local currency at checkout before you pay.`;
+  renderFxTable();
   setTimeout(() => positionCycleSlider(), 30);
 }
 function selectPlan(planId) {
@@ -4628,6 +4623,82 @@ async function submitChainLead() {
   } catch (e) {
     err.textContent = 'Couldn\'t send your enquiry. Please try again or email support@garagepro.me.';
   }
+}
+
+// ══════════════════════════════════════════
+//  BUILD YOUR OWN PLAN
+// ══════════════════════════════════════════
+// Per-unit rates tuned to land near the existing catalogue tiers (see
+// DEFAULT_PLANS above) — a 3-bay/5-worker/0-branch build should price close
+// to Standard, a 6-bay/10-worker build close to Workshop, etc. Yearly = 10x
+// monthly and weekly ≈ 30% of monthly, matching the discount pattern already
+// used across every plan in DEFAULT_PLANS.
+const BYOP_BASE = 399;
+const BYOP_PER_BAY = 300;
+const BYOP_PER_WORKER = 100;
+const BYOP_PER_BRANCH = 1200;
+let byopCycle = 'monthly';
+function computeByopPlan() {
+  const bays     = parseInt(document.getElementById('byopBays').value, 10) || 1;
+  const workers  = parseInt(document.getElementById('byopWorkers').value, 10) || 1;
+  const branches = parseInt(document.getElementById('byopBranches').value, 10) || 0;
+  const monthly = BYOP_BASE + bays * BYOP_PER_BAY + workers * BYOP_PER_WORKER + branches * BYOP_PER_BRANCH;
+  const yearly  = monthly * 10;
+  const weekly  = Math.round(monthly * 0.3);
+  const isChainLike = branches > 0;
+  return {
+    id: `custom_${Date.now()}`,
+    name: 'Custom Plan',
+    tag: 'Built for your workshop',
+    monthly, weekly, yearly,
+    cycles: ['monthly','yearly'],
+    // Unlimited bays/workers when branches are involved unlocks the same
+    // chain-tier features (isChainTier() checks maxBays >= 999) as the Chain plan.
+    maxBays:     isChainLike ? 999 : bays,
+    maxWorkers:  isChainLike ? 999 : workers,
+    maxBookings: 999,
+    features: [
+      `${bays} bay${bays === 1 ? '' : 's'}`,
+      `${workers} worker${workers === 1 ? '' : 's'}`,
+      branches > 0 ? `${branches} branch${branches === 1 ? '' : 'es'}` : 'Single workshop',
+      'GST / VAT invoices · Cloud sync'
+    ],
+    featured: false, active: false, custom: true
+  };
+}
+function setByopCycle(cycle) {
+  byopCycle = cycle;
+  document.querySelectorAll('.byop-cyc-btn').forEach(b => b.classList.toggle('active', b.dataset.cyc === cycle));
+  updateByopPrice();
+}
+function updateByopPrice() {
+  const bays     = document.getElementById('byopBays').value;
+  const workers  = document.getElementById('byopWorkers').value;
+  const branches = document.getElementById('byopBranches').value;
+  document.getElementById('byopBaysVal').textContent = bays;
+  document.getElementById('byopWorkersVal').textContent = workers;
+  document.getElementById('byopBranchesVal').textContent = branches;
+  const plan = computeByopPlan();
+  const price = byopCycle === 'yearly' ? plan.yearly : plan.monthly;
+  document.getElementById('byopPrice').textContent = formatPrice(price);
+  document.getElementById('byopPriceCycle').textContent = byopCycle === 'yearly' ? '/year' : '/month';
+  document.getElementById('byopFeatures').innerHTML = plan.features.map(f =>
+    `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>${f}</li>`
+  ).join('');
+}
+function startByopCheckout() {
+  const plan = computeByopPlan();
+  // Push into the in-memory catalogue only (never synced to Firestore) so the
+  // existing billing/checkout flow — which resolves plans by id — can find it.
+  // The purchased subscription bakes in maxBays/maxWorkers/maxBookings/price
+  // directly, so this ephemeral entry doesn't need to survive a page reload.
+  S.plans.push(plan);
+  S.billingCycle = byopCycle;
+  pendingPlanId = plan.id;
+  pendingPlatform = 'windows';
+  if (!currentUser) { openAuth('win'); return; }
+  if (currentUser.isAdmin) { showToast('Admins cannot buy plans (sign in as a user)', 'bad'); return; }
+  openBilling();
 }
 
 // ══════════════════════════════════════════
@@ -4798,7 +4869,8 @@ function renderUpgradePlans() {
       <div class="plan-name">${p.name}</div>
       <div class="plan-tag">${p.tag}</div>
       <div class="plan-price-strike">&nbsp;</div>
-      <div class="plan-price"><span class="pp-amt">${supportsCycle ? formatPrice(price) : '—'}</span><span class="pp-cycle">${cycleSuffix}</span></div>
+      <div class="plan-price"><span class="pp-amt">${supportsCycle ? (S.currency === 'INR' ? '' : '≈ ') + formatPrice(price) : '—'}</span><span class="pp-cycle">${cycleSuffix}</span></div>
+      ${(S.currency !== 'INR' && supportsCycle && price) ? `<div class="plan-inr">Price: <b>₹${Number(price).toLocaleString('en-IN')}</b>${cycleSuffix} · ${S.currency} amount is a rough estimate — check the price in your currency at checkout</div>` : ''}
       ${limits}
       <ul class="plan-features">${p.features.slice(0,4).map(f => `<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>${f}</li>`).join('')}</ul>
       ${btn}
@@ -5315,7 +5387,6 @@ function subscribeAllUsersFromFirebase() {
         phone:      d.phone || (d.profile && d.profile.phone) || '',
         heardFrom:  d.heardFrom || '',
         heardFromOther: d.heardFromOther || '',
-        _sub: d.subscription || null,
         _createdAt: d.createdAt || null,
         // lastActiveAt is stamped by the workshop web/mobile app while in use
         _lastLogin: d.lastActiveAt || d.lastLoginAt || null
@@ -5534,8 +5605,10 @@ function updateBillingPrices() {
   const baseInr = cycle === 'yearly' ? plan.yearly : plan.monthly;
   const ccy = CURRENCIES[S.currency] || CURRENCIES.INR;
   const total = Math.round(baseInr * ccy.rate);
-  document.getElementById('bsumPrice').textContent = `${ccy.sym}${total.toLocaleString('en-IN')}`;
-  document.getElementById('bsumTotal').textContent = `${ccy.sym}${total.toLocaleString('en-IN')}`;
+  const _inrTxt = `₹${Number(baseInr).toLocaleString('en-IN')}`, _est = ccy.code === 'INR' ? '' : ` (≈ ${ccy.sym}${total.toLocaleString('en-IN')} rough estimate)`;
+  document.getElementById('bsumPrice').textContent = `${_inrTxt}${_est}`;
+  document.getElementById('bsumTotal').textContent = `${_inrTxt}${_est}`;
+  const _fxn = document.getElementById('bsumFx'); if (_fxn) { _fxn.style.display = ccy.code === 'INR' ? 'none' : ''; }
   document.getElementById('bsumCycle').textContent = cycle === 'yearly' ? 'Yearly' : 'Monthly';
   document.getElementById('bplanDesc').textContent = `${plan.name} · ${cycle === 'yearly' ? 'Billed yearly' : 'Billed monthly'} · ${plan.maxBays >= 999 ? 'unlimited' : plan.maxBays} bays · ${plan.maxWorkers >= 999 ? 'unlimited' : plan.maxWorkers} workers`;
   const planLabel = document.querySelector('#billingModal .bplan b');
@@ -5563,27 +5636,11 @@ function renewSubscription() {
   pendingPlatform = 'windows';
   openBilling();
 }
-// "Cancel subscription": straight to the billing portal where one button cancels; if the portal isn't live (test mode) or can't open,
-// the fallback is a ready-written email so cancelling is never blocked.
-function lsCancel() {
-  const mail = () => { location.href = 'mailto:support@garagepro.me?subject=' + encodeURIComponent('Please cancel my subscription') + '&body=' + encodeURIComponent('Hello, please cancel my Garage Pro subscription.\nAccount email: ' + ((currentUser && currentUser.email) || '')); };
-  if (LS_CONFIG.testMode || !LS_CONFIG.billingPortal) { showToast('Opening an email to cancel — we will confirm within one working day.', 'good'); mail(); return; }
-  window.open(LS_CONFIG.billingPortal, '_blank', 'noopener');
-}
 function lsOpenPortal() {
   // Lemon Squeezy only serves the customer portal for an ACTIVATED (live) store.
   if (LS_CONFIG.testMode) { showToast('The billing portal isn\'t available while payments are in test mode — it switches on when the store goes live. Contact support to change plan.', 'bad'); return; }
   if (!LS_CONFIG.billingPortal) { showToast('Billing portal not configured yet — contact support.', 'bad'); return; }
   window.open(LS_CONFIG.billingPortal, '_blank', 'noopener');
-}
-// Lemon Squeezy's script is only fetched when someone actually starts a checkout (not on every page view).
-function gpLoadLemon() {
-  return new Promise(res => {
-    if (window.createLemonSqueezy || window.LemonSqueezy) return res();
-    const sc = document.createElement('script'); sc.src = 'https://assets.lemonsqueezy.com/lemon.js'; sc.defer = true;
-    sc.onload = () => res(); sc.onerror = () => res(); document.head.appendChild(sc);
-    setTimeout(res, 4000);
-  });
 }
 async function startLemonCheckout() {
   if (!currentUser || currentUser.isAdmin || !fbAuth || !fbAuth.currentUser) { closeBilling(); openAuth('win'); return; }
@@ -5609,7 +5666,6 @@ async function startLemonCheckout() {
     lsWatchActivation(plan, cycle, startSub);
   };
   try {
-    await gpLoadLemon();
     if (window.createLemonSqueezy) window.createLemonSqueezy();
     if (window.LemonSqueezy && LemonSqueezy.Url) {
       LemonSqueezy.Setup({ eventHandler: ev => {
@@ -7814,8 +7870,7 @@ function siteTrackerStart() {
     if (location.protocol === 'file:' || !fbDb) return;
     if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && !/[?&]track=1/.test(location.search)) return;
     if (localStorage.getItem('gp_notrack') === '1') return;
-    if (navigator.doNotTrack === '1' || navigator.globalPrivacyControl === true) return;
-    if (!(window.gpConsent && gpConsent.get('analytics'))) return;   // no visitor record, no IP→location lookup, until the visitor has said yes
+    if (navigator.doNotTrack === '1') return;
     if (/bot|crawl|spider|slurp|headless|lighthouse|preview/i.test(navigator.userAgent)) return;
     let vid = localStorage.getItem('gp_vid'); const returning = !!vid;
     if (!vid) { vid = _rid(); localStorage.setItem('gp_vid', vid); }
@@ -8069,7 +8124,6 @@ function auRender() {
 load();
 initFirebase();
 siteTrackerStart();
-window.addEventListener('gp-consent', e => { if (e.detail && e.detail.analytics) siteTrackerStart(); else { try { trackerStop(); localStorage.removeItem('gp_vid'); } catch (_) {} } });
 // Deep link from the web app's "No plan / expired" screen: garagepro.me/?renew=1
 try {
   if (/[?&]renew=1\b/.test(location.search)) {
@@ -8084,6 +8138,7 @@ populateCurrencySelect();
 renderPlansGrid();
 renderComparisonTable();
 initQuiz();
+updateByopPrice();
 renderDemoCta();
 renderSupportContact();
 detectCountry().then(() => {
