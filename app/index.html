@@ -1728,6 +1728,7 @@ function _dataUrlToBlob(dataUrl) {
 firebase.initializeApp(FB_CONFIG);
 const fbAuth = firebase.auth();
 const fbDb   = firebase.firestore();
+try { fbDb.settings({ ignoreUndefinedProperties: true }); } catch (e) { console.warn('[fb] settings', e); }   // an optional field left undefined (e.g. a tax number) must not make the whole save fail
 // Firebase Storage — used for job-card photo uploads (one file per photo,
 // kept under users/{uid}/job-photos/{photo_id}). Storage rules must allow
 // the signed-in user to read+write their own folder.
@@ -9253,6 +9254,7 @@ const WA_EVENT_LABEL = {
 function notifyWhatsAppForEvent(eventId, opts = {}) {
   try {
     if (D.settings?.whatsapp_updates_enabled === false) return;
+    if (!_waEventOn(eventId)) return;
     const { job: j, booking: b, invoice: inv, pref, phone } = _waResolveContact(opts);
     if (pref !== 'whatsapp' && pref !== 'both') return;
     if (!phone) return;
@@ -10465,7 +10467,7 @@ window._jobAddPart = function() {
   );
   const render = (q) => {
     q = (q || '').toLowerCase().trim();
-    const onJob = new Set((_editingJob?.parts || []).map(p => (p.name || '').toLowerCase()));
+    const onJob = new Set((_editingJob?.parts || []).map(p => p.inventory_id ? 'id:' + p.inventory_id : 'n:' + (p.name || '').toLowerCase()));
     let list = D.inventory.slice();
     if (q) list = list.filter(i =>
       (i.name || '').toLowerCase().includes(q) ||
@@ -10481,9 +10483,10 @@ window._jobAddPart = function() {
       const onHand = Number(i.qty || 0);
       const low    = onHand <= Number(i.low_stock_threshold || 0);
       const out    = onHand === 0;
-      const already= onJob.has((i.name || '').toLowerCase());
+      const already= i.id ? (onJob.has('id:' + i.id) || (onJob.has('n:' + (i.name || '').toLowerCase()) && !(D.inventory || []).some(o => o !== i && _invNameKey(o) === _invNameKey(i)))) : onJob.has('n:' + (i.name || '').toLowerCase());
       const picked = _pickPartSelected.has(id);
       const cur    = _cur();
+      const _el    = _estLineForPart(i);
       return `
         <button type="button" data-itemid="${escapeHtml(id)}" ${out || already ? 'disabled' : ''}
           style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${out ? 'var(--bg2)' : picked ? 'rgba(var(--tint-rgb),.10)' : 'var(--surf)'};cursor:${out || already ? 'not-allowed' : 'pointer'};color:${out ? 'var(--faint)' : 'var(--txt)'};opacity:${already ? '.55' : '1'};font-family:var(--fb)">
@@ -10494,7 +10497,7 @@ window._jobAddPart = function() {
             </div>
             <div style="text-align:right;min-width:90px">
               <div style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:${out ? 'var(--red)' : low ? 'var(--acc2)' : 'var(--teal)'}">${onHand} ${escapeHtml(i.unit || '')}</div>
-              <div style="font-size:11px;color:var(--faint)">${cur}${Number(i.sell_price || 0).toLocaleString('en-IN')}</div>
+              <div style="font-size:11px;color:var(--faint)">${_el ? `<span style="color:var(--teal)" title="The job card uses the estimate's price">Estimate ${cur}${Number(_el.price || 0).toLocaleString('en-IN')}${Number(_el.qty || 1) > 1 ? ' × ' + Number(_el.qty) : ''}</span>` : `${cur}${Number(i.sell_price || 0).toLocaleString('en-IN')}`}</div>
             </div>
         </button>`;
     };
@@ -10545,19 +10548,45 @@ window._jobAddPart = function() {
     render('');
   }, 0);
 };
-window._jobConfirmAddParts = function() {
-  for (const id of _pickPartSelected) {
-    const item = D.inventory.find(x => (x.id || x.name) === id);
-    if (!item) continue;
-    _editingJob.parts.push({
-      name: item.name, hsn: item.hsn || '', qty: 1,
-      unit_price: Number(item.sell_price || 0), disc_pct: 0,
-      inventory_id: item.id || ''
-    });
+// The estimate the customer approved is the price of record: a part that is also on the estimate goes onto the
+// job card at the ESTIMATE's price (whatever the stock list says), and when the estimate had several of it we ask
+// how many are being fitted. Parts that were never on the estimate keep their inventory price.
+function _estLineForPart(item) {
+  const nm = String((item && item.name) || '').trim().toLowerCase();
+  if (!nm) return null;
+  return ((_editingJob && _editingJob.est_parts) || []).find(p => String(p.name || '').trim().toLowerCase() === nm) || null;
+}
+function _jobPartRow(item, qty) {
+  const e = _estLineForPart(item), ep = e ? Number(e.price) : NaN;
+  return { name: item.name, hsn: item.hsn || '', qty: Math.max(1, Number(qty) || 1), unit_price: Number.isFinite(ep) ? ep : Number(item.sell_price || 0), disc_pct: 0, inventory_id: item.id || '' };
+}
+async function _askPartQty(item) {
+  const e = _estLineForPart(item); if (!e) return 1;
+  const estQty = Math.max(1, Number(e.qty || 1)); if (estQty <= 1) return 1;
+  const nm = String(item.name || '').trim().toLowerCase();
+  const have = (_editingJob.parts || []).filter(p => String(p.name || '').trim().toLowerCase() === nm).reduce((n, p) => n + Number(p.qty || 0), 0);
+  const stock = Math.max(0, Number(item.qty || 0));
+  const dflt = Math.max(1, Math.min(estQty - have, stock || estQty));
+  for (;;) {
+    const ans = await customPrompt(`The estimate has ${estQty} × “${item.name}”${item.supplier ? ' (' + item.supplier + ')' : ''} at ${_cur()}${Number(e.price || 0).toLocaleString('en-IN')} each${have ? ` — ${have} already on this job card` : ''}. How many are you adding to the job card? (${stock} in stock)`, { title: 'How many?', initial: String(dflt), okLabel: 'Add', type: 'number', required: true });
+    if (ans === null) return 0;
+    const n = Math.floor(Number(ans));
+    if (Number.isFinite(n) && n >= 1) return n;
   }
-  const n = _pickPartSelected.size;
+}
+window._jobConfirmAddParts = async function() {
+  const ids = Array.from(_pickPartSelected);
   _pickPartSelected = new Set();
   closeSubModal();
+  let n = 0;
+  for (const id of ids) {
+    const item = D.inventory.find(x => (x.id || x.name) === id);
+    if (!item) continue;
+    const qty = await _askPartQty(item);
+    if (!qty) continue;
+    _editingJob.parts.push(_jobPartRow(item, qty));
+    n++;
+  }
   _drawJobRows();
   if (n) showToast(`${n} part${n===1?'':'s'} added`, 'good');
 };
@@ -10572,9 +10601,9 @@ window._jobScanPart = function() {
       return customAlert(`No inventory part has the barcode "${code}". Add it in the Inventory tab first (or use "Add part" to type it in).`, { title: 'Part not found' });
     }
     _editingJob.parts = _editingJob.parts || [];
-    const existing = _editingJob.parts.find(p => (p.name || '').toLowerCase() === (item.name || '').toLowerCase());
+    const existing = _editingJob.parts.find(p => p.inventory_id ? p.inventory_id === item.id : (p.name || '').toLowerCase() === (item.name || '').toLowerCase());
     if (existing) existing.qty = Math.max(1, Number(existing.qty || 1)) + 1;
-    else _editingJob.parts.push({ name: item.name, hsn: item.hsn || '', qty: 1, unit_price: Number(item.sell_price || 0), disc_pct: 0, inventory_id: item.id || '' });
+    else _editingJob.parts.push(_jobPartRow(item, 1));
     if (typeof _drawJobRows === 'function') _drawJobRows();
     showToast(`${item.name} added`, 'good');
   }, 'Scan a part barcode');
@@ -10621,7 +10650,7 @@ window._jobAddEstFromInventory = function() {
       const picked = _pickEstInvSelected.has(id);
       return `<button type="button" data-eid="${escapeHtml(id)}" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;margin-bottom:6px;border-radius:9px;border:1px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${picked ? 'rgba(var(--tint-rgb),.10)' : 'var(--surf)'};cursor:pointer;color:var(--txt);font-family:var(--fb)">
       <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${picked ? 'var(--teal,var(--ink-soft))' : 'var(--brd2)'};background:${picked ? 'var(--teal,var(--ink-soft))' : 'transparent'};flex:none;display:grid;place-items:center">${picked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#04231c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M20 6 9 17l-5-5"/></svg>' : ''}</div>
-      <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(i.name)}</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(i.category || '—')} · ${(() => {
+      <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${escapeHtml(i.name)}</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">${escapeHtml(i.category || '—')}${i.supplier ? ' · ' + escapeHtml(i.supplier) : ''} · ${(() => {
         const reserved = _reservedQtyFor(i.name, _editingJob?.id);
         const free = Number(i.qty || 0) - reserved;
         return reserved > 0
@@ -11643,7 +11672,7 @@ async function saveJob(id) {
   }
   j.labour_notes = labour;
   // Capture the previous parts so we can diff against the new list and adjust inventory
-  const prevParts = (j.parts || []).map(p => ({ name: (p.name || '').toLowerCase(), qty: Number(p.qty || 0) }));
+  const prevParts = (j.parts || []).map(p => ({ name: (p.name || '').toLowerCase(), qty: Number(p.qty || 0), inventory_id: p.inventory_id || '' }));
   // Drop empty rows so an unfinished "Add part / Add charge" doesn't pollute the card
   j.parts           = (_editingJob?.parts   || []).filter(p => (p.name || '').trim())
                         .map(p => ({
@@ -11719,13 +11748,16 @@ async function saveJob(id) {
   // we'll cap at zero and warn the user if the request would oversell.
   let inventoryChanged = false;
   const inventoryWarnings = [];
-  const newByName = new Map(j.parts.map(p => [p.name.toLowerCase(), p.qty]));
-  const oldByName = new Map(prevParts.map(p => [p.name, p.qty]));
+  const _pk = p => (p.inventory_id ? 'id:' + p.inventory_id : 'n:' + String(p.name || '').toLowerCase());
+  const newByName = new Map(), oldByName = new Map(), _label = new Map();
+  j.parts.forEach(p => { const k = _pk(p); newByName.set(k, (newByName.get(k) || 0) + Number(p.qty || 0)); _label.set(k, (p.name || '').toLowerCase()); });
+  prevParts.forEach(p => { const k = _pk(p); oldByName.set(k, (oldByName.get(k) || 0) + Number(p.qty || 0)); if (!_label.has(k)) _label.set(k, (p.name || '').toLowerCase()); });
   const allNames = new Set([...newByName.keys(), ...oldByName.keys()]);
-  for (const name of allNames) {
-    const delta = (newByName.get(name) || 0) - (oldByName.get(name) || 0);
+  for (const key of allNames) {
+    const delta = (newByName.get(key) || 0) - (oldByName.get(key) || 0);
     if (!delta) continue;
-    const item = D.inventory.find(x => (x.name || '').toLowerCase() === name);
+    const name = _label.get(key) || '';
+    const item = key.startsWith('id:') ? (D.inventory.find(x => x.id === key.slice(3)) || D.inventory.find(x => (x.name || '').toLowerCase() === name)) : D.inventory.find(x => (x.name || '').toLowerCase() === name);
     if (!item) {
       // Consumables are a billed part with no stock record — expected, no warning.
       // Anything else here is a stray legacy part worth flagging.
@@ -14484,7 +14516,7 @@ window.setPartStatus = async function(reqId, status, itemId, extra) {
       if (extra?.location) it.location = extra.location;
       if (extra?.supplier) it.supplier = extra.supplier;
       if (extra?.barcode)  it.barcode  = extra.barcode;
-      const existing = D.inventory.find(x => (x.name || '').toLowerCase() === name.toLowerCase());
+      const existing = _invFind(name, it.supplier || it.vendor);
       if (existing) {
         existing.qty = Math.max(0, Number(existing.qty || 0)) + qty;
         existing.updated_at = nowStr();
@@ -14494,7 +14526,7 @@ window.setPartStatus = async function(reqId, status, itemId, extra) {
         if (it.cost_price != null && !existing.cost_price) existing.cost_price = it.cost_price;
         if (it.price != null && !existing.sell_price)      existing.sell_price = it.price;
         if (it.location) existing.location = it.location;
-        if ((it.supplier || it.vendor) && !existing.supplier) existing.supplier = it.supplier || it.vendor;
+        if ((it.supplier || it.vendor) && !_invVendorKey(existing)) existing.supplier = it.supplier || it.vendor;
         if (it.barcode && !existing.barcode)   existing.barcode  = it.barcode;
         stockAdds.push(`${name} +${qty}`);
       } else {
@@ -14667,7 +14699,8 @@ function _prRequestItems(r) {
       customer_approval: it.customer_approval || '',
       // Which customer concern on the job card this part is for. This was being dropped on every normalise pass
       // (setPartStatus re-runs it on each status change), so the link vanished as soon as a part was ordered.
-      concern_id: it.concern_id || '', concern_title: it.concern_title || ''
+      concern_id: it.concern_id || '', concern_title: it.concern_title || '',
+      vendor: it.vendor || ''
     }));
   }
   if (r.part_name) {
@@ -14678,12 +14711,28 @@ function _prRequestItems(r) {
       cost_price: (r.cost_price == null || r.cost_price === '') ? null : Number(r.cost_price),
       location: r.location || '', supplier: r.supplier || '', barcode: r.barcode || '',
       customer_approval: r.customer_approval || '',
-      concern_id: r.concern_id || '', concern_title: r.concern_title || ''
+      concern_id: r.concern_id || '', concern_title: r.concern_title || '',
+      vendor: r.vendor || ''
     }];
   }
   return [];
 }
 window._prRequestItems = _prRequestItems;
+
+// Inventory identity = name + vendor. The same part bought from two vendors is two
+// stock lines (different cost, different shelf, different stock count).
+const _invVendorKey = (i) => String((i && (i.supplier || i.vendor)) || '').trim().toLowerCase();
+const _invNameKey   = (i) => String((i && i.name) || '').trim().toLowerCase();
+function _invFind(name, vendor) {
+  const nk = String(name || '').trim().toLowerCase(), vk = String(vendor || '').trim().toLowerCase();
+  const same = (D.inventory || []).filter(x => _invNameKey(x) === nk);
+  if (!same.length) return null;
+  const exact = same.find(x => _invVendorKey(x) === vk);
+  if (exact) return exact;
+  if (vk) return same.find(x => !_invVendorKey(x)) || null;    // an older item with no vendor yet takes the first vendor it is received from
+  return same.length === 1 ? same[0] : null;                    // no vendor given and several vendors stocked → can't tell, keep them apart
+}
+window._invFind = _invFind;
 
 // Derive the OVERALL request status from its items:
 //   - If every item is Received → Received
@@ -15379,6 +15428,10 @@ async function renderSettings(force = false) {
           <span style="font-family:var(--fd);font-weight:700;font-size:14px">Enable WhatsApp status-update prompts</span>
         </label>
         <div style="font-size:11.5px;color:var(--faint);margin:6px 0 14px 28px;line-height:1.5">Covers the same moments as customer email: booking confirmed, estimate ready, estimate approved, work started, work complete, ready for pickup, and invoice ready. Invoices can't be attached as a file over WhatsApp (that's a WhatsApp limitation, not ours) — instead the message includes a tappable link to view/download the invoice.</div>
+        <div style="font-family:var(--fd);font-weight:700;font-size:13px;margin:0 0 8px">Show a WhatsApp prompt for</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin-bottom:14px">
+          ${WA_PROMPT_EVENTS.map(([id, label]) => `<label style="display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--brd2);border-radius:8px;background:var(--bg2);cursor:pointer"><input type="checkbox" data-wa-ev="${id}" ${(s.wa_events || {})[id] === false ? '' : 'checked'} style="width:16px;height:16px;cursor:pointer" /><span style="font-size:13px;font-weight:600">${label}</span></label>`).join('')}
+        </div>
         <button class="add-btn" onclick="_saveWhatsAppSettings()">Save WhatsApp settings</button>
         <div id="sf-wa-msg" style="margin-top:8px;font-size:12.5px;min-height:16px;line-height:1.5"></div>
       </div>
@@ -15831,6 +15884,8 @@ window.saveEmailSettings = async function() {
 window._saveWhatsAppSettings = async function() {
   D.settings = D.settings || {};
   D.settings.whatsapp_updates_enabled = !!document.getElementById('sf-wa-on')?.checked;
+  const _wev = {}; document.querySelectorAll('input[data-wa-ev]').forEach(el => { _wev[el.dataset.waEv] = !!el.checked; });
+  D.settings.wa_events = _wev;
   await wsSaveSettings();
   const msg = document.getElementById('sf-wa-msg');
   msg.style.color = 'var(--teal)';
@@ -16666,9 +16721,9 @@ window._scanAddPartToJob = function(itemKey) {
   if (!_editingJob) { showToast('Open a job card first', 'bad'); return; }
   _editingJob.parts = _editingJob.parts || [];
   // Merge if already on the job — bump qty instead of duplicating
-  const existing = _editingJob.parts.find(p => (p.name || '').toLowerCase() === (item.name || '').toLowerCase());
+  const existing = _editingJob.parts.find(p => p.inventory_id ? p.inventory_id === item.id : (p.name || '').toLowerCase() === (item.name || '').toLowerCase());
   if (existing) existing.qty = Math.max(1, Number(existing.qty || 1)) + 1;
-  else _editingJob.parts.push({ name: item.name, hsn: item.hsn || '', qty: 1, unit_price: Number(item.sell_price || 0), disc_pct: 0, inventory_id: item.id || '' });
+  else _editingJob.parts.push(_jobPartRow(item, 1));
   closeScanner();
   if (typeof _drawJobRows === 'function') _drawJobRows();
   showToast(`${item.name} added to job card`, 'good');
@@ -17215,7 +17270,7 @@ function _blankInvoice() {
 // active when the customer was billed (even if Settings change later).
 function _workshopSnapshot() {
   const s = D.settings || {};
-  return {
+  const snap = {
     workshop_name: s.workshop_name || '', address: s.address || '', email: s.email || '',
     phone: s.phone || '', gstin: s.gstin || '', currency: s.currency || ctry().currency,
     country: ctry().code, vat_registered: ctry().regTax ? s.vat_registered !== false : undefined, ntn: s.ntn || '', services_tax_pct: ctry().code === 'PK' ? _svcRate({}, wsTaxPct()) : undefined,
@@ -17228,6 +17283,8 @@ function _workshopSnapshot() {
     bank_swift:   s.bank_swift   || '',
     bank_terms:   s.bank_terms   || 'WIRE'
   };
+  Object.keys(snap).forEach(k => { if (snap[k] === undefined) delete snap[k]; });   // Firestore rejects undefined
+  return snap;
 }
 
 // Join a customer's address components into one printable string
@@ -17293,7 +17350,7 @@ function _seedInvoiceFromJob(jobId) {
   }
   // Pull parts with inventory enrichment
   inv.lines = (j.parts || []).map(p => {
-    const itm = D.inventory.find(it => (it.name || '').toLowerCase() === (p.name || '').toLowerCase());
+    const itm = (p.inventory_id && D.inventory.find(it => it.id === p.inventory_id)) || D.inventory.find(it => (it.name || '').toLowerCase() === (p.name || '').toLowerCase());
     return {
       name: p.name || '',
       hsn: p.hsn || (itm && itm.hsn) || '',
@@ -18459,10 +18516,21 @@ const EMAIL_EVENTS = [
   { id: 'work_complete',      label: 'Work complete',         headline: 'Work is complete',                  subject: (d) => `Work complete · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'pickup_scheduled',   label: 'Pickup time confirmed', headline: 'Your pickup time is confirmed',      subject: (d) => `Pickup confirmed${d.date ? ' · ' + d.date + (d.time ? ' ' + d.time : '') : ''} · ${d.workshop_name}` },
   { id: 'ready_for_pickup',   label: 'Ready for pickup',      headline: 'Your car is ready for pickup',      subject: (d) => `Ready for pickup · ${d.workshop_name}${_emailSubjectRef(d)}` },
+  { id: 'pickup_choose',      label: 'Choose a pickup time (link)', headline: 'Choose your pickup time',      subject: (d) => `Choose your pickup time · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'thank_you',          label: 'Thank-you (after pickup)', headline: 'Thank you for choosing us',     subject: (d) => `Thank you · ${d.workshop_name}${_emailSubjectRef(d)}` },
   { id: 'invoice_ready',      label: 'Invoice ready',         headline: 'Your invoice is ready',             subject: (d) => `Invoice ${d.invoice_no || ''} · ${d.workshop_name}${_emailSubjectRef(d)}` }
 ];
 window.EMAIL_EVENTS = EMAIL_EVENTS;
+// WhatsApp prompts mirror the email events one for one — each can be switched on/off in Settings → Customer WhatsApp updates.
+const WA_PROMPT_EVENTS = [
+  ['booking_confirmed', 'Booking confirmed'], ['booking_reminder', '24-hour appointment reminder'], ['estimate_ready', 'Estimate ready / updated (link)'],
+  ['customer_approved', 'Customer approved the estimate'], ['work_started', 'Work started'], ['qc_started', 'Repair done — final checks'],
+  ['work_complete', 'Work complete'], ['pickup_scheduled', 'Pickup time confirmed'], ['ready_for_pickup', 'Ready for pickup'],
+  ['invoice_ready', 'Invoice ready'], ['thank_you', 'Thank-you (after pickup)']
+];
+window.WA_PROMPT_EVENTS = WA_PROMPT_EVENTS;
+const _waEventOn = (id) => { const m = (D.settings || {}).wa_events; return !(m && m[id === 'pickup_time_set' ? 'pickup_scheduled' : id] === false); };
+window._waEventOn = _waEventOn;
 
 const EMAIL_TEMPLATES = [
   { id: 'classic', label: 'Classic', note: 'Clean, centered logo. Friendly tone.' },
@@ -18550,6 +18618,7 @@ function _buildEmailData(opts) {
     items:           inv ? (inv.lines || []).map(l => ({ name: l.name || '', qty: Number(l.qty || 1), amount: Number(l.unit_price || 0) * Number(l.qty || 1) * (1 - Number(l.disc_pct||0)/100) })) : [],
     charges:         inv ? (inv.charges || []) : [],
     total:           inv ? _invoiceTotals(inv).roundOff : 0,
+    event_note:      (function(){ try { const k = 'note.' + opts.event; const t = window.GP ? GP.t(k, b?.lang || opts.lang || 'en') : ''; return (t && t !== k) ? t : ''; } catch(_) { return ''; } })(),
     custom_footer:   ws.email_footer_custom || '',
     cancellation_policy: ws.cancellation_policy || 'If you need to reschedule, please give us 24 hours\' notice. Thank you.'
   };
@@ -18582,7 +18651,7 @@ function _emailCtaBlock(d) {
   if (d.invoice_view_link) btn(d.invoice_view_link, _L(d.lang, 'cta.invoice'), '#6b4fbb');
   if (['booking_requested', 'booking_confirmed', 'booking_reminder'].includes(d.event) && d.manage_link) btn(d.manage_link, _L(d.lang, 'cta.manage'), '#6b4fbb');
   if (d.event === 'booking_declined') { if (d.book_link) btn(d.book_link, _L(d.lang, 'cta.rebook'), '#1e7be0'); }
-  else if (d.track_link && d.event !== 'thank_you') btn(d.track_link, _L(d.lang, 'cta.track'), '#0a0f1a');
+  else if (d.track_link && d.event !== 'thank_you') btn(d.track_link, d.event === 'pickup_choose' ? _L(d.lang, 'cta.pickup') : _L(d.lang, 'cta.track'), d.event === 'pickup_choose' ? '#1e7be0' : '#0a0f1a');
   if ((d.event === 'thank_you' || d.event === 'invoice_ready') && d.feedback_link) btn(d.feedback_link, _L(d.lang, 'cta.feedback'), '#20a876');
   if (['thank_you', 'invoice_ready', 'work_complete'].includes(d.event) && d.vehicle_link) btn(d.vehicle_link, _L(d.lang, 'cta.history'), '#0a0f1a');
   if (['thank_you', 'invoice_ready'].includes(d.event) && d.book_link) btn(d.book_link, _L(d.lang, 'cta.book'), '#1e7be0');
@@ -18633,6 +18702,7 @@ function _emailTplClassic(d, evt) {
         <tr><td style="font-size:15px;line-height:1.6;color:#1a1a1a">
           <p style="margin:0 0 14px">${_esc(_L(d.lang,'lab.hi',{name:d.customer_name}))}</p>
           <p style="margin:0 0 24px">${_esc(_L(d.lang,'lab.details',{ws:d.workshop_name}))}</p>
+          ${d.event_note ? `<p style="margin:0 0 24px;padding:14px 16px;background:#eef5ff;border-radius:10px;font-weight:600">${_esc(d.event_note)}</p>` : ''}
           <h3 style="margin:24px 0 12px;font-size:17px;font-weight:800">${_esc(_L(d.lang,'lab.summary'))}</h3>
           ${d.booking_no ? `<p style="margin:6px 0"><b>${_esc(_L(d.lang,'lab.bookingNo'))}:</b> ${_esc(d.booking_no)}</p>` : ''}
           <p style="margin:6px 0"><b>${_esc(_L(d.lang,'lab.service'))}:</b> ${_esc(d.service_name)}</p>
@@ -18683,6 +18753,7 @@ function _emailTplFormal(d, evt) {
           <hr style="border:0;border-top:1px solid #ddd;margin:18px 0"/>
           <p><b>${_esc(_L(d.lang,'lab.dear',{name:d.customer_name}))}</b></p>
           <p>${_esc(_L(d.lang,'lab.thanksFull',{ws:d.workshop_name}))}</p>
+          ${d.event_note ? `<p style="font-weight:700">${_esc(d.event_note)}</p>` : ''}
         </td></tr>
         <tr><td style="padding:6px 28px 0">
           <h3 style="margin:18px 0 8px;font-size:18px;font-weight:800">I. ${_esc(_L(d.lang,'lab.bookingDetails'))}</h3>
@@ -18725,7 +18796,8 @@ function _emailTplReceipt(d, evt) {
           ${d.workshop_logo ? `<img src="${_esc(d.workshop_logo)}" alt="${_esc(d.workshop_name)}" style="max-height:32px;max-width:160px"/>` : `<div style="font-weight:900;font-size:22px;letter-spacing:-.02em">${_esc(d.workshop_name).toUpperCase()}</div>`}
         </td></tr>
         <tr><td align="center" style="font-size:30px;font-weight:900;padding-bottom:8px">${_esc(evt.headline)}!</td></tr>
-        <tr><td align="center" style="padding-bottom:24px;color:#5b6573;font-size:13.5px">${_esc(_L(d.lang,'lab.thanksLine',{name:d.customer_name,ws:d.workshop_name}))}</td></tr>
+        <tr><td align="center" style="padding-bottom:${d.event_note ? '10' : '24'}px;color:#5b6573;font-size:13.5px">${_esc(_L(d.lang,'lab.thanksLine',{name:d.customer_name,ws:d.workshop_name}))}</td></tr>
+        ${d.event_note ? `<tr><td align="center" style="padding-bottom:24px;font-weight:700;font-size:14px">${_esc(d.event_note)}</td></tr>` : ''}
         <tr><td><hr style="border:0;border-top:1px solid #d8dde3;margin:8px 0 18px"/></td></tr>
         <tr><td>
           <table role="presentation" width="100%"><tr>
@@ -21329,9 +21401,9 @@ async function renderWorkload(force = false) {
       } else if (mode === 'job') {
         _editingJob.parts = _editingJob.parts || [];
         rows.forEach(r => {
-          const it = r.item, ex = _editingJob.parts.find(p => (p.inventory_id && p.inventory_id === it.id) || (p.name || '').toLowerCase() === (it.name || '').toLowerCase());
+          const it = r.item, ex = _editingJob.parts.find(p => p.inventory_id ? p.inventory_id === it.id : (p.name || '').toLowerCase() === (it.name || '').toLowerCase());
           if (ex) ex.qty = Math.max(1, Number(ex.qty || 1)) + r.qty;
-          else _editingJob.parts.push({ name: it.name, hsn: it.hsn || '', qty: r.qty, unit_price: Number(it.sell_price || 0), disc_pct: 0, inventory_id: it.id || '' });
+          else _editingJob.parts.push(_jobPartRow(it, r.qty));
         });
         close(false); if (typeof _drawJobRows === 'function') _drawJobRows();
         showToast(`${rows.length} part${rows.length === 1 ? '' : 's'} added to the job`, 'good');
@@ -22596,7 +22668,8 @@ async function renderWorkload(force = false) {
   }
 
   // ───────── send: build → publish → (status rule) → chooser ─────────
-  window.estSend = async function (jobId) {
+  window.estSend = async function (jobId, o) {
+    const quiet = !!(o && o.quiet);
     if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can send estimates', 'bad');
     const j = jobById(jobId); if (!j) return showToast('Job not found', 'bad');
     const wasSent = !!j.approval_token;
@@ -22617,6 +22690,7 @@ async function renderWorkload(force = false) {
     publishTracking(j.booking_id);
     audit('estimate-sent', `${inv.number || ''} · ${j.plate} · ${j.cust_name || '—'}${started ? ' (job in progress — awaiting new approval)' : ''}`, { invoice_id: inv.id, job_id: j.id });
     try { renderJobs(); } catch (_) {}
+    if (quiet) return doc;
     _apprShareModal(doc);
     // the customer is e-mailed automatically — new estimate or updated estimate — as long as customer emails are on
     const link = `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(doc.token)}`;
@@ -22663,6 +22737,33 @@ async function renderWorkload(force = false) {
   };
   window._estCopy = () => { const v = (window.__estLink || {}).url; if (!v) return; (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(() => showToast('Link copied', 'good')).catch(() => { const i = document.getElementById('estLinkBox'); i.select(); document.execCommand('copy'); showToast('Link copied', 'good'); }); };
   window._estWhatsApp = () => { const l = window.__estLink || {}; _waOpen(l.phone, l.msg); };
+  // One-tap "send the current estimate" from anywhere (Manage Requests…): republish so the link shows today's prices,
+  // then email it and/or open WhatsApp. Explicit clicks always send — the automatic-email switches only govern automatic sends.
+  window._estQuick = async function (jobId, how, btn) {
+    if (!isServiceAdvisorRole()) return showToast('Only Service Advisor / Owner can send estimates', 'bad');
+    const j = jobById(jobId); if (!j) return showToast('Job not found', 'bad');
+    const waWin = how === 'wa' ? window.open('', '_blank') : null;      // opened inside the click so the pop-up blocker allows it
+    const t0 = btn ? btn.innerHTML : ''; if (btn) { btn.disabled = true; btn.innerHTML = '…'; }
+    try {
+      const wasSent = !!j.approval_token;
+      const doc = await estSend(jobId, { quiet: true });
+      if (!doc) { if (waWin) waWin.close(); return; }
+      const link = `${_apprSiteBase()}/approve.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(doc.token)}`;
+      if (how === 'email') {
+        const res = await sendCustomerNotification(wasSent ? 'estimate_updated' : 'estimate_ready', { job: j, approval_link: link, force: true });
+        if (res.ok) showToast('Estimate link emailed to the customer', 'good');
+        else if (res.skipped === 'no-recipient') showToast('No email on file for this customer — use WhatsApp or copy the link', 'bad');
+        else showToast('The email did not go through — it is queued for retry, or use WhatsApp', 'bad');
+      } else {
+        const b = (D.bookings || []).find(x => x.id === j.booking_id) || {}, c = (D.customers || []).find(x => K(x.name) === K(doc.cust_name)) || {};
+        const lang = _custLang(doc.cust_name);
+        const msg = GP.t('wa.estimate', lang, { name: (doc.cust_name || '').split(' ')[0], plate: doc.plate || '', ws: doc.workshop_name || '', amount: `${_cur(doc.currency)}${num(doc.total).toLocaleString('en-IN')}`, link });
+        _waOpen(b.cust_phone || c.phone || '', msg, waWin);
+      }
+      audit('estimate-link-' + how, `${j.plate} → ${j.cust_name || '—'}`, { job_id: j.id });
+    } catch (e) { if (waWin) try { waWin.close(); } catch (_) {} showToast('Could not send: ' + (e.message || e), 'bad'); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = t0; } }
+  };
   window._estEmail = async (btn) => {
     const l = window.__estLink || {}, j = jobById(l.jobId); if (!j) return;
     btn.disabled = true; const t = btn.innerHTML; btn.innerHTML = '…<br>Sending';
@@ -22726,7 +22827,7 @@ async function renderWorkload(force = false) {
     const sa = isServiceAdvisorRole(), parts = canApproveParts(), lab = estLabour(j).length;
     const b = [];
     if (parts && !j.priced_at) b.push(`<button type="button" class="mini-btn warn" onclick="_markPricingComplete('${esc(j.id)}');_openPartReqDetail('${esc(r.id)}')">✓ Pricing done — tell the advisor</button>`);
-    if (sa) b.push(`<button type="button" class="mini-btn good" onclick="estSend('${esc(j.id)}')">📨 ${j.approval_token ? 'Send updated estimate' : 'Send estimate'} to customer</button>`);
+    if (sa) b.push(`<button type="button" class="mini-btn good" onclick="estSend('${esc(j.id)}')">📨 ${j.approval_token ? 'Send updated estimate' : 'Send estimate'} to customer</button><button type="button" class="mini-btn" onclick="_estQuick('${esc(j.id)}','email',this)" title="Publish the current estimate and email the approval link to the customer now">✉️ Email the link</button><button type="button" class="mini-btn" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="_estQuick('${esc(j.id)}','wa',this)" title="Publish the current estimate and open WhatsApp with the approval link">💬 WhatsApp the link</button>`);
     b.push(`<button type="button" class="mini-btn" onclick="openEstimateSheet('${esc(j.id)}')">📋 Review estimate</button>`);
     return `<div style="padding:11px 13px;background:var(--bg2);border:1px solid var(--brd);border-radius:9px;margin-bottom:12px">
       <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">${b.join('')}</div>
@@ -22811,7 +22912,7 @@ async function renderWorkload(force = false) {
     return r;
   };
 
-  GP.addLang('en', { 'ev.estimate_updated.h': 'Your repair estimate has been updated', 'ev.estimate_updated.s': 'Updated estimate', 'ev.qc_started.h': 'The repair is done — final checks under way', 'ev.qc_started.s': 'Repair done, final checks', 'ev.pickup_scheduled.h': 'Your pickup time is confirmed', 'ev.pickup_scheduled.s': 'Pickup confirmed' });
+  GP.addLang('en', { 'cta.pickup': 'Choose your pickup time', 'note.work_complete': 'A pickup time will be coordinated with you soon.', 'ev.pickup_choose.h': 'Choose your pickup time', 'ev.pickup_choose.s': 'Choose your pickup time', 'note.pickup_choose': 'Your car is ready. Open the link below and choose the pickup time that suits you.', 'wa.pickupChoose': 'Hi {name}, your {plate} is ready at {ws}. Please choose a pickup time that suits you here:', 'wa.workComplete': 'Hi {name}, the work on your {plate} at {ws} is complete. A pickup time will be coordinated with you soon.', 'wa.workStarted': 'Hi {name}, we have started work on your {plate} at {ws}.', 'wa.qcStarted': 'Hi {name}, the repair on your {plate} is done and final checks are under way at {ws}.', 'wa.approved': 'Hi {name}, thanks — we have your approval for {plate} and are proceeding. — {ws}', 'ev.estimate_updated.h': 'Your repair estimate has been updated', 'ev.estimate_updated.s': 'Updated estimate', 'ev.qc_started.h': 'The repair is done — final checks under way', 'ev.qc_started.s': 'Repair done, final checks', 'ev.pickup_scheduled.h': 'Your pickup time is confirmed', 'ev.pickup_scheduled.s': 'Pickup confirmed' });
   GP.addLang('hi', { 'ev.estimate_updated.h': 'आपकी मरम्मत का अनुमान अपडेट हुआ है', 'ev.estimate_updated.s': 'अपडेट किया गया अनुमान', 'ev.qc_started.h': 'मरम्मत पूरी हुई — अंतिम जाँच जारी है', 'ev.qc_started.s': 'मरम्मत पूरी, अंतिम जाँच', 'ev.pickup_scheduled.h': 'आपके पिकअप का समय तय हो गया है', 'ev.pickup_scheduled.s': 'पिकअप की पुष्टि' });
   GP.addLang('ar', { 'ev.estimate_updated.h': 'تم تحديث عرض السعر الخاص بك', 'ev.estimate_updated.s': 'عرض سعر محدّث', 'ev.qc_started.h': 'اكتمل الإصلاح — الفحص النهائي جارٍ', 'ev.qc_started.s': 'اكتمل الإصلاح، الفحص النهائي', 'ev.pickup_scheduled.h': 'تم تأكيد موعد الاستلام', 'ev.pickup_scheduled.s': 'تأكيد موعد الاستلام' });
   GP.addLang('en', { 'wa.estimate': 'Hi {name}, your estimate for {plate} from {ws} ({amount}) is ready. Please review and approve here: {link}', 'cta.estimate2': 'Review & approve your estimate' });
@@ -24540,10 +24641,32 @@ ${round > 0.004 ? ent(ac.round_ledger, round, false) : round < -0.004 ? ent(ac.r
     const p = g('tab-pickups'); if (!p) return;
     const list = PS.reqs.slice().sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)), t = today();
     const jobOf = r => (D.jobs || []).find(j => plateNorm(j.plate) === plateNorm(r.plate) && !['Delivered', 'Cancelled'].includes(j.status));
+    const booked = new Set(list.map(r => plateNorm(r.plate)));
+    const waiting = (D.jobs || []).filter(j => j.status === 'Ready for Pickup' && !booked.has(plateNorm(j.plate)));
+    const waitHtml = waiting.length ? `<div class="card" style="padding:14px 16px;margin-bottom:14px"><div style="font-weight:800;font-size:14px;margin-bottom:4px">Ready — send the customer the link to choose a pickup time</div><div style="font-size:12.5px;color:var(--faint);margin-bottom:10px">The link opens their Track page, where they pick a slot. Their choice then appears below.</div>
+      ${waiting.map(j => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 0;border-top:1px solid var(--brd)"><div><span class="plate">${esc(j.plate)}</span> <b style="margin-left:6px">${esc(j.cust_name || '')}</b></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="mini-btn" type="button" onclick="pkSendLink('${esc(j.id)}','email',this)">✉️ Email link</button><button class="mini-btn" type="button" style="border-color:rgba(37,211,102,.5);color:#25d366" onclick="pkSendLink('${esc(j.id)}','wa',this)">💬 WhatsApp link</button><button class="mini-btn" type="button" onclick="pkSendLink('${esc(j.id)}','copy',this)">📋 Copy link</button></div></div>`).join('')}</div>` : '';
     p.innerHTML = `<div class="page-head"><div><h2>Pickups</h2><div class="dash-meta"><span class="live-dot"></span><span>${list.filter(r => r.date === t).length} today · ${list.length} booked · customers choose a time once their car is Ready for Pickup</span></div></div></div>
+      ${waitHtml}
       ${list.length ? list.map(r => { const j = jobOf(r); return `<div class="card" style="padding:12px 16px;margin-bottom:10px;border-left:4px solid ${r.date < t ? 'var(--red)' : r.date === t ? 'var(--acc2)' : 'var(--teal)'}"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><div><b style="font-size:15px">${esc(dmy(r.date))} · ${esc(r.time)}</b>${r.date === t ? ' <span style="color:var(--acc2);font-weight:700;font-size:12px">TODAY</span>' : r.date < t ? ' <span style="color:var(--red);font-weight:700;font-size:12px">PAST</span>' : ''}<div style="margin-top:4px"><span class="plate">${esc(r.plate)}</span> ${j ? esc(j.cust_name || '') + ' · ' + esc(j.status || '') : ''}</div>${r.name ? `<div style="font-size:12.5px;color:var(--dim)">Collected by: ${esc(r.name)}</div>` : ''}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">${j && canSee('jobs') ? `<button class="mini-btn" type="button" onclick="openJobForm('${esc(j.id)}')">Job card</button>` : ''}<button class="add-btn" type="button" onclick="pkDone('${esc(r.id)}')">Collected</button></div></div></div>`; }).join('') : `<div class="placeholder"><h3>No pickups booked</h3><p>When you mark a job “Ready for Pickup”, the customer sees a “Choose a pickup time” card on their Track page. Their choice appears here instantly.</p></div>`}`;
   }
+  // Send (or copy) the customer's pickup-time link: their Track page for this car, where the "Choose a pickup time" card is.
+  window.pkSendLink = async function (jobId, how, btn) {
+    const j = (D.jobs || []).find(x => x.id === jobId); if (!j) return showToast('Job not found', 'bad');
+    const link = _wsTrackLink(j.plate || '', (D.bookings || []).find(x => x.id === j.booking_id)?.booking_no || '');
+    if (!link) return showToast('Set your workshop name in Settings first — the link is built from it', 'bad');
+    if (how === 'copy') { try { await navigator.clipboard.writeText(link); showToast('Link copied', 'good'); } catch (_) { window.prompt('Copy this link', link); } return; }
+    if (how === 'wa') {
+      const lang = _custLang(j.cust_name, (D.bookings || []).find(x => x.id === j.booking_id)?.lang);
+      const msg = GP.t('wa.pickupChoose', lang, { name: (j.cust_name || 'there').split(' ')[0], plate: j.plate || GP.t('wa.yourVehicle', lang), ws: _wsName() }) + '\n' + link;
+      audit('wa-pickup-link', `${j.plate} → ${j.cust_name || '—'}`, { job_id: j.id });
+      return _waOpen(_bookingPhone(j.booking_id) || j.cust_phone || '', msg);
+    }
+    const t0 = btn ? btn.innerHTML : ''; if (btn) { btn.disabled = true; btn.innerHTML = '…'; }
+    const res = await sendCustomerNotification('pickup_choose', { job: j, force: true });
+    if (btn) { btn.disabled = false; btn.innerHTML = t0; }
+    if (res.ok) showToast('Pickup link emailed to the customer', 'good'); else if (res.skipped === 'no-recipient') showToast('No email on file for this customer — use WhatsApp or copy the link', 'bad'); else showToast('The email did not go through — it is queued for retry, or use WhatsApp', 'bad');
+  };
   window.pkDone = async id => { const r = PS.reqs.find(x => x.id === id); if (!r) return; try { if (r.hold_id) await wsCol('pickup_holds').doc(r.hold_id).delete().catch(() => {}); await wsCol('pickup_requests').doc(id).delete(); audit('pickup-done', r.plate, {}); } catch (e) { showToast('Could not update: ' + (e.message || e), 'bad'); } };
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -24892,6 +25015,63 @@ ${round > 0.004 ? ent(ac.round_ledger, round, false) : round < -0.004 ? ent(ac.r
 })();
 </script>
 
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  WHATSAPP FOR EVERY EMAIL — the same message the customer would get by email, sent as a wa.me link.
+//   • Automatic prompt after: work started · repair done (final checks) · work complete · customer approved
+//     (the other moments — booking, reminder, estimate, pickup time, ready, invoice, thank-you — already had one).
+//   • Settings → Customer WhatsApp updates: each moment can be switched on/off.
+//   • "WhatsApp update" menu on a job lists every message, including estimate link and pickup-time link.
+// ══════════════════════════════════════════════════════════════════════════
+(function () {
+  const AUTO = { work_started: 'wa.workStarted', qc_started: 'wa.qcStarted', work_complete: 'wa.workComplete', customer_approved: 'wa.approved' };
+  const LABEL = { work_started: 'work started', qc_started: 'repair done', work_complete: 'work complete', customer_approved: 'approval received' };
+  function textFor(eventId, j) {
+    const b = (D.bookings || []).find(x => x.id === j.booking_id) || {}, lang = _custLang(j.cust_name, b.lang);
+    const link = _wsTrackLink(j.plate || '', b.booking_no || '');
+    return GP.t(AUTO[eventId], lang, { name: (j.cust_name || b.cust_name || 'there').split(' ')[0], plate: j.plate || GP.t('wa.yourVehicle', lang), ws: _wsName() }) + (link ? `\n${GP.t('wa.track', lang)} ${link}` : '');
+  }
+  const _scn = window.sendCustomerNotification;
+  if (typeof _scn === 'function') window.sendCustomerNotification = async function (eventId, opts) {
+    const res = await _scn.apply(this, arguments);
+    try {
+      opts = opts || {};
+      if (!AUTO[eventId] || opts.force || !opts.job) return res;
+      if (res && res.skipped === 'already-sent') return res;
+      if (D.settings?.whatsapp_updates_enabled === false || !_waEventOn(eventId)) return res;
+      const { pref, phone } = _waResolveContact(opts);
+      if ((pref !== 'whatsapp' && pref !== 'both') || !phone) return res;
+      const j = opts.job, msg = textFor(eventId, j), who = j.cust_name || 'the customer';
+      if (isServiceAdvisorRole()) _showWaPrompt(`Send “${LABEL[eventId]}” to ${who} on WhatsApp?`, () => { audit('wa-status-update', `${eventId} → ${who}`, { event: eventId }); _waOpen(phone, msg); });
+      else notify({ kind: 'wa-pending', message: `WhatsApp ${LABEL[eventId]} → ${who}${j.plate ? ' (' + j.plate + ')' : ''}`, target: { role: 'service_advisor' }, job_id: j.id || '', booking_id: j.booking_id || '', meta: { wa_event: eventId, wa_phone: phone, wa_message: msg } });
+    } catch (e) { console.warn('[wa after email]', e); }
+    return res;
+  };
+
+  // The "send a WhatsApp update" menu on a job — now every message that has an email twin.
+  window.waSendUpdate = function (jobId) {
+    if (!isServiceAdvisorRole()) return;
+    const j = (D.jobs || []).find(x => x.id === jobId); if (!j) return showToast('Job not found', 'bad');
+    const inv = (D.invoices || []).find(x => x.job_id === j.id), b = (D.bookings || []).find(x => x.id === j.booking_id) || {};
+    const phone = _bookingPhone(j.booking_id) || j.cust_phone || '';
+    const rows = [];
+    const link = (typeof _latestApprovalLink === 'function') ? _latestApprovalLink(j) : '';
+    if (link) rows.push(['Estimate link', () => { const lang = _custLang(j.cust_name, b.lang), tot = inv ? _invoiceTotals(inv).roundOff : 0; _waOpen(phone, GP.t('wa.estimate', lang, { name: (j.cust_name || '').split(' ')[0], plate: j.plate || '', ws: _wsName(), amount: `${_cur()}${Number(tot).toLocaleString('en-IN')}`, link })); }]);
+    rows.push(['Customer approved — we are proceeding', () => _waOpen(phone, textFor('customer_approved', j))]);
+    rows.push(['Work started', () => _waOpen(phone, textFor('work_started', j))]);
+    rows.push(['Repair done — final checks', () => _waOpen(phone, textFor('qc_started', j))]);
+    rows.push(['Work complete', () => _waOpen(phone, textFor('work_complete', j))]);
+    rows.push(['Choose a pickup time (link)', () => { if (window.pkSendLink) window.pkSendLink(j.id, 'wa'); }]);
+    if (j.pickup_date || j.pickup_time) rows.push(['Pickup time confirmed', () => window.waPickupScheduled(j.id)]);
+    rows.push(['Ready for pickup', () => window.waReady(j.id)]);
+    if (inv) rows.push(['Thank you + invoice', () => window.waInvoice(inv.id)]);
+    if (inv && inv.payment_status !== 'Paid') rows.push(['Payment reminder', () => window.waPaymentReminder(inv.id)]);
+    rows.push(['Custom message…', () => _waCustomMessage(j)]);
+    window._waPickerActions = rows.map(([, fn]) => fn);
+    _openSubModal({ title: `WhatsApp update · ${j.plate}`, bodyHtml: rows.map(([label], i) => `<button type="button" class="mini-btn" style="width:100%;justify-content:flex-start;margin-bottom:8px" onclick="_waPickerRun(${i})">${escapeHtml(label)}</button>`).join(''), footHtml: `<button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>` });
+  };
+})();
+</script>
 <script src="../gp-busy.js"></script>
 </body>
 </html>
