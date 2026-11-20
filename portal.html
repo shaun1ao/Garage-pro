@@ -145,6 +145,7 @@ function pane() {
         ${cancelled ? '' : `<div class="track">${stages.map((s, i) => `<div class="st ${i < cur ? 'd' : i === cur ? 'c' : ''}"><i></i>${esc(s)}</div>`).join('')}</div>`}
         <div class="muted">Booked ${esc(j.created)}${j.mechanic ? ` · technician ${esc(j.mechanic)}` : ''} · last update ${esc(j.updated.replace('T', ' '))}</div>
         ${j.estimate_url ? `<a class="cta" href="${esc(safeUrl(j.estimate_url))}">Review &amp; approve estimate →</a>` : ''}
+        ${j.invoice ? `<div class="row" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><div><b>Invoice ${esc(j.invoice.no || '')}</b><div class="muted" style="font-size:12px">${esc(j.invoice.date)} · ${esc(j.invoice.paid)}</div></div><div style="text-align:right"><b>${inr(j.invoice.total)}</b>${safeUrl(j.invoice.url) ? ` <a class="pill" href="${esc(safeUrl(j.invoice.url))}" target="_blank" rel="noopener">View invoice</a>` : ''}</div></div>` : ''}
         ${(j.photos || []).length ? `<div class="photos">${j.photos.map(p => `<a href="#" onclick="zoom('${esc(safeUrl(p.url))}');return false"><img loading="lazy" src="${esc(safeUrl(p.url))}" alt="${esc(p.label)}"><span>${esc(p.label)}</span></a>`).join('')}</div>` : ''}
       </div>`;
     }).join('');
