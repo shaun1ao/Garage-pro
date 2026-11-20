@@ -21081,9 +21081,9 @@ async function renderWorkload(force = false) {
     const plates = new Set((c.vehicles || []).map(v => norm(v.plate)).filter(Boolean)), nm = (c.name || '').toLowerCase().trim();
     return j => (plates.size && plates.has(norm(j.plate || (j.invoice && j.invoice.plate)))) || (nm && (j.cust_name || '').toLowerCase().trim() === nm);
   };
-  async function ensureInvoiceLinks(invs) {
+  async function ensureInvoiceLinks(invs, limit) {
     let changed = false;
-    for (const inv of invs.slice(0, 12)) {
+    for (const inv of invs.slice(0, limit || 12)) {
       if (inv.view_token && inv.view_published_for === (inv.updated_at || '')) continue;
       try {
         const url = await _publishInvoiceView(inv.id), t = new URL(url).searchParams.get('t');
@@ -21103,13 +21103,14 @@ async function renderWorkload(force = false) {
     const isFinal = i => !i.is_estimate || ['Delivered', 'Ready for Pickup', 'Ready for Delivery'].includes(jobStatus(i.job_id)) || ['Paid', 'Partial'].includes(i.payment_status) || Number(i.amount_paid || 0) > 0;
     const myInvs = (D.invoices || []).filter(i => i.status !== 'Cancelled' && isFinal(i) && ((i.job_id && myJobIds.has(i.job_id)) || (plates.size && plates.has(norm(i.vehicle && i.vehicle.plate))) || ((i.customer && i.customer.name || '').toLowerCase().trim() === (c.name || '').toLowerCase().trim())))
       .sort((a, b) => (b.issue_date || b.created_at || '').localeCompare(a.issue_date || a.created_at || ''));
-    await ensureInvoiceLinks(myInvs);
+    const isFleet = !!(c.fleet && c.fleet.on);
+    await ensureInvoiceLinks(myInvs, isFleet ? 40 : 12);
     const totalOf = i => { try { return _gpRound(Number(_invoiceTotals(i).roundOff || 0)); } catch (_) { return 0; } };
     const jobs = [];
-    for (const j of myJobs.slice(0, 10)) {
+    for (const j of myJobs.slice(0, isFleet ? 40 : 10)) {
       const st = j.status || 'Awaiting Assignment', recent = st !== 'Delivered' || ((j.completed_at || j.updated_at || '').slice(0, 10) >= new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10));
       let photos = [];
-      if (recent && typeof loadJobPhotos === 'function') {
+      if (recent && typeof loadJobPhotos === 'function' && jobs.length < 10) {
         try { photos = (await loadJobPhotos(j.id)).filter(p => SHOW_LABELS.includes(p.label) && /^https:\/\//.test(p.data || '')).slice(0, 8).map(p => ({ url: p.data, label: p.label })); } catch (_) {}
       }
       const ji = myInvs.find(i => i.job_id === j.id) || myInvs.find(i => !i.job_id && norm(i.vehicle && i.vehicle.plate) === norm(j.plate));
@@ -21118,7 +21119,7 @@ async function renderWorkload(force = false) {
         created: (j.created_at || '').slice(0, 10), updated: (j.updated_at || '').slice(0, 16), mechanic: (j.mechanic || '').split(' ')[0],
         estimate_url: st === 'Estimate Sent' ? (_latestApprovalLink(j) || '') : '', photos });
     }
-    const history = myJobs.filter(j => j.status === 'Delivered').slice(0, 25).map(j => {
+    const history = myJobs.filter(j => j.status === 'Delivered').slice(0, isFleet ? 60 : 25).map(j => {
       const inv = (D.invoices || []).find(i => i.job_id === j.id);
       return { date: (j.completed_at || j.updated_at || j.created_at || '').slice(0, 10), plate: j.plate || '', service: j.type || 'Service', total: inv ? totalOf(inv) : 0 };
     });
@@ -21126,7 +21127,8 @@ async function renderWorkload(force = false) {
       workshop: Object.assign({ name: s.workshop_name || '', phone: s.phone || '', city: s.city || '', currency: s.currency || ctry().currency, country: ctry().code, address: (s.address || '').split('\n')[0].slice(0, 120) }, window.obBrand ? await window.obBrand() : {}),
       customer: { first: String(c.name || 'there').split(' ')[0], vehicles: (c.vehicles || []).map(v => ({ plate: v.plate || '', model: [v.make, v.model, v.year].filter(Boolean).join(' ') })).slice(0, 8) },
       jobs, stages: STAGES,
-      invoices: myInvs.slice(0, 12).map(i => ({ no: i.number || '', date: (i.issue_date || i.created_at || '').slice(0, 10), plate: (i.vehicle && i.vehicle.plate) || '', total: totalOf(i), paid: i.payment_status || 'Unpaid', url: i.view_token ? `${siteBase()}/invoice.html?w=${encodeURIComponent(uid)}&t=${encodeURIComponent(i.view_token)}` : '' })),
+      fleet: (isFleet && typeof window._fleetPortalData === 'function') ? window._fleetPortalData(c) : null,
+      invoices: myInvs.slice(0, isFleet ? 100 : 12).map(i => ({ no: i.number || '', date: (i.issue_date || i.created_at || '').slice(0, 10), plate: (i.vehicle && i.vehicle.plate) || '', total: totalOf(i), paid: i.payment_status || 'Unpaid', url: i.view_token ? `${siteBase()}/invoice.html?w=${encodeURIComponent(uid)}&t=${encodeURIComponent(i.view_token)}` : '' })),
       history, updated_at: new Date().toISOString()
     };
   }
@@ -21145,12 +21147,13 @@ async function renderWorkload(force = false) {
       if (!c.portal_token) { c.portal_token = newToken(); c.updated_at = nowStr(); await wsSave('customers', D.customers); }
       const url = await publish(c);
       const ws = (D.settings || {}).workshop_name || 'your workshop';
-      const msg = `Hi ${String(c.name || '').split(' ')[0]}, track your car, see photos, approve estimates and view your invoices here: ${url}  — ${ws}`;
+      const _fl = !!(c.fleet && c.fleet.on);
+      const msg = _fl ? `Hi ${String(c.name || '').split(' ')[0]}, your fleet portal — every vehicle, when each is due for service, invoices and monthly statements — is here: ${url}  — ${ws}` : `Hi ${String(c.name || '').split(' ')[0]}, track your car, see photos, approve estimates and view your invoices here: ${url}  — ${ws}`;
       const wa = `https://wa.me/${(typeof _waDigits === 'function' ? _waDigits(c.phone) : String(c.phone || '').replace(/\D/g, ''))}?text=${encodeURIComponent(msg)}`;
       const o = document.createElement('div');
       o.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);display:grid;place-items:center;padding:20px';
       o.innerHTML = `<div style="background:var(--surf);border:1px solid var(--brd2);border-radius:16px;padding:22px;max-width:480px;width:100%">
-        <div style="font:800 18px var(--fd);margin-bottom:4px">Customer portal for ${esc(c.name)}</div>
+        <div style="font:800 18px var(--fd);margin-bottom:4px">${(c.fleet && c.fleet.on) ? 'Fleet portal' : 'Customer portal'} for ${esc(c.company_name || c.name)}</div>
         <div style="color:var(--dim);font-size:13px;line-height:1.55;margin-bottom:12px">One link with live status, photos, the estimate to approve, past invoices and service history. It updates by itself as you work on their car.</div>
         <input readonly value="${esc(url)}" onclick="this.select()" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:12.5px" />
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
@@ -21750,6 +21753,9 @@ async function renderWorkload(force = false) {
               <div class="f-grp"><label>Credit limit (${esc(cur())}) <span style="color:var(--faint);font-weight:500">0 = no limit</span></label><input id="cf-f-limit" type="number" min="0" step="1000" value="${esc(f.credit_limit || '')}" placeholder="200000"></div>
               <div class="f-grp"><label>Billing email <span style="color:var(--faint);font-weight:500">for statements</span></label><input id="cf-f-bemail" type="email" value="${esc(f.billing_email || '')}" placeholder="accounts@company.in"></div>
             </div>
+            <div class="f-row r3">
+              <div class="f-grp"><label>Service interval <span style="color:var(--faint);font-weight:500">shown as “next service due” on the fleet portal</span></label>${sel('cf-f-int', [[90, 'Every 3 months'], [120, 'Every 4 months'], [180, 'Every 6 months'], [270, 'Every 9 months'], [365, 'Every 12 months']], f.service_interval_days == null ? 180 : f.service_interval_days)}</div>
+            </div>
             <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="cf-f-appr" ${f.approver_required ? 'checked' : ''} style="width:16px;height:16px" onchange="document.getElementById('cf-f-apprbox').style.display=this.checked?'':'none'"> Estimates need sign-off from an <b>approver</b> (not the driver)</label>
             <div id="cf-f-apprbox" class="f-row r3" style="display:${f.approver_required ? '' : 'none'}">
               <div class="f-grp"><label>Approver name</label><input id="cf-f-an" type="text" value="${esc((f.approver || {}).name || '')}" placeholder="Fleet manager"></div>
@@ -21768,7 +21774,7 @@ async function renderWorkload(force = false) {
     const hasExtras = !!document.getElementById('cf-lang');
     const ex = hasExtras ? {
       language: g('cf-lang') || '',
-      fleet: ck('cf-fleet-on') ? { on: true, terms_days: Number(g('cf-f-terms')) || 0, credit_limit: Number(g('cf-f-limit')) || 0, billing_email: (g('cf-f-bemail') || '').trim(),
+      fleet: ck('cf-fleet-on') ? { on: true, service_interval_days: Number(g('cf-f-int')) || 180, terms_days: Number(g('cf-f-terms')) || 0, credit_limit: Number(g('cf-f-limit')) || 0, billing_email: (g('cf-f-bemail') || '').trim(),
         approver_required: ck('cf-f-appr'), approver: { name: (g('cf-f-an') || '').trim(), phone: (g('cf-f-ap') || '').trim(), email: (g('cf-f-ae') || '').trim() }, statement_day: 1 } : null,
       name: (g('cf-name') || '').trim(), phone: (g('cf-phone') || '').trim()
     } : null;
@@ -21779,6 +21785,36 @@ async function renderWorkload(force = false) {
       if (c) { c.language = ex.language; if (ex.fleet) c.fleet = ex.fleet; else delete c.fleet; c.updated_at = nowStr(); try { await wsSave('customers', D.customers); } catch (e) { console.warn('[customer extras]', e); } }
     }
     return r;
+  };
+
+  // ───────── what the customer sees on the FLEET PORTAL ─────────
+  // Vehicles with status + next service due (last delivered visit + the interval set on the fleet account), the money position,
+  // and the last six monthly statements with their lines. Published inside the portal doc (see the portal module's build()).
+  window._fleetPortalData = function (c) {
+    const f = c.fleet || {}, today = ymd(new Date()), interval = Number(f.service_interval_days) || 180, ps = plateSet(c), S = summary(c);
+    const bal = i => { const t = totalOf(i); return Math.max(0, t - paidOf(i, t)); };
+    const invs = invoicesOf(c), jobs = (D.jobs || []).filter(j => ps.has(norm(j.plate)) && !j.hidden_at);
+    const year = addDays(today, -365);
+    const vehicles = (c.vehicles || []).map(v => {
+      const pn = norm(v.plate), vj = jobs.filter(j => norm(j.plate) === pn), vi = invs.filter(i => norm(i.vehicle && i.vehicle.plate) === pn);
+      const active = vj.find(j => !['Delivered', 'Cancelled'].includes(j.status || ''));
+      const done = vj.filter(j => j.status === 'Delivered').sort((a, b) => (b.completed_at || b.updated_at || b.created_at || '').localeCompare(a.completed_at || a.updated_at || a.created_at || ''));
+      const last = done[0] ? (done[0].completed_at || done[0].updated_at || done[0].created_at || '').slice(0, 10) : '';
+      const next = last ? addDays(last, interval) : '';
+      return { plate: v.plate || '', model: [v.make, v.model, v.year].filter(Boolean).join(' ') || v.model || '', status: active ? (active.status || '') : '', service: active ? (active.type || '') : '',
+        last_service: last, last_type: done[0] ? (done[0].type || '') : '', next_due: next, due_state: !last ? 'none' : next < today ? 'overdue' : next <= addDays(today, 30) ? 'soon' : 'ok',
+        visits: done.length, outstanding: vi.reduce((a, i) => a + bal(i), 0), spend_12m: vi.filter(i => issueOf(i) >= year).reduce((a, i) => a + totalOf(i), 0) };
+    }).sort((a, b) => ({ overdue: 0, soon: 1, none: 2, ok: 3 }[a.due_state] - { overdue: 0, soon: 1, none: 2, ok: 3 }[b.due_state]) || String(a.plate).localeCompare(String(b.plate)));
+    const statements = [];
+    for (let k = 0; k < 6; k++) {
+      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - k);
+      const ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'), st = build(c, ym);
+      if (!st.period.length && !st.due) continue;
+      statements.push({ ym, number: st.number, billed: st.billed, bf: st.bf, due: st.due, due_date: st.dueDate, count: st.period.length, current: k === 0,
+        lines: st.older.concat(st.period).map(i => ({ no: i.number || '', date: issueOf(i), plate: (i.vehicle || {}).plate || '', total: totalOf(i), balance: bal(i) })) });
+    }
+    return { company: c.company_name || c.name || '', terms_days: terms(c), credit_limit: S.lim, used_pct: S.usedPct, outstanding: S.outstanding, overdue: S.overdue, spend_12m: S.spend,
+      unpaid_count: S.unpaidN, open_jobs: S.openJobs, interval_days: interval, vehicles: vehicles.slice(0, 250), statements };
   };
 
   // ───────── fleet dashboard ─────────
@@ -21798,7 +21834,7 @@ async function renderWorkload(force = false) {
     const tabs = [['vehicles', 'Vehicles'], ['invoices', 'Invoices'], ['statement', 'Monthly statement']];
     el.innerHTML = `
       <div style="color:var(--faint);font-size:12.5px;margin-bottom:12px">${terms(c) ? 'Net ' + terms(c) + ' days' : 'Pay on delivery'}${S.lim ? ' · credit limit ' + money(S.lim) : ' · no credit limit'}${f.approver_required ? ` · approver: <b style="color:var(--txt)">${esc((f.approver || {}).name || '—')}</b>` : ''}${c.language ? ' · messages in ' + esc(GP.info(c.language)[1]) : ''}
-        <button class="mini-btn" type="button" style="margin-left:8px" onclick="closeModal();openCustomerForm('${esc(c.id)}')">Edit account</button></div>
+        <button class="mini-btn" type="button" style="margin-left:8px" onclick="closeModal();openCustomerForm('${esc(c.id)}')">Edit account</button> <button class="mini-btn good" type="button" style="margin-left:6px" onclick="obPortalShare('${esc(c.id)}')" title="One link for the fleet manager: every vehicle, next service due, invoices and monthly statements">🔗 Fleet portal link</button></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px">
         ${kpi('Vehicles', S.vehicles, 'var(--txt)', `${S.openJobs} in the workshop now`)}
         ${kpi('Outstanding', money(S.outstanding), S.outstanding ? 'var(--acc2)' : 'var(--faint)', `${S.unpaidN} unpaid invoice${S.unpaidN === 1 ? '' : 's'}`)}
