@@ -947,12 +947,21 @@ footer{border-top:1px solid var(--brd);background:var(--bg2);position:relative;z
 /* ── Avoid horizontal overflow from anywhere ── */
 html,body{max-width:100%;overflow-x:hidden}
 
-/* Mobile nav: brand + one compact CTA + hamburger. */
-@media(max-width:560px){
-  .nav-cta{gap:6px}
-  .nav-cta .btn{padding:8px 13px!important;font-size:13px!important}
-  .nav-cta .btn-ghost{display:none}
-  .nav-cta .nav-user{display:none}
+/* Mobile nav: brand + theme toggle + hamburger; CTAs live inside the dropdown. */
+.nav-cta-m{display:none}
+@media(max-width:900px){
+  .nav-inner{gap:10px}
+  .brand-sub{display:none}
+  .nav-cta{display:none}
+  .nav-links.mobile-open{max-height:calc(100vh - 72px);max-height:calc(100dvh - 72px);overflow-y:auto;box-shadow:0 18px 40px rgba(0,0,0,.35)}
+  .nav-links.mobile-open a{font-size:17px;border-bottom:1px solid var(--brd)}
+  .nav-links.mobile-open a::after{display:none}
+  .nav-links.mobile-open .nav-cta-m{display:flex;flex-direction:column;gap:10px;width:100%;margin-top:14px}
+  .nav-cta-m .btn,.nav-cta-m .btn-ghost{display:inline-flex!important;justify-content:center;width:100%;padding:13px 18px!important;font-size:15px!important}
+  .nav-cta-m .nav-user{display:flex;justify-content:center;padding-bottom:2px}
+  .menu-btn{margin-left:auto;padding:6px;display:inline-flex}
+  .theme-toggle{margin-left:auto}
+  .theme-toggle + .nav-cta + .menu-btn{margin-left:0}
 }
 </style>
 <link rel="canonical" href="https://garagepro.me/" />
@@ -1879,6 +1888,7 @@ html,body{max-width:100%;overflow-x:hidden}
       <a href="docs.html">Docs</a>
       <a href="#faq">FAQ</a>
       <a href="app/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Open app</a>
+      <div class="nav-cta-m" id="navCtaM"></div>
     </nav>
     <button class="theme-toggle" id="themeToggle" onclick="toggleGpTheme()" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
       <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -1887,7 +1897,7 @@ html,body{max-width:100%;overflow-x:hidden}
     <div class="nav-cta" id="navCta">
       <!-- rendered by JS -->
     </div>
-    <button class="menu-btn" id="menuBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <button class="menu-btn" id="menuBtn" aria-label="Menu" aria-expanded="false" aria-controls="navLinks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
   </div>
 </header>
 
@@ -1899,7 +1909,7 @@ html,body{max-width:100%;overflow-x:hidden}
     <div class="hero-copy">
       <span class="badge reveal"><span class="dot"></span>One system for your whole workshop (email support to add your country - 1-2 business days max)</span>
       <h1 class="reveal d1">The All-in-One Garage Management System </h1>
-      <p class="hero-tagline reveal d1">Every bay<span class="grad">Under Control</span></p>
+      <p class="hero-tagline reveal d1">Every bay<span class="grad"> Under Control</span></p>
       <p class="sub reveal d2">Garage Pro is the all-in-one system for running a garage: online booking, digital job cards, estimates your customers approve on their phone, parts and inventory, invoicing with the right tax for your country, fleets, breakdown requests and customer updates — all syncing across every device in real time. No install. It opens straight in your browser.</p>
       <div class="hero-cta reveal d3">
         <button class="btn btn-primary" onclick="openAuth('win')">
@@ -4902,8 +4912,17 @@ onScroll();
 window.addEventListener('scroll', onScroll, {passive:true});
 const menuBtn = document.getElementById('menuBtn');
 const navLinks = document.getElementById('navLinks');
-menuBtn.addEventListener('click', () => navLinks.classList.toggle('mobile-open'));
-navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', () => navLinks.classList.remove('mobile-open')));
+menuBtn.addEventListener('click', () => { const o = navLinks.classList.toggle('mobile-open'); menuBtn.setAttribute('aria-expanded', o); });
+navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { navLinks.classList.remove('mobile-open'); menuBtn.setAttribute('aria-expanded','false'); }));
+(function(){ // mirror the JS-rendered account buttons into the dropdown
+  const src = document.getElementById('navCta'), dst = document.getElementById('navCtaM');
+  if (!src || !dst) return;
+  const sync = () => { dst.innerHTML = src.innerHTML; };
+  new MutationObserver(sync).observe(src, {childList:true, subtree:true, characterData:true}); sync();
+  dst.addEventListener('click', e => { if (e.target.closest('button')) { navLinks.classList.remove('mobile-open'); menuBtn.setAttribute('aria-expanded','false'); } });
+  document.addEventListener('click', e => { if (navLinks.classList.contains('mobile-open') && !e.target.closest('#nav')) { navLinks.classList.remove('mobile-open'); menuBtn.setAttribute('aria-expanded','false'); } });
+  window.addEventListener('resize', () => { if (innerWidth > 900) navLinks.classList.remove('mobile-open'); });
+})();
 
 const io = new IntersectionObserver((entries) => {
   entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
