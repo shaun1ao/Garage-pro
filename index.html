@@ -1553,6 +1553,14 @@ html,body{max-width:100%;overflow-x:hidden}
         <div class="bsum-item"><span class="lbl">Billing</span><span class="val" id="bsumCycle">Monthly</span></div>
         <div class="bsum-total"><span>Total</span><span class="val" id="bsumTotal">₹0</span></div>
         <div style="font-size:12px;color:var(--faint);margin-top:6px">Taxes (e.g. GST) and any discount code are applied at checkout.</div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--brd)">
+          <div style="font-size:13px;font-weight:700;margin-bottom:6px">Who is paying?</div>
+          <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px" for="bsumBillEmail">Billing email <span style="color:var(--faint)">(the receipt goes here — it can be different from your login)</span></label>
+          <input id="bsumBillEmail" type="email" autocomplete="email" placeholder="accounts@yourworkshop.com" style="width:100%;padding:11px 12px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb);margin-bottom:8px">
+          <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px" for="bsumBillName">Name on the receipt</label>
+          <input id="bsumBillName" type="text" autocomplete="name" placeholder="Your name or company" style="width:100%;padding:11px 12px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-family:var(--fb)">
+          <div style="font-size:11.5px;color:var(--faint);margin-top:6px;line-height:1.5">Your plan is activated on <b>this</b> Garage Pro account whatever email you pay with.</div>
+        </div>
         <div id="bsumFx" style="display:none;font-size:12px;color:var(--dim);margin-top:8px;line-height:1.55">The price is set in rupees (₹). The amount in your currency is only a <b>rough estimate</b> — it is best to check the price in your local currency on the checkout page before you pay.</div>
         <button class="btn btn-primary" id="lsPayBtn" onclick="startLemonCheckout()" style="width:100%;justify-content:center;margin-top:24px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
@@ -5480,6 +5488,14 @@ function updateBillingPrices() {
   const planLabel = document.querySelector('#billingModal .bplan b');
   if (planLabel) planLabel.textContent = `Garage Pro — ${plan.name}`;
   const tb = document.getElementById('lsTestBanner'); if (tb) tb.style.display = LS_CONFIG.testMode ? 'block' : 'none';
+  // Prefill the billing email/name once — but never a made-up login (shared staff / branch logins use @staff.garagepro.me addresses)
+  try {
+    const be = document.getElementById('bsumBillEmail'), bn = document.getElementById('bsumBillName');
+    const login = (fbAuth && fbAuth.currentUser && fbAuth.currentUser.email) || '';
+    const real = login && !/@staff\.garagepro\.me$/i.test(login) ? login : '';
+    if (be && !be.dataset.touched) { be.value = be.value || localStorage.getItem('gp_bill_email') || real; be.addEventListener('input', () => { be.dataset.touched = '1'; }, { once: true }); }
+    if (bn && !bn.dataset.touched) { bn.value = bn.value || localStorage.getItem('gp_bill_name') || (currentUser && !currentUser.isAdmin && currentUser.name) || ''; bn.addEventListener('input', () => { bn.dataset.touched = '1'; }, { once: true }); }
+  } catch (_) {}
 }
 // "Renew" = buy again the plan the customer was last on (or the plan picker if
 // that plan is free / a trial / no longer offered), straight into checkout.
@@ -5520,8 +5536,13 @@ async function startLemonCheckout() {
     url = new URL(link);
     url.searchParams.set('embed', '1');
     url.searchParams.set('media', '0');
-    url.searchParams.set('checkout[email]', fbAuth.currentUser.email || '');
-    url.searchParams.set('checkout[name]', currentUser.name || '');
+    // The buyer chooses who pays: the billing email / name typed in the order summary (blank = Lemon Squeezy asks). The plan still
+    // activates on THIS account through checkout[custom][uid], so the billing email never has to match the login.
+    const be = (document.getElementById('bsumBillEmail') || {}).value || '', bn = (document.getElementById('bsumBillName') || {}).value || '';
+    if (be.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(be.trim())) { showToast('That billing email does not look right — check it, or clear it and enter it at checkout.', 'bad'); return; }
+    try { be.trim() ? localStorage.setItem('gp_bill_email', be.trim()) : localStorage.removeItem('gp_bill_email'); bn.trim() ? localStorage.setItem('gp_bill_name', bn.trim()) : localStorage.removeItem('gp_bill_name'); } catch (_) {}
+    if (be.trim()) url.searchParams.set('checkout[email]', be.trim());
+    if (bn.trim()) url.searchParams.set('checkout[name]', bn.trim());
     url.searchParams.set('checkout[custom][uid]', fbAuth.currentUser.uid);
     url.searchParams.set('checkout[custom][plan]', plan.id);
     url.searchParams.set('checkout[custom][cycle]', cycle);
