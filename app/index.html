@@ -1728,7 +1728,7 @@ function _dataUrlToBlob(dataUrl) {
 firebase.initializeApp(FB_CONFIG);
 const fbAuth = firebase.auth();
 const fbDb   = firebase.firestore();
-try { fbDb.settings({ ignoreUndefinedProperties: true }); } catch (e) { console.warn('[fb] settings', e); }   // an optional field left undefined (e.g. a tax number) must not make the whole save fail
+try { fbDb.settings({ ignoreUndefinedProperties: true, cacheSizeBytes: 150 * 1024 * 1024 }); } catch (e) { console.warn('[fb] settings', e); }   // an optional field left undefined (e.g. a tax number) must not make the whole save fail
 // Firebase Storage — used for job-card photo uploads (one file per photo,
 // kept under users/{uid}/job-photos/{photo_id}). Storage rules must allow
 // the signed-in user to read+write their own folder.
@@ -8802,7 +8802,8 @@ async function _publishInvoiceView(invId) {
     token, invoice_id: inv.id, invoice_no: inv.number || '',
     workshop_name: (D.settings || {}).workshop_name || 'Garage Pro',
     plate: inv.vehicle?.plate || '', cust_name: inv.customer?.name || '',
-    html, created_at: nowStr()
+    html, created_at: nowStr(),
+    ...(typeof window._gpPayFields === 'function' ? window._gpPayFields(inv) : {})
   };
   await wsCol('invoice_views').doc(token).set(doc);
   return `${_apprSiteBase()}/invoice.html?w=${encodeURIComponent(wsUid())}&t=${encodeURIComponent(token)}`;
@@ -25114,6 +25115,495 @@ ${round > 0.004 ? ent(ac.round_ledger, round, false) : round < -0.004 ? ent(ac.r
     window._waPickerActions = rows.map(([, fn]) => fn);
     _openSubModal({ title: `WhatsApp update · ${j.plate}`, bodyHtml: rows.map(([label], i) => `<button type="button" class="mini-btn" style="width:100%;justify-content:flex-start;margin-bottom:8px" onclick="_waPickerRun(${i})">${escapeHtml(label)}</button>`).join(''), footHtml: `<button class="fbtn fbtn-cancel" onclick="closeSubModal()">Cancel</button>` });
   };
+})();
+</script>
+<script>
+// ═════════════════════════════════════════════════════════════════════════════
+//  PAY-ONLINE LINK · DATA RETENTION · WARRANTY TRACKER · INDIA E-INVOICE (IRN) · OFFLINE MODE
+//  Every piece here is optional / off-by-default where it could surprise anyone, except data retention
+//  (on by default, with a 30-day notice period — see the retention card in Settings).
+//  NOT legal advice — have your accountant approve e-invoicing and retention against the rules where you operate.
+// ═════════════════════════════════════════════════════════════════════════════
+(function () {
+  const esc = s => escapeHtml(String(s == null ? '' : s));
+  const S = () => (D.settings || (D.settings = {}));
+  const g = id => document.getElementById(id);
+  const val = id => (g(id) ? g(id).value : '');
+  const today = () => new Date().toISOString().slice(0, 10);
+  const dmy = iso => { try { return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return iso || ''; } };
+  const SVG = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const cc = () => { try { return ctry().code; } catch (_) { return 'IN'; } };
+  const round2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+  const invCur = inv => { try { return _cur(inv.workshop_snapshot && inv.workshop_snapshot.currency); } catch (_) { return ''; } };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  1 · PAY-ONLINE LINK ON THE CUSTOMER'S INVOICE PAGE
+  //  The workshop pastes ONE payment link (Razorpay / Stripe / Telr / UPI …). If the switch is off or no link is set,
+  //  the customer sees nothing. Garage Pro never touches the money — the workshop marks the invoice paid as usual.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const PAY = () => Object.assign({ enabled: false, url: '', label: 'Pay online' }, S().pay_online || {});
+  const okPayUrl = u => /^(https:\/\/|upi:\/\/pay\?)/i.test(String(u || '').trim());
+  window._gpPayFields = function (inv) {
+    const none = { pay_url: '', pay_label: '', balance: 0, currency: '', paid: false };
+    try {
+      const p = PAY();
+      if (!p.enabled || !okPayUrl(p.url) || !inv || inv.is_estimate) return none;
+      const bal = round2(_invBalance(inv)), cur = invCur(inv);
+      const url = String(p.url).trim()
+        .replace(/\{amount\}/gi, encodeURIComponent(bal.toFixed(2)))
+        .replace(/\{invoice\}/gi, encodeURIComponent(inv.number || ''))
+        .replace(/\{currency\}/gi, encodeURIComponent((inv.workshop_snapshot && inv.workshop_snapshot.currency) || ''));
+      return { pay_url: url, pay_label: String(p.label || 'Pay online').slice(0, 40), balance: bal, currency: cur, paid: bal <= 0.004 };
+    } catch (e) { console.warn('[pay fields]', e); return none; }
+  };
+  // keep the customer's page honest after the workshop records a payment
+  const lastBal = new Map();
+  async function syncPayState(items) {
+    if (!PAY().enabled) return;
+    for (const inv of items || []) {
+      if (!inv || !inv.id || inv.is_estimate) continue;
+      let bal; try { bal = round2(_invBalance(inv)); } catch (_) { continue; }
+      const prev = lastBal.get(inv.id); lastBal.set(inv.id, bal);
+      if (prev === undefined || Math.abs(prev - bal) < 0.005) continue;
+      try { const q = await wsCol('invoice_views').where('invoice_id', '==', inv.id).get(); q.forEach(d => d.ref.update({ balance: bal, paid: bal <= 0.004 }).catch(() => {})); } catch (e) { console.warn('[pay sync]', e); }
+    }
+  }
+  const _wsSave0 = window.wsSave;
+  if (typeof _wsSave0 === 'function') window.wsSave = function (name, items) {
+    const r = _wsSave0.apply(this, arguments);
+    if (name === 'invoices') { try { syncPayState(items); } catch (_) {} }
+    return r;
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  2 · DATA RETENTION (the deleting itself is done by the nightly Cloud Function `retentionSweep`)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const RET = () => Object.assign({ keep_photos: false, keep_jobs: false, notice_at: '' }, S().retention || {});
+  async function retentionNotice() {
+    try {
+      if (!isOwnerRole() || !wsUid()) return;
+      const r = RET(); if (r.notice_at) return;
+      S().retention = Object.assign({}, S().retention || {}, { notice_at: nowStr() });
+      await wsSaveSettings();
+      customAlert('Photos and closed job cards older than 6 months are now deleted automatically, starting in 30 days (this keeps your storage small and respects your customers\' privacy). Invoices, customers, vehicles and warranty records are never deleted. To keep everything, tick "Keep" in Settings → Data retention before then.', { title: 'New: automatic clean-up' });
+    } catch (e) { console.warn('[retention notice]', e); }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  settings card (pay link · retention · warranty · e-invoicing)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const WR = () => Object.assign({ enabled: true, part_months: 6, labour_months: 3 }, S().warranty || {});
+  const EI = () => Object.assign({ enabled: false, pin: '' }, S().einvoice || {});
+  async function renderCard() {
+    const body = g('settingsBody'); if (!body || !isAdminRole()) return;
+    let host = g('gp2CardHost');
+    if (!host) { host = document.createElement('div'); host.id = 'gp2CardHost'; const grid = body.firstElementChild; if (!grid) return; const after = g('moreCardHost') || g('extrasCardHost'); grid.insertBefore(host, after ? after.nextSibling : grid.firstChild); }
+    const p = PAY(), r = RET(), w = WR(), e = EI();
+    const box = (id, on, title, desc, inner) => `<div style="background:var(--bg2);border-radius:12px;padding:14px"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="width:17px;height:17px"> ${title}</label><div style="color:var(--faint);font-size:12.5px;margin:6px 0 ${inner ? '10px' : '0'};line-height:1.55">${desc}</div>${inner || ''}</div>`;
+    const inp = 'width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt)';
+    let last = '';
+    try { const q = await wsCol('retention_log').orderBy('at', 'desc').limit(1).get(); if (!q.empty) { const d = q.docs[0].data(); last = `Last clean-up: ${esc(String(d.at || '').slice(0, 10))} — ${d.photos || 0} photos, ${d.feed || 0} live-feed items, ${d.jobs || 0} job cards removed.`; } } catch (_) {}
+    host.innerHTML = `<div class="card" style="padding:18px"><h3 style="margin:0 0 4px">Payments, retention, warranty &amp; e-invoicing</h3><div style="color:var(--faint);font-size:13px;margin-bottom:14px;max-width:660px">Optional extras. Each one only appears where it is switched on.</div><div style="display:grid;gap:12px">
+      ${box('g2-pay', p.enabled, 'Pay-online link on invoices', 'Paste a payment link from Razorpay, Stripe, Telr, PayTabs, a UPI link … Customers who open an invoice link you sent see a "Pay online" button while a balance is due. Switch this off, or leave the link empty, and no button is shown. Garage Pro does not handle the money: mark the invoice paid as usual once it arrives. In the link you can use {amount}, {invoice} and {currency} — they are filled in for each invoice.', `<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px"><div><div style="font-size:12px;color:var(--faint);margin-bottom:3px">Payment link (https://… or upi://pay?…)</div><input id="g2-payurl" value="${esc(p.url)}" placeholder="https://rzp.io/l/your-link" style="${inp}"></div><div><div style="font-size:12px;color:var(--faint);margin-bottom:3px">Button text</div><input id="g2-paylbl" value="${esc(p.label)}" maxlength="40" style="${inp}"></div></div>`)}
+      <div style="background:var(--bg2);border-radius:12px;padding:14px"><b>Data retention</b><div style="color:var(--faint);font-size:12.5px;margin:6px 0 10px;line-height:1.55">Every night, photos and videos older than 6 months are deleted (from our image storage too), and so are closed job cards (Delivered or Cancelled) older than 6 months. Never deleted: invoices, credit notes, customers, vehicles, warranty records, open jobs and jobs with an unpaid invoice. Deleted items cannot be recovered. Tick a box to keep that data for ever.</div>
+        <label style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><input type="checkbox" id="g2-keepph" ${r.keep_photos ? 'checked' : ''} style="width:17px;height:17px"> Keep photos &amp; videos (do not delete after 6 months)</label>
+        <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="g2-keepjob" ${r.keep_jobs ? 'checked' : ''} style="width:17px;height:17px"> Keep job cards (do not delete after 6 months)</label>
+        <div style="font-size:12px;color:var(--faint);margin-top:8px">${r.notice_at ? 'Automatic clean-up starts 30 days after ' + esc(String(r.notice_at).slice(0, 10)) + '.' : 'Not started yet.'} ${last}</div></div>
+      ${box('g2-war', w.enabled, 'Warranty tracker', 'A Warranty tab: every part and the labour on an invoice gets a warranty period. Look up a returning customer by plate, name, phone or invoice and see in seconds what is still covered, raise a claim, and collect claims for each supplier. Records are kept even after job cards are cleaned up.', `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><div style="font-size:12px;color:var(--faint);margin-bottom:3px">Default warranty on parts (months, 0 = none)</div><input id="g2-wpart" type="number" min="0" max="120" value="${esc(w.part_months)}" style="${inp}"></div><div><div style="font-size:12px;color:var(--faint);margin-bottom:3px">Default warranty on labour (months, 0 = none)</div><input id="g2-wlab" type="number" min="0" max="120" value="${esc(w.labour_months)}" style="${inp}"></div></div>`)}
+      ${cc() === 'IN' ? box('g2-ein', e.enabled || !!S().turnover_over_5cr, 'E-invoicing (India — IRN)', 'Shows an "e-Inv" button on B2B invoices. Garage Pro builds the e-invoice file (NIC schema 1.1) for the Invoice Registration Portal; you upload it there (or through your GSP / accounting software), then paste back the IRN, acknowledgement and signed QR so they print on the invoice. Garage Pro does not connect to the government portal itself. Required for businesses above the e-invoicing turnover limit — ask your accountant.', `<div style="max-width:260px"><div style="font-size:12px;color:var(--faint);margin-bottom:3px">Your workshop PIN code (6 digits)</div><input id="g2-einpin" value="${esc(e.pin)}" maxlength="6" inputmode="numeric" style="${inp}"></div>`) : ''}
+      ${cc() === 'AE' ? `<div style="background:var(--bg2);border-radius:12px;padding:14px"><b>E-invoicing (UAE)</b><div style="color:var(--faint);font-size:12.5px;margin-top:6px;line-height:1.55">An "XML" button on every invoice downloads a PINT-AE style (UBL 2.1) e-invoice file for your Accredited Service Provider. The UAE rollout dates and the exact format are set by the Ministry of Finance and your provider — confirm with them before relying on the file.</div></div>` : ''}
+      </div><div style="margin-top:14px"><button class="add-btn" type="button" onclick="gp2Save()">Save</button></div></div>`;
+  }
+  window.gp2Save = async function () {
+    const url = val('g2-payurl').trim();
+    if (g('g2-pay').checked && url && !okPayUrl(url)) return showToast('The payment link must start with https:// (or upi://pay?)', 'bad');
+    const s = S();
+    s.pay_online = { enabled: g('g2-pay').checked && !!url, url, label: val('g2-paylbl').trim() || 'Pay online' };
+    s.retention = Object.assign({}, s.retention || {}, { keep_photos: g('g2-keepph').checked, keep_jobs: g('g2-keepjob').checked });
+    s.warranty = { enabled: g('g2-war').checked, part_months: Math.max(0, Math.min(120, +val('g2-wpart') || 0)), labour_months: Math.max(0, Math.min(120, +val('g2-wlab') || 0)) };
+    if (g('g2-ein')) { const pin = val('g2-einpin').trim(); if (pin && !/^\d{6}$/.test(pin)) return showToast('The PIN code must be 6 digits', 'bad'); s.einvoice = { enabled: g('g2-ein').checked, pin }; }
+    try { await wsSaveSettings(); } catch (e) { return showToast('Save failed: ' + (e.message || e), 'bad'); }
+    try { renderSidebarVisibility(); } catch (_) {}
+    if (g('g2-pay').checked && !url) showToast('Saved — no link entered, so no Pay button will be shown', 'good'); else showToast('Saved', 'good');
+    renderCard();
+  };
+  const _rs = window.renderSettings;
+  if (typeof _rs === 'function') window.renderSettings = async function () { const r = await _rs.apply(this, arguments); try { await renderCard(); } catch (e) { console.warn('[gp2 card]', e); } return r; };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  3 · WARRANTY TRACKER
+  // ═══════════════════════════════════════════════════════════════════════════
+  const TABS = [];
+  function addTab(id, label, svg, roles, enabled, draw) {
+    try {
+      roles.forEach(r => { if (DEFAULT_ROLE_PERMS[r] && !DEFAULT_ROLE_PERMS[r].includes(id)) DEFAULT_ROLE_PERMS[r].push(id); });
+      if (!ALL_TABS.some(t => t.id === id)) ALL_TABS.push({ id, label });
+      TAB_TITLES[id] = label;
+    } catch (e) { console.warn('[tab perms]', id, e); }
+    const base = window.canSee;
+    const can = () => { try { return enabled() && !isChainHQMode() && base(id); } catch (_) { return false; } };
+    window.canSee = function (t) { return t === id ? can() : base.apply(this, arguments); };
+    TABS.push({ id, label, svg, can, draw });
+  }
+  function ensureUi() {
+    TABS.forEach(T => {
+      const nav = document.querySelector(`.snav[data-tab="${T.id}"]`), panel = g('tab-' + T.id);
+      if (!T.can()) { if (nav) nav.remove(); if (panel) panel.remove(); return; }
+      if (!nav) {
+        const after = document.querySelector('.snav[data-tab="invoices"]') || document.querySelector('.snav[data-tab="jobs"]');
+        if (after) { const b = document.createElement('button'); b.className = 'snav'; b.dataset.tab = T.id; b.onclick = () => switchTab(T.id); b.innerHTML = SVG(T.svg) + esc(T.label) + `<span id="${T.id}Badge" style="margin-left:auto;display:none;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;padding:0 5px"></span>`; after.after(b); }
+      }
+      if (!panel) { const host = g('tab-workload') && g('tab-workload').parentNode; if (host) { const d = document.createElement('div'); d.className = 'tab-panel'; d.id = 'tab-' + T.id; host.appendChild(d); } }
+    });
+  }
+  const _rsv = window.renderSidebarVisibility;
+  if (typeof _rsv === 'function') window.renderSidebarVisibility = function () { const r = _rsv.apply(this, arguments); try { ensureUi(); } catch (e) { console.warn('[gp2 ui]', e); } return r; };
+  const _st = window.switchTab;
+  if (typeof _st === 'function') window.switchTab = function (tab) { const r = _st.apply(this, arguments); const T = TABS.find(x => x.id === tab); if (T) T.draw(); return r; };
+  function setBadge(id, n) { const b = g(id + 'Badge'); if (b) { b.textContent = n; b.style.display = n ? 'inline-flex' : 'none'; } }
+
+  addTab('warranty', 'Warranty', '<path d="M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/>', ['manager', 'service_advisor', 'receptionist'], () => WR().enabled, () => drawWarranty());
+
+  let WS = { items: [], loaded: false, q: '', f: 'active' };
+  async function loadWarranties() {
+    if (WS.loaded) return;
+    try { WS.items = await wsLoad('warranties'); } catch (_) { WS.items = []; }
+    WS.loaded = true;
+  }
+  const saveWarranties = () => wsSave('warranties', WS.items);
+  const addMonths = (iso, m) => { const d = new Date(iso + 'T12:00:00'); const day = d.getDate(); d.setMonth(d.getMonth() + Number(m)); if (d.getDate() < day) d.setDate(0); return d.toISOString().slice(0, 10); };
+  const daysLeft = w => Math.ceil((new Date(w.end + 'T23:59:59') - new Date()) / 86400000);
+  const openClaim = w => (w.claims || []).some(c => c.status === 'open' || c.status === 'sent');
+  function wStatus(w) {
+    if (w.void) return { k: 'void', label: 'Removed', c: 'var(--faint)' };
+    const d = daysLeft(w);
+    if (d < 0) return { k: 'expired', label: 'Expired ' + (-d) + ' day' + (-d === 1 ? '' : 's') + ' ago', c: 'var(--red)' };
+    if (d <= 30) return { k: 'soon', label: d + ' day' + (d === 1 ? '' : 's') + ' left', c: 'var(--amber,#f5a524)' };
+    return { k: 'active', label: 'Covered · ' + (d >= 60 ? Math.round(d / 30) + ' months left' : d + ' days left'), c: 'var(--teal)' };
+  }
+  // Create a record for every part line and the labour on each issued invoice (idempotent; a record is never recreated once it exists, even if removed)
+  async function syncFromInvoices() {
+    const w = WR(); let added = 0;
+    const have = new Set(WS.items.map(x => x.key));
+    (D.invoices || []).forEach(inv => {
+      if (!inv || inv.is_estimate || inv.status === 'Cancelled' || inv.status === 'Draft') return;
+      const start = inv.issue_date || (inv.created_at || '').slice(0, 10); if (!start) return;
+      const base = { invoice_id: inv.id, invoice_no: inv.number || '', customer: (inv.customer && inv.customer.name) || '', phone: ((() => { try { return _invPhone(inv); } catch (_) { return ''; } })()), plate: (inv.vehicle && inv.vehicle.plate) || '', vehicle: [inv.vehicle && inv.vehicle.make, inv.vehicle && inv.vehicle.model].filter(Boolean).join(' '), start, claims: [] };
+      (inv.lines || []).forEach((l, i) => {
+        const key = inv.id + ':L' + i + ':' + (l.name || ''); if (have.has(key)) return;
+        const months = l.warranty_months != null && l.warranty_months !== '' ? Number(l.warranty_months) : Number(w.part_months);
+        if (!(months > 0) || !l.name || addMonths(start, months) < today()) return;      // already expired: nothing to track
+        let vendor = l.vendor || ''; if (!vendor && l.inventory_id) { const it = (D.inventory || []).find(x => x.id === l.inventory_id); vendor = (it && it.vendor) || ''; }
+        WS.items.push(Object.assign({ id: uid('war'), key, kind: 'part', item: l.name, qty: Math.max(1, Number(l.qty || 1)), vendor, months, end: addMonths(start, months) }, base)); have.add(key); added++;
+      });
+      const names = (inv.charges || []).map(c => c.name).filter(Boolean);
+      const key = inv.id + ':LAB';
+      if (names.length && !have.has(key) && Number(w.labour_months) > 0 && addMonths(start, Number(w.labour_months)) >= today()) { WS.items.push(Object.assign({ id: uid('war'), key, kind: 'labour', item: 'Labour: ' + names.slice(0, 4).join(', ') + (names.length > 4 ? '…' : ''), qty: 1, vendor: '', months: Number(w.labour_months), end: addMonths(start, Number(w.labour_months)) }, base)); have.add(key); added++; }
+    });
+    // the whole list is one Firestore document, so drop long-expired records that have no claim on them
+    const cut = addMonths(today(), -12), before = WS.items.length;
+    WS.items = WS.items.filter(x => x.manual || (x.claims || []).length || String(x.end) >= cut);
+    if (WS.items.length !== before) added += 1;
+    if (added) { try { await saveWarranties(); } catch (e) { console.warn('[warranty sync]', e); } }
+    return added;
+  }
+  async function drawWarranty() {
+    const p = g('tab-warranty'); if (!p) return;
+    if (!WS.loaded) { p.innerHTML = '<div class="empty-state"><p>Loading…</p></div>'; await loadWarranties(); }
+    await syncFromInvoices();
+    const q = WS.q.trim().toLowerCase(), qd = q.replace(/\D/g, '');
+    const all = WS.items.filter(x => !x.void);
+    let rows = all.filter(x => !q || [x.plate, x.customer, x.invoice_no, x.item, x.vendor, x.vehicle].join(' ').toLowerCase().includes(q) || (qd.length >= 4 && String(x.phone || '').replace(/\D/g, '').includes(qd)));
+    const st = x => wStatus(x).k;
+    const counts = { active: all.filter(x => ['active', 'soon'].includes(st(x))).length, soon: all.filter(x => st(x) === 'soon').length, claim: all.filter(openClaim).length, expired: all.filter(x => st(x) === 'expired').length };
+    if (WS.f === 'active') rows = rows.filter(x => ['active', 'soon'].includes(st(x))); else if (WS.f === 'soon') rows = rows.filter(x => st(x) === 'soon'); else if (WS.f === 'claim') rows = rows.filter(openClaim); else if (WS.f === 'expired') rows = rows.filter(x => st(x) === 'expired');
+    rows.sort((a, b) => String(a.end).localeCompare(String(b.end)));
+    setBadge('warranty', counts.claim);
+    const chip = (k, label, n) => `<button type="button" class="mini-btn" onclick="gwFilter('${k}')" style="${WS.f === k ? 'border-color:var(--acc);color:var(--acc2)' : ''}">${label} <b>${n}</b></button>`;
+    p.innerHTML = `<div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px"><div><h2 style="margin:0">Warranty</h2><div style="color:var(--faint);font-size:13px;margin-top:3px">Search a plate, name, phone or invoice to check what is still covered.</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="mini-btn" type="button" onclick="gwSupplier()">Supplier claims</button><button class="add-btn" type="button" onclick="gwAdd()">+ Add warranty</button></div></div>
+      <input id="gwQ" type="search" value="${esc(WS.q)}" placeholder="Plate, customer, phone, invoice no. or part…" oninput="gwSearch(this.value)" style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt);font-size:15px;margin-bottom:10px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${chip('active', 'Covered', counts.active)}${chip('soon', 'Ending in 30 days', counts.soon)}${chip('claim', 'Open claims', counts.claim)}${chip('expired', 'Expired', counts.expired)}${chip('all', 'All', all.length)}</div>
+      ${rows.length ? rows.map(x => { const s = wStatus(x), oc = (x.claims || []).filter(c => c.status === 'open' || c.status === 'sent').length; return `<div style="border:1px solid var(--brd);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+        <div><div style="font-weight:700">${esc(x.item)}${x.qty > 1 ? ' × ' + esc(x.qty) : ''} <span style="font-size:11px;font-weight:700;color:var(--faint);border:1px solid var(--brd);border-radius:6px;padding:1px 6px;margin-left:4px">${x.kind === 'labour' ? 'LABOUR' : 'PART'}</span></div>
+        <div style="font-size:12.5px;color:var(--dim);margin-top:3px">${x.plate ? '<span class="plate">' + esc(x.plate) + '</span> ' : ''}${esc(x.customer)}${x.vehicle ? ' · ' + esc(x.vehicle) : ''} · Invoice ${esc(x.invoice_no)}${x.vendor ? ' · Supplier: ' + esc(x.vendor) : ''}</div>
+        <div style="font-size:12.5px;margin-top:3px"><b style="color:${s.c}">${esc(s.label)}</b> <span style="color:var(--faint)">· ${esc(dmy(x.start))} → ${esc(dmy(x.end))} (${esc(x.months)} mo)</span>${oc ? ` · <b style="color:var(--red)">${oc} open claim${oc > 1 ? 's' : ''}</b>` : ''}</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn good" type="button" onclick="gwClaim('${esc(x.id)}')">${(x.claims || []).length ? 'Claims' : 'Raise claim'}</button><button class="mini-btn" type="button" onclick="gwEdit('${esc(x.id)}')">Edit</button></div></div>`; }).join('') : `<div class="empty-state"><p>${all.length ? 'Nothing matches.' : 'Warranty records appear here as invoices are issued.'}</p></div>`}`;
+    const qi = g('gwQ'); if (qi && document.activeElement !== qi && WS.q) { /* keep typing position */ }
+  }
+  window.gwSearch = v => { WS.q = v; clearTimeout(window._gwT); window._gwT = setTimeout(async () => { const sel = g('gwQ') && g('gwQ').selectionStart; await drawWarranty(); const qi = g('gwQ'); if (qi) { qi.focus(); try { qi.setSelectionRange(sel, sel); } catch (_) {} } }, 180); };
+  window.gwFilter = k => { WS.f = k; drawWarranty(); };
+  const getW = id => WS.items.find(x => x.id === id);
+  window.gwEdit = id => {
+    const w = getW(id); if (!w) return;
+    openModal({ title: 'Edit warranty', saveLabel: 'Save', body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="f-grp" style="grid-column:span 2"><label>Item</label><input id="gwI" value="${esc(w.item)}"></div>
+      <div class="f-grp"><label>Starts</label><input id="gwS" type="date" value="${esc(w.start)}"></div><div class="f-grp"><label>Length (months)</label><input id="gwM" type="number" min="1" max="120" value="${esc(w.months)}"></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Supplier / vendor (for supplier claims)</label><input id="gwV" value="${esc(w.vendor || '')}"></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Notes</label><input id="gwN" value="${esc(w.notes || '')}" placeholder="e.g. batch no., manufacturer terms"></div></div>
+      <div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div><div style="margin-top:12px"><button type="button" class="mini-btn danger" onclick="gwVoid('${esc(w.id)}')">Remove this warranty record</button></div>`,
+      onSave: async () => { const m = Math.round(+val('gwM')); if (!(m >= 1)) throw new Error('Enter the length in months'); if (!val('gwS')) throw new Error('Pick the start date'); if (!val('gwI').trim()) throw new Error('Enter the item');
+        Object.assign(w, { item: val('gwI').trim(), start: val('gwS'), months: m, end: addMonths(val('gwS'), m), vendor: val('gwV').trim(), notes: val('gwN').trim() }); await saveWarranties(); closeModal(); drawWarranty(); showToast('Saved', 'good'); } });
+  };
+  window.gwVoid = async id => { const w = getW(id); if (!w) return; if (!(await customConfirm('Remove this warranty record? It will not come back.', { title: 'Remove', okLabel: 'Remove' }))) return; w.void = true; try { await saveWarranties(); } catch (e) { return showToast('Could not save: ' + (e.message || e), 'bad'); } closeModal(); drawWarranty(); };
+  window.gwAdd = () => {
+    openModal({ title: 'Add a warranty', saveLabel: 'Add', body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="f-grp" style="grid-column:span 2"><label>Item</label><input id="gwI" placeholder="e.g. Battery 65Ah"></div>
+      <div class="f-grp"><label>Plate</label><input id="gwP"></div><div class="f-grp"><label>Customer</label><input id="gwC"></div><div class="f-grp"><label>Phone</label><input id="gwPh"></div><div class="f-grp"><label>Invoice no.</label><input id="gwIn"></div>
+      <div class="f-grp"><label>Starts</label><input id="gwS" type="date" value="${today()}"></div><div class="f-grp"><label>Length (months)</label><input id="gwM" type="number" min="1" max="120" value="12"></div>
+      <div class="f-grp" style="grid-column:span 2"><label>Supplier / vendor</label><input id="gwV"></div></div><div class="f-err" style="color:var(--red);font-size:13px;margin-top:8px"></div>`,
+      onSave: async () => { const m = Math.round(+val('gwM')); if (!val('gwI').trim()) throw new Error('Enter the item'); if (!(m >= 1)) throw new Error('Enter the length in months');
+        WS.items.push({ id: uid('war'), key: 'manual:' + uid('k'), kind: 'part', item: val('gwI').trim(), qty: 1, vendor: val('gwV').trim(), plate: val('gwP').trim(), customer: val('gwC').trim(), phone: val('gwPh').trim(), invoice_no: val('gwIn').trim(), vehicle: '', start: val('gwS'), months: m, end: addMonths(val('gwS'), m), claims: [], manual: true }); await saveWarranties(); closeModal(); drawWarranty(); showToast('Added', 'good'); } });
+  };
+  const CLAIM_ST = { open: 'Open', sent: 'Sent to supplier', approved: 'Approved (replaced / refunded)', rejected: 'Rejected', closed: 'Closed' };
+  window.gwClaim = id => {
+    const w = getW(id); if (!w) return; const s = wStatus(w);
+    const list = (w.claims || []).slice().reverse();
+    _openSubModal({ title: 'Warranty · ' + w.item, bodyHtml: `<div style="font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:12px"><b style="color:${s.c}">${esc(s.label)}</b> · ${esc(w.customer)}${w.plate ? ' · ' + esc(w.plate) : ''} · Invoice ${esc(w.invoice_no)}${w.vendor ? '<br>Supplier: ' + esc(w.vendor) : ''}</div>
+      ${s.k === 'expired' ? '<div style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.4);border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:12px">This warranty has expired. You can still record a goodwill claim.</div>' : ''}
+      ${list.map(c => `<div style="border:1px solid var(--brd);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(CLAIM_ST[c.status] || c.status)}</b><span style="color:var(--faint);font-size:12px">${esc(String(c.at).slice(0, 10))}</span></div><div style="margin:4px 0">${esc(c.issue)}</div><div style="color:var(--faint);font-size:12px">${c.by_us ? 'Our workmanship' : 'Part / supplier'}${c.supplier_ref ? ' · Supplier ref: ' + esc(c.supplier_ref) : ''}${c.resolution ? ' · ' + esc(c.resolution) : ''}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${['sent', 'approved', 'rejected', 'closed'].filter(k => k !== c.status).map(k => `<button type="button" class="mini-btn" onclick="gwClaimSet('${esc(w.id)}','${esc(c.id)}','${k}')">${esc(CLAIM_ST[k])}</button>`).join('')}</div></div>`).join('')}
+      <div style="border-top:1px solid var(--brd);margin-top:6px;padding-top:12px"><div style="font-weight:700;margin-bottom:6px">Raise a claim</div>
+        <textarea id="gwCIssue" rows="3" placeholder="What is wrong? e.g. battery not holding charge after 2 months" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)"></textarea>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:8px 0"><input type="checkbox" id="gwCUs" ${w.kind === 'labour' ? 'checked' : ''} style="width:16px;height:16px"> Caused by our workmanship (not the part)</label>
+        <button type="button" class="add-btn" onclick="gwClaimAdd('${esc(w.id)}')">Save claim</button></div>`, footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>` });
+  };
+  window.gwClaimAdd = async id => {
+    const w = getW(id), issue = val('gwCIssue').trim(); if (!w) return; if (!issue) return showToast('Describe the problem first', 'bad');
+    (w.claims = w.claims || []).push({ id: uid('clm'), at: nowStr(), issue: issue.slice(0, 500), status: w.vendor && w.kind === 'part' && !g('gwCUs').checked ? 'open' : 'open', by_us: g('gwCUs').checked, by: (currentWorker && currentWorker.name) || '' });
+    try { await saveWarranties(); } catch (e) { w.claims.pop(); return showToast('Could not save: ' + (e.message || e), 'bad'); }
+    try { audit('warranty-claim', `${w.item} · ${w.plate || w.customer}`, { invoice_no: w.invoice_no }); } catch (_) {}
+    closeSubModal(); drawWarranty(); showToast('Claim recorded', 'good');
+  };
+  window.gwClaimSet = async (wid, cid, status) => {
+    const w = getW(wid), c = w && (w.claims || []).find(x => x.id === cid); if (!c) return;
+    let ref = c.supplier_ref || '';
+    if (status === 'sent') { ref = (prompt('Supplier\'s claim / RMA number (optional)', ref) || ref || '').trim().slice(0, 60); }
+    c.status = status; c.supplier_ref = ref; c.updated_at = nowStr();
+    try { await saveWarranties(); } catch (e) { return showToast('Could not save: ' + (e.message || e), 'bad'); }
+    closeSubModal(); drawWarranty(); setTimeout(() => gwClaim(wid), 50);
+  };
+  window.gwSupplier = () => {
+    const by = {};
+    WS.items.filter(x => !x.void).forEach(w => (w.claims || []).forEach(c => { if (!c.by_us && (c.status === 'open' || c.status === 'sent')) (by[w.vendor || '— no supplier set —'] = by[w.vendor || '— no supplier set —'] || []).push({ w, c }); }));
+    const names = Object.keys(by).sort();
+    window._gwMsgs = {};
+    _openSubModal({ title: 'Supplier claims', bodyHtml: names.length ? names.map((n, i) => {
+      const msg = `Warranty claim — ${n === '— no supplier set —' ? '' : n}\n\n` + by[n].map(({ w, c }, k) => `${k + 1}. ${w.item}${w.qty > 1 ? ' × ' + w.qty : ''}\n   Our invoice ${w.invoice_no} dated ${dmy(w.start)}${w.plate ? ', vehicle ' + w.plate : ''}\n   Fault: ${c.issue}${c.supplier_ref ? '\n   Your ref: ' + c.supplier_ref : ''}`).join('\n\n') + `\n\nPlease advise replacement or credit.\n${(S().workshop_name || '')}`;
+      window._gwMsgs[i] = msg;
+      return `<div style="border:1px solid var(--brd);border-radius:10px;padding:12px 14px;margin-bottom:10px"><div style="font-weight:700;margin-bottom:6px">${esc(n)} · ${by[n].length} claim${by[n].length > 1 ? 's' : ''}</div><pre style="white-space:pre-wrap;font:12.5px/1.5 var(--fb);background:var(--bg2);border-radius:8px;padding:10px;margin:0 0 8px;max-height:180px;overflow:auto">${esc(msg)}</pre><button type="button" class="mini-btn good" onclick="gwCopy(${i})">Copy message</button> <a class="mini-btn" style="text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">WhatsApp</a> <a class="mini-btn" style="text-decoration:none" href="mailto:?subject=${encodeURIComponent('Warranty claim')}&body=${encodeURIComponent(msg)}">Email</a></div>`;
+    }).join('') : '<div style="color:var(--dim);font-size:13.5px;padding:8px 0">No open supplier claims. Claims on parts you raise on the Warranty tab appear here, grouped by supplier, ready to send.</div>', footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>` });
+  };
+  window.gwCopy = i => { navigator.clipboard.writeText(window._gwMsgs[i]).then(() => showToast('Copied', 'good')).catch(() => showToast('Copy failed — select the text manually', 'bad')); };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  4 · INDIA E-INVOICE (IRN) — builds the NIC e-invoice schema 1.1 JSON, stores the IRN / ack / signed QR you paste back, prints them
+  // ═══════════════════════════════════════════════════════════════════════════
+  const einvOn = () => cc() === 'IN' && (EI().enabled || !!S().turnover_over_5cr);
+  const ddmmyyyy = iso => { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : ''; };
+  const clip = (s, n) => String(s == null ? '' : s).trim().slice(0, n);
+  function einvBuild(inv) {
+    const bad = [], ws = inv.workshop_snapshot || _workshopSnapshot(), c = inv.customer || {};
+    const v = _exemptView(inv), taxPct = _invTaxPct(v), POS = _gstPlace(inv, ws), intra = POS.intra;
+    const gst = String(ws.gstin || '').toUpperCase().replace(/\s/g, ''), bgst = String(c.gstin || '').toUpperCase().replace(/\s/g, '');
+    const GSTIN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
+    if (!GSTIN.test(gst)) bad.push('your GSTIN (Settings → Workshop info)');
+    if (!GSTIN.test(bgst)) bad.push('the customer\'s GSTIN — e-invoicing applies to B2B invoices only (invoices to customers without a GSTIN need no IRN)');
+    const pin = (EI().pin || (String(ws.address || '').match(/\b\d{6}\b/) || [])[0] || '');
+    if (!/^\d{6}$/.test(pin)) bad.push('your 6-digit PIN code (Settings → E-invoicing)');
+    const bpin = String(c.pincode || (String(c.address || '').match(/\b\d{6}\b/) || [])[0] || '');
+    if (!/^\d{6}$/.test(bpin)) bad.push('the customer\'s 6-digit PIN code');
+    if (!ws.address) bad.push('your address');
+    if (!(c.addr1 || c.address)) bad.push('the customer\'s address');
+    if (!/^[A-Za-z1-9][A-Za-z0-9/-]{0,15}$/.test(String(inv.number || ''))) bad.push('an invoice number of at most 16 letters/digits/"-"/"/" that does not start with 0');
+    const scode = ws.state_code || gst.slice(0, 2), bcode = POS.code || bgst.slice(0, 2);
+    const keep = it => !v.client_decision_at || (it.approval || 'pending') !== 'rejected';
+    const items = []; let n = 0;
+    const push = (d) => { n++; items.push(Object.assign({ SlNo: String(n) }, d)); };
+    const split = (net, rate) => { const tax = round2(net * rate / 100); if (intra) { const cg = round2(tax / 2); return { c: cg, s: round2(tax - cg), i: 0 }; } return { c: 0, s: 0, i: tax }; };
+    (v.lines || []).filter(keep).forEach(l => {
+      const qty = Math.max(1, Number(l.qty || 1)), unit = Number(l.unit_price || 0), gross = round2(unit * qty), da = round2(gross * Number(l.disc_pct || 0) / 100), net = round2(gross - da);
+      const rate = l.taxable === false ? 0 : Number(_lineRate(l, taxPct) || 0), t = split(net, rate), hsn = String(l.hsn || '').replace(/\D/g, '');
+      if (hsn.length < 4) bad.push(`an HSN code on "${l.name || 'a part'}" (at least 4 digits)`);
+      push({ PrdDesc: clip(l.name || 'Part', 300), IsServc: 'N', HsnCd: hsn, Qty: qty, Unit: 'NOS', UnitPrice: round2(unit), TotAmt: gross, Discount: da, AssAmt: net, GstRt: rate, IgstAmt: t.i, CgstAmt: t.c, SgstAmt: t.s, CesRt: 0, CesAmt: 0, TotItemVal: round2(net + t.c + t.s + t.i) });
+    });
+    (v.charges || []).filter(keep).forEach(ch => {
+      const amt = round2(ch.amount || 0), rate = Number(_chRate(ch, v, taxPct) || 0), t = split(amt, rate), sac = String(ch.sac || ch.hsn || '9987').replace(/\D/g, '') || '9987';
+      push({ PrdDesc: clip(ch.name || 'Service', 300), IsServc: 'Y', HsnCd: sac, Qty: 1, Unit: 'OTH', UnitPrice: amt, TotAmt: amt, Discount: 0, AssAmt: amt, GstRt: rate, IgstAmt: t.i, CgstAmt: t.c, SgstAmt: t.s, CesRt: 0, CesAmt: 0, TotItemVal: round2(amt + t.c + t.s + t.i) });
+    });
+    if (!items.length) bad.push('at least one item');
+    const sum = k => round2(items.reduce((a, x) => a + Number(x[k] || 0), 0));
+    const tot = round2(_invoiceTotals(inv).roundOff), sumVal = sum('TotItemVal');
+    const json = {
+      Version: '1.1',
+      TranDtls: { TaxSch: 'GST', SupTyp: 'B2B', RegRev: 'N', IgstOnIntra: 'N' },
+      DocDtls: { Typ: 'INV', No: String(inv.number || ''), Dt: ddmmyyyy(inv.issue_date || (inv.created_at || '').slice(0, 10)) },
+      SellerDtls: { Gstin: gst, LglNm: clip(ws.workshop_name, 100), Addr1: clip(ws.address, 100), Loc: clip(ws.city || S().city || ws.state || 'NA', 50), Pin: Number(pin) || 0, Stcd: String(scode), ...(ws.phone && /^\d{6,12}$/.test(String(ws.phone).replace(/\D/g, '')) ? { Ph: String(ws.phone).replace(/\D/g, '').slice(-12) } : {}), ...(ws.email ? { Em: clip(ws.email, 100) } : {}) },
+      BuyerDtls: { Gstin: bgst, LglNm: clip(c.name, 100), Pos: String(bcode), Addr1: clip(c.addr1 || c.address, 100), Loc: clip(c.city || POS.name || 'NA', 50), Pin: Number(bpin) || 0, Stcd: String(bcode), ...(c.phone && /^\d{6,12}$/.test(String(c.phone).replace(/\D/g, '')) ? { Ph: String(c.phone).replace(/\D/g, '').slice(-12) } : {}), ...(c.email ? { Em: clip(c.email, 100) } : {}) },
+      ItemList: items,
+      ValDtls: { AssVal: sum('AssAmt'), CgstVal: sum('CgstAmt'), SgstVal: sum('SgstAmt'), IgstVal: sum('IgstAmt'), CesVal: 0, Discount: 0, RndOffAmt: round2(tot - sumVal), TotInvVal: tot }
+    };
+    return { json, bad: [...new Set(bad)] };
+  }
+  const dl = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: type || 'application/json' })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 20000); };
+  window.gpEinvOpen = function (id) {
+    const inv = (D.invoices || []).find(x => x.id === id); if (!inv) return showToast('Invoice not found', 'bad');
+    const E = inv.einv || {}, b = einvBuild(inv);
+    _openSubModal({ title: 'E-invoice · ' + (inv.number || ''), bodyHtml: `
+      ${E.irn ? `<div style="background:rgba(32,227,178,.08);border:1px solid rgba(32,227,178,.4);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px"><b style="color:var(--teal)">IRN recorded</b><div style="word-break:break-all;font-size:12px;margin-top:4px">${esc(E.irn)}</div><div style="font-size:12px;color:var(--faint);margin-top:2px">Ack ${esc(E.ack_no || '')} · ${esc(E.ack_dt || '')}. Do not edit this invoice any more — a change needs a credit note (or a cancellation on the portal within 24 hours).</div></div>` : ''}
+      <ol style="font-size:13.5px;line-height:1.7;padding-left:18px;margin:0 0 12px"><li>Download the e-invoice file below.</li><li>Upload it on the Invoice Registration Portal (einvoice1.gst.gov.in → Bulk generation / Generate IRN), or hand it to your GSP / accounting software.</li><li>Copy the <b>IRN</b>, <b>Ack no.</b>, <b>Ack date</b> and the <b>signed QR code text</b> back here — they then print on the invoice.</li></ol>
+      ${b.bad.length ? `<div style="background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.4);border-radius:10px;padding:10px 12px;font-size:12.5px;margin-bottom:12px"><b>Still needed before the file can be made:</b><ul style="margin:6px 0 0;padding-left:18px">${b.bad.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      <button type="button" class="add-btn" ${b.bad.length ? 'disabled style="opacity:.5;cursor:not-allowed"' : ''} onclick="gpEinvDownload('${esc(inv.id)}')">Download e-invoice file (JSON)</button>
+      <div style="border-top:1px solid var(--brd);margin-top:16px;padding-top:14px"><div style="font-weight:700;margin-bottom:8px">Paste back from the portal</div>
+        <div class="f-grp"><label>IRN (64 characters)</label><input id="gei-irn" value="${esc(E.irn || '')}" style="font-family:monospace;font-size:12px"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="f-grp"><label>Ack no.</label><input id="gei-ack" value="${esc(E.ack_no || '')}"></div><div class="f-grp"><label>Ack date</label><input id="gei-dt" value="${esc(E.ack_dt || '')}" placeholder="2026-11-20 14:32:10"></div></div>
+        <div class="f-grp"><label>Signed QR code text</label><textarea id="gei-qr" rows="3" style="width:100%;font-family:monospace;font-size:11px;padding:8px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg2);color:var(--txt)">${esc(E.qr || '')}</textarea></div>
+        <button type="button" class="mini-btn good" onclick="gpEinvSave('${esc(inv.id)}')">Save IRN details</button> ${E.irn ? `<button type="button" class="mini-btn danger" onclick="gpEinvClear('${esc(inv.id)}')">Remove</button>` : ''}</div>`, footHtml: `<div style="flex:1"></div><button class="fbtn fbtn-cancel" onclick="closeSubModal()">Close</button>` });
+  };
+  window.gpEinvDownload = function (id) {
+    const inv = (D.invoices || []).find(x => x.id === id); if (!inv) return;
+    const b = einvBuild(inv); if (b.bad.length) return showToast('Fill in the missing details first', 'bad');
+    dl((inv.number || 'invoice').replace(/[^\w.-]/g, '_') + '-einvoice.json', JSON.stringify([b.json], null, 2));
+    try { audit('einvoice-json', inv.number || '', { invoice_id: inv.id }); } catch (_) {}
+    showToast('Downloaded — upload it on the e-invoice portal', 'good');
+  };
+  async function qrDataUrl(text) {
+    try {
+      await ensureQR();
+      const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-9999px;top:0'; document.body.appendChild(box);
+      new QRCode(box, { text, width: 300, height: 300, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
+      await new Promise(r => setTimeout(r, 60));
+      const cv = box.querySelector('canvas'), im = box.querySelector('img');
+      const url = cv ? cv.toDataURL('image/png') : (im && im.src) || ''; box.remove(); return url;
+    } catch (e) { console.warn('[einv qr]', e); return ''; }
+  }
+  window.gpEinvSave = async function (id) {
+    const inv = (D.invoices || []).find(x => x.id === id); if (!inv) return;
+    const irn = val('gei-irn').trim().toLowerCase(), qr = val('gei-qr').trim();
+    if (!/^[0-9a-f]{64}$/.test(irn)) return showToast('The IRN is 64 characters (0-9 and a-f). Check what you pasted.', 'bad');
+    if (!val('gei-ack').trim()) return showToast('Enter the Ack no.', 'bad');
+    const img = qr ? await qrDataUrl(qr) : '';
+    if (qr && !img) showToast('Could not draw the QR code — IRN saved without it', 'bad');
+    inv.einv = { irn, ack_no: val('gei-ack').trim(), ack_dt: val('gei-dt').trim(), qr, qr_img: img, at: nowStr(), by: (currentWorker && currentWorker.name) || '' };
+    try { await wsSave('invoices', D.invoices); } catch (e) { return showToast('Could not save: ' + (e.message || e), 'bad'); }
+    try { audit('einvoice-irn', inv.number || '', { invoice_id: inv.id }); } catch (_) {}
+    closeSubModal(); try { renderInvoices(); } catch (_) {} showToast('IRN saved — it now prints on the invoice', 'good');
+  };
+  window.gpEinvClear = async function (id) {
+    const inv = (D.invoices || []).find(x => x.id === id); if (!inv) return;
+    if (!(await customConfirm('Remove the IRN details from this invoice? (This does not cancel the e-invoice on the portal.)', { title: 'Remove IRN', okLabel: 'Remove' }))) return;
+    delete inv.einv; try { await wsSave('invoices', D.invoices); } catch (e) { return showToast('Could not save', 'bad'); }
+    closeSubModal(); try { renderInvoices(); } catch (_) {}
+  };
+  // print the IRN block + QR on the invoice (and on the customer's invoice link)
+  const _ih = window._invoiceHTMLFromRecord;
+  if (typeof _ih === 'function') window._invoiceHTMLFromRecord = function (inv) {
+    let html = _ih.apply(this, arguments);
+    try {
+      const E = inv && inv.einv;
+      if (E && E.irn) {
+        const blk = `<div style="margin:14px 0 0;padding:10px 12px;border:1px solid #bbb;border-radius:6px;font:11px/1.5 Arial,sans-serif;color:#111;display:flex;gap:14px;align-items:center;page-break-inside:avoid">${E.qr_img ? `<img src="${E.qr_img}" alt="E-invoice QR" style="width:96px;height:96px;flex:none">` : ''}<div style="word-break:break-all"><b>e-Invoice</b><br>IRN: ${esc(E.irn)}<br>Ack No: ${esc(E.ack_no || '')}${E.ack_dt ? ' &nbsp;·&nbsp; Ack Date: ' + esc(E.ack_dt) : ''}</div></div>`;
+        html = /<\/body>/i.test(html) ? html.replace(/<\/body>(?![\s\S]*<\/body>)/i, blk + '</body>') : html + blk;
+      }
+    } catch (e) { console.warn('[einv print]', e); }
+    return html;
+  };
+  // the "e-Inv" button on the invoice list
+  const _ri = window.renderInvoices;
+  if (typeof _ri === 'function') window.renderInvoices = async function () {
+    const r = await _ri.apply(this, arguments);
+    try {
+      if (einvOn()) document.querySelectorAll('#tab-invoices button[onclick^="creditNoteOpen("]').forEach(btn => {
+        if (btn.previousElementSibling && btn.previousElementSibling.dataset && btn.previousElementSibling.dataset.einv) return;
+        const id = (btn.getAttribute('onclick').match(/'([^']+)'/) || [])[1], inv = (D.invoices || []).find(x => x.id === id);
+        if (!inv || inv.is_estimate || !(inv.customer && inv.customer.gstin)) return;
+        const b = document.createElement('button'); b.className = 'mini-btn'; b.dataset.einv = '1'; b.type = 'button'; b.title = 'E-invoice (IRN) for this B2B invoice';
+        b.innerHTML = inv.einv && inv.einv.irn ? 'e-Inv ✓' : 'e-Inv'; if (inv.einv && inv.einv.irn) b.style.color = 'var(--teal)';
+        b.onclick = () => gpEinvOpen(id); btn.before(b);
+      });
+    } catch (e) { console.warn('[einv btn]', e); }
+    return r;
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  5 · OFFLINE MODE
+  //  • a service worker (app/sw.js) keeps the app itself available without a connection
+  //  • Firestore's local cache (already on) serves every read; writes are applied on the device straight away and sync later —
+  //    here we make sure the screens don't wait for the server while offline, and show what is queued
+  //  • photos taken offline are kept on the device and uploaded when the connection returns
+  // ═══════════════════════════════════════════════════════════════════════════
+  const net = { pending: 0, queued: 0 };
+  const isOff = () => navigator.onLine === false;
+  function banner() {
+    let b = g('gpNetBar'); const off = isOff(), n = net.pending + net.queued;
+    if (!off && !n) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('div'); b.id = 'gpNetBar'; b.setAttribute('role', 'status'); b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:99998;padding:9px 16px;border-radius:999px;font:700 13px var(--fb);box-shadow:0 6px 24px rgba(0,0,0,.35);max-width:92vw;text-align:center;color:#fff'; document.body.appendChild(b); }
+    b.style.background = off ? '#b45309' : '#1d4ed8';
+    b.textContent = off ? `Offline — working from this device${n ? ` · ${n} change${n > 1 ? 's' : ''} will sync when you are back online` : ''}` : `Syncing ${n} change${n > 1 ? 's' : ''}…`;
+  }
+  try {
+    const FS = firebase.firestore;
+    const wrap = (proto, name) => {
+      if (!proto || typeof proto[name] !== 'function' || proto[name].__gpOff) return;
+      const o = proto[name];
+      proto[name] = function () {
+        const p = o.apply(this, arguments);
+        if (!isOff()) return p;
+        net.pending++; banner();
+        const done = () => { net.pending = Math.max(0, net.pending - 1); banner(); };
+        p.then(done, e => { done(); console.warn('[offline write rejected]', e && e.code, e && e.message); });
+        return Promise.race([p, new Promise(res => setTimeout(res, 900))]);
+      };
+      proto[name].__gpOff = true;
+    };
+    wrap(FS.DocumentReference.prototype, 'set'); wrap(FS.DocumentReference.prototype, 'update'); wrap(FS.DocumentReference.prototype, 'delete');
+    wrap(FS.WriteBatch.prototype, 'commit');
+  } catch (e) { console.warn('[offline wrap]', e); }
+
+  // photo queue (IndexedDB)
+  const idb = () => new Promise((res, rej) => { const r = indexedDB.open('gp_offline', 1); r.onupgradeneeded = () => r.result.createObjectStore('media', { keyPath: 'id' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  const qTx = async (mode, fn) => { const db = await idb(); return new Promise((res, rej) => { const t = db.transaction('media', mode), st = t.objectStore('media'), rq = fn(st); t.oncomplete = () => res(rq && rq.result); t.onerror = () => rej(t.error); }); };
+  const qPut = rec => qTx('readwrite', s => s.put(rec)), qAll = () => qTx('readonly', s => s.getAll()), qDel = id => qTx('readwrite', s => s.delete(id));
+  const _up = window.uploadJobPhoto;
+  if (typeof _up === 'function') window.uploadJobPhoto = async function (jobId, file, label) {
+    if (!isOff()) return _up.apply(this, arguments);
+    if (!file) throw new Error('No file selected');
+    if (file.size > 8 * 1024 * 1024) throw new Error('Photo too large (max 8 MB before resize)');
+    const resized = await _resizePhoto(file, 1280);
+    const meta = { id: uid('photo'), job_id: jobId, label: (label || 'Other').trim() || 'Other', uploaded_at: nowStr(), uploaded_by: (currentWorker && currentWorker.name) || '' };
+    await qPut(Object.assign({ dataUrl: resized, ws: wsUid(), name: (file.name || 'photo') + '.jpg' }, meta));
+    net.queued++; banner(); showToast('Offline — photo saved on this device, it uploads when you are back online', 'good');
+    return meta;
+  };
+  let flushing = false;
+  async function flushQueue() {
+    if (flushing || isOff() || !wsUid()) return; flushing = true;
+    try {
+      const all = (await qAll() || []).filter(r => r.ws === wsUid()); net.queued = all.length; banner();
+      for (const r of all) {
+        try {
+          const data = await _uploadToCloudinary(_dataUrlToBlob(r.dataUrl), r.name);
+          await wsCol('job_photos').doc(r.id).set({ id: r.id, job_id: r.job_id, label: r.label, uploaded_at: r.uploaded_at, uploaded_by: r.uploaded_by, data });
+          await qDel(r.id); net.queued = Math.max(0, net.queued - 1); banner();
+        } catch (e) { console.warn('[photo queue]', e); break; }
+      }
+      if (all.length && !net.queued) showToast('Back online — queued photos uploaded', 'good');
+    } catch (e) { console.warn('[flush]', e); } finally { flushing = false; banner(); }
+  }
+  window.addEventListener('offline', banner);
+  window.addEventListener('online', () => { banner(); setTimeout(flushQueue, 1500); try { fbDb.waitForPendingWrites().then(() => { net.pending = 0; banner(); }).catch(() => {}); } catch (_) {} });
+
+  // service worker (add ?nosw=1 to the address once to switch it off and clear its cache)
+  try {
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      if (/[?&]nosw=1/.test(location.search)) {
+        navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())); if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
+      } else window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(e => console.warn('[sw]', e)));
+    }
+  } catch (_) {}
+
+  window.__gp2 = { drawWarranty, einvBuild, syncFromInvoices, WS, wStatus, addMonths, qrDataUrl, banner, net };
+  const _ea = window.enterApp;
+  if (typeof _ea === 'function') window.enterApp = function () { const r = _ea.apply(this, arguments); setTimeout(() => { try { retentionNotice(); flushQueue(); if (WR().enabled) { loadWarranties().then(syncFromInvoices).then(() => setBadge('warranty', WS.items.filter(x => !x.void && openClaim(x)).length)); } } catch (_) {} }, 3500); return r; };
 })();
 </script>
 <script src="../gp-busy.js"></script>
